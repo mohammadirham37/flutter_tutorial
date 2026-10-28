@@ -1,0 +1,67 @@
+<p class="lead">Bagian ini memberi gambaran alur publikasi. Untuk mata kuliah ini, publikasi ke Play Store <strong>tidak wajib</strong>, tetapi memahami alurnya penting jika suatu hari Anda merilis aplikasi sungguhan atau bekerja di perusahaan.</p>
+
+<h4>Google Play Console</h4>
+<p>Akun developer Google Play dibuat di <a href="https://play.google.com/console" target="_blank" rel="noopener">play.google.com/console</a> dengan biaya pendaftaran satu kali dan verifikasi identitas. Setelah akun aktif, alurnya:</p>
+<ol>
+  <li><strong>Create app</strong>: isi nama aplikasi, bahasa default, jenis (app/game), gratis atau berbayar.</li>
+  <li><strong>Lengkapi “Set up your app”</strong>: kebijakan privasi (URL), akses aplikasi (jika butuh login, berikan akun demo untuk reviewer), iklan, rating konten, target usia, dan formulir <strong>Data safety</strong> (data apa yang dikumpulkan: email, catatan pengguna, dll.).</li>
+  <li><strong>Store listing</strong>: deskripsi singkat dan lengkap, ikon 512×512, feature graphic 1024×500, minimal beberapa screenshot HP.</li>
+  <li><strong>Testing → Internal testing</strong>: buat rilis baru, unggah file <code>app-release.aab</code>, isi catatan rilis.</li>
+  <li><strong>Tambahkan penguji</strong>: daftar email (maksimal 100 orang). Penguji membuka tautan undangan, menerima, lalu memasang dari Play Store.</li>
+  <li>Setelah stabil, naikkan ke <em>closed testing</em>, lalu <em>production</em>. Akun developer pribadi baru biasanya diwajibkan menjalankan closed testing dengan sejumlah penguji selama periode tertentu sebelum boleh rilis production; cek syarat terbaru di Play Console.</li>
+</ol>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Jalur</th><th>Penguji</th><th>Review Google</th><th>Kegunaan</th></tr></thead>
+    <tbody>
+      <tr><td>Internal testing</td><td>Maks. 100 email</td><td>Sangat cepat / tanpa menunggu lama</td><td>Tim sendiri, dosen, asisten</td></tr>
+      <tr><td>Closed testing</td><td>Daftar email atau Google Group</td><td>Ya</td><td>Beta tester terbatas</td></tr>
+      <tr><td>Open testing</td><td>Siapa saja yang bergabung</td><td>Ya</td><td>Beta publik</td></tr>
+      <tr><td>Production</td><td>Semua pengguna Play Store</td><td>Ya</td><td>Rilis resmi</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Play App Signing</h4>
+<p>Saat mengunggah AAB pertama, Play Console menawarkan <strong>Play App Signing</strong>: Google menyimpan kunci penandatanganan aplikasi yang sesungguhnya, sedangkan keystore Anda menjadi <em>upload key</em> (itulah sebabnya aliasnya <code>upload</code>). Keuntungannya, jika upload key hilang, Anda bisa meminta reset ke Google tanpa kehilangan aplikasi.</p>
+<p>Jika memakai fitur Google Sign-In atau API yang meminta sidik jari SHA-1/SHA-256, ambil nilainya dari halaman <em>App integrity</em> di Play Console (kunci aplikasi), bukan hanya dari keystore lokal. Sidik jari keystore lokal bisa dilihat dengan:</p>
+<pre><code class="language-bash">keytool -list -v -keystore android/app/upload-keystore.jks -alias upload</code></pre>
+
+<h4>Setiap update</h4>
+<pre><code class="language-bash"># 1. Naikkan versi di pubspec.yaml, misalnya 1.2.0+7 menjadi 1.2.1+8
+# 2. Build ulang
+flutter build appbundle --obfuscate --split-debug-info=build/symbols \
+  --dart-define-from-file=config/prod.json
+# 3. Unggah app-release.aab ke jalur testing, isi catatan rilis
+# 4. Simpan folder build/symbols untuk versi ini</code></pre>
+
+<h4>iOS secara singkat</h4>
+<p>Build iOS hanya bisa dilakukan di <strong>macOS dengan Xcode</strong>. Gambaran alurnya:</p>
+<ol>
+  <li>Daftar <strong>Apple Developer Program</strong> (berbayar tahunan). Tanpa akun berbayar, aplikasi hanya bisa dipasang ke iPhone sendiri lewat kabel dan berlaku beberapa hari.</li>
+  <li>Buka <code>ios/Runner.xcworkspace</code> di Xcode, atur <em>Bundle Identifier</em> dan <em>Team</em> di tab <em>Signing &amp; Capabilities</em>.</li>
+  <li>Isi alasan permission di <code>Info.plist</code> (bagian 4).</li>
+  <li>Build arsip: <code>flutter build ipa --dart-define-from-file=config/prod.json</code>.</li>
+  <li>Unggah ke <strong>App Store Connect</strong> (lewat aplikasi Transporter atau Xcode), lalu bagikan ke penguji lewat <strong>TestFlight</strong>.</li>
+  <li>Kirim untuk review App Store saat siap rilis.</li>
+</ol>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Android</th><th>Padanan iOS</th></tr></thead>
+    <tbody>
+      <tr><td>Play Console</td><td>App Store Connect</td></tr>
+      <tr><td>Internal testing</td><td>TestFlight</td></tr>
+      <tr><td>applicationId</td><td>Bundle Identifier</td></tr>
+      <tr><td>Keystore + key.properties</td><td>Certificate + Provisioning Profile (dikelola Xcode)</td></tr>
+      <tr><td><code>flutter build appbundle</code></td><td><code>flutter build ipa</code></td></tr>
+      <tr><td>AndroidManifest permission</td><td>Info.plist usage description</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Mengunggah APK ke Play Console. Aplikasi baru wajib memakai AAB.</li>
+  <li>Aplikasi butuh login tetapi tidak memberi akun demo ke reviewer, sehingga rilis ditolak.</li>
+  <li>Formulir Data safety tidak sesuai kenyataan (misalnya menyatakan tidak mengumpulkan email padahal ada fitur register).</li>
+  <li>Tidak punya kebijakan privasi. Untuk aplikasi yang menyimpan data pengguna, URL kebijakan privasi wajib ada (boleh berupa halaman GitHub Pages sederhana).</li>
+</ul></div>

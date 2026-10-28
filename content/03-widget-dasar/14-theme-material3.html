@@ -1,0 +1,237 @@
+<p class="lead">Daripada mengatur warna dan ukuran huruf di setiap widget, Flutter menyediakan <strong><code>ThemeData</code></strong>: satu tempat untuk mengatur tampilan seluruh aplikasi. Sejak Flutter 3.16, tema bawaan sudah memakai <strong>Material 3</strong>.</p>
+
+<h4>ColorScheme.fromSeed: satu warna, satu palet lengkap</h4>
+<p>Cukup berikan satu <strong>warna benih</strong> (seed). Flutter menghitung palet lengkap yang serasi: <code>primary</code>, <code>secondary</code>, <code>tertiary</code>, <code>surface</code>, <code>error</code>, beserta pasangan warna teks di atasnya (<code>onPrimary</code>, <code>onSurface</code>, dan seterusnya).</p>
+<pre><code class="language-dart">MaterialApp(
+  theme: ThemeData(
+    colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0D47A1)),
+  ),
+  home: const Scaffold(body: Center(child: Text('Tema biru'))),
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/theme-material3-1.jpg" alt="Tema dari ColorScheme.fromSeed" loading="lazy">
+    <div class="screenshot-caption">Tema dari ColorScheme.fromSeed</div>
+  </div>
+</div>
+<p>Bentuk singkatnya adalah <code>ThemeData(colorSchemeSeed: Colors.indigo)</code>, yang sudah kita pakai di contoh-contoh sebelumnya.</p>
+
+<h4>Peran warna di ColorScheme</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Warna</th><th>Dipakai untuk</th></tr></thead>
+    <tbody>
+      <tr><td><code>primary</code> / <code>onPrimary</code></td><td>Tombol utama, elemen penting / teks di atasnya.</td></tr>
+      <tr><td><code>primaryContainer</code> / <code>onPrimaryContainer</code></td><td>Latar lembut untuk kartu atau chip yang ditonjolkan.</td></tr>
+      <tr><td><code>secondary</code>, <code>tertiary</code></td><td>Aksen pendukung.</td></tr>
+      <tr><td><code>surface</code> / <code>onSurface</code></td><td>Latar halaman dan kartu / teks umum.</td></tr>
+      <tr><td><code>error</code></td><td>Pesan kesalahan.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Membaca tema dari widget</h4>
+<pre><code class="language-dart">Widget kotakTema(BuildContext context) {
+  final warna = Theme.of(context).colorScheme;
+  final teks = Theme.of(context).textTheme;
+
+  return Container(
+    padding: const EdgeInsets.all(16),
+    color: warna.primaryContainer,
+    child: Text(
+      'Halo',
+      style: teks.headlineMedium?.copyWith(color: warna.onPrimaryContainer),
+    ),
+  );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/theme-material3-2.jpg" alt="Warna primaryContainer dan teks headlineMedium dari tema" loading="lazy">
+    <div class="screenshot-caption">Warna primaryContainer dan teks headlineMedium dari tema</div>
+  </div>
+</div>
+
+<h4>Skala teks Material 3 (<code>textTheme</code>)</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kelompok</th><th>Nama gaya</th><th>Contoh pemakaian</th></tr></thead>
+    <tbody>
+      <tr><td>Display</td><td><code>displayLarge/Medium/Small</code></td><td>Angka besar, hero</td></tr>
+      <tr><td>Headline</td><td><code>headlineLarge/Medium/Small</code></td><td>Judul halaman</td></tr>
+      <tr><td>Title</td><td><code>titleLarge/Medium/Small</code></td><td>Judul kartu, AppBar</td></tr>
+      <tr><td>Body</td><td><code>bodyLarge/Medium/Small</code></td><td>Paragraf</td></tr>
+      <tr><td>Label</td><td><code>labelLarge/Medium/Small</code></td><td>Teks tombol, chip</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh lengkap: tema terang, tema gelap, dan tombol ganti tema</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const AplikasiBertema());
+}
+
+class AplikasiBertema extends StatefulWidget {
+  const AplikasiBertema({super.key});
+
+  @override
+  State&lt;AplikasiBertema&gt; createState() =&gt; _AplikasiBertemaState();
+}
+
+class _AplikasiBertemaState extends State&lt;AplikasiBertema&gt; {
+  // system = ikut pengaturan HP, light = terang, dark = gelap
+  ThemeMode _mode = ThemeMode.system;
+
+  static const Color _warnaKampus = Color(0xFFF2A900); // kuning keemasan
+
+  ThemeData _buatTema(Brightness brightness) {
+    final skema = ColorScheme.fromSeed(
+      seedColor: _warnaKampus,
+      brightness: brightness,
+    );
+    return ThemeData(
+      colorScheme: skema,
+      // Atur gaya teks tertentu, sisanya ikut bawaan Material 3
+      textTheme: const TextTheme(
+        headlineSmall: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: skema.primaryContainer,
+        foregroundColor: skema.onPrimaryContainer,
+        centerTitle: true,
+      ),
+      cardTheme: const CardThemeData(
+        margin: EdgeInsets.symmetric(vertical: 6),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: _buatTema(Brightness.light),      // dipakai saat mode terang
+      darkTheme: _buatTema(Brightness.dark),   // dipakai saat mode gelap
+      themeMode: _mode,                        // menentukan mana yang aktif
+      home: HalamanTema(
+        mode: _mode,
+        onGantiMode: (modeBaru) =&gt; setState(() =&gt; _mode = modeBaru),
+      ),
+    );
+  }
+}
+
+class HalamanTema extends StatelessWidget {
+  final ThemeMode mode;
+  final ValueChanged&lt;ThemeMode&gt; onGantiMode;
+
+  const HalamanTema({super.key, required this.mode, required this.onGantiMode});
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme;
+    final teks = Theme.of(context).textTheme;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Tema Material 3')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text('Pilih mode tema', style: teks.headlineSmall),
+          const SizedBox(height: 12),
+          SegmentedButton&lt;ThemeMode&gt;(
+            segments: const [
+              ButtonSegment(value: ThemeMode.light, icon: Icon(Icons.light_mode), label: Text('Terang')),
+              ButtonSegment(value: ThemeMode.system, icon: Icon(Icons.phone_android), label: Text('Sistem')),
+              ButtonSegment(value: ThemeMode.dark, icon: Icon(Icons.dark_mode), label: Text('Gelap')),
+            ],
+            selected: {mode},
+            onSelectionChanged: (pilihan) =&gt; onGantiMode(pilihan.first),
+          ),
+          const SizedBox(height: 24),
+          Text('Palet dari ColorScheme.fromSeed', style: teks.titleMedium),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              KotakWarna(nama: 'primary', latar: warna.primary, teks: warna.onPrimary),
+              KotakWarna(nama: 'secondary', latar: warna.secondary, teks: warna.onSecondary),
+              KotakWarna(nama: 'tertiary', latar: warna.tertiary, teks: warna.onTertiary),
+              KotakWarna(nama: 'primaryContainer', latar: warna.primaryContainer, teks: warna.onPrimaryContainer),
+              KotakWarna(nama: 'surface', latar: warna.surfaceContainerHighest, teks: warna.onSurface),
+              KotakWarna(nama: 'error', latar: warna.error, teks: warna.onError),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.campaign),
+              title: Text('Card ikut tema'),
+              subtitle: Text('Warna dan margin diatur di cardTheme'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(onPressed: () {}, child: const Text('Tombol utama (lebar penuh dari tema)')),
+        ],
+      ),
+    );
+  }
+}
+
+class KotakWarna extends StatelessWidget {
+  final String nama;
+  final Color latar;
+  final Color teks;
+
+  const KotakWarna({super.key, required this.nama, required this.latar, required this.teks});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 150,
+      height: 56,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: latar, borderRadius: BorderRadius.circular(12)),
+      child: Text(nama, style: TextStyle(color: teks, fontSize: 12)),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/theme-material3-3.jpg" alt="Tema terang Material 3 dengan palet warna" loading="lazy">
+    <div class="screenshot-caption">Tema terang Material 3 dengan palet warna</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/theme-material3-gelap.jpg" alt="Setelah memilih mode Gelap" loading="lazy">
+    <div class="screenshot-caption">Setelah memilih mode Gelap</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><code>theme</code> dan <code>darkTheme</code> dibuat dari fungsi yang sama, hanya berbeda <code>brightness</code>. Palet gelap otomatis dihitung dari seed yang sama.</li>
+  <li><code>themeMode</code> menentukan tema mana yang dipakai. <code>ThemeMode.system</code> mengikuti pengaturan mode gelap di HP.</li>
+  <li><code>appBarTheme</code>, <code>cardTheme</code>, dan <code>filledButtonTheme</code> mengatur gaya default semua AppBar, Card, dan FilledButton sekaligus. Itulah sebabnya Card dan tombol di halaman tidak perlu diatur satu per satu.</li>
+  <li>Pilihan mode disimpan di <code>_AplikasiBertemaState</code> (induk paling atas) dan diubah lewat callback <code>onGantiMode</code>, sesuai pola "data turun, kejadian naik".</li>
+  <li><code>SegmentedButton</code> adalah tombol pilihan bersegmen dari Material 3.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Menyimpan pilihan tema</h4><p>Saat aplikasi ditutup, pilihan tema di contoh ini kembali ke "Sistem". Menyimpannya secara permanen akan dipelajari di Modul 10 (SharedPreferences) dan mengelolanya lintas halaman di Modul 08 (Provider).</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Memberi <code>brightness</code> berbeda</strong> antara <code>ThemeData</code> dan <code>ColorScheme</code>. Atur <code>brightness</code> di <code>ColorScheme.fromSeed</code> seperti contoh di atas.</li>
+  <li><strong>Menulis warna langsung</strong> (<code>Colors.white</code>, <code>Colors.black</code>) di banyak tempat. Di mode gelap teks hitam di latar gelap jadi tidak terbaca. Gunakan <code>colorScheme.onSurface</code> dan kawan-kawannya.</li>
+  <li><strong>Mengisi <code>darkTheme</code> tetapi lupa <code>themeMode</code></strong>. Default-nya <code>ThemeMode.system</code>, jadi tema gelap hanya muncul jika HP sedang mode gelap.</li>
+  <li><strong>Memakai <code>CardTheme</code></strong> di <code>ThemeData.cardTheme</code>. Versi Flutter terbaru memakai <code>CardThemeData</code>.</li>
+</ul></div>

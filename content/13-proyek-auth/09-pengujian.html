@@ -1,0 +1,53 @@
+<p class="lead">Fitur autentikasi wajib diuji secara sistematis karena menyangkut keamanan dan menjadi pintu masuk seluruh aplikasi. Kerjakan checklist berikut dan catat hasilnya di laporan praktikum.</p>
+
+<h4>Checklist pengujian manual</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>No</th><th>Skenario</th><th>Langkah</th><th>Hasil yang diharapkan</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Validasi form login</td><td>Tekan Masuk dengan form kosong, lalu isi email tanpa "@"</td><td>Pesan merah di bawah field, tidak ada request ke server</td></tr>
+      <tr><td>2</td><td>Show/hide password</td><td>Ketik password, tekan ikon mata</td><td>Teks password terlihat/tersembunyi bergantian</td></tr>
+      <tr><td>3</td><td>Validasi register</td><td>Isi password dan ulangi password berbeda</td><td>"Password tidak sama"</td></tr>
+      <tr><td>4</td><td>Register (Confirm email OFF)</td><td>Isi semua field dengan benar, tekan Daftar</td><td>Langsung masuk Home dan nama tampil. Baris baru muncul di tabel <code>profiles</code></td></tr>
+      <tr><td>5</td><td>Register (Confirm email ON)</td><td>Aktifkan Confirm email di dashboard, register email lain</td><td>Dialog "Cek Email Anda", kembali ke Login. Login sebelum konfirmasi menghasilkan "Email belum dikonfirmasi"</td></tr>
+      <tr><td>6</td><td>Register email yang sama (Confirm OFF)</td><td>Register ulang dengan email dari skenario 4</td><td>SnackBar "Email sudah terdaftar. Silakan login."</td></tr>
+      <tr><td>7</td><td>Login password salah</td><td>Email benar, password salah</td><td>SnackBar "Email atau password salah."</td></tr>
+      <tr><td>8</td><td>Klik ganda tombol</td><td>Tekan Masuk berkali-kali dengan cepat</td><td>Tombol nonaktif + spinner, hanya satu request</td></tr>
+      <tr><td>9</td><td>Login tanpa internet</td><td>Matikan Wi-Fi/data emulator, coba login</td><td>SnackBar "Tidak dapat terhubung ke server..."</td></tr>
+      <tr><td>10</td><td>Logout</td><td>Tekan ikon logout di Home</td><td>Kembali ke Login tanpa bisa "back" ke Home</td></tr>
+      <tr><td>11</td><td>Sesi tersimpan</td><td>Login, tutup aplikasi sepenuhnya (swipe dari recent apps), buka lagi</td><td>Langsung tampil Home tanpa login ulang</td></tr>
+      <tr><td>12</td><td>Lupa env.json</td><td>Jalankan <code>flutter run</code> tanpa <code>--dart-define-from-file</code></td><td>Layar petunjuk ConfigErrorApp</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-tip"><h4>💡 Mematikan internet di emulator</h4><p>Tarik panel notifikasi emulator lalu matikan Wi-Fi dan Mobile data, atau aktifkan Airplane mode. Di HP fisik cukup aktifkan mode pesawat.</p></div>
+
+<h4>Troubleshooting autentikasi</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Gejala</th><th>Penyebab</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr><td>Layar "SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY belum diisi"</td><td>Run tanpa <code>--dart-define-from-file=env.json</code></td><td>Tambahkan argumen, atau atur <code>launch.json</code> (Modul 12 section 4)</td></tr>
+      <tr><td><em>Invalid API key</em> / 401</td><td>Key salah salin atau memakai key dari project lain</td><td>Salin ulang dari Project Settings &rarr; API Keys</td></tr>
+      <tr><td><em>Database error saving new user</em></td><td>Fungsi trigger <code>handle_new_user</code> error</td><td>Cek Logs &rarr; Postgres. Pastikan tabel <code>public.profiles</code> ada dan nama kolom benar</td></tr>
+      <tr><td>Register sukses tetapi tidak bisa login</td><td>Confirm email ON dan link belum diklik</td><td>Klik link di email, atau matikan Confirm email untuk praktikum</td></tr>
+      <tr><td>Register gagal "Alamat email tidak valid"</td><td>Supabase menolak domain contoh seperti <code>@example.com</code> (kode <code>email_address_invalid</code>), dan server email bawaan Supabase hanya mengirim ke alamat anggota tim project</td><td>Pakai alamat email sungguhan untuk uji register, atau buat akun uji lewat <strong>Authentication → Users → Add user</strong> dengan <strong>Auto Confirm User</strong>. Untuk produksi, pasang SMTP sendiri di <strong>Authentication → Emails → SMTP Settings</strong></td></tr>
+      <tr><td>Email konfirmasi tidak pernah datang</td><td>Batas email bawaan Supabase / masuk folder spam</td><td>Cek spam, tunggu, atau matikan Confirm email</td></tr>
+      <tr><td>Kolom <code>full_name</code> di profiles kosong</td><td>Key metadata berbeda (<code>fullName</code> vs <code>full_name</code>)</td><td>Samakan key di <code>signUp(data: ...)</code> dan di SQL trigger</td></tr>
+      <tr><td>Setelah login, layar tetap di Login</td><td><code>home:</code> di MaterialApp bukan <code>AuthGate</code>, atau stream dibuat ulang setiap build</td><td>Periksa <code>main.dart</code> dan <code>auth_gate.dart</code></td></tr>
+      <tr><td>Setelah register (Confirm OFF), halaman Register tidak tertutup</td><td>Lupa <code>Navigator.pop()</code> pada kasus <code>loggedIn</code></td><td>Lihat <code>switch</code> di RegisterScreen</td></tr>
+      <tr><td>Error <em>Failed host lookup</em></td><td>Tidak ada internet, emulator offline, atau URL salah ketik</td><td>Cek koneksi emulator dan isi <code>SUPABASE_URL</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Ringkasan Modul 13</h4>
+<ul>
+  <li>Arsitektur berlapis: UI &rarr; Provider &rarr; Service/Repository &rarr; Supabase/Hive.</li>
+  <li>Tabel <code>profiles</code> diisi otomatis oleh trigger <code>security definer</code> dari <code>raw_user_meta_data</code>.</li>
+  <li><code>AuthService</code> membungkus Supabase Auth, sedangkan <code>AuthProvider</code> menyimpan loading/error dan menerjemahkan kode error.</li>
+  <li><code>AuthGate</code> + <code>onAuthStateChange</code> membuat navigasi login/logout otomatis tanpa Navigator manual.</li>
+  <li>Login dan Register memakai Form + validator + show/hide password + tombol loading + SnackBar.</li>
+</ul>
+<p>Di Modul 14 kita melanjutkan kode yang <strong>sama</strong>: menambah tabel <code>notes</code>, cache Hive, dan mengganti HomeScreen sementara dengan daftar catatan lengkap.</p>

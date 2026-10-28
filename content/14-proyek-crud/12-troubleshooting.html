@@ -1,0 +1,53 @@
+<p class="lead">Daftar masalah yang paling sering ditemui mahasiswa saat mengerjakan proyek ini, beserta cara mendiagnosisnya. Biasakan membaca pesan error lengkap di konsol <code>flutter run</code> dan di <strong>Logs</strong> dashboard Supabase.</p>
+
+<h4>Tabel troubleshooting</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Gejala / pesan</th><th>Penyebab</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr><td><code>PostgrestException(code: 42501, message: new row violates row-level security policy for table "notes")</code></td><td>Policy INSERT belum dibuat / salah, atau <code>user_id</code> tidak sama dengan <code>auth.uid()</code></td><td>Jalankan ulang SQL section 1. Pastikan kolom <code>user_id</code> memiliki <code>default auth.uid()</code> dan user sudah login</td></tr>
+      <tr><td>Daftar catatan selalu kosong padahal di Table Editor ada data</td><td>Policy SELECT tidak ada, atau data dibuat dengan <code>user_id</code> milik akun lain</td><td>Cek policy di Authentication &rarr; Policies, lalu bandingkan <code>user_id</code> baris dengan id di Authentication &rarr; Users</td></tr>
+      <tr><td><em>"Tabel notes belum dibuat"</em> (code <code>PGRST205</code>/<code>42P01</code>)</td><td>SQL belum dijalankan atau nama tabel salah ketik</td><td>Jalankan SQL, lalu cek nama <code>notes</code> di <code>NoteRemoteDataSource._table</code></td></tr>
+      <tr><td><em>You must initialize the supabase instance before calling Supabase.instance</em></td><td><code>Supabase.instance.client</code> dipakai sebelum <code>await Supabase.initialize</code></td><td>Periksa urutan di <code>main()</code> dan pastikan ada <code>await</code></td></tr>
+      <tr><td>Layar "SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY belum diisi"</td><td>Run tanpa <code>--dart-define-from-file=env.json</code></td><td>Tambahkan argumen run atau atur <code>launch.json</code></td></tr>
+      <tr><td>Login gagal: <em>Email belum dikonfirmasi</em></td><td>Confirm email aktif dan link belum diklik</td><td>Klik link di email, atau matikan Confirm email di Authentication &rarr; Sign In / Providers &rarr; Email</td></tr>
+      <tr><td><em>HiveError: Box not found. Did you forget to call Hive.openBox()?</em></td><td>Box dipakai sebelum dibuka</td><td>Pastikan <code>await NoteLocalDataSource.open()</code> dipanggil di <code>main()</code> setelah <code>Hive.initFlutter()</code></td></tr>
+      <tr><td><em>setState() or markNeedsBuild() called during build</em></td><td><code>loadNotes()</code> dipanggil langsung di <code>initState</code>/<code>build</code></td><td>Bungkus dengan <code>WidgetsBinding.instance.addPostFrameCallback</code></td></tr>
+      <tr><td><em>A dismissed Dismissible widget is still part of the tree</em></td><td>Item tidak dihapus dari list setelah digeser</td><td>Pastikan <code>deleteNote</code> menghapus dari <code>_notes</code> sebelum <code>await</code></td></tr>
+      <tr><td>Banner offline tidak pernah muncul walaupun mode pesawat</td><td>Semua error ditangkap sebagai error biasa, bukan fallback</td><td>Periksa <code>NoteRepository.getNotes</code>: <code>on PostgrestException</code> rethrow, <code>catch (_)</code> kembalikan cache</td></tr>
+      <tr><td>Banner offline muncul padahal online (dan data lama)</td><td>Error database tersembunyi sebagai "offline", atau URL salah</td><td>Jalankan <code>flutter test</code> dan periksa log; pastikan URL di <code>env.json</code> benar</td></tr>
+      <tr><td>Setelah logout lalu login akun lain, catatan akun lama sempat terlihat</td><td>Cache/state tidak dibersihkan saat logout</td><td>Pastikan <code>_logout</code> memanggil <code>NotesProvider.clear()</code> <em>sebelum</em> <code>signOut()</code></td></tr>
+      <tr><td><code>updated_at</code> tidak berubah setelah edit</td><td>Trigger <code>notes_set_updated_at</code> belum dibuat</td><td>Jalankan bagian trigger di SQL</td></tr>
+      <tr><td>Insert gagal <code>23514</code> (check constraint)</td><td>Kategori di Dart berbeda dengan daftar di SQL, atau judul &gt; 100 karakter</td><td>Samakan <code>Note.categories</code> dengan <code>check (category in (...))</code></td></tr>
+      <tr><td>APK release tidak bisa konek, debug bisa</td><td>Izin INTERNET belum ada di manifest utama</td><td>Tambahkan <code>uses-permission INTERNET</code> di <code>android/app/src/main/AndroidManifest.xml</code></td></tr>
+      <tr><td>Aplikasi tiba-tiba tidak bisa konek setelah lama tidak dipakai</td><td>Project Supabase gratis di-pause</td><td>Buka dashboard dan klik <strong>Restore project</strong></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Ide pengembangan (untuk tugas besar)</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Ide</th><th>Petunjuk implementasi</th><th>Tingkat</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Sinkronisasi realtime</strong> antar perangkat</td><td>Aktifkan Realtime untuk tabel <code>notes</code>, lalu di <code>NotesProvider</code> dengarkan <code>client.from('notes').stream(primaryKey: ['id'])</code> dan perbarui <code>_notes</code> + cache setiap ada data baru. Batalkan subscription di <code>dispose</code>/logout.</td><td>Menengah</td></tr>
+      <tr><td><strong>Antrean penulisan offline</strong> (offline queue)</td><td>Buat box Hive kedua <code>pending_ops</code> berisi <code>{type: 'insert'|'update'|'delete', data: {...}}</code>. Saat offline, simpan operasi ke antrean dan perbarui cache lokal. Saat online kembali (refresh sukses), kirim antrean secara berurutan. Gunakan id UUID buatan klien (package <code>uuid</code>) agar insert offline punya id sejak awal.</td><td>Sulit</td></tr>
+      <tr><td><strong>Lampiran file</strong> (foto papan tulis, PDF)</td><td>Buat bucket <code>attachments</code> dengan policy folder per user (Modul 12 section 10), tambah kolom <code>attachment_path text</code> di <code>notes</code>, unggah memakai <code>uploadBinary</code>, dan tampilkan dengan <code>createSignedUrl</code>.</td><td>Menengah</td></tr>
+      <tr><td><strong>Pin catatan penting</strong></td><td>Tambah kolom <code>is_pinned boolean not null default false</code>, lalu urutkan <code>.order('is_pinned', ascending: false).order('updated_at', ascending: false)</code>.</td><td>Mudah</td></tr>
+      <tr><td><strong>Relasi ke mata kuliah</strong></td><td>Ganti <code>category</code> dengan <code>mata_kuliah_id bigint references mata_kuliah(id)</code> dan ambil nama dengan <code>select('*, mata_kuliah(nama)')</code>.</td><td>Menengah</td></tr>
+      <tr><td><strong>Lupa password</strong></td><td><code>auth.resetPasswordForEmail(email)</code> + deep link, dengan event <code>passwordRecovery</code> di AuthGate.</td><td>Menengah</td></tr>
+      <tr><td><strong>Halaman profil</strong></td><td>Baca/ubah tabel <code>profiles</code> (<code>maybeSingle</code> + <code>update</code>), foto profil dari Storage.</td><td>Mudah</td></tr>
+      <tr><td><strong>Pagination</strong></td><td><code>.range()</code> + muat lebih banyak saat scroll mendekati bawah.</td><td>Menengah</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Ringkasan Modul 14</h4>
+<ul>
+  <li>Tabel <code>notes</code> dilindungi empat policy RLS berbasis <code>auth.uid()</code>, dengan <code>user_id default auth.uid()</code> dan trigger <code>updated_at</code>.</li>
+  <li>Lapisan data: <strong>Remote</strong> (Supabase CRUD), <strong>Local</strong> (Hive Map dengan key id), dan <strong>Repository</strong> (network first, cache fallback, PostgrestException tidak disembunyikan).</li>
+  <li><code>NotesProvider</code>: loading/error/offline, pencarian dan filter di memori, optimistic delete dengan rollback.</li>
+  <li>UI: RefreshIndicator, empty/loading/error state, Dismissible + konfirmasi, satu form untuk tambah &amp; edit, detail reaktif dengan <code>context.select</code>.</li>
+  <li>Logout membersihkan state dan cache sebelum sesi dihapus.</li>
+  <li>Logika offline diuji dengan unit test memakai fake data source dan Hive di folder sementara.</li>
+</ul>

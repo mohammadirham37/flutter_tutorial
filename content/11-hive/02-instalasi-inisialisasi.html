@@ -1,0 +1,116 @@
+<p class="lead">Sebelum bisa menyimpan data, Hive perlu dipasang, diberi tahu folder penyimpanannya, lalu box yang dibutuhkan dibuka. Semua itu dilakukan sekali di <code>main()</code>.</p>
+
+<h4>Langkah 1: Pasang package</h4>
+<p>Buat proyek baru (atau pakai proyek yang ada), lalu jalankan dari folder proyek:</p>
+<pre><code class="language-bash">flutter create halo_hive
+cd halo_hive
+flutter pub add hive_ce hive_ce_flutter
+</code></pre>
+<ul>
+  <li><code>hive_ce</code>: inti database (murni Dart).</li>
+  <li><code>hive_ce_flutter</code>: tambahan khusus Flutter, misalnya <code>Hive.initFlutter()</code> dan <code>box.listenable()</code>.</li>
+</ul>
+<p>Hasilnya di <code>pubspec.yaml</code> kurang lebih seperti ini (nomor versi mengikuti yang terbaru saat kamu menjalankan perintah):</p>
+<pre><code class="language-yaml">dependencies:
+  flutter:
+    sdk: flutter
+  hive_ce: ^x.y.z
+  hive_ce_flutter: ^x.y.z
+</code></pre>
+
+<h4>Langkah 2: Import</h4>
+<p>Di file Flutter cukup satu baris ini, karena <code>hive_ce_flutter</code> sudah ikut meng-export seluruh isi <code>hive_ce</code>:</p>
+<pre><code class="language-dart">import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+</code></pre>
+<p>Untuk file Dart murni yang tidak menyentuh Flutter (misalnya model), boleh juga memakai <code>import 'package:hive_ce/hive_ce.dart';</code>.</p>
+
+<h4>Langkah 3: Inisialisasi di <code>main()</code></h4>
+<p>Urutannya selalu sama:</p>
+<ol>
+  <li><code>WidgetsFlutterBinding.ensureInitialized()</code>: wajib karena kita memanggil kode async yang memakai plugin (mencari folder dokumen) <strong>sebelum</strong> <code>runApp</code>.</li>
+  <li><code>await Hive.initFlutter()</code>: menentukan folder penyimpanan.</li>
+  <li><code>Hive.registerAdapter(...)</code>: jika memakai objek sendiri (bagian 5).</li>
+  <li><code>await Hive.openBox(...)</code>: membuka box yang akan dipakai.</li>
+  <li><code>runApp(...)</code>.</li>
+</ol>
+
+<p>Contoh lengkap: aplikasi yang menghitung sudah berapa kali ia dibuka. Hapus seluruh isi <code>lib/main.dart</code> lalu ganti dengan kode berikut.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+Future&lt;void&gt; main() async {
+  // Wajib dipanggil sebelum await apa pun yang memakai plugin
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Menentukan folder penyimpanan Hive (folder dokumen aplikasi)
+  await Hive.initFlutter();
+
+  // Membuka box bernama 'pengaturan'. Jika belum ada, Hive membuatnya.
+  final box = await Hive.openBox('pengaturan');
+
+  // Baca hitungan lama (default 0), tambah 1, simpan lagi
+  final jumlahBuka = (box.get('jumlah_buka', defaultValue: 0) as int) + 1;
+  await box.put('jumlah_buka', jumlahBuka);
+
+  runApp(MyApp(jumlahBuka: jumlahBuka));
+}
+
+class MyApp extends StatelessWidget {
+  final int jumlahBuka;
+
+  const MyApp({super.key, required this.jumlahBuka});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Halo Hive')),
+        body: Center(
+          child: Text(
+            'Aplikasi ini sudah dibuka $jumlahBuka kali',
+            style: const TextStyle(fontSize: 20),
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/halo-hive.jpg" alt="Aplikasi Halo Hive menampilkan jumlah aplikasi dibuka" loading="lazy">
+    <div class="screenshot-caption">Angka bertambah setiap aplikasi dijalankan ulang, karena tersimpan di box</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>Future&lt;void&gt; main() async</code>: <code>main</code> boleh async agar bisa menunggu Hive siap sebelum UI tampil.</li>
+  <li><code>Hive.openBox('pengaturan')</code> membuat file <code>pengaturan.hive</code> jika belum ada. Box yang tidak diberi tipe bertipe <code>Box&lt;dynamic&gt;</code>, jadi boleh diisi tipe apa saja.</li>
+  <li><code>box.get('jumlah_buka', defaultValue: 0)</code> mengembalikan 0 saat aplikasi pertama kali dibuka.</li>
+  <li>Coba tutup aplikasi sepenuhnya lalu buka lagi: angkanya bertambah. Itulah bukti data tersimpan permanen.</li>
+</ul>
+
+<h4>Mengambil box yang sudah dibuka</h4>
+<p>Membuka box itu operasi async (membaca file). Setelah terbuka, di mana pun di aplikasi kamu cukup memanggil <code>Hive.box()</code> yang sinkron:</p>
+<pre><code class="language-dart">// Di main(): sekali saja, pakai await
+await Hive.openBox('pengaturan');
+
+// Di widget atau kelas lain: langsung ambil, tanpa await
+final box = Hive.box('pengaturan');
+final tema = box.get('tema_gelap', defaultValue: false);
+
+// Box bertipe: semua value wajib bertipe String
+await Hive.openBox&lt;String&gt;('tugas_cepat');
+final tugasBox = Hive.box&lt;String&gt;('tugas_cepat');
+</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li>Lupa <code>WidgetsFlutterBinding.ensureInitialized()</code> menyebabkan error "Binding has not yet been initialized".</li>
+<li>Memanggil <code>Hive.box('x')</code> padahal <code>openBox('x')</code> belum dipanggil memicu <code>HiveError: Box not found. Did you forget to call Hive.openBox()?</code></li>
+<li>Membuka box yang sama dengan tipe berbeda (<code>openBox&lt;String&gt;('a')</code> lalu <code>openBox('a')</code>) juga memicu error. Pakai tipe yang sama secara konsisten.</li>
+</ul></div>

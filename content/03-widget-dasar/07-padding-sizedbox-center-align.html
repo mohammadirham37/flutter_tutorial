@@ -1,0 +1,177 @@
+<p class="lead"><code>Container</code> memang serbaguna, tetapi untuk tugas tunggal Flutter menyediakan widget yang lebih kecil dan jelas maksudnya: <strong><code>Padding</code></strong> (jarak dalam), <strong><code>SizedBox</code></strong> (ukuran tetap atau jarak kosong), <strong><code>Center</code></strong> (menengahkan), dan <strong><code>Align</code></strong> (menaruh anak di posisi tertentu).</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Widget</th><th>Fungsi</th><th>Contoh</th></tr></thead>
+    <tbody>
+      <tr><td><code>Padding</code></td><td>Memberi ruang di sekeliling anak</td><td><code>Padding(padding: EdgeInsets.all(16), child: ...)</code></td></tr>
+      <tr><td><code>SizedBox</code></td><td>Kotak berukuran pasti, atau jarak kosong</td><td><code>SizedBox(height: 12)</code></td></tr>
+      <tr><td><code>Center</code></td><td>Menaruh anak tepat di tengah</td><td><code>Center(child: ...)</code></td></tr>
+      <tr><td><code>Align</code></td><td>Menaruh anak di titik mana pun</td><td><code>Align(alignment: Alignment.topRight, child: ...)</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Padding</h4>
+<pre><code class="language-dart">const Padding(
+  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+  child: Text('Teks dengan jarak kiri-kanan 24 dan atas-bawah 8'),
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/padding-sizedbox-center-align-1.jpg" alt="Padding horizontal 24 dan vertikal 8" loading="lazy">
+    <div class="screenshot-caption">Padding horizontal 24 dan vertikal 8</div>
+  </div>
+</div>
+
+<h4>SizedBox: tiga kegunaan</h4>
+<pre><code class="language-dart">Column(
+  children: [
+    // 1. Jarak vertikal antar widget
+    const Text('Baris pertama'),
+    const SizedBox(height: 16),
+    const Text('Baris kedua'),
+
+    // 2. Memaksa ukuran anak
+    SizedBox(
+      width: 200,
+      height: 48,
+      child: ElevatedButton(onPressed: () {}, child: const Text('Login')),
+    ),
+
+    // 3. Selebar mungkin
+    SizedBox(
+      width: double.infinity,
+      child: FilledButton(onPressed: () {}, child: const Text('Daftar')),
+    ),
+  ],
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/padding-sizedbox-center-align-2.jpg" alt="SizedBox sebagai jarak, ukuran tetap, dan selebar layar" loading="lazy">
+    <div class="screenshot-caption">SizedBox sebagai jarak, ukuran tetap, dan selebar layar</div>
+  </div>
+</div>
+
+<h4>Align dan nilai <code>Alignment</code></h4>
+<p><code>Alignment(x, y)</code> memakai koordinat dari <code>-1</code> sampai <code>1</code>. Titik <code>(0, 0)</code> adalah tengah, <code>(-1, -1)</code> pojok kiri atas, dan <code>(1, 1)</code> pojok kanan bawah.</p>
+<pre><code class="language-text">(-1,-1) topLeft      (0,-1) topCenter      (1,-1) topRight
+(-1, 0) centerLeft   (0, 0) center         (1, 0) centerRight
+(-1, 1) bottomLeft   (0, 1) bottomCenter   (1, 1) bottomRight
+</code></pre>
+
+<h4>Contoh lengkap: membandingkan keempat widget</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.deepPurple),
+      home: const DemoTataLetakDasar(),
+    );
+  }
+}
+
+class DemoTataLetakDasar extends StatelessWidget {
+  const DemoTataLetakDasar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Padding, SizedBox, Center, Align')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Text('Padding:'),
+          Container(
+            color: Colors.deepPurple.shade50,
+            child: const Padding(
+              padding: EdgeInsets.all(24),
+              child: Text('Ada ruang 24 px di sekeliling teks ini'),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          const Text('SizedBox ukuran tetap 120 x 60:'),
+          const SizedBox(
+            width: 120,
+            height: 60,
+            child: ColoredBox(color: Colors.orange),
+          ),
+          const SizedBox(height: 24),
+
+          const Text('Center di dalam kotak 200 px:'),
+          Container(
+            height: 200,
+            color: Colors.grey.shade200,
+            child: const Center(child: Icon(Icons.star, size: 48)),
+          ),
+          const SizedBox(height: 24),
+
+          const Text('Align ke pojok-pojok:'),
+          Container(
+            height: 200,
+            color: Colors.grey.shade200,
+            child: const Stack(
+              children: [
+                Align(alignment: Alignment.topLeft, child: Text('topLeft')),
+                Align(alignment: Alignment.topRight, child: Text('topRight')),
+                Align(alignment: Alignment.center, child: Text('center')),
+                Align(alignment: Alignment.bottomLeft, child: Text('bottomLeft')),
+                Align(alignment: Alignment(0.5, 0.5), child: Text('(0.5, 0.5)')),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          const Text('Tombol selebar layar dengan SizedBox:'),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: FilledButton(
+              onPressed: () {},
+              child: const Text('Simpan KRS'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/padding-sizedbox-center-align-3.jpg" alt="Perbandingan Padding, SizedBox, Center, dan Align" loading="lazy">
+    <div class="screenshot-caption">Perbandingan Padding, SizedBox, Center, dan Align</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><code>Container</code> berwarna di sekitar <code>Padding</code> membuat jarak dalam terlihat jelas.</li>
+  <li><code>ColoredBox</code> adalah widget ringan untuk memberi warna latar saja.</li>
+  <li><code>Stack</code> dipakai agar beberapa <code>Align</code> bisa menempati kotak yang sama (Stack dibahas lengkap di Modul 04).</li>
+  <li><code>Alignment(0.5, 0.5)</code> menunjukkan bahwa posisi tidak harus di sudut; nilai pecahan juga boleh.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Pilih widget yang paling sederhana</h4><p>Butuh jarak? <code>SizedBox</code>. Butuh ruang di sekitar? <code>Padding</code>. Butuh warna + sudut + bayangan sekaligus? Baru <code>Container</code>. Kode jadi lebih mudah dibaca dan bisa <code>const</code>.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Menulis <code>SizedBox(height: 16)</code> di dalam <code>Row</code> untuk memberi jarak horizontal. Di <code>Row</code> yang dipakai adalah <code>width</code>.</li>
+  <li>Menaruh <code>Center</code> di dalam <code>Column</code> lalu heran anaknya tidak di tengah layar secara vertikal. <code>Center</code> hanya menengahkan di dalam ruang yang diberikan induknya. Gunakan <code>mainAxisAlignment</code> pada <code>Column</code> (Modul 04).</li>
+  <li>Lupa <code>const</code> pada <code>SizedBox</code> dan <code>Padding</code> yang isinya tetap. Linter akan memberi saran <em>prefer_const_constructors</em>.</li>
+</ul></div>

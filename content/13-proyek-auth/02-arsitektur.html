@@ -1,0 +1,123 @@
+<p class="lead">Sebelum menulis kode, kita sepakati dulu "denah rumah"-nya. Arsitektur yang rapi membuat kode mudah diuji, mudah dicari saat error, dan mudah dikembangkan.</p>
+
+<h4>Lapisan (layer) aplikasi</h4>
+<pre><code class="language-text">┌─────────────────────────────────────────────────────────────┐
+│ UI (screens/, widgets/)                                     │
+│  LoginScreen, RegisterScreen, HomeScreen, NoteFormScreen    │
+│  → hanya menampilkan state & meneruskan aksi user           │
+└───────────────▲───────────────────────────┬─────────────────┘
+     watch/select (rebuild)                 │ read().method()
+┌───────────────┴───────────────────────────▼─────────────────┐
+│ STATE (providers/)                                          │
+│  AuthProvider, NotesProvider (ChangeNotifier)               │
+│  → isLoading, errorMessage, daftar data, pesan ramah user   │
+└───────────────────────────┬─────────────────────────────────┘
+                            │ memanggil
+┌───────────────────────────▼─────────────────────────────────┐
+│ DATA (services/, data/)                                     │
+│  AuthService ─────────────▶ Supabase Auth                   │
+│  NoteRepository ─┬─▶ NoteRemoteDataSource ─▶ Supabase (Postgres)
+│                  └─▶ NoteLocalDataSource  ─▶ Hive (cache)   │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Lapisan</th><th>Boleh tahu tentang</th><th>Tidak boleh tahu tentang</th></tr></thead>
+    <tbody>
+      <tr><td>UI</td><td>Provider, model, widget</td><td>Supabase, Hive, SQL</td></tr>
+      <tr><td>Provider</td><td>Service/Repository, model, jenis exception</td><td>Widget, BuildContext</td></tr>
+      <tr><td>Service/Repository</td><td>Supabase client, Hive box, model</td><td>Provider, UI</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Aturan sederhananya: <strong>panah hanya ke bawah</strong>. Karena <code>NoteRepository</code> tidak mengenal UI, kita bisa mengujinya dengan unit test tanpa emulator (dilakukan di Modul 14).</p>
+
+<h4>Struktur folder akhir</h4>
+<pre><code class="language-text">catatan_kuliah/
+├── env.json                  ← URL & publishable key (TIDAK di-commit)
+├── env.example.json          ← contoh isi env.json (di-commit)
+├── supabase/
+│   └── setup.sql             ← semua SQL proyek (disimpan untuk dokumentasi)
+├── lib/
+│   ├── main.dart             ← inisialisasi Hive + Supabase, MultiProvider
+│   ├── config/
+│   │   └── env.dart          ← membaca --dart-define             [M13]
+│   ├── models/
+│   │   └── note.dart         ← model Note + fromJson/toJson/toMap [M14]
+│   ├── services/
+│   │   └── auth_service.dart ← signUp/signIn/signOut             [M13]
+│   ├── data/
+│   │   ├── note_remote_data_source.dart  ← CRUD Supabase         [M14]
+│   │   ├── note_local_data_source.dart   ← cache Hive            [M14]
+│   │   └── note_repository.dart          ← gabungan + offline    [M14]
+│   ├── providers/
+│   │   ├── auth_provider.dart            ← state login           [M13]
+│   │   └── notes_provider.dart           ← state catatan         [M14]
+│   ├── screens/
+│   │   ├── auth_gate.dart                ← Login atau Home?      [M13]
+│   │   ├── login_screen.dart                                     [M13]
+│   │   ├── register_screen.dart                                  [M13]
+│   │   ├── home_screen.dart              ← sementara di M13, final di M14
+│   │   ├── note_form_screen.dart         ← tambah & edit         [M14]
+│   │   └── note_detail_screen.dart                               [M14]
+│   ├── widgets/
+│   │   ├── confirm_dialog.dart                                   [M14]
+│   │   ├── note_card.dart                                        [M14]
+│   │   └── offline_banner.dart                                   [M14]
+│   └── utils/
+│       ├── validators.dart               ← validator form        [M13]
+│       └── date_format.dart                                      [M14]
+└── test/
+    ├── note_local_data_source_test.dart                          [M14]
+    └── note_repository_test.dart                                 [M14]
+</code></pre>
+
+<h4>Langkah 1: Membuat proyek dan memasang package</h4>
+<pre><code class="language-bash">flutter create catatan_kuliah
+cd catatan_kuliah
+
+flutter pub add supabase_flutter provider hive_ce hive_ce_flutter
+</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Package</th><th>Kegunaan di proyek</th></tr></thead>
+    <tbody>
+      <tr><td><code>supabase_flutter</code></td><td>Auth dan database cloud (Modul 12)</td></tr>
+      <tr><td><code>provider</code></td><td>State management (Modul 08)</td></tr>
+      <tr><td><code>hive_ce</code></td><td>Database key-value lokal untuk cache (Modul 11)</td></tr>
+      <tr><td><code>hive_ce_flutter</code></td><td><code>Hive.initFlutter()</code>: menentukan folder penyimpanan di HP</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Setelah perintah di atas, bagian <code>dependencies</code> di <code>pubspec.yaml</code> kira-kira seperti ini (nomor versi mengikuti yang terbaru saat Anda menjalankan perintah):</p>
+<p class="code-file-label">📄 <code>pubspec.yaml</code></p>
+<pre><code class="language-yaml">dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  supabase_flutter: ^x.y.z
+  provider: ^x.y.z
+  hive_ce: ^x.y.z
+  hive_ce_flutter: ^x.y.z
+</code></pre>
+
+<h4>Langkah 2: Siapkan folder dan file konfigurasi</h4>
+<pre><code class="language-bash">mkdir -p lib/config lib/models lib/services lib/data lib/providers lib/screens lib/widgets lib/utils
+</code></pre>
+<p>Buat <code>env.json</code> di root proyek (sejajar <code>pubspec.yaml</code>) dan isi dengan nilai dari dashboard Supabase Anda (Modul 12 section 2):</p>
+<p class="code-file-label">📄 <code>env.json</code></p>
+<pre><code class="language-json">{
+  "SUPABASE_URL": "https://YOUR-PROJECT-REF.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_YOUR_KEY"
+}
+</code></pre>
+<p>Tambahkan ke <code>.gitignore</code>:</p>
+<p class="code-file-label">📄 <code>.gitignore</code></p>
+<pre><code class="language-text"># Kunci Supabase
+env.json
+</code></pre>
+<p>Lalu salin <code>env.json</code> menjadi <code>env.example.json</code> dengan nilai placeholder, agar teman satu tim tahu format yang dibutuhkan.</p>
+<p>Terakhir, tambahkan izin internet untuk build release di <code>android/app/src/main/AndroidManifest.xml</code> (di atas tag <code>&lt;application&gt;</code>):</p>
+<pre><code class="language-text">&lt;uses-permission android:name="android.permission.INTERNET"/&gt;
+</code></pre>

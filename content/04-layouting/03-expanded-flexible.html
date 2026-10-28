@@ -1,0 +1,256 @@
+<p class="lead">Di dalam <code>Row</code> dan <code>Column</code>, anak biasanya berukuran sesuai isinya. Jika kita ingin anak <strong>mengisi sisa ruang</strong>, bungkus dengan <strong><code>Expanded</code></strong> atau <strong><code>Flexible</code></strong>.</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th></th><th>Expanded</th><th>Flexible</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Sifat</strong></td><td><code>fit: FlexFit.tight</code>: anak <em>dipaksa</em> mengisi seluruh jatah ruangnya</td><td><code>fit: FlexFit.loose</code>: anak <em>boleh</em> lebih kecil dari jatahnya</td></tr>
+      <tr><td><strong>Analogi</strong></td><td>Air yang selalu memenuhi gelas</td><td>Batu di dalam gelas: maksimal sebesar gelas</td></tr>
+      <tr><td><strong>Cocok untuk</strong></td><td>Kolom isi, kartu sejajar sama lebar, TextField di samping tombol</td><td>Teks yang bisa pendek atau panjang di samping ikon</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Cara kerja: ruang sisa dibagi menurut <code>flex</code></h4>
+<ol>
+  <li>Row menghitung dulu ukuran anak yang <strong>tidak</strong> dibungkus Expanded/Flexible.</li>
+  <li>Sisa ruang dibagi ke anak Expanded/Flexible sesuai angka <code>flex</code> (default 1).</li>
+</ol>
+<pre><code class="language-dart">Row(
+  children: [
+    Expanded(flex: 2, child: Container(height: 50, color: Colors.red)),   // 2/3 ruang
+    Expanded(flex: 1, child: Container(height: 50, color: Colors.blue)),  // 1/3 ruang
+  ],
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/expanded-flexible-1.jpg" alt="Expanded flex 2 : 1" loading="lazy">
+    <div class="screenshot-caption">Expanded flex 2 : 1</div>
+  </div>
+</div>
+
+<h4>Expanded vs Flexible dalam satu contoh kecil</h4>
+<pre><code class="language-dart">Column(
+  children: [
+    // Expanded: kotak hijau dipaksa selebar sisa ruang
+    Row(children: [
+      const Icon(Icons.star),
+      Expanded(child: Container(color: Colors.green, child: const Text('Expanded'))),
+    ]),
+    // Flexible: kotak kuning hanya selebar teksnya
+    Row(children: [
+      const Icon(Icons.star),
+      Flexible(child: Container(color: Colors.amber, child: const Text('Flexible'))),
+    ]),
+  ],
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/expanded-flexible-2.jpg" alt="Expanded (penuh) vs Flexible (seukuran isi)" loading="lazy">
+    <div class="screenshot-caption">Expanded (penuh) vs Flexible (seukuran isi)</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap 1: membandingkan flex, Expanded, dan Flexible</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: DemoFlex()));
+}
+
+class DemoFlex extends StatelessWidget {
+  const DemoFlex({super.key});
+
+  Widget _kotak(String teks, Color warna) {
+    return Container(
+      height: 56,
+      color: warna,
+      alignment: Alignment.center,
+      child: Text(teks, style: const TextStyle(color: Colors.white)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Expanded vs Flexible')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Text('1. Tiga Expanded flex sama (1:1:1)'),
+          Row(children: [
+            Expanded(child: _kotak('1', Colors.red)),
+            Expanded(child: _kotak('1', Colors.green)),
+            Expanded(child: _kotak('1', Colors.blue)),
+          ]),
+          const SizedBox(height: 16),
+
+          const Text('2. Flex berbeda (1:2:3)'),
+          Row(children: [
+            Expanded(flex: 1, child: _kotak('1', Colors.red)),
+            Expanded(flex: 2, child: _kotak('2', Colors.green)),
+            Expanded(flex: 3, child: _kotak('3', Colors.blue)),
+          ]),
+          const SizedBox(height: 16),
+
+          const Text('3. Lebar tetap + Expanded mengisi sisa'),
+          Row(children: [
+            SizedBox(width: 80, child: _kotak('80 px', Colors.grey)),
+            Expanded(child: _kotak('sisa ruang', Colors.indigo)),
+            SizedBox(width: 80, child: _kotak('80 px', Colors.grey)),
+          ]),
+          const SizedBox(height: 16),
+
+          const Text('4. Expanded (tight) vs Flexible (loose)'),
+          Row(children: [
+            Expanded(child: Container(color: Colors.teal.shade100, child: const Text('Expanded'))),
+            Flexible(child: Container(color: Colors.orange.shade100, child: const Text('Flexible'))),
+          ]),
+          const SizedBox(height: 16),
+
+          const Text('5. Expanded di Column (sumbu vertikal)'),
+          SizedBox(
+            height: 200,
+            child: Column(children: [
+              _kotak('header tetap', Colors.grey),
+              Expanded(child: Container(color: Colors.purple.shade100, alignment: Alignment.center, child: const Text('isi mengisi sisa tinggi'))),
+              _kotak('footer tetap', Colors.grey),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/expanded-flexible-3.jpg" alt="Perbandingan flex, Expanded, dan Flexible" loading="lazy">
+    <div class="screenshot-caption">Perbandingan flex, Expanded, dan Flexible</div>
+  </div>
+</div>
+
+<h4>Penjelasan</h4>
+<ul>
+  <li><strong>Baris 4:</strong> Expanded dan Flexible sama-sama mendapat jatah separuh lebar. Kotak Expanded memenuhi jatahnya, kotak Flexible hanya selebar teks "Flexible".</li>
+  <li><strong>Baris 5:</strong> Expanded juga bekerja di Column. Pola header-isi-footer seperti ini sering dipakai pada halaman chat atau keranjang belanja.</li>
+  <li>Method <code>_kotak</code> adalah helper kecil agar kode tidak berulang.</li>
+</ul>
+
+<h4>Contoh lengkap 2: teks panjang di samping ikon</h4>
+<p>Ketika teks atau konten terlalu panjang di dalam Row, layar akan menampilkan garis kuning-hitam <em>"A RenderFlex overflowed by xxx pixels"</em>. Solusinya adalah membungkus widget tersebut dengan <strong><code>Expanded</code></strong>:</p>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        appBar: AppBar(title: const Text("Contoh Expanded")),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          // Contoh Menghindari Overflow pada Row
+          child: Row(
+            children: [
+              const Icon(Icons.school, size: 40, color: Colors.indigo),
+              const SizedBox(width: 12),
+              // Expanded memaksa teks mengambil sisa ruang yang tersedia saja!
+              // Coba hapus Expanded ini lalu hot reload: muncul garis kuning-hitam overflow.
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Mata Kuliah Rekayasa Perangkat Lunak Berorientasi Objek Lanjutan",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis, // Tambahkan '...' jika terpotong
+                    ),
+                    Text("Kode: IF-3021 • 3 SKS", style: TextStyle(color: Colors.grey)),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.bookmark_border),
+                onPressed: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/expanded-flexible-4.jpg" alt="Teks panjang dibungkus Expanded sehingga tidak overflow" loading="lazy">
+    <div class="screenshot-caption">Teks panjang dibungkus Expanded sehingga tidak overflow</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap 3: TextField di samping tombol</h4>
+<p><code>TextField</code> ingin selebar mungkin. Di dalam Row (lebar tak terbatas), ini menimbulkan error. <code>Expanded</code> memberi batas lebar yang jelas.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: KolomCari()));
+}
+
+class KolomCari extends StatelessWidget {
+  const KolomCari({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Cari Mata Kuliah')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            // Tanpa Expanded: error "An InputDecorator ... cannot have an unbounded width"
+            const Expanded(
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Nama mata kuliah...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(onPressed: () {}, child: const Text('Cari')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/expanded-flexible-5.jpg" alt="TextField di dalam Expanded di samping tombol" loading="lazy">
+    <div class="screenshot-caption">TextField di dalam Expanded di samping tombol</div>
+  </div>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Memakai Expanded di luar Row/Column/Flex.</strong> Contoh: Expanded langsung di dalam <code>Container</code> atau <code>Stack</code>. Hasilnya error <em>"Incorrect use of ParentDataWidget"</em>.</li>
+  <li><strong>Expanded di dalam Column yang berada di <code>SingleChildScrollView</code>.</strong> Tinggi tak terbatas tidak bisa dibagi, sehingga error. Hapus Expanded atau beri tinggi tetap.</li>
+  <li><strong>Memberi <code>width</code> pada anak Expanded di Row.</strong> Lebarnya tetap dipaksa sesuai jatah flex; <code>width</code> diabaikan.</li>
+</ul></div>

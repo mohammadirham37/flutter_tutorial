@@ -1,0 +1,179 @@
+{
+  "id": "modul-04",
+  "badge": "Layouting",
+  "category": "UI/UX",
+  "title": "Sistem Layouting & Desain Antarmuka Responsif",
+  "duration": "Pertemuan 4 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 03: Arsitektur Widget"
+  ],
+  "summary": "Menguasai prinsip tata letak Flutter: 'Constraints go down, Sizes go up, Parent sets position'. Mempelajari Row, Column, Expanded, Flexible, Wrap, SizedBox, Spacer, AspectRatio, Stack, Positioned, cara membaca dan memperbaiki overflow, SafeArea, serta desain responsif dengan MediaQuery, LayoutBuilder, breakpoint, dan OrientationBuilder, ditutup studi kasus dashboard portal mahasiswa.",
+  "learningOutcomes": [
+    "Memahami hukum aturan batas ukuran (Box Constraints): tight, loose, dan unbounded.",
+    "Menguasai perataan elemen dengan Row dan Column (MainAxisAlignment, CrossAxisAlignment, MainAxisSize).",
+    "Menggunakan Expanded, Flexible, Wrap, SizedBox, Spacer, dan AspectRatio untuk membagi ruang secara proporsional.",
+    "Membangun tata letak berlapis menggunakan Stack dan Positioned.",
+    "Membaca pesan RenderFlex overflow dan memperbaikinya dengan teknik yang tepat.",
+    "Menerapkan SafeArea, MediaQuery, LayoutBuilder, breakpoint, dan OrientationBuilder untuk desain yang adaptif.",
+    "Menyusun halaman lengkap yang terpecah menjadi widget-widget kecil dan bebas overflow."
+  ],
+  "sections": [
+    {
+      "id": "hukum-constraints",
+      "title": "1. Aturan Emas Constraints Flutter",
+      "file": "01-hukum-constraints.html"
+    },
+    {
+      "id": "row-column-expanded",
+      "title": "2. Row & Column: MainAxis dan CrossAxis",
+      "file": "02-row-column.html"
+    },
+    {
+      "id": "layout-expanded-flexible",
+      "title": "3. Expanded vs Flexible",
+      "file": "03-expanded-flexible.html"
+    },
+    {
+      "id": "layout-wrap",
+      "title": "4. Wrap: Baris yang Turun Otomatis",
+      "file": "04-wrap.html"
+    },
+    {
+      "id": "layout-sizedbox-spacer-aspectratio",
+      "title": "5. SizedBox, Spacer, & AspectRatio",
+      "file": "05-sizedbox-spacer-aspectratio.html"
+    },
+    {
+      "id": "stack-positioned",
+      "title": "6. Tata Letak Berlapis (Stack & Positioned)",
+      "file": "06-stack-positioned.html"
+    },
+    {
+      "id": "layout-overflow",
+      "title": "7. Error Overflow (Garis Kuning-Hitam) & Cara Memperbaikinya",
+      "file": "07-overflow.html"
+    },
+    {
+      "id": "layout-safearea",
+      "title": "8. SafeArea: Menghindari Notch & Status Bar",
+      "file": "08-safearea.html"
+    },
+    {
+      "id": "responsive-mediaquery",
+      "title": "9. Desain Responsif (MediaQuery, LayoutBuilder, Breakpoint, OrientationBuilder)",
+      "file": "09-responsive.html"
+    },
+    {
+      "id": "layout-studi-kasus-dashboard",
+      "title": "10. Studi Kasus: Dashboard Portal Mahasiswa",
+      "file": "10-studi-kasus-dashboard.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 4: Halaman Profil Mahasiswa Responsif",
+    "objective": "Membangun halaman profil mahasiswa yang memadukan Stack, Row, Column, Expanded, Wrap, AspectRatio, SafeArea, dan LayoutBuilder, serta bebas overflow di HP kecil, landscape, maupun layar lebar.",
+    "instructions": [
+      "Buat project baru <code>flutter create praktikum_04</code> dan file <code>lib/profil_mahasiswa_screen.dart</code>. Panggil halaman tersebut dari <code>lib/main.dart</code>.",
+      "Header (Stack): banner gradasi dengan <code>AspectRatio(16 / 6)</code>, foto profil <code>CircleAvatar</code> yang menjorok keluar banner memakai <code>Positioned</code>, dan tombol kembali yang tidak tertutup status bar (<code>SafeArea</code> atau <code>MediaQuery.paddingOf</code>).",
+      "Di bawah header, tampilkan nama, NIM, dan prodi. Nama harus memakai <code>maxLines: 1</code> dan <code>TextOverflow.ellipsis</code>; uji dengan nama sangat panjang.",
+      "Buat baris statistik (IPK, SKS, Semester) memakai <code>Row</code> dan tiga <code>Expanded</code> agar sama lebar.",
+      "Buat bagian 'Keahlian' berisi minimal 8 <code>Chip</code> di dalam <code>Wrap</code> dengan <code>spacing</code> dan <code>runSpacing</code>.",
+      "Buat bagian 'Informasi' berisi pasangan label-nilai (Dosen Wali, Angkatan, Email, Status) memakai <code>Row</code> + <code>Spacer</code> atau <code>MainAxisAlignment.spaceBetween</code>.",
+      "Gunakan <code>LayoutBuilder</code>: jika lebar ≥ 600 px, tampilkan bagian Keahlian dan Informasi berdampingan (Row dengan dua Expanded); jika lebih kecil, susun bertumpuk (Column).",
+      "Bungkus konten dengan <code>SingleChildScrollView</code>. Uji di emulator portrait, landscape, dan di Chrome dengan berbagai lebar jendela. Lampirkan 3 screenshot bukti tanpa garis kuning-hitam.",
+      "Pecah halaman menjadi minimal 4 widget kecil (misal <code>HeaderProfil</code>, <code>BarisStatistik</code>, <code>BagianKeahlian</code>, <code>BagianInformasi</code>) dan pastikan <code>flutter analyze</code> bersih."
+    ],
+    "expectedOutput": "Halaman profil mahasiswa yang rapi dan profesional, menyesuaikan susunan di layar sempit dan lebar, serta bebas dari error RenderFlex overflow di semua orientasi.",
+    "rubric": "Penerapan Stack/Positioned, Row/Column, Expanded, Wrap, dan AspectRatio yang tepat (35%), Responsivitas dengan LayoutBuilder dan uji orientasi (25%), Bebas overflow & SafeArea (20%), Pemecahan widget dan kerapian kode (20%)."
+  },
+  "quiz": [
+    {
+      "question": "Apa perbedaan utama antara widget 'Expanded' dan 'Flexible' di dalam sebuah Row atau Column?",
+      "options": [
+        "Expanded memaksa widget anaknya untuk mengisi SELURUH ruang sisa yang tersedia (fit: FlexFit.tight), sedangkan Flexible membolehkan anak berukuran lebih kecil dari ruang sisa (fit: FlexFit.loose)",
+        "Expanded hanya bisa digunakan di dalam Stack, sedangkan Flexible untuk Column",
+        "Expanded membuat widget menjadi transparan, sedangkan Flexible membuatnya berwarna",
+        "Tidak ada perbedaan sama sekali"
+      ],
+      "correctIndex": 0,
+      "explanation": "Secara default, Expanded memiliki sifat fit: FlexFit.tight yang memaksa anak menghabiskan ruang sisa yang ada. Sementara Flexible memiliki default FlexFit.loose yang membiarkan anak berukuran sesuai keinginannya tanpa dipaksa melebar penuh."
+    },
+    {
+      "question": "Widget manakah yang digunakan untuk menumpuk widget satu di atas widget lainnya seperti layer Photoshop?",
+      "options": [
+        "Row",
+        "Column",
+        "Stack",
+        "Wrap"
+      ],
+      "correctIndex": 2,
+      "explanation": "Widget Stack digunakan untuk menyusun widget secara bertumpuk (layering) di sumbu z, di mana widget anak berikutnya berada di atas widget sebelumnya."
+    },
+    {
+      "question": "Kode runApp(Container(width: 100, height: 100, color: Colors.red)) menghasilkan kotak merah sepenuh layar. Mengapa?",
+      "options": [
+        "Karena Container tidak mendukung width dan height",
+        "Karena layar memberi constraint ketat (tight) seukuran layar, sehingga ukuran 100 x 100 diabaikan",
+        "Karena warna merah selalu memenuhi layar",
+        "Karena lupa memanggil setState"
+      ],
+      "correctIndex": 1,
+      "explanation": "Constraints go down: root memberi constraint tight seukuran layar. Anak harus mematuhinya. Bungkus dengan Center agar constraint menjadi longgar."
+    },
+    {
+      "question": "Pada sebuah Column, properti apa yang mengatur perataan anak secara HORIZONTAL (kiri/tengah/kanan)?",
+      "options": [
+        "mainAxisAlignment",
+        "crossAxisAlignment",
+        "mainAxisSize",
+        "textDirection"
+      ],
+      "correctIndex": 1,
+      "explanation": "Sumbu utama Column adalah vertikal, sehingga perataan horizontal diatur oleh crossAxisAlignment."
+    },
+    {
+      "question": "Muncul pesan 'A RenderFlex overflowed by 48 pixels on the bottom' pada halaman berisi form panjang. Perbaikan yang paling tepat adalah...",
+      "options": [
+        "Membungkus Column dengan SingleChildScrollView",
+        "Membungkus setiap TextField dengan Expanded",
+        "Mengubah Column menjadi Row",
+        "Menghapus Scaffold"
+      ],
+      "correctIndex": 0,
+      "explanation": "Overflow 'on the bottom' berarti Column lebih tinggi dari ruangnya. SingleChildScrollView membuat isinya bisa digulir."
+    },
+    {
+      "question": "Sederet 10 Chip di dalam Row melebihi lebar layar. Widget pengganti Row yang otomatis memindahkan chip ke baris berikutnya adalah...",
+      "options": [
+        "Stack",
+        "Wrap",
+        "Expanded",
+        "AspectRatio"
+      ],
+      "correctIndex": 1,
+      "explanation": "Wrap menyusun anak berderet dan turun ke baris baru ketika ruang horizontal habis."
+    },
+    {
+      "question": "Sebuah widget kartu dipakai di panel sempit pada tablet. Agar jumlah kolomnya dihitung dari ruang yang benar-benar diberikan induknya, alat yang tepat adalah...",
+      "options": [
+        "MediaQuery.sizeOf(context)",
+        "LayoutBuilder",
+        "Platform.isAndroid",
+        "SafeArea"
+      ],
+      "correctIndex": 1,
+      "explanation": "MediaQuery memberi ukuran seluruh layar, sedangkan LayoutBuilder memberi constraints dari induk langsung."
+    },
+    {
+      "question": "Halaman tanpa AppBar menampilkan teks yang tertutup jam dan ikon baterai. Widget yang menyelesaikan masalah ini adalah...",
+      "options": [
+        "SafeArea",
+        "Spacer",
+        "Flexible",
+        "Positioned"
+      ],
+      "correctIndex": 0,
+      "explanation": "SafeArea menambahkan padding sebesar area status bar, notch, dan navigasi gestur."
+    }
+  ]
+}

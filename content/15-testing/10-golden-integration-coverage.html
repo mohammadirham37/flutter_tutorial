@@ -1,0 +1,154 @@
+<p class="lead">Bagian terakhir membahas tiga alat pelengkap: <strong>golden test</strong> untuk menjaga tampilan tidak berubah tanpa sengaja, <strong>integration test</strong> untuk menguji aplikasi utuh di perangkat, dan <strong>coverage</strong> untuk mengukur seberapa banyak kode yang sudah diuji.</p>
+
+<h4>1. Golden test (sekilas)</h4>
+<p>Golden test merender widget menjadi gambar PNG, lalu membandingkannya dengan gambar acuan (“golden file”) yang disimpan di repo. Jika ada satu pixel yang berbeda, test gagal. Cocok untuk widget yang tampilannya penting dan jarang berubah, seperti kartu atau komponen desain.</p>
+<p class="code-file-label">📄 <code>lib/widgets/kartu_nilai.dart</code></p>
+<pre><code class="language-dart">// lib/widgets/kartu_nilai.dart
+import 'package:flutter/material.dart';
+
+class KartuNilai extends StatelessWidget {
+  const KartuNilai({super.key, required this.matkul, required this.nilai});
+
+  final String matkul;
+  final String nilai;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.school),
+        title: Text(matkul),
+        trailing: CircleAvatar(child: Text(nilai)),
+      ),
+    );
+  }
+}</code></pre>
+<p class="code-file-label">📄 <code>test/golden/kartu_nilai_golden_test.dart</code></p>
+<pre><code class="language-dart">// test/golden/kartu_nilai_golden_test.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:catatan_kuliah/widgets/kartu_nilai.dart';
+
+void main() {
+  testWidgets('tampilan KartuNilai sesuai golden', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 300,
+              child: KartuNilai(matkul: 'Pemrograman Mobile', nilai: 'A'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await expectLater(
+      find.byType(KartuNilai),
+      matchesGoldenFile('goldens/kartu_nilai.png'),
+    );
+  });
+}</code></pre>
+<pre><code class="language-bash"># Pertama kali: buat gambar acuan (test/golden/goldens/kartu_nilai.png)
+flutter test --update-goldens test/golden
+
+# Selanjutnya: bandingkan dengan acuan
+flutter test test/golden</code></pre>
+<p>Jika test golden gagal, Flutter menyimpan gambar perbedaan di folder <code>test/golden/failures/</code>. Lihat gambarnya: jika perubahan memang disengaja (misalnya Anda mengganti warna), jalankan lagi <code>--update-goldens</code> dan commit gambar barunya.</p>
+<div class="callout callout-info"><h4>ℹ️ Catatan</h4><p>Di lingkungan test, semua teks dirender dengan font khusus berbentuk kotak-kotak (Ahem) agar hasilnya sama di semua komputer. Jadi jangan kaget jika gambar golden tidak menampilkan huruf yang terbaca. Golden file juga bisa sedikit berbeda antara macOS, Windows, dan Linux, sehingga tim biasanya membuat golden di satu OS yang sama (misalnya di CI).</p></div>
+
+<h4>2. Integration test (pengenalan)</h4>
+<p>Unit dan widget test berjalan di lingkungan virtual. Integration test menjalankan <strong>aplikasi asli</strong> di emulator atau HP, termasuk plugin native (kamera, Hive, Supabase). Gunanya untuk menguji alur penting dari awal sampai akhir, misalnya “register → login → tambah catatan → logout”.</p>
+<p>Tambahkan package <code>integration_test</code> (bagian dari Flutter SDK) sebagai dev dependency:</p>
+<pre><code class="language-bash">flutter pub add 'dev:integration_test:{"sdk":"flutter"}'</code></pre>
+<p>Hasilnya di <code>pubspec.yaml</code>:</p>
+<pre><code class="language-yaml">dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter</code></pre>
+<p>Buat folder <code>integration_test/</code> di root proyek (sejajar dengan <code>lib/</code> dan <code>test/</code>):</p>
+<p class="code-file-label">📄 <code>integration_test/app_test.dart</code></p>
+<pre><code class="language-dart">// integration_test/app_test.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+import 'package:catatan_kuliah/main.dart' as app;
+
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('alur lengkap: buka aplikasi dan tekan tombol', (tester) async {
+    app.main(); // jalankan aplikasi ASLI
+    await tester.pumpAndSettle();
+
+    expect(find.text('Diklik 0 kali'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Diklik 1 kali'), findsOneWidget);
+  });
+}</code></pre>
+<pre><code class="language-bash"># Pastikan emulator menyala atau HP terhubung
+flutter devices
+
+# Jalankan integration test di perangkat
+flutter test integration_test/app_test.dart
+
+# Pilih perangkat tertentu
+flutter test integration_test -d emulator-5554</code></pre>
+<p>Perhatikan perbedaannya dengan widget test:</p>
+<ul>
+  <li><code>IntegrationTestWidgetsFlutterBinding.ensureInitialized()</code> wajib dipanggil di awal.</li>
+  <li><code>app.main()</code> menjalankan fungsi <code>main()</code> asli, termasuk inisialisasi Supabase dan Hive. Karena memakai backend sungguhan, gunakan akun dan project Supabase khusus pengujian.</li>
+  <li>Integration test jauh lebih lambat (build APK + install), jadi tulis sedikit saja untuk alur yang paling penting.</li>
+</ul>
+
+<h4>3. Coverage: seberapa banyak kode yang diuji?</h4>
+<p>Coverage menghitung persentase baris kode di <code>lib/</code> yang dijalankan oleh test.</p>
+<pre><code class="language-bash"># Jalankan semua test sambil merekam coverage
+flutter test --coverage
+
+# Hasilnya: coverage/lcov.info (format teks LCOV)
+head coverage/lcov.info</code></pre>
+<p>Isi <code>lcov.info</code> berupa daftar file (<code>SF:</code>) dan jumlah eksekusi tiap baris (<code>DA:nomor_baris,jumlah</code>):</p>
+<pre><code class="language-text">SF:lib/utils/ipk.dart
+DA:2,2
+DA:3,6
+DA:4,1
+DA:6,1
+...</code></pre>
+<p>Agar mudah dibaca, ubah menjadi laporan HTML dengan <code>genhtml</code> dari paket <code>lcov</code>:</p>
+<pre><code class="language-bash"># macOS
+brew install lcov
+# Ubuntu/Debian
+sudo apt install lcov
+
+genhtml coverage/lcov.info -o coverage/html
+open coverage/html/index.html        # macOS
+xdg-open coverage/html/index.html    # Linux</code></pre>
+<p>Pengguna Windows atau yang tidak ingin memasang lcov bisa memakai ekstensi VS Code <strong>Coverage Gutters</strong>: ia membaca <code>coverage/lcov.info</code> dan mewarnai baris di editor (hijau = teruji, merah = belum).</p>
+<div class="callout callout-tip"><h4>💡 Tips</h4><p>Jangan mengejar 100%. Target realistis untuk tugas besar: logika bisnis (<code>utils/</code>, <code>data/</code>, <code>providers/</code>) di atas 70%, ditambah widget test untuk halaman-halaman utama. Coverage tinggi dengan test yang tidak memeriksa apa-apa (tanpa <code>expect</code>) tidak ada artinya.</p></div>
+
+<h4>Ringkasan perintah</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Perintah</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>flutter analyze</code></td><td>Cek error dan lint tanpa menjalankan aplikasi</td></tr>
+      <tr><td><code>flutter test</code></td><td>Jalankan semua unit, widget, dan golden test</td></tr>
+      <tr><td><code>flutter test --update-goldens</code></td><td>Perbarui gambar acuan golden</td></tr>
+      <tr><td><code>flutter test integration_test</code></td><td>Jalankan integration test di perangkat</td></tr>
+      <tr><td><code>flutter test --coverage</code></td><td>Rekam coverage ke <code>coverage/lcov.info</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Menaruh file integration test di folder <code>test/</code>. File tersebut akan ikut dijalankan oleh <code>flutter test</code> biasa dan gagal karena tidak ada perangkat.</li>
+  <li>Lupa meng-commit folder <code>goldens/</code>, sehingga test golden gagal di komputer teman satu kelompok.</li>
+  <li>Meng-commit folder <code>coverage/</code>. Folder ini hasil generate dan sudah ada di <code>.gitignore</code> bawaan Flutter.</li>
+</ul></div>

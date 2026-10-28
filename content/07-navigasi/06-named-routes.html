@@ -1,0 +1,190 @@
+<p class="lead"><strong>Named routes</strong> memberi setiap halaman sebuah nama seperti URL (<code>'/detail'</code>). Navigasi cukup menyebut nama, tanpa perlu meng-import class halaman tujuan di setiap file.</p>
+
+<h4>Cara 1: tabel <code>routes</code> (paling sederhana)</h4>
+<pre><code class="language-dart">return MaterialApp(
+  initialRoute: '/',
+  routes: {
+    '/': (context) =&gt; const BerandaScreen(),
+    '/tentang': (context) =&gt; const TentangScreen(),
+  },
+);
+
+
+// Di halaman mana pun:
+onPressed: () =&gt; Navigator.pushNamed(context, '/tentang'),
+</code></pre>
+
+<p>Tabel <code>routes</code> cocok untuk halaman tanpa argumen. Kelemahannya: jika halaman butuh data, kita harus membaca <code>ModalRoute.of(context)!.settings.arguments</code> di dalam halaman, dan tidak ada penanganan nama rute yang salah.</p>
+
+<h4>Cara 2: <code>onGenerateRoute</code> (lebih aman)</h4>
+<p><code>onGenerateRoute</code> adalah satu fungsi pusat yang dipanggil setiap kali <code>pushNamed</code> dijalankan. Di sana kita bisa memeriksa argumen dan membuat halaman error jika rute tidak dikenal.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class Mahasiswa {
+  final String nim;
+  final String nama;
+
+  const Mahasiswa(this.nim, this.nama);
+}
+
+// Kumpulkan semua nama rute di satu tempat agar tidak salah ketik
+class Rute {
+  static const beranda = '/';
+  static const detail = '/detail';
+  static const tentang = '/tentang';
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.orange),
+      initialRoute: Rute.beranda,
+      onGenerateRoute: generateRoute, // dipanggil setiap pushNamed
+    );
+  }
+}
+
+// Satu fungsi pusat yang menerjemahkan NAMA rute menjadi HALAMAN
+Route&lt;dynamic&gt; generateRoute(RouteSettings settings) {
+  switch (settings.name) {
+    case Rute.beranda:
+      return MaterialPageRoute(builder: (_) =&gt; const BerandaScreen());
+
+    case Rute.detail:
+      // arguments bertipe Object?, jadi WAJIB dicek tipenya
+      final args = settings.arguments;
+      if (args is Mahasiswa) {
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) =&gt; DetailScreen(mahasiswa: args),
+        );
+      }
+      return _halamanError('Argumen untuk ${settings.name} tidak valid');
+
+    case Rute.tentang:
+      return MaterialPageRoute(builder: (_) =&gt; const TentangScreen());
+
+    default:
+      return _halamanError('Rute "${settings.name}" tidak ditemukan');
+  }
+}
+
+// Halaman cadangan agar aplikasi tidak crash ketika rute salah
+MaterialPageRoute&lt;dynamic&gt; _halamanError(String pesan) {
+  return MaterialPageRoute(
+    builder: (_) =&gt; Scaffold(
+      appBar: AppBar(title: const Text('Oops')),
+      body: Center(child: Text(pesan)),
+    ),
+  );
+}
+
+class BerandaScreen extends StatelessWidget {
+  const BerandaScreen({super.key});
+
+  static const data = [
+    Mahasiswa('H1D023001', 'Andi Pratama'),
+    Mahasiswa('H1D023002', 'Bunga Lestari'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Beranda'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: () =&gt; Navigator.pushNamed(context, Rute.tentang),
+          ),
+        ],
+      ),
+      body: ListView(
+        children: [
+          for (final m in data)
+            ListTile(
+              title: Text(m.nama),
+              subtitle: Text(m.nim),
+              // Kirim argumen lewat parameter "arguments"
+              onTap: () =&gt; Navigator.pushNamed(context, Rute.detail, arguments: m),
+            ),
+          ListTile(
+            title: const Text('Coba rute yang salah'),
+            textColor: Colors.red,
+            onTap: () =&gt; Navigator.pushNamed(context, '/tidak-ada'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DetailScreen extends StatelessWidget {
+  final Mahasiswa mahasiswa;
+
+  const DetailScreen({super.key, required this.mahasiswa});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(mahasiswa.nama)),
+      body: Center(child: Text('NIM: ${mahasiswa.nim}')),
+    );
+  }
+}
+
+class TentangScreen extends StatelessWidget {
+  const TentangScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Tentang')),
+      body: const Center(child: Text('Contoh Named Routes + onGenerateRoute')),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/named-beranda.jpg" alt="Beranda dengan named routes" loading="lazy">
+    <div class="screenshot-caption">Beranda dengan named routes</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/named-detail.jpg" alt="Detail menerima argumen Mahasiswa" loading="lazy">
+    <div class="screenshot-caption">Detail menerima argumen Mahasiswa</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/named-error.jpg" alt="Rute tidak dikenal ditangani halaman error" loading="lazy">
+    <div class="screenshot-caption">Rute tidak dikenal ditangani halaman error</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li>Class <code>Rute</code> berisi konstanta nama rute. Salah ketik <code>Rute.detial</code> akan langsung ditandai merah oleh editor, sedangkan salah ketik string <code>'/detial'</code> baru ketahuan saat aplikasi jalan.</li>
+  <li><code>Navigator.pushNamed(context, Rute.detail, arguments: m)</code> mengirim objek lewat <code>settings.arguments</code>.</li>
+  <li>Di <code>generateRoute</code>, <code>if (args is Mahasiswa)</code> memeriksa tipe sekaligus melakukan <em>type promotion</em>, sehingga <code>args</code> bisa langsung dipakai sebagai <code>Mahasiswa</code>.</li>
+  <li>Cabang <code>default</code> mengembalikan halaman error yang ramah, bukan crash.</li>
+  <li>Varian lain: <code>pushReplacementNamed</code> dan <code>pushNamedAndRemoveUntil</code> bekerja sama seperti versi tanpa nama.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Named routes atau go_router?</h4><p>Tim Flutter tidak lagi merekomendasikan named routes untuk aplikasi baru yang butuh <em>deep link</em> (membuka halaman tertentu dari URL/notifikasi). Untuk kebutuhan itu gunakan <code>go_router</code> (section 11). Namun named routes tetap penting dipahami karena banyak proyek lama memakainya.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Melakukan cast paksa <code>settings.arguments as Mahasiswa</code> tanpa cek. Jika argumen lupa dikirim, aplikasi crash.</li>
+  <li>Mengisi <code>home</code> sekaligus rute <code>'/'</code> di tabel <code>routes</code>. Flutter akan memberi error karena keduanya mendefinisikan halaman awal.</li>
+  <li>Lupa meneruskan <code>settings</code> ke <code>MaterialPageRoute</code> sehingga <code>ModalRoute.of(context)?.settings.name</code> bernilai <code>null</code>.</li>
+</ul>
+</div>

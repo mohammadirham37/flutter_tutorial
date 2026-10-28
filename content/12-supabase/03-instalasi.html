@@ -1,0 +1,59 @@
+<p class="lead">Supabase menyediakan package resmi <code>supabase_flutter</code>. Di dalamnya sudah ada semua yang dibutuhkan: client database (PostgREST), Auth, Realtime, dan Storage, termasuk penyimpanan sesi login otomatis di perangkat.</p>
+
+<h4>Langkah 1: Tambahkan package</h4>
+<pre><code class="language-bash">flutter pub add supabase_flutter
+</code></pre>
+<p>Perintah ini menambahkan baris <code>supabase_flutter: ^x.y.z</code> di <code>pubspec.yaml</code> dengan versi terbaru yang kompatibel, lalu menjalankan <code>flutter pub get</code>.</p>
+
+<h4>Langkah 2: Inisialisasi di <code>main()</code></h4>
+<p>Supabase harus di-<em>initialize</em> <strong>satu kali</strong>, sebelum <code>runApp()</code>. Contoh paling sederhana (nilai URL dan key masih ditulis langsung; di section berikutnya kita pindahkan ke file konfigurasi):</p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+Future&lt;void&gt; main() async {
+  // 1. Wajib: memastikan binding Flutter siap sebelum kode async + plugin.
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 2. Hubungkan aplikasi ke project Supabase (cukup SEKALI).
+  await Supabase.initialize(
+    url: 'https://abcdefghijklm.supabase.co',
+    publishableKey: 'sb_publishable_xxxxxxxxxxxxxxxxxxxx',
+  );
+
+  runApp(const MaterialApp(home: Scaffold()));
+}
+
+// 3. Ambil client di mana saja setelah initialize.
+final supabase = Supabase.instance.client;
+</code></pre>
+<p>Penjelasan baris penting:</p>
+<ul>
+  <li><code>main()</code> diubah menjadi <code>async</code> dan mengembalikan <code>Future&lt;void&gt;</code> karena kita perlu <code>await</code> sebelum <code>runApp()</code>.</li>
+  <li><code>WidgetsFlutterBinding.ensureInitialized()</code> wajib dipanggil sebelum memakai plugin (di sini untuk penyimpanan sesi) di dalam <code>main()</code>. Lupa baris ini akan memunculkan error <em>Binding has not yet been initialized</em>.</li>
+  <li><code>Supabase.initialize(url:, publishableKey:)</code> membuat client sekaligus memulihkan sesi login yang tersimpan dari pembukaan aplikasi sebelumnya.</li>
+  <li><code>Supabase.instance.client</code> adalah objek <code>SupabaseClient</code> yang kita pakai untuk semua operasi. Memanggilnya <em>sebelum</em> initialize selesai akan error.</li>
+</ul>
+
+<h4>Langkah 3: Izin internet di Android</h4>
+<p>Proyek Flutter baru hanya memberi izin internet untuk mode <em>debug</em>. Agar APK <em>release</em> juga bisa mengakses Supabase, tambahkan izin di manifest utama:</p>
+<p class="code-file-label">📄 <code>android/app/src/main/AndroidManifest.xml</code></p>
+<pre><code class="language-text">&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+    &lt;!-- Tambahkan baris ini, di atas tag &lt;application&gt; --&gt;
+    &lt;uses-permission android:name="android.permission.INTERNET"/&gt;
+
+    &lt;application
+        android:label="catatan_kuliah"
+        ...
+</code></pre>
+
+<div class="callout callout-tip"><h4>💡 Platform lain</h4><p>iOS tidak membutuhkan izin tambahan. Untuk macOS, aktifkan <code>com.apple.security.network.client</code> di file <code>macos/Runner/DebugProfile.entitlements</code> dan <code>Release.entitlements</code>. Flutter Web langsung bisa dipakai.</p></div>
+
+<h4>Langkah 4: Uji koneksi</h4>
+<p>Jalankan aplikasi. Jika tidak ada error merah di konsol, inisialisasi berhasil. Perlu diingat, <code>initialize</code> tidak mengirim query ke database, jadi URL atau key yang salah baru ketahuan saat query pertama dijalankan (akan kita coba di section Query).</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>"You must initialize the supabase instance before calling Supabase.instance"</strong>: <code>Supabase.instance.client</code> dipanggil sebelum <code>await Supabase.initialize(...)</code>, misalnya di variabel global yang dibaca terlalu awal atau karena lupa <code>await</code>.</li>
+  <li><strong>Memanggil initialize di dalam <code>build()</code></strong>: initialize cukup sekali di <code>main()</code>.</li>
+  <li><strong>URL diakhiri <code>/rest/v1</code></strong>: cukup tulis URL dasarnya, <code>https://xxxx.supabase.co</code>.</li>
+</ul></div>

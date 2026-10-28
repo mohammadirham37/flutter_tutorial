@@ -1,0 +1,107 @@
+<p class="lead"><code>NoteRepository</code> adalah "satu pintu" untuk data catatan. Provider cukup memanggil <code>repository.getNotes()</code> tanpa perlu tahu apakah data datang dari Supabase atau dari cache Hive.</p>
+
+<h4>Strategi: <em>network first, cache fallback</em></h4>
+<pre><code class="language-text">getNotes()
+   │
+   ├─▶ remote.fetchNotes()  (maks 10 detik)
+   │       │
+   │       ├─ sukses ──────────▶ local.saveNotes(data) ──▶ NotesResult(data, fromCache: false)
+   │       │
+   │       ├─ PostgrestException ──▶ rethrow  (server MENJAWAB tapi menolak:
+   │       │                                    RLS, tabel tidak ada → harus diperbaiki)
+   │       │
+   │       └─ error lain ─────▶ local.getNotes() ──▶ NotesResult(cache, fromCache: true)
+   │          (SocketException,                      → UI menampilkan banner "mode offline"
+   │           ClientException,
+   │           TimeoutException)
+</code></pre>
+
+<h4>File: <code>lib/data/note_repository.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/data/note_repository.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../models/note.dart';
+import 'note_local_data_source.dart';
+import 'note_remote_data_source.dart';
+
+/// Hasil pengambilan daftar catatan.
+class NotesResult {
+  const NotesResult(this.notes, {required this.fromCache});
+
+  final List&lt;Note&gt; notes;
+
+  /// true jika server tidak bisa dihubungi dan data diambil dari Hive.
+  final bool fromCache;
+}
+
+/// Satu pintu untuk semua data catatan. Provider tidak perlu tahu
+/// apakah data berasal dari Supabase atau dari cache Hive.
+class NoteRepository {
+  NoteRepository({
+    required this.remote,
+    required this.local,
+    this.timeout = const Duration(seconds: 10),
+  });
+
+  final NoteRemoteDataSource remote;
+  final NoteLocalDataSource local;
+  final Duration timeout;
+
+  /// Ambil dari server lalu simpan ke cache. Jika gagal karena jaringan,
+  /// kembalikan isi cache (mode offline).
+  Future&lt;NotesResult&gt; getNotes() async {
+    try {
+      final notes = await remote.fetchNotes().timeout(timeout);
+      await local.saveNotes(notes);
+      return NotesResult(notes, fromCache: false);
+    } on PostgrestException {
+      // Server menjawab tapi menolak (misalnya RLS / tabel tidak ada).
+      // Ini bukan masalah jaringan, jadi teruskan errornya.
+      rethrow;
+    } catch (_) {
+      // SocketException, ClientException, TimeoutException, dll.
+      return NotesResult(local.getNotes(), fromCache: true);
+    }
+  }
+
+  Future&lt;Note&gt; addNote({
+    required String title,
+    required String content,
+    required String category,
+  }) async {
+    final note = await remote
+        .createNote(title: title, content: content, category: category)
+        .timeout(timeout);
+    await local.saveNote(note);
+    return note;
+  }
+
+  Future&lt;Note&gt; updateNote(Note note) async {
+    final updated = await remote.updateNote(note).timeout(timeout);
+    await local.saveNote(updated);
+    return updated;
+  }
+
+  Future&lt;void&gt; deleteNote(String id) async {
+    await remote.deleteNote(id).timeout(timeout);
+    await local.deleteNote(id);
+  }
+
+  Future&lt;void&gt; clearCache() =&gt; local.clear();
+}
+</code></pre>
+
+<h4>Membedah NoteRepository</h4>
+<ul>
+  <li><strong><code>NotesResult</code></strong> membungkus dua informasi: daftar catatan <em>dan</em> asal datanya. Tanpa flag <code>fromCache</code>, UI tidak bisa menampilkan banner offline.</li>
+  <li><strong><code>.timeout(timeout)</code></strong>: tanpa batas waktu, request di jaringan yang sangat lambat bisa menggantung lama. Setelah 10 detik muncul <code>TimeoutException</code> dan kita beralih ke cache.</li>
+  <li><strong><code>on PostgrestException { rethrow; }</code></strong> ditulis <em>sebelum</em> <code>catch (_)</code>. Error dari database bukan masalah koneksi, sehingga tidak boleh disembunyikan dengan data cache. Kalau disembunyikan, Anda tidak akan sadar policy RLS salah.</li>
+  <li><strong>Operasi tulis (<code>addNote</code>, <code>updateNote</code>, <code>deleteNote</code>)</strong> wajib online. Urutannya: server dulu, cache kemudian. Jika server gagal, exception diteruskan dan cache tidak berubah, sehingga cache tidak pernah berisi data yang tidak ada di server.</li>
+  <li><strong>Field <code>remote</code> dan <code>local</code> bertipe class konkret</strong>, tetapi tetap bisa diganti di test karena Dart mengizinkan <code>class Palsu implements NoteRemoteDataSource</code>.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Kenapa tidak memakai package connectivity?</h4><p>Status "Wi-Fi tersambung" tidak menjamin internet benar-benar bisa dipakai (misalnya Wi-Fi kampus yang belum login portal). Cara paling jujur adalah langsung mencoba request: jika gagal karena jaringan, kita tahu sedang offline.</p></div>
+
+<div class="callout callout-tip"><h4>💡 Batasan desain ini</h4><p>Mode offline di proyek ini bersifat <strong>baca saja</strong>. Menambah atau mengubah catatan saat offline akan gagal dengan pesan yang jelas. Antrean penulisan offline (<em>offline queue</em>) dibahas sebagai ide pengembangan di section terakhir.</p></div>

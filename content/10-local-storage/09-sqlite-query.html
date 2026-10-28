@@ -1,0 +1,289 @@
+<p class="lead">Kekuatan utama SQLite dibanding SharedPreferences adalah kemampuan <strong>mencari, memfilter, mengurutkan, dan menghitung</strong> data. Di section ini kita mengenal parameter lengkap <code>db.query()</code>, <code>rawQuery()</code> untuk SQL bebas, dan cara aman memasukkan input pengguna ke query.</p>
+
+<h4>Parameter <code>db.query()</code></h4>
+<pre><code class="language-dart">import 'package:sqflite/sqflite.dart';
+
+Future&lt;List&lt;Map&lt;String, Object?&gt;&gt;&gt; contohQuery(Database db) {
+  return db.query(
+    'mahasiswa',                       // FROM mahasiswa
+    columns: ['nim', 'nama', 'ipk'],   // SELECT nim, nama, ipk  (null = semua kolom)
+    where: 'prodi = ? AND ipk &gt;= ?',   // WHERE prodi = ? AND ipk &gt;= ?
+    whereArgs: ['Informatika', 3.0],   // nilai untuk tanda ? secara berurutan
+    orderBy: 'ipk DESC, nama ASC',     // ORDER BY
+    limit: 10,                         // LIMIT 10
+    offset: 0,                         // OFFSET 0 (untuk halaman berikutnya: 10, 20, ...)
+  );
+}
+</code></pre>
+
+<h4>⚠️ SQL Injection: Mengapa Wajib Memakai <code>?</code> dan <code>whereArgs</code></h4>
+<p>Bayangkan fitur pencarian yang menyambung input pengguna langsung ke SQL:</p>
+<pre><code class="language-dart">import 'package:sqflite/sqflite.dart';
+
+// ❌ BERBAHAYA: input pengguna disambung langsung ke string SQL
+Future&lt;List&lt;Map&lt;String, Object?&gt;&gt;&gt; cariTidakAman(Database db, String input) {
+  return db.rawQuery("SELECT * FROM mahasiswa WHERE nama = '$input'");
+}
+
+// ✅ AMAN: nilai dikirim terpisah, tidak pernah dianggap perintah SQL
+Future&lt;List&lt;Map&lt;String, Object?&gt;&gt;&gt; cariAman(Database db, String input) {
+  return db.rawQuery('SELECT * FROM mahasiswa WHERE nama = ?', [input]);
+}
+</code></pre>
+<p>Jika pengguna mengetik <code>x' OR '1'='1</code>, versi tidak aman menjadi <code>WHERE nama = 'x' OR '1'='1'</code> yang <strong>selalu benar</strong>, sehingga semua data bocor. Input seperti <code>'; DROP TABLE mahasiswa; --</code> bahkan bisa merusak data. Dengan <code>?</code>, input tersebut diperlakukan sebagai teks biasa. Tanda kutip di nama seperti <code>Ma'ruf</code> pun tidak membuat error.</p>
+
+<h4>Pencarian dengan LIKE</h4>
+<pre><code class="language-dart">import 'package:sqflite/sqflite.dart';
+
+Future&lt;List&lt;Map&lt;String, Object?&gt;&gt;&gt; cariNama(Database db, String kata) {
+  return db.query(
+    'mahasiswa',
+    where: 'nama LIKE ? OR nim LIKE ?',
+    whereArgs: ['%$kata%', '%$kata%'], // % = karakter apa saja, ditaruh di whereArgs
+  );
+}
+</code></pre>
+<p>Tanda <code>%</code> ditempel pada <strong>nilai</strong> di <code>whereArgs</code>, bukan di string <code>where</code>.</p>
+
+<h4><code>rawQuery</code> untuk Agregasi</h4>
+<p>Untuk <code>COUNT</code>, <code>AVG</code>, <code>GROUP BY</code>, dan <code>JOIN</code>, SQL mentah lebih jelas:</p>
+<pre><code class="language-dart">import 'package:sqflite/sqflite.dart';
+
+Future&lt;void&gt; statistik(Database db) async {
+  // Satu angka: gunakan Sqflite.firstIntValue
+  final total = Sqflite.firstIntValue(
+    await db.rawQuery('SELECT COUNT(*) FROM mahasiswa'),
+  ) ?? 0;
+
+  // Rata-rata IPK per prodi
+  final rows = await db.rawQuery('''
+    SELECT prodi, COUNT(*) AS jumlah, ROUND(AVG(ipk), 2) AS rata
+    FROM mahasiswa
+    GROUP BY prodi
+    ORDER BY rata DESC
+  ''');
+  print('Total: $total');
+  for (final r in rows) {
+    print('${r['prodi']}: ${r['jumlah']} mhs, rata-rata ${r['rata']}');
+  }
+}
+</code></pre>
+
+<h4>Contoh Lengkap: Pencarian &amp; Filter Mahasiswa</h4>
+<p class="code-file-label">📄 <code>lib/data/mahasiswa_query_db.dart</code></p>
+<pre><code class="language-dart">import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+
+class MahasiswaQueryDb {
+  static Database? _db;
+
+  static Future&lt;Database&gt; get database async =&gt; _db ??= await openDatabase(
+        join(await getDatabasesPath(), 'query_demo.db'),
+        version: 1,
+        onCreate: (db, version) async {
+          await db.execute('''
+            CREATE TABLE mahasiswa (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              nim TEXT NOT NULL UNIQUE,
+              nama TEXT NOT NULL,
+              prodi TEXT NOT NULL,
+              ipk REAL NOT NULL
+            )
+          ''');
+          // Data contoh
+          const contoh = [
+            ['H1D022001', 'Budi Santoso', 'Informatika', 3.45],
+            ['H1D022002', 'Siti Aminah', 'Informatika', 3.82],
+            ['H1D022003', "Ma'ruf Hidayat", 'Informatika', 2.95],
+            ['H1A022004', 'Dewi Lestari', 'Teknik Elektro', 3.60],
+            ['H1A022005', 'Rizky Pratama', 'Teknik Elektro', 3.10],
+            ['H1C022006', 'Andi Wijaya', 'Teknik Sipil', 3.25],
+          ];
+          for (final m in contoh) {
+            await db.insert('mahasiswa', {'nim': m[0], 'nama': m[1], 'prodi': m[2], 'ipk': m[3]});
+          }
+        },
+      );
+
+  /// Gabungan pencarian + filter prodi + filter IPK minimum
+  static Future&lt;List&lt;Map&lt;String, Object?&gt;&gt;&gt; cari({
+    String kata = '',
+    String? prodi,
+    double ipkMin = 0,
+  }) async {
+    final db = await database;
+    final kondisi = &lt;String&gt;['ipk &gt;= ?'];
+    final args = &lt;Object?&gt;[ipkMin];
+    if (kata.isNotEmpty) {
+      kondisi.add('(nama LIKE ? OR nim LIKE ?)');
+      args.addAll(['%$kata%', '%$kata%']);
+    }
+    if (prodi != null) {
+      kondisi.add('prodi = ?');
+      args.add(prodi);
+    }
+    return db.query(
+      'mahasiswa',
+      where: kondisi.join(' AND '),
+      whereArgs: args,
+      orderBy: 'ipk DESC',
+    );
+  }
+
+  static Future&lt;List&lt;String&gt;&gt; daftarProdi() async {
+    final db = await database;
+    final rows = await db.rawQuery('SELECT DISTINCT prodi FROM mahasiswa ORDER BY prodi');
+    return rows.map((r) =&gt; r['prodi'] as String).toList();
+  }
+
+  static Future&lt;double&gt; rataIpk() async {
+    final db = await database;
+    final rows = await db.rawQuery('SELECT AVG(ipk) AS rata FROM mahasiswa');
+    return (rows.first['rata'] as num? ?? 0).toDouble();
+  }
+}
+</code></pre>
+<p><strong>Penjelasan:</strong> fungsi <code>cari</code> menyusun klausa <code>WHERE</code> secara dinamis. String <code>where</code> hanya berisi nama kolom dan <code>?</code> yang kita tulis sendiri, sedangkan semua nilai dari pengguna masuk ke <code>args</code>. Itulah cara aman membuat filter dinamis.</p>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Pastikan sudah: flutter pub add sqflite path, dan membuat lib/data/mahasiswa_query_db.dart
+import 'package:flutter/material.dart';
+
+import 'data/mahasiswa_query_db.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: CariMahasiswaScreen()));
+
+class CariMahasiswaScreen extends StatefulWidget {
+  const CariMahasiswaScreen({super.key});
+
+  @override
+  State&lt;CariMahasiswaScreen&gt; createState() =&gt; _CariMahasiswaScreenState();
+}
+
+class _CariMahasiswaScreenState extends State&lt;CariMahasiswaScreen&gt; {
+  String _kata = '';
+  String? _prodi;
+  bool _cumlaude = false;
+  List&lt;String&gt; _semuaProdi = [];
+  List&lt;Map&lt;String, Object?&gt;&gt; _hasil = [];
+  double _rata = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future&lt;void&gt; _init() async {
+    final prodi = await MahasiswaQueryDb.daftarProdi();
+    final rata = await MahasiswaQueryDb.rataIpk();
+    if (!mounted) return;
+    setState(() {
+      _semuaProdi = prodi;
+      _rata = rata;
+    });
+    await _cari();
+  }
+
+  Future&lt;void&gt; _cari() async {
+    final hasil = await MahasiswaQueryDb.cari(
+      kata: _kata,
+      prodi: _prodi,
+      ipkMin: _cumlaude ? 3.5 : 0,
+    );
+    if (mounted) setState(() =&gt; _hasil = hasil);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Rata-rata IPK: ${_rata.toStringAsFixed(2)}')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Cari nama atau NIM',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (v) {
+                _kata = v.trim();
+                _cari();
+              },
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                FilterChip(
+                  label: const Text('IPK ≥ 3.5'),
+                  selected: _cumlaude,
+                  onSelected: (v) {
+                    setState(() =&gt; _cumlaude = v);
+                    _cari();
+                  },
+                ),
+                for (final p in _semuaProdi)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: ChoiceChip(
+                      label: Text(p),
+                      selected: _prodi == p,
+                      onSelected: (v) {
+                        setState(() =&gt; _prodi = v ? p : null);
+                        _cari();
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Text('${_hasil.length} mahasiswa ditemukan'),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _hasil.length,
+              itemBuilder: (context, i) {
+                final m = _hasil[i];
+                return ListTile(
+                  leading: CircleAvatar(child: Text((m['ipk'] as num).toStringAsFixed(1))),
+                  title: Text(m['nama'] as String),
+                  subtitle: Text('${m['nim']} • ${m['prodi']}'),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/query-awal.jpg" alt="Semua mahasiswa" loading="lazy">
+    <div class="screenshot-caption">Tampilan awal diurutkan berdasarkan IPK</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/query-filter.jpg" alt="Hasil filter" loading="lazy">
+    <div class="screenshot-caption">Filter IPK di atas 3.5 dan prodi Informatika</div>
+  </div>
+</div>
+
+
+<p>Coba ketik <code>ma'ruf</code> di kolom pencarian: tetap berjalan normal karena memakai <code>whereArgs</code>. Dengan penyambungan string, tanda kutip itu akan membuat SQL error.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Menyambung input ke SQL dengan <code>'$input'</code> (SQL injection).</li>
+  <li>Jumlah <code>?</code> tidak sama dengan jumlah elemen <code>whereArgs</code>: error <em>bind or column index out of range</em>.</li>
+  <li>Menulis <code>where: "nama LIKE '%?%'"</code>. Tanda <code>?</code> di dalam kutip tidak dianggap parameter; letakkan <code>%</code> di nilai.</li>
+  <li>Mengambil semua data lalu memfilter di Dart dengan <code>where()</code> untuk ribuan baris. Biarkan SQLite yang memfilter, jauh lebih cepat.</li>
+</ul>
+</div>

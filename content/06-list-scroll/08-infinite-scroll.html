@@ -1,0 +1,214 @@
+<p class="lead">Aplikasi seperti forum atau media sosial tidak memuat ribuan data sekaligus. Data diambil per halaman (misalnya 15 item), dan halaman berikutnya dimuat saat pengguna mendekati akhir daftar. Teknik ini disebut <strong>infinite scroll</strong> atau <em>load more</em>.</p>
+
+<h4>Konsep: ScrollController</h4>
+<ul>
+  <li><code>ScrollController</code> dihubungkan ke ListView lewat <code>controller:</code>. Sama seperti TextEditingController: dibuat di State, wajib di-dispose.</li>
+  <li><code>controller.position.pixels</code> = jarak yang sudah digulir; <code>maxScrollExtent</code> = jarak maksimum.</li>
+  <li><code>addListener</code> dipanggil setiap kali posisi gulir berubah.</li>
+  <li><code>animateTo(0, ...)</code> / <code>jumpTo(0)</code> menggulir ke posisi tertentu, misalnya kembali ke atas.</li>
+</ul>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">final _scrollController = ScrollController();
+
+@override
+void initState() {
+  super.initState();
+  _scrollController.addListener(() {
+    final posisi = _scrollController.position;
+    // pixels = jarak yang sudah digulir, maxScrollExtent = jarak maksimum
+    if (posisi.pixels &gt;= posisi.maxScrollExtent - 200) {
+      debugPrint('Hampir sampai bawah -&gt; muat data berikutnya');
+    }
+  });
+}
+
+@override
+void dispose() {
+  _scrollController.dispose(); // sama seperti TextEditingController
+  super.dispose();
+}
+
+@override
+Widget build(BuildContext context) {
+  return ListView.builder(
+    controller: _scrollController, // hubungkan ke list
+    itemCount: 50,
+    itemBuilder: (context, i) =&gt; ListTile(title: Text('Item $i')),
+  );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/scrollcontroller-kecil.jpg" alt="ListView yang terhubung dengan ScrollController" loading="lazy">
+    <div class="screenshot-caption">ListView yang terhubung dengan ScrollController</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: forum dengan load more</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const ForumScreen(),
+    );
+  }
+}
+
+class ForumScreen extends StatefulWidget {
+  const ForumScreen({super.key});
+
+  @override
+  State&lt;ForumScreen&gt; createState() =&gt; _ForumScreenState();
+}
+
+class _ForumScreenState extends State&lt;ForumScreen&gt; {
+  static const _ukuranHalaman = 15;
+  static const _totalDiServer = 70; // anggap server hanya punya 70 postingan
+
+  final _scrollController = ScrollController();
+  final List&lt;String&gt; _postingan = [];
+  int _halaman = 0;
+  bool _sedangMemuat = false;
+  bool _masihAda = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _muatHalamanBerikutnya();
+    _scrollController.addListener(_cekPosisiScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_cekPosisiScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _cekPosisiScroll() {
+    final posisi = _scrollController.position;
+    if (posisi.pixels &gt;= posisi.maxScrollExtent - 300) {
+      _muatHalamanBerikutnya();
+    }
+  }
+
+  // Simulasi API: GET /postingan?page=N
+  Future&lt;List&lt;String&gt;&gt; _ambilDariServer(int halaman) async {
+    await Future.delayed(const Duration(milliseconds: 1200));
+    final mulai = halaman * _ukuranHalaman;
+    final akhir = (mulai + _ukuranHalaman).clamp(0, _totalDiServer);
+    return [for (var i = mulai; i &lt; akhir; i++) 'Postingan forum #${i + 1}'];
+  }
+
+  Future&lt;void&gt; _muatHalamanBerikutnya() async {
+    // Penjaga: jangan memuat dua kali bersamaan &amp; berhenti jika data habis
+    if (_sedangMemuat || !_masihAda) return;
+    setState(() =&gt; _sedangMemuat = true);
+
+    final baru = await _ambilDariServer(_halaman);
+    if (!mounted) return;
+
+    setState(() {
+      _postingan.addAll(baru);
+      _halaman++;
+      _sedangMemuat = false;
+      _masihAda = baru.length == _ukuranHalaman;
+    });
+  }
+
+  Future&lt;void&gt; _refresh() async {
+    setState(() {
+      _postingan.clear();
+      _halaman = 0;
+      _masihAda = true;
+    });
+    await _muatHalamanBerikutnya();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Forum (${_postingan.length} dimuat)')),
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView.builder(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          // +1 untuk baris paling bawah (loading / "sudah habis")
+          itemCount: _postingan.length + 1,
+          itemBuilder: (context, index) {
+            if (index == _postingan.length) {
+              return Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: _masihAda
+                      ? const CircularProgressIndicator()
+                      : const Text('Semua postingan sudah dimuat'),
+                ),
+              );
+            }
+            return ListTile(
+              leading: CircleAvatar(child: Text('${index + 1}')),
+              title: Text(_postingan[index]),
+              subtitle: Text('Halaman ${index ~/ _ukuranHalaman + 1}'),
+            );
+          },
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.small(
+        tooltip: 'Ke atas',
+        // animateTo: gulir ke posisi tertentu dengan animasi
+        onPressed: () =&gt; _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeOut,
+        ),
+        child: const Icon(Icons.arrow_upward),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/infinite-awal.jpg" alt="15 postingan pertama dimuat" loading="lazy">
+    <div class="screenshot-caption">15 postingan pertama dimuat</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/infinite-loading.jpg" alt="Setelah digulir ke bawah: halaman kedua otomatis dimuat (30 postingan)" loading="lazy">
+    <div class="screenshot-caption">Setelah digulir ke bawah: halaman kedua otomatis dimuat (30 postingan)</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/infinite-habis.jpg" alt="Semua 70 postingan sudah dimuat" loading="lazy">
+    <div class="screenshot-caption">Semua 70 postingan sudah dimuat</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><code>_cekPosisiScroll</code> memuat halaman berikutnya saat posisi tinggal 300 piksel dari bawah, sehingga data baru sudah siap sebelum pengguna benar-benar sampai di ujung.</li>
+  <li>Dua penjaga di awal <code>_muatHalamanBerikutnya</code> sangat penting: <code>_sedangMemuat</code> mencegah permintaan ganda (listener terpanggil puluhan kali per detik), dan <code>_masihAda</code> menghentikan pemuatan jika server sudah tidak punya data.</li>
+  <li><code>itemCount: _postingan.length + 1</code>: item terakhir dipakai sebagai baris status (loading atau "sudah habis").</li>
+  <li>Data dianggap habis jika halaman yang diterima kurang dari <code>_ukuranHalaman</code>.</li>
+  <li>FAB memakai <code>animateTo(0)</code> untuk kembali ke atas, dan <code>_refresh</code> mereset semuanya ke halaman pertama.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Tanpa penjaga <code>_sedangMemuat</code>:</strong> halaman yang sama dimuat berkali-kali sehingga data dobel.</li>
+  <li><strong>Lupa <code>dispose</code> ScrollController dan <code>removeListener</code>.</strong></li>
+  <li><strong>Membaca <code>controller.position</code> sebelum ListView tampil.</strong> Controller belum terpasang; periksa dengan <code>controller.hasClients</code> jika perlu.</li>
+</ul></div>

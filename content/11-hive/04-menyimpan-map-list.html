@@ -1,0 +1,116 @@
+<p class="lead">Tanpa membuat adapter apa pun, Hive sudah bisa menyimpan <code>List</code> dan <code>Map</code>. Ini cara tercepat menyimpan data terstruktur, dan juga cara yang dipakai untuk cache data JSON dari API atau Supabase.</p>
+
+<h4>Menyimpan dan membaca List &amp; Map</h4>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+Future&lt;void&gt; demoMapList() async {
+  final box = await Hive.openBox('profil_box');
+
+  // Menyimpan List dan Map langsung, tanpa adapter
+  await box.put('matkul_favorit', ['Pemrograman Mobile', 'Basis Data', 'AI']);
+  await box.put('profil', {
+    'nama': 'Siti Aminah',
+    'nim': 'H1D023001',
+    'ipk': 3.75,
+    'hobi': ['membaca', 'coding'],
+  });
+
+  final favorit = box.get('matkul_favorit') as List;
+  debugPrint('Jumlah favorit: ${favorit.length}');
+  debugPrint('Pertama: ${favorit.first}');
+
+  final profil = box.get('profil') as Map;
+  debugPrint('Nama: ${profil['nama']}, IPK: ${profil['ipk']}');
+}
+
+Future&lt;void&gt; demoMapSetelahDibukaUlang() async {
+  final box = await Hive.openBox('profil_box');
+  final mentah = box.get('profil');
+  debugPrint('Tipe asli: ${mentah.runtimeType}');
+
+  // final salah = mentah as Map&lt;String, dynamic&gt;; // TypeError!
+  final profil = Map&lt;String, dynamic&gt;.from(mentah as Map);
+  final hobi = List&lt;String&gt;.from(profil['hobi'] as List);
+  debugPrint('${profil['nama']} punya ${hobi.length} hobi');
+}
+</code></pre>
+
+<p>Output saat <code>demoMapList()</code> dijalankan, lalu aplikasi dibuka ulang dan <code>demoMapSetelahDibukaUlang()</code> dijalankan:</p>
+<pre><code class="language-text">Jumlah favorit: 3
+Pertama: Pemrograman Mobile
+Nama: Siti Aminah, IPK: 3.75
+Tipe asli: _Map&lt;dynamic, dynamic&gt;
+Siti Aminah punya 2 hobi
+</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Jebakan paling sering: Map&lt;dynamic, dynamic&gt;</h4>
+<p>Saat disimpan, Map kamu bertipe <code>Map&lt;String, Object&gt;</code>. Namun setelah aplikasi dibuka ulang, Hive membacanya kembali dari file sebagai <code>Map&lt;dynamic, dynamic&gt;</code>. Akibatnya cast langsung akan gagal:</p>
+<pre><code class="language-text">type '_Map&lt;dynamic, dynamic&gt;' is not a subtype of type 'Map&lt;String, dynamic&gt;' in type cast
+</code></pre>
+<p>Yang lebih menjebak, error ini <strong>tidak muncul</strong> saat kamu baru saja menyimpan data (data masih berupa objek asli di memori), tetapi baru muncul setelah aplikasi di-restart. Solusinya: selalu salin dengan <code>Map&lt;String, dynamic&gt;.from(...)</code> dan <code>List&lt;String&gt;.from(...)</code>, atau terima parameter bertipe <code>Map</code> saja.</p></div>
+
+<h4>Pola model + toMap/fromMap</h4>
+<p>Agar tidak bekerja dengan Map mentah di seluruh aplikasi, buat kelas model yang bisa diubah ke Map dan sebaliknya. Pola ini sama dengan <code>toJson/fromJson</code> di Modul 09.</p>
+<p class="code-file-label">📄 <code>lib/models/tugas.dart</code></p>
+<pre><code class="language-dart">// lib/models/tugas.dart
+class Tugas {
+  final String id;
+  final String judul;
+  final DateTime deadline;
+  final bool selesai;
+
+  const Tugas({
+    required this.id,
+    required this.judul,
+    required this.deadline,
+    this.selesai = false,
+  });
+
+  // Objek -&gt; Map (untuk disimpan ke Hive, atau dikirim ke API)
+  Map&lt;String, dynamic&gt; toMap() =&gt; {
+        'id': id,
+        'judul': judul,
+        'deadline': deadline.toIso8601String(),
+        'selesai': selesai,
+      };
+
+  // Map -&gt; Objek. Parameter bertipe Map (bukan Map&lt;String, dynamic&gt;)
+  // karena Map dari Hive bertipe Map&lt;dynamic, dynamic&gt;.
+  factory Tugas.fromMap(Map map) =&gt; Tugas(
+        id: map['id'] as String,
+        judul: map['judul'] as String,
+        deadline: DateTime.parse(map['deadline'] as String),
+        selesai: map['selesai'] as bool? ?? false,
+      );
+}
+</code></pre>
+
+<p class="code-file-label">📄 <code>lib/repositories/tugas_repository.dart</code></p>
+<pre><code class="language-dart">// lib/repositories/tugas_repository.dart
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+import '../models/tugas.dart';
+
+class TugasRepository {
+  // Box&lt;Map&gt;: setiap value adalah Map
+  final Box&lt;Map&gt; _box = Hive.box&lt;Map&gt;('tugas_box');
+
+  Future&lt;void&gt; simpan(Tugas tugas) =&gt; _box.put(tugas.id, tugas.toMap());
+
+  List&lt;Tugas&gt; ambilSemua() =&gt;
+      _box.values.map((map) =&gt; Tugas.fromMap(map)).toList();
+
+  Future&lt;void&gt; hapus(String id) =&gt; _box.delete(id);
+}
+</code></pre>
+
+<p>Jangan lupa membuka box-nya dengan tipe yang sama di <code>main()</code>: <code>await Hive.openBox&lt;Map&gt;('tugas_box');</code></p>
+
+<p><strong>Kenapa <code>DateTime</code> diubah menjadi String ISO?</strong> Sebenarnya Hive bisa menyimpan <code>DateTime</code> langsung di dalam Map. Namun memakai <code>toIso8601String()</code> membuat Map yang sama juga bisa dikirim sebagai JSON ke server tanpa perubahan. Itu berguna ketika data lokal harus disinkronkan dengan backend.</p>
+
+<div class="callout callout-tip"><h4>💡 Map atau TypeAdapter?</h4>
+<ul>
+<li><strong>Map (bagian ini):</strong> tanpa adapter, tidak ada <code>typeId</code>, mudah ditambah field baru (field lama yang tidak ada cukup diberi nilai default di <code>fromMap</code>). Cocok untuk cache data dari API dan untuk data yang strukturnya masih sering berubah.</li>
+<li><strong>TypeAdapter (bagian 5 dan 6):</strong> objek tersimpan langsung, <code>box.get()</code> sudah mengembalikan objek bertipe tepat, dan file lebih ringkas. Cocok untuk model yang stabil.</li>
+</ul></div>

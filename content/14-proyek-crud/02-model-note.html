@@ -1,0 +1,120 @@
+<p class="lead">Model <code>Note</code> mewakili satu baris tabel <code>notes</code>. Model ini dipakai di tiga tempat: data dari Supabase, data dari cache Hive, dan data yang dikirim saat insert/update. Karena itu kita butuh tiga konversi.</p>
+
+<h4>File: <code>lib/models/note.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/models/note.dart</code></p>
+<pre><code class="language-dart">/// Model satu catatan kuliah. Satu objek Note = satu baris di tabel `notes`.
+class Note {
+  const Note({
+    required this.id,
+    required this.userId,
+    required this.title,
+    required this.content,
+    required this.category,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  /// Pilihan kategori yang tersedia di form.
+  static const List&lt;String&gt; categories = [
+    'Kuliah',
+    'Tugas',
+    'Ujian',
+    'Lainnya',
+  ];
+
+  final String id;
+  final String userId;
+  final String title;
+  final String content;
+  final String category;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  /// Membuat Note dari Map. Dipakai untuk data dari Supabase
+  /// (`Map&lt;String, dynamic&gt;`) maupun dari Hive (`Map&lt;dynamic, dynamic&gt;`).
+  factory Note.fromJson(Map&lt;dynamic, dynamic&gt; json) {
+    return Note(
+      id: json['id'] as String,
+      userId: json['user_id'] as String,
+      title: json['title'] as String? ?? '',
+      content: json['content'] as String? ?? '',
+      category: json['category'] as String? ?? 'Lainnya',
+      createdAt: DateTime.parse(json['created_at'] as String),
+      updatedAt: DateTime.parse(json['updated_at'] as String),
+    );
+  }
+
+  /// Seluruh kolom, dipakai untuk menyimpan cache di Hive.
+  Map&lt;String, dynamic&gt; toJson() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'title': title,
+      'content': content,
+      'category': category,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+    };
+  }
+
+  /// Hanya kolom yang boleh diisi/diubah aplikasi, dipakai untuk
+  /// insert/update ke Supabase. id, user_id, created_at, dan updated_at
+  /// diisi otomatis oleh database.
+  Map&lt;String, dynamic&gt; toMap() {
+    return {'title': title, 'content': content, 'category': category};
+  }
+
+  Note copyWith({
+    String? title,
+    String? content,
+    String? category,
+    DateTime? updatedAt,
+  }) {
+    return Note(
+      id: id,
+      userId: userId,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      category: category ?? this.category,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+</code></pre>
+
+<h4>Tiga konversi, tiga tujuan</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Method</th><th>Arah</th><th>Dipakai oleh</th><th>Isi</th></tr></thead>
+    <tbody>
+      <tr><td><code>Note.fromJson(map)</code></td><td>Map &rarr; Note</td><td>Remote (Supabase) &amp; Local (Hive)</td><td>Semua kolom</td></tr>
+      <tr><td><code>toJson()</code></td><td>Note &rarr; Map</td><td>Local (simpan ke Hive)</td><td>Semua kolom, tanggal sebagai String ISO</td></tr>
+      <tr><td><code>toMap()</code></td><td>Note &rarr; Map</td><td>Remote (update ke Supabase)</td><td>Hanya <code>title</code>, <code>content</code>, <code>category</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Hal-hal yang perlu diperhatikan</h4>
+<ul>
+  <li><strong>Parameter <code>Map&lt;dynamic, dynamic&gt;</code></strong>: Supabase mengembalikan <code>Map&lt;String, dynamic&gt;</code>, sedangkan Hive mengembalikan <code>Map&lt;dynamic, dynamic&gt;</code> saat membaca Map yang disimpan. Dengan tipe parameter yang lebih umum, satu factory bisa melayani keduanya tanpa konversi tambahan.</li>
+  <li><strong><code>json['title'] as String? ?? ''</code></strong>: aman jika nilai null, tidak langsung crash.</li>
+  <li><strong><code>DateTime.parse</code></strong>: Supabase mengirim <code>timestamptz</code> sebagai String ISO-8601 (misalnya <code>2026-10-28T07:15:00.123+00:00</code>). Kita menyimpannya ke Hive dalam format yang sama, sehingga parsing-nya identik.</li>
+  <li><strong>Kenapa <code>toMap()</code> tidak mengirim id, user_id, dan tanggal?</strong> Kolom itu milik database: id dan created_at diisi default, user_id dari <code>auth.uid()</code>, dan updated_at dari trigger. Mengirim lebih sedikit data berarti lebih sedikit peluang salah.</li>
+  <li><strong><code>copyWith</code></strong> membuat salinan dengan beberapa nilai diganti. Ini dipakai form edit agar objek lama tidak diubah langsung (<em>immutable</em>).</li>
+  <li><strong><code>static const categories</code></strong> menjadi satu sumber kebenaran untuk dropdown form dan chip filter, dan isinya harus sama dengan <code>check</code> di SQL.</li>
+</ul>
+
+<h4>Uji cepat di DartPad / main sementara</h4>
+<pre><code class="language-dart">final note = Note.fromJson({
+  'id': 'a1',
+  'user_id': 'u1',
+  'title': 'Basis Data',
+  'content': 'Normalisasi 3NF',
+  'category': 'Kuliah',
+  'created_at': '2026-10-28T07:00:00+00:00',
+  'updated_at': '2026-10-28T07:00:00+00:00',
+});
+debugPrint(note.toMap()); // {title: Basis Data, content: Normalisasi 3NF, category: Kuliah}
+debugPrint(Note.fromJson(note.toJson()).title); // Basis Data (bolak-balik aman)
+</code></pre>

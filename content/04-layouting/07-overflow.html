@@ -1,0 +1,239 @@
+<p class="lead">Garis <strong>kuning-hitam bergaris miring</strong> di tepi layar adalah tanda <em>overflow</em>: konten lebih besar daripada ruang yang tersedia. Garis ini hanya muncul di mode debug, tetapi di mode rilis kontennya tetap terpotong. Jadi wajib diperbaiki.</p>
+
+<h4>Membaca pesan error</h4>
+<pre><code class="language-text">══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════
+A RenderFlex overflowed by 74 pixels on the right.
+The relevant error-causing widget was:
+  Row Row:file:///.../lib/main.dart:27:20
+</code></pre>
+<ul>
+  <li><strong>RenderFlex</strong> = Row atau Column (keduanya turunan <code>Flex</code>).</li>
+  <li><strong>74 pixels on the right</strong> = kelebihan 74 px ke kanan, jadi masalahnya di <strong>Row</strong>. Jika "on the bottom", masalahnya di <strong>Column</strong>.</li>
+  <li><strong>main.dart:27:20</strong> = baris dan kolom kode penyebabnya. Klik di VS Code untuk langsung melompat ke sana.</li>
+</ul>
+
+<h4>Lima kasus overflow dan obatnya</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kasus</th><th>Gejala</th><th>Obat</th></tr></thead>
+    <tbody>
+      <tr><td>1. Teks panjang di Row</td><td>Overflow "on the right"</td><td>Bungkus teks dengan <code>Expanded</code>/<code>Flexible</code>, tambah <code>overflow: TextOverflow.ellipsis</code></td></tr>
+      <tr><td>2. Terlalu banyak anak di Row</td><td>Overflow "on the right"</td><td>Ganti <code>Row</code> dengan <code>Wrap</code>, atau buat bisa digeser horizontal</td></tr>
+      <tr><td>3. Column lebih tinggi dari layar</td><td>Overflow "on the bottom"</td><td>Bungkus dengan <code>SingleChildScrollView</code> atau ganti dengan <code>ListView</code></td></tr>
+      <tr><td>4. Keyboard muncul menutupi form</td><td>Overflow "on the bottom" saat mengetik</td><td>Form dalam <code>SingleChildScrollView</code></td></tr>
+      <tr><td>5. ListView di dalam Column</td><td>Error <em>"Vertical viewport was given unbounded height"</em></td><td>Bungkus ListView dengan <code>Expanded</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Kasus 1: teks panjang (sebelum dan sesudah)</h4>
+<pre><code class="language-dart">// SALAH: teks panjang mendorong ikon keluar layar
+Row(
+  children: const [
+    Icon(Icons.article),
+    SizedBox(width: 8),
+    Text('Pengumuman Jadwal Ujian Akhir Semester Gasal Tahun Akademik 2026/2027'),
+  ],
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/overflow-1.jpg" alt="SALAH: teks panjang menimbulkan garis kuning-hitam" loading="lazy">
+    <div class="screenshot-caption">SALAH: teks panjang menimbulkan garis kuning-hitam</div>
+  </div>
+</div>
+<pre><code class="language-dart">// BENAR: teks hanya boleh memakai sisa ruang
+Row(
+  children: const [
+    Icon(Icons.article),
+    SizedBox(width: 8),
+    Expanded(
+      child: Text(
+        'Pengumuman Jadwal Ujian Akhir Semester Gasal Tahun Akademik 2026/2027',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    ),
+  ],
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/overflow-2.jpg" alt="BENAR: teks dibungkus Expanded dan diberi ellipsis" loading="lazy">
+    <div class="screenshot-caption">BENAR: teks dibungkus Expanded dan diberi ellipsis</div>
+  </div>
+</div>
+
+<h4>Kasus 2: banyak chip di satu baris</h4>
+<pre><code class="language-dart">// Pilihan A: turun baris otomatis
+Wrap(spacing: 8, children: [for (final h in ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']) Chip(label: Text(h))])
+
+// Pilihan B: tetap satu baris, bisa digeser ke samping
+// SingleChildScrollView(
+//   scrollDirection: Axis.horizontal,
+//   child: Row(children: [...]),
+// )
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/overflow-3.jpg" alt="Chip hari di dalam Wrap" loading="lazy">
+    <div class="screenshot-caption">Chip hari di dalam Wrap</div>
+  </div>
+</div>
+
+<h4>Kasus 3 &amp; 4: konten lebih tinggi dari layar</h4>
+<pre><code class="language-dart">// SingleChildScrollView membuat isi Column bisa digulir
+SingleChildScrollView(
+  padding: const EdgeInsets.all(16),
+  child: Column(
+    children: [
+      for (var i = 1; i &lt;= 20; i++)
+        ListTile(title: Text('Pertemuan $i')),
+    ],
+  ),
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/overflow-4.jpg" alt="Column di dalam SingleChildScrollView" loading="lazy">
+    <div class="screenshot-caption">Column di dalam SingleChildScrollView</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: tombol "Rusak" dan "Perbaiki"</h4>
+<p>Aplikasi berikut sengaja membuat tiga overflow. Tekan saklar <strong>Mode perbaikan</strong> untuk melihat versi yang sudah diperbaiki. Bandingkan kedua versi di kodenya.</p>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: DemoOverflow()));
+}
+
+class DemoOverflow extends StatefulWidget {
+  const DemoOverflow({super.key});
+
+  @override
+  State&lt;DemoOverflow&gt; createState() =&gt; _DemoOverflowState();
+}
+
+class _DemoOverflowState extends State&lt;DemoOverflow&gt; {
+  bool _diperbaiki = false;
+
+  static const _judul = 'Pengumuman Jadwal Ujian Akhir Semester Gasal Tahun Akademik 2026/2027';
+  static const _hari = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Demo Overflow'),
+        actions: [
+          const Text('Mode perbaikan'),
+          Switch(
+            value: _diperbaiki,
+            onChanged: (v) =&gt; setState(() =&gt; _diperbaiki = v),
+          ),
+        ],
+      ),
+      body: _diperbaiki ? _versiBenar() : _versiRusak(),
+    );
+  }
+
+  // Versi RUSAK: tiga overflow sekaligus
+  Widget _versiRusak() {
+    return Column(
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.article),
+            SizedBox(width: 8),
+            Text(_judul), // overflow 1: teks panjang di Row
+          ],
+        ),
+        Row(
+          children: [
+            for (final h in _hari) Chip(label: Text(h)), // overflow 2: terlalu banyak anak
+          ],
+        ),
+        // overflow 3: total tinggi 20 x 56 px lebih dari tinggi layar
+        for (var i = 1; i &lt;= 20; i++) ListTile(title: Text('Pertemuan $i')),
+      ],
+    );
+  }
+
+  // Versi BENAR
+  Widget _versiBenar() {
+    return SingleChildScrollView( // perbaikan 3: bisa digulir
+      child: Column(
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.article),
+              SizedBox(width: 8),
+              Expanded( // perbaikan 1: batasi lebar teks
+                child: Text(_judul, maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+          Wrap( // perbaikan 2: turun baris otomatis
+            spacing: 8,
+            children: [for (final h in _hari) Chip(label: Text(h))],
+          ),
+          for (var i = 1; i &lt;= 20; i++) ListTile(title: Text('Pertemuan $i')),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/overflow-5.jpg" alt="Versi rusak: tiga overflow sekaligus" loading="lazy">
+    <div class="screenshot-caption">Versi rusak: tiga overflow sekaligus</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/overflow-diperbaiki.jpg" alt="Setelah mode perbaikan diaktifkan" loading="lazy">
+    <div class="screenshot-caption">Setelah mode perbaikan diaktifkan</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li>Di versi rusak, Debug Console menampilkan beberapa pesan <em>"A RenderFlex overflowed by ... pixels"</em>. Coba baca dan cocokkan arahnya (right/bottom) dengan Row atau Column penyebabnya.</li>
+  <li>Setiap perbaikan diberi komentar nomor yang sama dengan masalahnya.</li>
+  <li>Untuk 20 item, <code>SingleChildScrollView</code> + <code>Column</code> masih wajar. Untuk ratusan item atau data dari server, gunakan <code>ListView.builder</code> (Modul 06) yang hanya membangun item yang terlihat.</li>
+</ul>
+
+<h4>Kasus 5: ListView di dalam Column</h4>
+<pre><code class="language-dart">Column(
+  children: [
+    const Text('Daftar Mahasiswa'),
+    // Tanpa Expanded: "Vertical viewport was given unbounded height"
+    Expanded(
+      child: ListView(
+        children: const [
+          ListTile(title: Text('Andi')),
+          ListTile(title: Text('Budi')),
+        ],
+      ),
+    ),
+  ],
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/overflow-6.jpg" alt="ListView di dalam Column dibungkus Expanded" loading="lazy">
+    <div class="screenshot-caption">ListView di dalam Column dibungkus Expanded</div>
+  </div>
+</div>
+
+<div class="callout callout-tip"><h4>💡 Flutter Inspector</h4><p>Di VS Code, buka <strong>Flutter DevTools → Widget Inspector</strong> lalu aktifkan <em>Show Guidelines</em> atau <em>Layout Explorer</em>. Kamu bisa melihat ukuran dan constraints setiap widget secara visual untuk mencari sumber overflow.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum saat memperbaiki</h4>
+<ul>
+  <li><strong>Membungkus semua halaman dengan SingleChildScrollView</strong> walaupun isinya memakai <code>Expanded</code>. Expanded di dalam ruang yang bisa digulir akan error.</li>
+  <li><strong>Mengecilkan ukuran font sampai muat</strong> di HP sendiri. Di HP lain yang lebih sempit atau dengan ukuran font sistem lebih besar, overflow muncul lagi.</li>
+  <li><strong>Mengabaikan overflow karena "hanya muncul di debug".</strong> Di rilis, garisnya hilang tetapi konten tetap terpotong.</li>
+</ul></div>

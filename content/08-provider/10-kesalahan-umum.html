@@ -1,0 +1,296 @@
+<p class="lead">Bagian ini merangkum kesalahan Provider yang paling sering muncul di praktikum, lengkap dengan pesan error dan perbaikannya.</p>
+
+<h4>1. read di build, watch di callback</h4>
+<pre><code class="language-dart">// ❌ SALAH
+class TampilanSalah extends StatelessWidget {
+  const TampilanSalah({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // read di build: angka TIDAK pernah ter-update di layar
+    final nilai = context.read&lt;CounterModel&gt;().nilai;
+    return ElevatedButton(
+      // watch di callback: error "Tried to listen to a value exposed
+      // with provider, from outside of the widget tree"
+      onPressed: () =&gt; context.watch&lt;CounterModel&gt;().tambah(),
+      child: Text('$nilai'),
+    );
+  }
+}
+
+// ✅ BENAR
+class TampilanBenar extends StatelessWidget {
+  const TampilanBenar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final nilai = context.watch&lt;CounterModel&gt;().nilai; // watch di build
+    return ElevatedButton(
+      onPressed: () =&gt; context.read&lt;CounterModel&gt;().tambah(), // read di callback
+      child: Text('$nilai'),
+    );
+  }
+}
+</code></pre>
+
+<h4>2. Memanggil provider di initState</h4>
+<p><code>initState</code> berjalan saat widget sedang dibangun. Jika method provider langsung memanggil <code>notifyListeners()</code>, Flutter menolak karena ada widget lain yang diminta rebuild di tengah proses build.</p>
+<pre><code class="language-dart">@override
+void initState() {
+  super.initState();
+
+  // ❌ SALAH: muatData() langsung memanggil notifyListeners() padahal
+  // Flutter sedang membangun widget -&gt; error
+  // "setState() or markNeedsBuild() called during build"
+  // context.read&lt;DataProvider&gt;().muatData();
+
+  // ✅ BENAR: jalankan setelah frame pertama selesai digambar
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!mounted) return;
+    context.read&lt;DataProvider&gt;().muatData();
+  });
+
+  // ✅ Setara, gaya lama: Provider.of dengan listen: false
+  // WidgetsBinding.instance.addPostFrameCallback((_) {
+  //   Provider.of&lt;DataProvider&gt;(context, listen: false).muatData();
+  // });
+}
+
+// ❌ context.watch TIDAK boleh dipanggil di initState (hanya di build)
+</code></pre>
+
+<h4>3. notifyListeners setelah dispose</h4>
+<p>Provider yang dibuat khusus untuk satu halaman akan di-dispose saat halaman ditutup. Jika request async masih berjalan, <code>notifyListeners()</code> di akhir request akan error.</p>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+
+class PencarianProvider extends ChangeNotifier {
+  bool _sudahDispose = false;
+  List&lt;String&gt; hasil = [];
+
+  Future&lt;void&gt; cari(String kata) async {
+    await Future.delayed(const Duration(seconds: 3)); // request lama
+    hasil = ['$kata 1', '$kata 2'];
+    // Jika halaman sudah ditutup selama 3 detik itu, provider sudah di-dispose.
+    // Memanggil notifyListeners() sekarang -&gt; error
+    // "A PencarianProvider was used after being disposed".
+    if (_sudahDispose) return; // ✅ penjaga
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _sudahDispose = true;
+    super.dispose();
+  }
+}
+</code></pre>
+
+<h4>4. Meneruskan provider ke rute baru</h4>
+<pre><code class="language-dart">// ✅ Meneruskan provider yang SUDAH ADA ke rute baru: pakai .value
+final keranjang = context.read&lt;KeranjangProvider&gt;();
+Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (_) =&gt; ChangeNotifierProvider.value(
+      value: keranjang,
+      child: const DetailPage(),
+    ),
+  ),
+);
+
+// ❌ SALAH: create: (_) =&gt; keranjang  -&gt; provider akan men-dispose
+//    objek milik orang lain saat DetailPage ditutup.
+// ❌ SALAH: ChangeNotifierProvider.value(value: KeranjangProvider())
+//    -&gt; objek baru dibuat ulang setiap build dan tidak pernah di-dispose.
+</code></pre>
+
+<h4>Contoh lengkap: semua perbaikan dalam satu aplikasi</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Contoh BENAR: memuat data di initState + berbagi provider ke halaman lain
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+class PengumumanProvider extends ChangeNotifier {
+  bool _sudahDispose = false;
+  bool _isLoading = false;
+  List&lt;String&gt; _items = [];
+  final Set&lt;String&gt; _dibaca = {};
+
+  bool get isLoading =&gt; _isLoading;
+  List&lt;String&gt; get items =&gt; List.unmodifiable(_items);
+  bool sudahDibaca(String p) =&gt; _dibaca.contains(p);
+
+  Future&lt;void&gt; muat() async {
+    _isLoading = true;
+    _aman();
+    await Future.delayed(const Duration(seconds: 1));
+    _items = ['Libur Dies Natalis', 'Jadwal UTS', 'Beasiswa PPA'];
+    _isLoading = false;
+    _aman();
+  }
+
+  void tandaiDibaca(String p) {
+    _dibaca.add(p);
+    _aman();
+  }
+
+  // notifyListeners yang tidak crash walau provider sudah di-dispose
+  void _aman() {
+    if (!_sudahDispose) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _sudahDispose = true;
+    super.dispose();
+  }
+}
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.blueGrey),
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Menu')),
+        body: Builder(
+          builder: (context) =&gt; Center(
+            child: FilledButton(
+              onPressed: () =&gt; Navigator.push(
+                context,
+                MaterialPageRoute(
+                  // Provider khusus halaman: dibuat saat halaman dibuka,
+                  // di-dispose otomatis saat halaman ditutup.
+                  builder: (_) =&gt; ChangeNotifierProvider(
+                    create: (_) =&gt; PengumumanProvider(),
+                    child: const PengumumanPage(),
+                  ),
+                ),
+              ),
+              child: const Text('Buka Pengumuman'),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PengumumanPage extends StatefulWidget {
+  const PengumumanPage({super.key});
+
+  @override
+  State&lt;PengumumanPage&gt; createState() =&gt; _PengumumanPageState();
+}
+
+class _PengumumanPageState extends State&lt;PengumumanPage&gt; {
+  @override
+  void initState() {
+    super.initState();
+    // Muat data SETELAH frame pertama, bukan langsung di initState
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read&lt;PengumumanProvider&gt;().muat();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prov = context.watch&lt;PengumumanProvider&gt;();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pengumuman')),
+      body: prov.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              children: [
+                for (final p in prov.items)
+                  ListTile(
+                    title: Text(p),
+                    trailing: prov.sudahDibaca(p)
+                        ? const Icon(Icons.done_all, color: Colors.green)
+                        : null,
+                    onTap: () {
+                      // Bagikan provider yang SAMA ke halaman detail
+                      final pengumuman = context.read&lt;PengumumanProvider&gt;();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =&gt; ChangeNotifierProvider.value(
+                            value: pengumuman,
+                            child: DetailPengumumanPage(judul: p),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ),
+    );
+  }
+}
+
+class DetailPengumumanPage extends StatelessWidget {
+  final String judul;
+
+  const DetailPengumumanPage({super.key, required this.judul});
+
+  @override
+  Widget build(BuildContext context) {
+    final dibaca = context.select((PengumumanProvider p) =&gt; p.sudahDibaca(judul));
+
+    return Scaffold(
+      appBar: AppBar(title: Text(judul)),
+      body: Center(
+        child: FilledButton.icon(
+          icon: Icon(dibaca ? Icons.done_all : Icons.mark_email_read),
+          label: Text(dibaca ? 'Sudah dibaca' : 'Tandai sudah dibaca'),
+          onPressed: dibaca
+              ? null
+              : () =&gt; context.read&lt;PengumumanProvider&gt;().tandaiDibaca(judul),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/benar-daftar.jpg" alt="Data dimuat setelah frame pertama" loading="lazy">
+    <div class="screenshot-caption">Data dimuat setelah frame pertama</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/benar-detail.jpg" alt="Halaman detail memakai provider yang sama (.value)" loading="lazy">
+    <div class="screenshot-caption">Halaman detail memakai provider yang sama (.value)</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>PengumumanProvider</code> dibuat di dalam <code>MaterialPageRoute</code>, sehingga hidup selama halaman Pengumuman terbuka saja.</li>
+  <li>Data dimuat lewat <code>addPostFrameCallback</code> di <code>initState</code>, dengan cek <code>mounted</code>.</li>
+  <li>Halaman detail menerima provider yang sama lewat <code>ChangeNotifierProvider.value</code>. Status "sudah dibaca" langsung terlihat di daftar saat kembali.</li>
+  <li><code>_aman()</code> mencegah error jika halaman ditutup sebelum <code>muat()</code> selesai.</li>
+</ul>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Gejala / pesan error</th><th>Penyebab</th><th>Perbaikan</th></tr></thead>
+    <tbody>
+      <tr><td>Angka di layar tidak berubah</td><td>Lupa <code>notifyListeners()</code> atau memakai <code>read</code> di build</td><td>Tambahkan notify; ganti dengan <code>watch</code>/<code>select</code></td></tr>
+      <tr><td><em>Tried to listen to a value exposed with provider, from outside of the widget tree</em></td><td><code>watch</code> di callback</td><td>Pakai <code>read</code></td></tr>
+      <tr><td><em>Could not find the correct Provider&lt;X&gt; above this Widget</em></td><td>Provider tidak berada di atas widget/halaman</td><td>Pindahkan ke atas <code>MaterialApp</code> atau pakai <code>.value</code></td></tr>
+      <tr><td><em>setState() or markNeedsBuild() called during build</em></td><td>Notify di <code>initState</code>/<code>build</code></td><td><code>addPostFrameCallback</code></td></tr>
+      <tr><td><em>A X was used after being disposed</em></td><td>Notify setelah halaman ditutup</td><td>Penjaga <code>_sudahDispose</code></td></tr>
+      <tr><td>Data berubah tanpa pengecekan aturan</td><td>Getter mengembalikan list asli</td><td><code>List.unmodifiable</code></td></tr>
+    </tbody>
+  </table>
+</div>

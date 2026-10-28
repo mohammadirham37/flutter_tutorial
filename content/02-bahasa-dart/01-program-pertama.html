@@ -1,0 +1,110 @@
+<p class="lead">Sebelum menulis aplikasi Flutter, kita perlu akrab dulu dengan bahasa yang menggerakkannya: <strong>Dart</strong>. Di modul ini semua contoh adalah program Dart murni (tanpa Flutter), jadi bisa dijalankan langsung di terminal atau di <a href="https://dartpad.dev" target="_blank" rel="noopener">DartPad</a>.</p>
+
+<h4>Di mana menjalankan kode Dart?</h4>
+<ul>
+  <li><strong>DartPad</strong> (<code>dartpad.dev</code>): cukup buka browser, tempel kode, klik <kbd>Run</kbd>. Cocok untuk mencoba potongan kode kecil.</li>
+  <li><strong>Terminal</strong>: Dart SDK sudah ikut terpasang bersama Flutter (Modul 01). Simpan kode sebagai file <code>.dart</code>, lalu jalankan dengan <code>dart run</code>.</li>
+</ul>
+
+<pre><code class="language-bash"># Cek versi Dart (harus 3.x)
+dart --version
+
+# Cara 1: jalankan satu file
+dart run halo.dart
+
+# Cara 2: buat proyek console lengkap
+dart create -t console belajar_dart
+cd belajar_dart
+dart run
+</code></pre>
+
+<h4>Program pertama</h4>
+<p>Setiap program Dart dimulai dari fungsi <code>main()</code>. Saat program dijalankan, Dart mencari fungsi ini dan mengeksekusi isinya baris demi baris dari atas ke bawah.</p>
+
+<p class="code-file-label">📄 <code>halo.dart</code></p>
+<pre><code class="language-dart">void main() {
+  print('Halo, Dart!');
+  print('Selamat datang di Praktikum Pemrograman Mobile');
+}
+
+// Output:
+// Halo, Dart!
+// Selamat datang di Praktikum Pemrograman Mobile
+</code></pre>
+
+<ul>
+  <li><code>void</code> artinya fungsi <code>main</code> tidak mengembalikan nilai apa pun.</li>
+  <li><code>print()</code> menampilkan teks ke konsol, lalu pindah ke baris baru.</li>
+  <li>Setiap pernyataan (<em>statement</em>) diakhiri titik koma <code>;</code>. Lupa titik koma adalah error paling sering bagi pemula.</li>
+  <li>Teks (String) ditulis di antara tanda kutip, boleh kutip satu <code>'...'</code> atau kutip dua <code>"..."</code>.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Tentang komentar <code>// Output:</code></h4><p>Di seluruh modul ini, hasil yang muncul di konsol ditulis sebagai komentar <code>// Output: ...</code>. Komentar tidak ikut dijalankan, jadi kode tetap bisa langsung disalin dan dijalankan.</p></div>
+
+<h4>Komentar</h4>
+<p>Komentar adalah catatan untuk manusia dan diabaikan oleh compiler. Dart punya tiga jenis komentar:</p>
+
+<pre><code class="language-dart">// Komentar satu baris: diabaikan oleh compiler.
+
+/*
+  Komentar banyak baris.
+  Cocok untuk menonaktifkan sementara beberapa baris kode.
+*/
+
+/// Komentar dokumentasi (tiga garis miring).
+/// Muncul sebagai tooltip saat kursor diarahkan ke nama fungsi di VS Code.
+void sapa(String nama) {
+  print('Halo, $nama!');
+}
+
+void main() {
+  sapa('Rani'); // Output: Halo, Rani!
+  // sapa('Budi'); baris ini tidak dijalankan karena dikomentari
+}
+</code></pre>
+
+<p>Gunakan <code>///</code> di atas class atau fungsi yang penting. Editor akan menampilkannya sebagai dokumentasi, sama seperti dokumentasi widget Flutter yang muncul saat Anda mengarahkan kursor ke <code>Text</code> atau <code>Column</code>.</p>
+
+<h4>Struktur file Dart</h4>
+<p>Sebuah file Dart biasanya berisi (berurutan): <code>import</code>, deklarasi tingkat atas (variabel, fungsi, class), dan fungsi <code>main()</code>. Urutan fungsi dan class di dalam file tidak berpengaruh, karena Dart membaca seluruh file terlebih dahulu.</p>
+
+<pre><code class="language-dart">import 'dart:math'; // 1. import library bawaan (opsional)
+
+const namaKampus = 'UNSOED'; // 2. variabel tingkat atas (top-level)
+
+int kuadrat(int x) {
+  // 3. fungsi tingkat atas
+  return x * x;
+}
+
+void main() {
+  // 4. titik masuk program
+  print(namaKampus); // Output: UNSOED
+  print(kuadrat(7)); // Output: 49
+  print(max(3, 9)); // Output: 9
+}
+</code></pre>
+
+<p>Fungsi <code>max()</code> tidak kita tulis sendiri, melainkan berasal dari library <code>dart:math</code> yang di-<code>import</code> di baris pertama. Library bawaan lain yang sering dipakai: <code>dart:async</code> (Future dan Stream), <code>dart:convert</code> (JSON), dan <code>dart:io</code> (file dan terminal, tidak tersedia di web).</p>
+
+<h4>Argumen dari terminal</h4>
+<p><code>main()</code> boleh menerima parameter <code>List&lt;String&gt;</code> berisi argumen yang diketik setelah nama file. Di Flutter, bentuk ini jarang dipakai, tetapi berguna untuk program console.</p>
+
+<pre><code class="language-dart">void main(List&lt;String&gt; args) {
+  print('Jumlah argumen: ${args.length}');
+  print('Isi argumen: $args');
+}
+
+// Output:
+// Jumlah argumen: 0
+// Isi argumen: []
+</code></pre>
+
+<p>Jika dijalankan dengan <code>dart run argumen.dart halo dunia</code>, hasilnya menjadi <code>Jumlah argumen: 2</code> dan <code>Isi argumen: [halo, dunia]</code>.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum pemula</h4>
+<ul>
+  <li>Lupa titik koma <code>;</code> di akhir statement.</li>
+  <li>Menulis <code>Main()</code> atau <code>Print()</code>. Dart membedakan huruf besar dan kecil (<em>case-sensitive</em>).</li>
+  <li>Kurung kurawal <code>{ }</code> tidak berpasangan. Gunakan fitur <em>Format Document</em> (<kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd>) di VS Code agar indentasi rapi dan kesalahan mudah terlihat.</li>
+</ul></div>

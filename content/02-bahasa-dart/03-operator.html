@@ -1,0 +1,168 @@
+<p class="lead">Operator adalah simbol untuk mengolah nilai: menjumlah, membandingkan, menggabungkan kondisi, sampai menangani nilai <code>null</code>. Banyak operator Dart sama dengan bahasa C, Java, atau JavaScript, tetapi ada beberapa yang khas Dart seperti <code>~/</code>, <code>??</code>, dan cascade <code>..</code>.</p>
+
+<h4>Operator aritmatika</h4>
+<pre><code class="language-dart">void main() {
+  int a = 17;
+  int b = 5;
+
+  print(a + b); // Output: 22
+  print(a - b); // Output: 12
+  print(a * b); // Output: 85
+  print(a / b); // Output: 3.4
+  print(a ~/ b); // Output: 3
+  print(a % b); // Output: 2
+  print(-a); // Output: -17
+}
+</code></pre>
+<ul>
+  <li><code>/</code> selalu menghasilkan <code>double</code>, walaupun kedua angkanya <code>int</code>.</li>
+  <li><code>~/</code> adalah pembagian bulat (hasil dibulatkan ke bawah menuju nol).</li>
+  <li><code>%</code> adalah sisa bagi (modulo), sering dipakai untuk mengecek genap/ganjil: <code>n % 2 == 0</code>.</li>
+</ul>
+
+<h4>Operator penugasan dan increment</h4>
+<pre><code class="language-dart">void main() {
+  int poin = 10;
+  poin += 5; // sama dengan: poin = poin + 5
+  print(poin); // Output: 15
+  poin -= 3;
+  print(poin); // Output: 12
+  poin *= 2;
+  print(poin); // Output: 24
+  poin ~/= 5;
+  print(poin); // Output: 4
+
+  int x = 1;
+  print(x++); // Output: 1
+  print(x); // Output: 2
+  print(++x); // Output: 3
+  x--;
+  print(x); // Output: 2
+}
+</code></pre>
+<p><code>x++</code> (postfix) memberikan nilai <em>lama</em> lalu menambah, sedangkan <code>++x</code> (prefix) menambah dulu lalu memberikan nilai <em>baru</em>. Itulah sebabnya <code>print(x++)</code> mencetak 1.</p>
+
+<h4>Operator perbandingan dan uji tipe</h4>
+<pre><code class="language-dart">void main() {
+  int nilai = 75;
+  print(nilai == 75); // Output: true
+  print(nilai != 80); // Output: true
+  print(nilai &gt; 80); // Output: false
+  print(nilai &lt;= 75); // Output: true
+
+  Object data = 'Dart';
+  print(data is String); // Output: true
+  print(data is! int); // Output: true
+  String teks = data as String; // cast: "anggap data sebagai String"
+  print(teks.length); // Output: 4
+}
+</code></pre>
+<p><code>is</code> mengecek tipe, <code>is!</code> kebalikannya, dan <code>as</code> melakukan <em>cast</em>. Jika cast salah (misalnya <code>data as int</code>), program akan crash, jadi biasakan mengecek dengan <code>is</code> terlebih dahulu.</p>
+
+<h4>Operator logika</h4>
+<pre><code class="language-dart">void main() {
+  int kehadiran = 85; // persen
+  double nilaiAkhir = 72.5;
+  bool sudahBayarUkt = true;
+
+  bool bolehUjian = kehadiran &gt;= 75 &amp;&amp; sudahBayarUkt;
+  bool dapatBeasiswa = nilaiAkhir &gt;= 85 || kehadiran == 100;
+
+  print(bolehUjian); // Output: true
+  print(dapatBeasiswa); // Output: false
+  print(!sudahBayarUkt); // Output: false
+}
+</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Operator</th><th>Nama</th><th>Hasil <code>true</code> jika...</th></tr></thead>
+    <tbody>
+      <tr><td><code>a &amp;&amp; b</code></td><td>AND</td><td>keduanya <code>true</code></td></tr>
+      <tr><td><code>a || b</code></td><td>OR</td><td>salah satu <code>true</code></td></tr>
+      <tr><td><code>!a</code></td><td>NOT</td><td><code>a</code> bernilai <code>false</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Dart memakai <em>short-circuit evaluation</em>: pada <code>a &amp;&amp; b</code>, jika <code>a</code> sudah <code>false</code>, maka <code>b</code> tidak dievaluasi sama sekali. Ini berguna untuk pengecekan aman seperti <code>teks != null &amp;&amp; teks.isNotEmpty</code>.</p>
+
+<h4>Operator ternary</h4>
+<p>Bentuk singkat dari if-else yang menghasilkan nilai: <code>kondisi ? nilaiJikaBenar : nilaiJikaSalah</code>. Di Flutter, ternary sangat sering dipakai di dalam widget, misalnya <code>isLoading ? CircularProgressIndicator() : Text('Data')</code>.</p>
+<pre><code class="language-dart">void main() {
+  int nilai = 68;
+  String status = nilai &gt;= 60 ? 'Lulus' : 'Tidak lulus';
+  print(status); // Output: Lulus
+
+  int jumlahPesan = 1;
+  print('$jumlahPesan pesan${jumlahPesan &gt; 1 ? ' baru' : ''}'); // Output: 1 pesan
+}
+</code></pre>
+
+<h4>Operator null-aware: <code>??</code>, <code>?.</code>, <code>??=</code></h4>
+<p>Operator ini menangani nilai yang mungkin <code>null</code>. Pembahasan lengkapnya ada di section Null Safety; berikut perkenalan singkatnya.</p>
+<pre><code class="language-dart">String? cariNamaPanggilan(String nama) {
+  // Mengembalikan null jika nama tidak dikenal
+  return nama == 'Muhammad Fikri' ? 'Fikri' : null;
+}
+
+void main() {
+  String? panggilan = cariNamaPanggilan('Siti Aminah'); // null
+
+  print(panggilan ?? 'Belum diisi'); // Output: Belum diisi
+  print(panggilan?.length); // Output: null
+
+  panggilan ??= 'Siti'; // isi hanya jika masih null
+  print(panggilan); // Output: Siti
+
+  String? lain = cariNamaPanggilan('Muhammad Fikri');
+  lain ??= 'Default'; // tidak berubah karena sudah ada isinya
+  print(lain); // Output: Fikri
+}
+</code></pre>
+<ul>
+  <li><code>a ?? b</code>: pakai <code>a</code>, tetapi jika <code>a</code> null pakai <code>b</code>.</li>
+  <li><code>a?.b</code>: akses <code>b</code> hanya jika <code>a</code> tidak null; jika null, hasilnya <code>null</code> (tidak crash).</li>
+  <li><code>a ??= b</code>: isi <code>a</code> dengan <code>b</code> hanya jika <code>a</code> masih null.</li>
+</ul>
+
+<h4>Cascade <code>..</code></h4>
+<p>Cascade memungkinkan beberapa operasi berurutan pada <strong>objek yang sama</strong> tanpa menulis nama variabelnya berulang kali. Contoh ini memakai class sederhana; class dibahas detail di section OOP.</p>
+<pre><code class="language-dart">class Pesanan {
+  String menu = '';
+  int jumlah = 0;
+  List&lt;String&gt; catatan = [];
+
+  void tampilkan() =&gt; print('$jumlah x $menu, catatan: $catatan');
+}
+
+void main() {
+  // Tanpa cascade
+  var p1 = Pesanan();
+  p1.menu = 'Mendoan';
+  p1.jumlah = 5;
+  p1.tampilkan(); // Output: 5 x Mendoan, catatan: []
+
+  // Dengan cascade
+  var p2 = Pesanan()
+    ..menu = 'Soto Sokaraja'
+    ..jumlah = 2
+    ..catatan.add('pedas')
+    ..tampilkan(); // Output: 2 x Soto Sokaraja, catatan: [pedas]
+  print(p2.jumlah); // Output: 2
+
+  // Cascade juga praktis untuk List
+  final angka = &lt;int&gt;[]
+    ..add(3)
+    ..add(1)
+    ..add(2)
+    ..sort();
+  print(angka); // Output: [1, 2, 3]
+}
+</code></pre>
+<p>Perhatikan: <code>..add(3)</code> mengembalikan <strong>objek list-nya</strong>, bukan hasil dari <code>add</code>. Karena itu rangkaian di atas tetap menghasilkan list. Ada juga <code>?..</code> untuk objek yang mungkin null.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Mengira <code>7 / 2</code> menghasilkan <code>3</code>. Hasilnya <code>3.5</code>. Gunakan <code>7 ~/ 2</code> untuk mendapatkan <code>3</code>.</li>
+  <li>Menulis <code>=</code> (penugasan) padahal maksudnya <code>==</code> (perbandingan).</li>
+  <li>Membandingkan <code>double</code> hasil perhitungan dengan <code>==</code>: <code>0.1 + 0.2 == 0.3</code> bernilai <code>false</code> karena keterbatasan presisi bilangan desimal.</li>
+</ul></div>

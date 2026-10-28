@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tutorial Flutter Lengkap - Pemrograman Mobile S1 Informatika UNSOED</title>
+  <meta name="description" content="Modul tutorial lengkap dan terstruktur pengembangan aplikasi mobile dengan Flutter & Dart khusus mahasiswa Program Studi S1 Informatika Universitas Jenderal Soedirman (UNSOED).">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234f46e5'><path d='M14.314 0L2.3 12 6 15.7 21.684 0h-7.37zM14.314 11.026L7.986 17.354 11.686 21.054l6.328-6.328-3.7-3.7zM21.684 11.026l-3.7 3.7 3.7 3.7h-7.37l3.67-3.7-3.67-3.7h7.37z'/></svg>">
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- PrismJS Dark Theme CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+  
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 antialiased min-h-screen flex flex-col">
+
+  <!-- TOP NAVBAR -->
+  <header id="top-navbar" class="sticky top-0 z-40 w-full border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md">
+    <div class="px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3 lg:gap-6">
+      
+      <!-- Brand & Mobile Toggle (Left Group) -->
+      <div class="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+        <button type="button" id="mobile-menu-btn" class="lg:hidden p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0 transition-colors" aria-label="Buka Menu Modul">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+
+        <button type="button" id="brand-home-btn" class="flex items-center gap-2.5 text-left focus:outline-none shrink-0 group">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-600 flex items-center justify-center shadow-md shadow-indigo-500/20 text-white shrink-0 group-hover:scale-105 transition-transform">
+            <!-- Flutter Dash / Bird Icon SVG -->
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M14.314 0L2.3 12 6 15.7 21.684 0h-7.37zM14.314 11.026L7.986 17.354 11.686 21.054l6.328-6.328-3.7-3.7zM21.684 11.026l-3.7 3.7 3.7 3.7h-7.37l3.67-3.7-3.67-3.7h7.37z"/>
+            </svg>
+          </div>
+          <div class="flex flex-col justify-center">
+            <div class="flex items-center gap-1.5 sm:gap-2 leading-none">
+              <span class="font-extrabold text-sm sm:text-base tracking-tight text-slate-900 dark:text-white whitespace-nowrap">Flutter Academy</span>
+              <!-- Single Responsive Identity Badge -->
+              <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 uppercase tracking-wider shrink-0 font-mono whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                <span class="sm:inline hidden">Informatika </span>UNSOED
+              </span>
+            </div>
+            <div class="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden sm:block truncate mt-1">
+              Pemrograman Mobile (Flutter & Dart)
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <!-- Center Group: Segmented Navigation & Search -->
+      <div class="hidden md:flex items-center gap-2 lg:gap-3 shrink-0">
+        <!-- Segmented Navigation Menu -->
+        <nav class="flex items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700/80 gap-1 shrink-0">
+          <button type="button" id="nav-modules-btn" class="px-3 py-1.5 rounded-lg text-xs lg:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 text-slate-600 dark:text-slate-300 hover:text-indigo-600" title="Buka Daftar Modul Perkuliahan">
+            <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+            <span>Modul Kuliah</span>
+          </button>
+          <button type="button" id="nav-cheatsheet-btn" class="px-3 py-1.5 rounded-lg text-xs lg:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 text-slate-600 dark:text-slate-300 hover:text-amber-600" title="Buka Cheat Sheet & Shortcut">
+            <svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            <span>Cheat Sheet</span>
+          </button>
+          <button type="button" id="nav-capstone-btn" class="px-3 py-1.5 rounded-lg text-xs lg:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 text-slate-600 dark:text-slate-300 hover:text-purple-600" title="Buka Panduan Capstone Project">
+            <svg class="w-4 h-4 text-purple-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            <span>Capstone</span>
+          </button>
+        </nav>
+
+        <!-- Quick Search Input Trigger -->
+        <div class="w-40 lg:w-52 xl:w-60 shrink-0">
+          <button type="button" id="search-trigger-btn" class="w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-400 bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200/70 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-inner h-9">
+            <div class="flex items-center gap-2 min-w-0">
+              <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+              <span class="truncate">Cari materi / kode...</span>
+            </div>
+            <kbd class="hidden lg:inline-block px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded shadow-sm shrink-0">⌘K</kbd>
+          </button>
+        </div>
+      </div>
+
+      <!-- Right Group: Progress & Actions -->
+      <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
+        <!-- Progress Widget (Desktop only, clean & compact) -->
+        <div class="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/70">
+          <div class="flex flex-col items-end">
+            <div id="progress-text" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 leading-tight whitespace-nowrap">0 dari 17 Modul Selesai</div>
+            <div class="w-24 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mt-1">
+              <div id="progress-bar-fill" class="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mobile Search Trigger Button -->
+        <button type="button" id="mobile-search-btn" class="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Cari Materi">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </button>
+
+        <div class="hidden md:block h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
+
+        <!-- Quick Action Toolbar -->
+        <div class="flex items-center gap-0.5 sm:gap-1 bg-slate-100/70 dark:bg-slate-800/70 p-1 rounded-xl border border-slate-200/70 dark:border-slate-700/70">
+          <!-- Lecture Mode Toggle (Desktop only) -->
+          <button type="button" id="lecture-toggle-btn" class="hidden md:inline-flex w-8 h-8 rounded-lg items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all shadow-none hover:shadow-sm" title="Mode Kuliah (Layar Penuh Proyektor)">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+          </button>
+
+          <!-- Print / PDF Export Button (Desktop only) -->
+          <button type="button" id="print-btn" class="hidden md:inline-flex w-8 h-8 rounded-lg items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all shadow-none hover:shadow-sm" title="Cetak Halaman Ini">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+          </button>
+
+          <!-- Download Full PDF Book -->
+          <a id="download-book-btn" href="assets/pdf/modul-flutter-lengkap.pdf" download class="inline-flex w-8 h-8 rounded-lg items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all shadow-none hover:shadow-sm" title="Unduh Modul Lengkap (PDF)">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+          </a>
+
+          <!-- Code Theme Global Toggle (Desktop / Tablet) -->
+          <button type="button" id="code-theme-global-btn" class="hidden sm:inline-flex w-8 h-8 rounded-lg items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all shadow-none hover:shadow-sm" title="Ubah Tema Kode (Terang / Gelap)">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+          </button>
+
+          <!-- Dark Mode Toggle (Always Visible) -->
+          <button type="button" id="theme-toggle-btn" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:text-amber-500 transition-all shadow-none hover:shadow-sm" title="Ubah Mode Gelap / Terang Situs">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN APP CONTAINER -->
+  <div class="flex-1 flex max-w-[1600px] w-full mx-auto">
+
+    <!-- MOBILE BACKDROP -->
+    <div id="mobile-sidebar-backdrop" class="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm hidden lg:hidden"></div>
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="fixed lg:sticky top-16 z-50 h-[calc(100vh-4rem)] w-80 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto transform -translate-x-full lg:translate-x-0 transition-transform duration-200 ease-in-out p-4 flex flex-col justify-between">
+      
+      <div>
+        <div class="px-1 mb-3 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Daftar Modul Kuliah</span>
+            <span class="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 font-semibold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60">16 Minggu</span>
+          </div>
+          <button type="button" id="close-sidebar-btn" class="lg:hidden p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800" title="Tutup Menu Modul">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+
+        <!-- Keterangan Prodi Informatika UNSOED -->
+        <div class="mb-3.5 p-2.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-amber-400/5 to-transparent border border-amber-300/50 dark:border-amber-700/50 flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-extrabold text-xs shrink-0 shadow-sm font-mono">
+            IF
+          </div>
+          <div class="min-w-0">
+            <div class="text-[11px] font-bold text-slate-900 dark:text-slate-100 leading-tight truncate">S1 Informatika UNSOED</div>
+            <div class="text-[10px] text-amber-700 dark:text-amber-400 font-medium truncate">Mata Kuliah Pemrograman Mobile</div>
+          </div>
+        </div>
+
+        <!-- Category Filter Pills -->
+        <div id="sidebar-category-filters" class="flex flex-wrap gap-1 mb-3 pb-2.5 border-b border-slate-100 dark:border-slate-800/80"></div>
+
+        <!-- Modules List (populated by JS) -->
+        <div id="sidebar-modules-list" class="space-y-1"></div>
+      </div>
+
+      <!-- Quick Nav Buttons Bottom Sidebar -->
+      <div class="pt-4 mt-6 border-t border-slate-200 dark:border-slate-800 space-y-2">
+        <button type="button" id="cheatsheet-nav-btn" class="w-full flex items-center gap-3 p-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <span class="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+          </span>
+          <span>Cheat Sheet & Shortcut</span>
+        </button>
+
+        <button type="button" id="capstone-nav-btn" class="w-full flex items-center gap-3 p-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left">
+          <span class="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+          </span>
+          <span>Panduan Capstone Project</span>
+        </button>
+      </div>
+
+    </aside>
+
+    <!-- MAIN CONTENT VIEW -->
+    <main id="main-content" class="flex-1 min-w-0 p-4 sm:p-6 lg:p-10 max-w-5xl pb-24 lg:pb-12">
+      <div id="content-area">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+    </main>
+
+  </div>
+
+  <!-- MOBILE BOTTOM NAVIGATION BAR -->
+  <nav id="mobile-bottom-nav" class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 py-1.5 px-3 flex items-center justify-around shadow-lg">
+    <button type="button" id="mob-nav-modules" class="flex flex-col items-center gap-0.5 text-[11px] py-1 px-2 rounded-lg text-indigo-600 dark:text-indigo-400 font-bold transition-colors">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+      <span>Modul</span>
+    </button>
+    <button type="button" id="mob-nav-cheatsheet" class="flex flex-col items-center gap-0.5 text-[11px] py-1 px-2 rounded-lg text-slate-500 dark:text-slate-400 transition-colors">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+      <span>Cheat Sheet</span>
+    </button>
+    <button type="button" id="mob-nav-capstone" class="flex flex-col items-center gap-0.5 text-[11px] py-1 px-2 rounded-lg text-slate-500 dark:text-slate-400 transition-colors">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+      <span>Capstone</span>
+    </button>
+    <button type="button" id="mob-nav-menu" class="flex flex-col items-center gap-0.5 text-[11px] py-1 px-2 rounded-lg text-slate-500 dark:text-slate-400 transition-colors">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+      <span>Daftar Menu</span>
+    </button>
+  </nav>
+
+  <!-- SEARCH MODAL POPUP -->
+  <div id="search-results-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-start justify-center p-4 sm:p-6 pt-16 sm:pt-24">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-2xl overflow-hidden animate-scaleIn">
+      <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
+        <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        <input type="text" id="global-search-input" placeholder="Cari materi (misal: FutureBuilder, Provider, SQLite, Column)..." class="flex-1 bg-transparent border-none outline-none text-slate-800 dark:text-slate-100 placeholder-slate-400 text-base">
+        <button type="button" id="close-search-btn" class="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+      <div id="search-results-list" class="max-h-96 overflow-y-auto p-3 space-y-1">
+        <div class="text-sm text-slate-400 text-center py-8">Ketik kata kunci pencarian...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PrismJS Core & Language Syntax Components -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-dart.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-kotlin.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-properties.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+
+  <!-- Canvas Confetti CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <!-- Application Modules & Data Scripts -->
+  <script src="assets/js/modules-data.js"></script>
+  <script src="assets/js/cheatsheet-data.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

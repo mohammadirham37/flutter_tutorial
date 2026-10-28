@@ -1,0 +1,148 @@
+<p class="lead">Kadang data lebih cocok disimpan sebagai <strong>file</strong>: ekspor catatan ke teks, cache JSON dari API, atau foto. Package <code>path_provider</code> memberi tahu lokasi folder yang boleh dipakai aplikasi, lalu kita menulis file dengan <code>dart:io</code>.</p>
+
+<pre><code class="language-bash">flutter pub add path_provider
+</code></pre>
+
+<h4>Folder yang Tersedia</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Fungsi</th><th>Isi yang cocok</th><th>Bisa dihapus sistem?</th></tr></thead>
+    <tbody>
+      <tr><td><code>getApplicationDocumentsDirectory()</code></td><td>Data buatan pengguna (ekspor, dokumen)</td><td>Tidak</td></tr>
+      <tr><td><code>getApplicationSupportDirectory()</code></td><td>File internal aplikasi yang tidak dilihat pengguna</td><td>Tidak</td></tr>
+      <tr><td><code>getTemporaryDirectory()</code></td><td>Cache sementara (gambar, respons API)</td><td>Ya, kapan saja</td></tr>
+      <tr><td><code>getDatabasesPath()</code> (sqflite)</td><td>File database SQLite</td><td>Tidak</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh Kecil: Tulis dan Baca File Teks</h4>
+<pre><code class="language-dart">import 'dart:io';
+
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+Future&lt;File&gt; _fileCatatan() async {
+  final dir = await getApplicationDocumentsDirectory();
+  return File(p.join(dir.path, 'catatan.txt'));
+}
+
+Future&lt;void&gt; simpanTeks(String isi) async {
+  final file = await _fileCatatan();
+  await file.writeAsString(isi); // menimpa isi lama
+}
+
+Future&lt;String&gt; bacaTeks() async {
+  final file = await _fileCatatan();
+  if (!await file.exists()) return ''; // belum pernah disimpan
+  return file.readAsString();
+}
+</code></pre>
+
+<h4>Contoh Lengkap: Buku Harian Sederhana</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Pastikan sudah: flutter pub add path_provider path
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: BukuHarianScreen()));
+
+class BukuHarianScreen extends StatefulWidget {
+  const BukuHarianScreen({super.key});
+
+  @override
+  State&lt;BukuHarianScreen&gt; createState() =&gt; _BukuHarianScreenState();
+}
+
+class _BukuHarianScreenState extends State&lt;BukuHarianScreen&gt; {
+  final _ctrl = TextEditingController();
+  String _info = 'Memuat...';
+
+  Future&lt;File&gt; get _file async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File(p.join(dir.path, 'buku_harian.txt'));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _muat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _muat() async {
+    final file = await _file;
+    final ada = await file.exists();
+    final isi = ada ? await file.readAsString() : '';
+    if (!mounted) return;
+    setState(() {
+      _ctrl.text = isi;
+      _info = ada ? 'Dibaca dari ${file.path}' : 'File belum ada';
+    });
+  }
+
+  Future&lt;void&gt; _simpan() async {
+    final file = await _file;
+    await file.writeAsString(_ctrl.text);
+    final ukuran = await file.length();
+    if (!mounted) return;
+    setState(() =&gt; _info = 'Tersimpan ($ukuran byte) di ${file.path}');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Buku Harian (File)'),
+        actions: [IconButton(tooltip: 'Simpan', onPressed: _simpan, icon: const Icon(Icons.save))],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _ctrl,
+                expands: true,
+                maxLines: null,
+                textAlignVertical: TextAlignVertical.top,
+                decoration: const InputDecoration(
+                  hintText: 'Tulis ceritamu hari ini...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(_info, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/buku-harian.jpg" alt="Buku harian tersimpan" loading="lazy">
+    <div class="screenshot-caption">Teks tersimpan ke file di folder dokumen aplikasi</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong> <code>File.writeAsString</code> dan <code>readAsString</code> berasal dari <code>dart:io</code>. Jalur folder diambil dari <code>path_provider</code>, lalu digabung dengan nama file memakai <code>p.join</code> agar pemisah folder benar di semua platform.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Menulis path secara manual (<code>'/sdcard/...'</code>): tidak portabel dan sering ditolak izin. Selalu pakai <code>path_provider</code>.</li>
+  <li>Menyimpan data penting di <code>getTemporaryDirectory()</code>: bisa dihapus sistem sewaktu-waktu.</li>
+  <li>Membaca file yang belum ada tanpa cek <code>exists()</code>: muncul <code>PathNotFoundException</code>.</li>
+  <li><code>dart:io</code> tidak tersedia di Flutter Web.</li>
+</ul>
+</div>

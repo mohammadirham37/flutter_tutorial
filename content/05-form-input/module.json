@@ -1,0 +1,179 @@
+{
+  "id": "modul-05",
+  "badge": "Input & Form",
+  "category": "Interaktivitas",
+  "title": "Interaktivitas, State Dasar & Validasi Formulir",
+  "duration": "Pertemuan 5 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 04: Sistem Layouting"
+  ],
+  "summary": "Membangun antarmuka interaktif dengan tombol Material 3 dan gestur, mengelola input teks dengan TextEditingController dan FocusNode, memvalidasi formulir dengan GlobalKey<FormState>, memakai input pilihan (Checkbox, Switch, RadioGroup, Slider, Dropdown, DatePicker), serta memberi umpan balik lewat SnackBar, AlertDialog, dan BottomSheet.",
+  "learningOutcomes": [
+    "Memilih varian tombol Material 3 (FilledButton, ElevatedButton, OutlinedButton, TextButton, IconButton, FAB) sesuai hierarki aksi dan menonaktifkannya dengan onPressed null.",
+    "Membuat widget kustom dapat disentuh dengan GestureDetector dan InkWell.",
+    "Mengatur tampilan TextField dengan InputDecoration serta mengelola TextEditingController dan FocusNode beserta dispose-nya.",
+    "Menerapkan validasi form lengkap (email, password, konfirmasi password) dengan Form, TextFormField, dan GlobalKey<FormState>.",
+    "Menggunakan Checkbox, Switch, RadioGroup, Slider, DropdownButtonFormField, DatePicker, dan TimePicker.",
+    "Memberi umpan balik kepada pengguna dengan SnackBar, AlertDialog, dan BottomSheet.",
+    "Membangun formulir pendaftaran mahasiswa lengkap beserta halaman hasilnya."
+  ],
+  "sections": [
+    {
+      "id": "tombol-material3",
+      "title": "1. Ragam Tombol Material 3",
+      "file": "01-tombol-material3.html"
+    },
+    {
+      "id": "form-gesture-inkwell",
+      "title": "2. GestureDetector & InkWell",
+      "file": "02-gesture-inkwell.html"
+    },
+    {
+      "id": "form-textfield-dasar",
+      "title": "3. TextField & InputDecoration",
+      "file": "03-textfield-dasar.html"
+    },
+    {
+      "id": "form-text-controller",
+      "title": "4. TextEditingController: Baca, Ubah, Kosongkan",
+      "file": "04-text-controller.html"
+    },
+    {
+      "id": "form-keyboard-fokus",
+      "title": "5. Jenis Keyboard, Password & FocusNode",
+      "file": "05-keyboard-password-fokus.html"
+    },
+    {
+      "id": "form-validation",
+      "title": "6. Form, TextFormField & Validasi",
+      "file": "06-form-validation.html"
+    },
+    {
+      "id": "form-pilihan-input",
+      "title": "7. Checkbox, Switch, Radio & Slider",
+      "file": "07-checkbox-switch-radio-slider.html"
+    },
+    {
+      "id": "form-dropdown-datetime",
+      "title": "8. Dropdown, DatePicker & TimePicker",
+      "file": "08-dropdown-date-time.html"
+    },
+    {
+      "id": "form-umpan-balik",
+      "title": "9. Umpan Balik: SnackBar, AlertDialog & BottomSheet",
+      "file": "09-snackbar-dialog-sheet.html"
+    },
+    {
+      "id": "form-studi-kasus-pendaftaran",
+      "title": "10. Studi Kasus: Formulir Pendaftaran Mahasiswa",
+      "file": "10-studi-kasus-pendaftaran.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 5: Formulir Pendaftaran Seminar Tugas Akhir",
+    "objective": "Membangun formulir lengkap dengan validasi, input pilihan, dan umpan balik untuk pendaftaran seminar tugas akhir mahasiswa.",
+    "instructions": [
+      "Buat proyek baru dan file <code>lib/main.dart</code> berisi <code>FormSeminarScreen</code> (StatefulWidget).",
+      "Buat kelas <code>Validators</code> berisi fungsi static untuk: wajib diisi, NIM (format seperti H1D024001), email, dan panjang minimal.",
+      "Tambahkan field: NIM, Nama, Email, Judul Tugas Akhir (multi-baris, minimal 20 karakter), dan Ringkasan (multi-baris, maksimal 300 karakter dengan <code>maxLength</code>).",
+      "Atur <code>keyboardType</code>, <code>textInputAction: TextInputAction.next</code>, dan <code>FocusNode</code> agar tombol Next berpindah ke field berikutnya.",
+      "Tambahkan <code>DropdownButtonFormField</code> untuk Dosen Pembimbing 1 dan 2 dengan validator, serta tolak jika keduanya sama.",
+      "Tambahkan pemilih tanggal seminar dengan <code>showDatePicker</code> (hanya hari kerja, mulai besok) dan jam dengan <code>showTimePicker</code>, ditampilkan pada TextFormField <code>readOnly</code>.",
+      "Tambahkan <code>RadioGroup</code> untuk jenis seminar (Proposal / Hasil / Sidang) dan <code>CheckboxListTile</code> persetujuan.",
+      "Saat Kirim ditekan dan semua valid, tampilkan <code>AlertDialog</code> ringkasan data; jika dikonfirmasi tampilkan <code>SnackBar</code> sukses dan kosongkan form. Tombol Kirim harus nonaktif selama simulasi pengiriman 2 detik.",
+      "Pastikan semua <code>TextEditingController</code> dan <code>FocusNode</code> di-dispose, dan <code>flutter analyze</code> tidak menampilkan peringatan."
+    ],
+    "expectedOutput": "Formulir yang menolak isian salah dengan pesan error yang jelas, berpindah fokus dengan tombol Next, menampilkan dialog ringkasan, dan SnackBar sukses setelah dikirim.",
+    "rubric": "Form + GlobalKey<FormState> + kelas Validators (30%), Input pilihan: Dropdown, Radio, Checkbox, Date/TimePicker (25%), Keyboard, FocusNode, dan dispose yang benar (20%), Umpan balik dialog/SnackBar dan tombol nonaktif saat mengirim (15%), Kerapian UI (10%)."
+  },
+  "quiz": [
+    {
+      "question": "Mengapa kita WAJIB memanggil method controller.dispose() di dalam method dispose() milik StatefulWidget?",
+      "options": [
+        "Untuk mencegah memory leak (kebocoran memori) karena listener controller terus hidup meskipun widget sudah dihancurkan",
+        "Karena jika tidak ditutup, data form akan otomatis terkirim ke server",
+        "Untuk mengubah font teks menjadi tebal",
+        "Agar tombol submit bisa diklik"
+      ],
+      "correctIndex": 0,
+      "explanation": "TextEditingController memiliki listener internal yang didaftarkan ke sistem operasi. Jika tidak di-dispose saat widget dihancurkan, referensi controller tetap menggantung di memori, menyebabkan kebocoran memori (memory leak)."
+    },
+    {
+      "question": "Apa nilai kembalian (return value) dari fungsi validator pada TextFormField jika input pengguna SUDAH BENAR dan VALID?",
+      "options": [
+        "Mengembalikan String 'Valid'",
+        "Mengembalikan nilai boolean true",
+        "Mengembalikan null",
+        "Mengembalikan angka 1"
+      ],
+      "correctIndex": 2,
+      "explanation": "Dalam Flutter Form validation, jika fungsi validator mengembalikan nilai null, framework menganggap isian tersebut valid. Jika tidak valid, fungsi mengembalikan String pesan kesalahan yang akan dicetak merah di bawah input field."
+    },
+    {
+      "question": "Bagaimana cara membuat sebuah FilledButton tampil nonaktif (disabled)?",
+      "options": [
+        "Memberi onPressed: null",
+        "Memberi child: null",
+        "Membungkusnya dengan Opacity(opacity: 0.5)",
+        "Memberi enabled: false pada FilledButton"
+      ],
+      "correctIndex": 0,
+      "explanation": "Semua tombol Material menjadi nonaktif secara otomatis ketika onPressed bernilai null. Warnanya memudar dan tombol tidak merespons sentuhan."
+    },
+    {
+      "question": "Efek riak (ripple) InkWell tidak terlihat sama sekali. Penyebab yang paling mungkin adalah...",
+      "options": [
+        "InkWell tidak memiliki widget Material di atasnya, atau anaknya Container berwarna yang menutupi riak",
+        "InkWell hanya bekerja di iOS",
+        "onTap pada InkWell bernilai fungsi",
+        "InkWell dibungkus Padding"
+      ],
+      "correctIndex": 0,
+      "explanation": "InkWell menggambar riaknya pada widget Material terdekat. Tanpa Material, atau jika anak InkWell adalah Container berwarna, riak tidak terlihat. Berikan warna pada Material atau gunakan Card."
+    },
+    {
+      "question": "Apa perbedaan utama onChanged dan TextEditingController pada TextField?",
+      "options": [
+        "onChanged hanya membaca saat pengguna mengetik, sedangkan controller dapat membaca, mengubah, dan mengosongkan teks dari kode kapan saja",
+        "onChanged lebih hemat memori sehingga controller tidak perlu dipakai",
+        "Controller hanya bisa dipakai pada TextFormField",
+        "Tidak ada perbedaan"
+      ],
+      "correctIndex": 0,
+      "explanation": "onChanged adalah callback yang menerima teks terbaru saat pengguna mengetik. TextEditingController memberi akses penuh: .text untuk membaca/mengubah, clear() untuk mengosongkan, dan addListener untuk mendengarkan perubahan."
+    },
+    {
+      "question": "Kode manakah yang memindahkan kursor ke field password ketika tombol Next pada keyboard ditekan di field email?",
+      "options": [
+        "textInputAction: TextInputAction.next, onSubmitted: (_) => _passwordFocus.requestFocus()",
+        "keyboardType: TextInputType.next",
+        "obscureText: true pada field email",
+        "autofocus: true pada field email"
+      ],
+      "correctIndex": 0,
+      "explanation": "textInputAction mengubah tombol Enter menjadi Next, dan onSubmitted dipanggil saat tombol itu ditekan. FocusNode.requestFocus() memindahkan fokus ke field yang memakai FocusNode tersebut."
+    },
+    {
+      "question": "Validator konfirmasi password yang benar adalah...",
+      "options": [
+        "(v) => v != _passwordController.text ? 'Konfirmasi password tidak sama' : null",
+        "(v) => v == _passwordController.text ? 'Valid' : 'Tidak sama'",
+        "(v) => v!.length >= 8",
+        "(v) => _formKey.currentState!.validate()"
+      ],
+      "correctIndex": 0,
+      "explanation": "Validator harus mengembalikan null jika valid dan String pesan error jika tidak valid. Isian konfirmasi dibandingkan dengan teks pada controller password."
+    },
+    {
+      "question": "Sejak Flutter 3.35, bagaimana cara yang tidak deprecated untuk membuat sekelompok radio button?",
+      "options": [
+        "Membungkus semua RadioListTile dengan RadioGroup yang memegang groupValue dan onChanged, dan setiap radio hanya diberi value",
+        "Memberi groupValue dan onChanged pada setiap Radio",
+        "Memakai Checkbox dengan tristate: true",
+        "Memakai Switch untuk setiap pilihan"
+      ],
+      "correctIndex": 0,
+      "explanation": "Parameter groupValue dan onChanged pada Radio/RadioListTile sudah deprecated. RadioGroup<T> kini memegang nilai terpilih dan callback untuk semua radio di dalamnya."
+    }
+  ]
+}

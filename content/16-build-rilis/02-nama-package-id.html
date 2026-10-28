@@ -1,0 +1,65 @@
+<p class="lead">Setiap aplikasi Android punya dua identitas: <strong>nama tampilan</strong> yang dilihat pengguna di bawah ikon, dan <strong>application ID</strong> (package id) yang unik di seluruh Play Store. Nama tampilan boleh diganti kapan saja; application ID <strong>tidak boleh berubah</strong> setelah aplikasi dipublikasikan.</p>
+
+<h4>1. Nama aplikasi (label)</h4>
+<p>Secara bawaan, nama aplikasi sama dengan nama proyek (<code>catatan_kuliah</code>), lengkap dengan garis bawah. Ganti atribut <code>android:label</code>:</p>
+<p class="code-file-label">📄 <code>android/app/src/main/AndroidManifest.xml</code> (potongan)</p>
+<pre><code class="language-text">&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+    &lt;application
+        android:label="Catatan Kuliah"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"&gt;
+        ...
+    &lt;/application&gt;
+&lt;/manifest&gt;</code></pre>
+<p>Untuk iOS, ubah nilai <code>CFBundleDisplayName</code>:</p>
+<p class="code-file-label">📄 <code>ios/Runner/Info.plist</code> (potongan)</p>
+<pre><code class="language-text">&lt;key&gt;CFBundleDisplayName&lt;/key&gt;
+&lt;string&gt;Catatan Kuliah&lt;/string&gt;</code></pre>
+<p>Nama yang tampil di <em>task switcher</em> Android saat aplikasi berjalan diambil dari properti <code>title</code> pada <code>MaterialApp</code>, jadi samakan juga: <code>MaterialApp(title: 'Catatan Kuliah', ...)</code>.</p>
+
+<h4>2. Application ID</h4>
+<p>Application ID ditulis seperti nama domain terbalik. Untuk tugas kuliah, gunakan pola <code>id.ac.unsoed.&lt;nim_atau_kelompok&gt;.&lt;nama_app&gt;</code> agar tidak bentrok dengan teman sekelas.</p>
+<ul>
+  <li>Hanya huruf kecil, angka, dan garis bawah; dipisah titik; minimal dua segmen.</li>
+  <li>Setiap segmen harus diawali huruf: <code>id.ac.unsoed.h1d022001.catatan</code> boleh, <code>id.ac.unsoed.2022.catatan</code> tidak.</li>
+  <li>Hindari <code>com.example</code>: Play Console menolak application ID yang diawali <code>com.example</code>.</li>
+</ul>
+<p>Cara paling mudah adalah menentukannya <strong>saat membuat proyek</strong> dengan opsi <code>--org</code>:</p>
+<pre><code class="language-bash">flutter create --org id.ac.unsoed.h1d022001 catatan_kuliah
+# hasil: applicationId = "id.ac.unsoed.h1d022001.catatan_kuliah"</code></pre>
+<p>Untuk proyek yang sudah terlanjur dibuat, ubah <code>applicationId</code> di Gradle:</p>
+<p class="code-file-label">📄 <code>android/app/build.gradle.kts</code> (potongan)</p>
+<pre><code class="language-kotlin">android {
+    // namespace = package kode Kotlin/Java (lokasi MainActivity)
+    namespace = "com.example.catatan_kuliah"
+
+    defaultConfig {
+        // applicationId = identitas unik di HP dan Play Store
+        applicationId = "id.ac.unsoed.h1d022001.catatan_kuliah"
+        // ...
+    }
+}</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th></th><th><code>applicationId</code></th><th><code>namespace</code></th></tr></thead>
+    <tbody>
+      <tr><td>Fungsi</td><td>Identitas aplikasi di HP dan Play Store</td><td>Nama package kode Kotlin/Java dan class <code>R</code></td></tr>
+      <tr><td>Boleh berbeda satu sama lain?</td><td colspan="2">Ya. Mengubah <code>applicationId</code> saja sudah cukup untuk mengganti identitas aplikasi.</td></tr>
+      <tr><td>Jika diubah</td><td>Dianggap aplikasi yang berbeda (data lama tidak ikut)</td><td>Harus memindahkan <code>MainActivity.kt</code> ke folder dan <code>package</code> yang sesuai</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Jika Anda juga ingin mengubah <code>namespace</code>, sesuaikan baris <code>package</code> di <code>MainActivity.kt</code> dan pindahkan file tersebut ke folder yang cocok:</p>
+<p class="code-file-label">📄 <code>android/app/src/main/kotlin/id/ac/unsoed/h1d022001/catatan_kuliah/MainActivity.kt</code></p>
+<pre><code class="language-kotlin">package id.ac.unsoed.h1d022001.catatan_kuliah
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()</code></pre>
+<p>Setelah mengubah application ID, lakukan <code>flutter clean</code> lalu jalankan ulang. Untuk iOS, bundle identifier diatur dari Xcode (Runner → Signing &amp; Capabilities).</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Mengubah <code>namespace</code> tanpa memindahkan <code>MainActivity.kt</code>. Build berhasil, tetapi aplikasi langsung tertutup dengan error <code>ClassNotFoundException: ...MainActivity</code>.</li>
+  <li>Mengubah application ID setelah aplikasi diunggah ke Play Console. Play Store akan menganggapnya aplikasi baru; pengguna lama tidak mendapat update.</li>
+  <li>Satu kelas memakai <code>com.example.catatan_kuliah</code> yang sama. Saat dosen memasang beberapa APK, APK berikutnya menimpa APK sebelumnya (atau gagal dipasang karena tanda tangan berbeda).</li>
+</ul></div>

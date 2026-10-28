@@ -1,0 +1,169 @@
+<p class="lead">Aplikasi nyata biasanya punya lebih dari satu provider: sesi login, tema, keranjang, data mata kuliah, dan seterusnya. <code>MultiProvider</code> mendaftarkan semuanya sekaligus tanpa nesting yang menjorok ke kanan.</p>
+
+<h4>Tanpa vs dengan MultiProvider</h4>
+<pre><code class="language-text">// Tanpa MultiProvider (sulit dibaca)        // Dengan MultiProvider
+ChangeNotifierProvider(                      MultiProvider(
+  create: ... TemaProvider,                    providers: [
+  child: ChangeNotifierProvider(                 ChangeNotifierProvider(create: ... Tema),
+    create: ... SesiProvider,                    ChangeNotifierProvider(create: ... Sesi),
+    child: ChangeNotifierProvider(               ChangeNotifierProvider(create: ... Favorit),
+      create: ... FavoritProvider,             ],
+      child: MyApp(),                          child: MyApp(),
+    ),                                       )
+  ),
+)
+</code></pre>
+
+<h4>Contoh lengkap: tema, sesi, dan favorit</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+// Provider 1: pengaturan tampilan
+class TemaProvider extends ChangeNotifier {
+  bool _gelap = false;
+  bool get gelap =&gt; _gelap;
+
+  void toggle() {
+    _gelap = !_gelap;
+    notifyListeners();
+  }
+}
+
+// Provider 2: data pengguna yang sedang login
+class SesiProvider extends ChangeNotifier {
+  String? _nama;
+  String? get nama =&gt; _nama;
+  bool get sudahLogin =&gt; _nama != null;
+
+  void login(String nama) {
+    _nama = nama;
+    notifyListeners();
+  }
+
+  void logout() {
+    _nama = null;
+    notifyListeners();
+  }
+}
+
+// Provider 3: daftar favorit
+class FavoritProvider extends ChangeNotifier {
+  final Set&lt;String&gt; _items = {};
+  Set&lt;String&gt; get items =&gt; Set.unmodifiable(_items);
+  bool isFavorit(String m) =&gt; _items.contains(m);
+
+  void toggle(String m) {
+    if (!_items.remove(m)) _items.add(m);
+    notifyListeners();
+  }
+}
+
+void main() {
+  runApp(
+    // MultiProvider = beberapa provider tanpa nesting bertingkat
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) =&gt; TemaProvider()),
+        ChangeNotifierProvider(create: (_) =&gt; SesiProvider()),
+        ChangeNotifierProvider(create: (_) =&gt; FavoritProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // MaterialApp hanya rebuild saat nilai "gelap" berubah
+    final gelap = context.select((TemaProvider t) =&gt; t.gelap);
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      darkTheme: ThemeData(colorSchemeSeed: Colors.indigo, brightness: Brightness.dark),
+      themeMode: gelap ? ThemeMode.dark : ThemeMode.light,
+      home: const BerandaPage(),
+    );
+  }
+}
+
+class BerandaPage extends StatelessWidget {
+  const BerandaPage({super.key});
+
+  static const matkul = ['Pemrograman Mobile', 'Basis Data', 'Kecerdasan Buatan'];
+
+  @override
+  Widget build(BuildContext context) {
+    final sesi = context.watch&lt;SesiProvider&gt;();
+    final favorit = context.watch&lt;FavoritProvider&gt;();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(sesi.sudahLogin ? 'Halo, ${sesi.nama}' : 'Tamu'),
+        actions: [
+          IconButton(
+            tooltip: 'Ganti tema',
+            icon: const Icon(Icons.dark_mode),
+            onPressed: () =&gt; context.read&lt;TemaProvider&gt;().toggle(),
+          ),
+          IconButton(
+            tooltip: sesi.sudahLogin ? 'Logout' : 'Login',
+            icon: Icon(sesi.sudahLogin ? Icons.logout : Icons.login),
+            onPressed: () {
+              final s = context.read&lt;SesiProvider&gt;();
+              sesi.sudahLogin ? s.logout() : s.login('Andi');
+            },
+          ),
+        ],
+      ),
+      body: ListView(
+        children: [
+          ListTile(title: Text('Favorit: ${favorit.items.length} mata kuliah')),
+          const Divider(),
+          for (final m in matkul)
+            ListTile(
+              title: Text(m),
+              trailing: IconButton(
+                tooltip: 'Favorit $m',
+                icon: Icon(
+                  favorit.isFavorit(m) ? Icons.favorite : Icons.favorite_border,
+                  color: favorit.isFavorit(m) ? Colors.red : null,
+                ),
+                onPressed: () =&gt; context.read&lt;FavoritProvider&gt;().toggle(m),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/multi-awal.jpg" alt="Tiga provider: tema, sesi, favorit" loading="lazy">
+    <div class="screenshot-caption">Tiga provider: tema, sesi, favorit</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/multi-aksi.jpg" alt="Setelah login, menambah favorit, dan ganti tema" loading="lazy">
+    <div class="screenshot-caption">Setelah login, menambah favorit, dan ganti tema</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li>Tiga provider dengan tanggung jawab berbeda. Masing-masing kecil dan mudah dipahami (prinsip <em>single responsibility</em>).</li>
+  <li><code>MyApp</code> memakai <code>context.select((TemaProvider t) =&gt; t.gelap)</code>. <code>MaterialApp</code> hanya rebuild ketika tema berganti, bukan ketika favorit bertambah.</li>
+  <li><code>BerandaPage</code> me-<code>watch</code> dua provider sekaligus. Halaman rebuild jika salah satunya berubah.</li>
+  <li>Urutan di <code>providers: [...]</code> penting hanya jika satu provider bergantung pada provider lain (lihat ProxyProvider di section 8).</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Membuat satu "GodProvider" raksasa berisi semua state. Setiap perubahan kecil membuat semua pendengar rebuild, dan file-nya sulit dirawat.</li>
+  <li>Mendaftarkan dua provider dengan tipe yang sama. Widget hanya bisa menemukan yang paling dekat; yang lain tertutup.</li>
+</ul>
+</div>

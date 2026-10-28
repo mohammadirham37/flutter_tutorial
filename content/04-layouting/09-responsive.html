@@ -1,0 +1,310 @@
+<p class="lead">Aplikasi mobile harus tampil proporsional di smartphone layar kecil (5 inci), tablet (10 inci), maupun saat orientasi layar diputar (landscape). Flutter menyediakan tiga alat utama: <strong><code>MediaQuery</code></strong> (info layar), <strong><code>LayoutBuilder</code></strong> (info ruang dari induk), dan <strong><code>OrientationBuilder</code></strong> (info orientasi).</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Alat</th><th>Memberi informasi</th><th>Cocok untuk</th></tr></thead>
+    <tbody>
+      <tr><td><code>MediaQuery</code></td><td>Ukuran <strong>seluruh layar</strong>, padding sistem, orientasi, skala teks</td><td>Keputusan tingkat halaman (pakai menu samping atau tidak)</td></tr>
+      <tr><td><code>LayoutBuilder</code></td><td>Constraints <strong>dari induk langsung</strong></td><td>Widget yang bisa dipakai di mana saja (kartu, grid)</td></tr>
+      <tr><td><code>OrientationBuilder</code></td><td>Portrait/landscape berdasarkan ruang induk</td><td>Mengubah jumlah kolom saat HP diputar</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>MediaQuery: membaca info layar</h4>
+<pre><code class="language-dart">Widget infoLayar(BuildContext context) {
+  final ukuran = MediaQuery.sizeOf(context);          // Size(lebar, tinggi)
+  final orientasi = MediaQuery.orientationOf(context); // portrait / landscape
+  final padding = MediaQuery.paddingOf(context);      // area status bar, notch
+  final skalaTeks = MediaQuery.textScalerOf(context); // pengaturan ukuran font HP
+
+  return Text(
+    'Lebar: ${ukuran.width.toStringAsFixed(0)}, tinggi: ${ukuran.height.toStringAsFixed(0)}\n'
+    'Orientasi: ${orientasi.name}, status bar: ${padding.top}\n'
+    '14 px menjadi ${skalaTeks.scale(14).toStringAsFixed(1)} px',
+  );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/responsive-1.jpg" alt="Informasi layar dari MediaQuery" loading="lazy">
+    <div class="screenshot-caption">Informasi layar dari MediaQuery</div>
+  </div>
+</div>
+<div class="callout callout-tip"><h4>💡 Pakai <code>sizeOf</code>, bukan <code>of(context).size</code></h4><p><code>MediaQuery.sizeOf(context)</code> hanya membangun ulang widget saat <em>ukuran</em> berubah. <code>MediaQuery.of(context).size</code> membangun ulang setiap kali data MediaQuery apa pun berubah (misalnya keyboard muncul), sehingga lebih boros.</p></div>
+
+<h4>Breakpoint: batas lebar untuk berganti tata letak</h4>
+<p>Material 3 menyarankan tiga kelas ukuran jendela. Simpan sebagai konstanta agar konsisten di seluruh aplikasi:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kelas</th><th>Lebar</th><th>Perangkat umum</th><th>Navigasi yang disarankan</th></tr></thead>
+    <tbody>
+      <tr><td>Compact</td><td>&lt; 600</td><td>HP portrait</td><td><code>NavigationBar</code> di bawah</td></tr>
+      <tr><td>Medium</td><td>600 - 839</td><td>Tablet portrait, HP lipat</td><td><code>NavigationRail</code> di samping</td></tr>
+      <tr><td>Expanded</td><td>≥ 840</td><td>Tablet landscape, desktop</td><td><code>NavigationRail</code> diperluas / drawer permanen</td></tr>
+    </tbody>
+  </table>
+</div>
+<pre><code class="language-dart">class Breakpoint {
+  static const double medium = 600;
+  static const double expanded = 840;
+}
+
+enum KelasLayar { compact, medium, expanded }
+
+KelasLayar kelasDariLebar(double lebar) {
+  if (lebar &gt;= Breakpoint.expanded) return KelasLayar.expanded;
+  if (lebar &gt;= Breakpoint.medium) return KelasLayar.medium;
+  return KelasLayar.compact;
+}
+</code></pre>
+
+<h4>Contoh lengkap 1: MediaQuery untuk menu samping</h4>
+<p>Jalankan di Chrome (<code>flutter run -d chrome</code>) lalu ubah lebar jendela browser untuk melihat tata letak berganti antara mode HP dan tablet.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: DashboardScreen(),
+    );
+  }
+}
+
+class DashboardScreen extends StatelessWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Mendapatkan ukuran &amp; orientasi layar perangkat saat ini
+    final Size screenSize = MediaQuery.sizeOf(context);
+    final Orientation orientasi = MediaQuery.orientationOf(context);
+    final bool isTablet = screenSize.width &gt; 600;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Dashboard (${orientasi == Orientation.portrait ? 'Portrait' : 'Landscape'})"),
+      ),
+      body: isTablet
+          ? Row(
+              children: [
+                // Di tablet / layar lebar tampilkan menu samping
+                Container(
+                  width: 250,
+                  color: Colors.blueGrey[50],
+                  child: ListView(
+                    children: const [
+                      ListTile(leading: Icon(Icons.home), title: Text("Beranda")),
+                      ListTile(leading: Icon(Icons.calendar_month), title: Text("Jadwal")),
+                      ListTile(leading: Icon(Icons.person), title: Text("Profil")),
+                    ],
+                  ),
+                ),
+                const Expanded(child: KontenUtama()),
+              ],
+            )
+          : const KontenUtama(), // Di HP tampilkan satu kolom penuh
+    );
+  }
+}
+
+class KontenUtama extends StatelessWidget {
+  const KontenUtama({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final lebar = MediaQuery.sizeOf(context).width;
+    return Center(
+      child: Text(
+        "Lebar layar: ${lebar.toStringAsFixed(0)} px\n"
+        "${lebar &gt; 600 ? 'Mode Tablet (menu samping tampil)' : 'Mode HP (satu kolom)'}",
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 18),
+      ),
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/responsive-3.jpg" alt="Dashboard di layar HP (mode satu kolom)" loading="lazy">
+    <div class="screenshot-caption">Dashboard di layar HP (mode satu kolom)</div>
+  </div>
+</div>
+
+<h4>LayoutBuilder: responsif berdasarkan ruang induk</h4>
+<p>MediaQuery melihat ukuran <em>layar</em>. Masalahnya, sebuah widget belum tentu mendapat seluruh layar. Misalnya <code>KontenUtama</code> di contoh tadi hanya mendapat (lebar layar - 250) di mode tablet. <code>LayoutBuilder</code> memberi constraints yang benar-benar diterima widget tersebut.</p>
+<pre><code class="language-dart">LayoutBuilder(
+  builder: (context, constraints) {
+    // constraints.maxWidth = lebar yang diberikan induk
+    final kolom = constraints.maxWidth &gt;= 600 ? 3 : 2;
+    return Text('Ruang ${constraints.maxWidth.toStringAsFixed(0)} px → $kolom kolom');
+  },
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/responsive-4.jpg" alt="LayoutBuilder menentukan jumlah kolom" loading="lazy">
+    <div class="screenshot-caption">LayoutBuilder menentukan jumlah kolom</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap 2: grid responsif dengan LayoutBuilder dan breakpoint</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: ThemeData(colorSchemeSeed: Colors.indigo),
+    home: const KatalogMatkul(),
+  ));
+}
+
+class KatalogMatkul extends StatelessWidget {
+  const KatalogMatkul({super.key});
+
+  static const _matkul = [
+    'Pemrograman Mobile', 'Basis Data', 'Jaringan Komputer', 'Kecerdasan Buatan',
+    'Sistem Operasi', 'Rekayasa Perangkat Lunak', 'Grafika Komputer', 'Keamanan Informasi',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Katalog Mata Kuliah')),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final lebar = constraints.maxWidth;
+          // Jumlah kolom ditentukan dari breakpoint
+          final int kolom;
+          if (lebar &gt;= 840) {
+            kolom = 4;
+          } else if (lebar &gt;= 600) {
+            kolom = 3;
+          } else {
+            kolom = 2;
+          }
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text('Lebar ${lebar.toStringAsFixed(0)} px → $kolom kolom'),
+              ),
+              Expanded(
+                child: GridView.count(
+                  crossAxisCount: kolom,
+                  padding: const EdgeInsets.all(8),
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 1.2,
+                  children: [
+                    for (final m in _matkul)
+                      Card.filled(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Icon(Icons.menu_book),
+                              Text(m, maxLines: 2, overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/responsive-5.jpg" alt="Grid responsif: 2 kolom di HP portrait" loading="lazy">
+    <div class="screenshot-caption">Grid responsif: 2 kolom di HP portrait</div>
+  </div>
+</div>
+<p><code>GridView.count</code> membuat grid dengan jumlah kolom tetap (dibahas lebih lengkap di Modul 06). Di sini jumlah kolomnya dihitung dari lebar yang diberikan <code>LayoutBuilder</code>.</p>
+
+<h4>OrientationBuilder: portrait vs landscape</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: HalamanKtm()));
+}
+
+class HalamanKtm extends StatelessWidget {
+  const HalamanKtm({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('KTM Digital')),
+      body: OrientationBuilder(
+        builder: (context, orientation) {
+          const foto = CircleAvatar(radius: 56, child: Icon(Icons.person, size: 64));
+          const data = Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Nadia Putri', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              Text('NIM: H1D021001'),
+              Text('S1 Informatika • Angkatan 2021'),
+            ],
+          );
+
+          // Portrait: foto di atas data. Landscape: foto di samping data.
+          if (orientation == Orientation.portrait) {
+            return const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [foto, SizedBox(height: 16), data],
+              ),
+            );
+          }
+          return const Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [foto, SizedBox(width: 32), data],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/responsive-6.jpg" alt="OrientationBuilder pada mode portrait" loading="lazy">
+    <div class="screenshot-caption">OrientationBuilder pada mode portrait</div>
+  </div>
+</div>
+<p>Putar emulator (tombol rotasi di panel samping emulator) untuk melihat foto berpindah dari atas ke samping. Pastikan rotasi otomatis di emulator aktif.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Menulis ukuran piksel tetap</strong> seperti <code>width: 360</code> untuk konten utama. Di HP 320 px terjadi overflow, di tablet tampak kecil di tengah. Gunakan Expanded, persentase dari lebar, atau breakpoint.</li>
+  <li><strong>Memakai MediaQuery untuk widget yang ada di dalam panel sempit.</strong> Lebar layar besar, tetapi ruang widget kecil. Pakai <code>LayoutBuilder</code>.</li>
+  <li><strong>Mengecek <code>Platform.isAndroid</code> untuk menentukan layout.</strong> Tablet Android dan HP Android sama-sama Android. Tentukan layout dari ukuran, bukan dari jenis platform.</li>
+  <li><strong>Mengabaikan skala teks.</strong> Pengguna dengan font sistem besar membuat teks lebih tinggi; hindari tinggi tetap pada kotak berisi teks.</li>
+</ul></div>

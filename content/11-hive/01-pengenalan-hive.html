@@ -1,0 +1,52 @@
+<p class="lead">Di Modul 10 kamu sudah memakai <strong>SharedPreferences</strong> untuk data kecil dan <strong>SQLite</strong> untuk data berbentuk tabel. Modul ini mengenalkan pilihan ketiga yang sangat populer di Flutter: <strong>Hive</strong>, database NoSQL yang ringan, cepat, dan ditulis murni dengan Dart.</p>
+
+<h4>Hive itu apa?</h4>
+<p>Hive adalah database <em>key-value</em>. Bayangkan sebuah <code>Map</code> di Dart yang isinya otomatis tersimpan ke file, sehingga tidak hilang saat aplikasi ditutup. Kamu menyimpan data dengan sebuah <strong>key</strong> (kunci) lalu mengambilnya lagi memakai key yang sama.</p>
+
+<pre><code class="language-dart">// Map biasa: hilang saat aplikasi ditutup
+final dataSementara = &lt;String, dynamic&gt;{};
+dataSementara['nama'] = 'Budi';
+
+// Box Hive: cara pakainya mirip Map, tetapi tersimpan permanen ke file
+// box.put('nama', 'Budi');
+// box.get('nama'); // 'Budi', bahkan setelah aplikasi dibuka ulang
+</code></pre>
+
+<h4>Istilah penting: Box</h4>
+<p>Data di Hive dikelompokkan ke dalam <strong>box</strong>. Satu box kira-kira setara dengan satu tabel di SQLite atau satu "laci" penyimpanan. Contoh pembagiannya:</p>
+<ul>
+  <li><code>pengaturan</code>: tema gelap, bahasa, nama pengguna.</li>
+  <li><code>catatan_box</code>: semua catatan kuliah.</li>
+  <li><code>cache_mahasiswa</code>: data dari server yang disimpan sementara agar bisa dibuka saat offline.</li>
+</ul>
+<p>Setiap box disimpan sebagai file sendiri (<code>nama_box.hive</code>) di folder dokumen aplikasi. Box yang sudah dibuka isinya dimuat ke memori, sehingga membaca data dari box <strong>tidak perlu <code>await</code></strong> dan hasilnya langsung didapat.</p>
+
+<h4>NoSQL: tidak ada tabel dan kolom</h4>
+<p>Berbeda dengan SQLite, Hive tidak memakai <code>CREATE TABLE</code>, tidak ada skema kolom, dan tidak ada query SQL. Value yang disimpan bisa berupa:</p>
+<ul>
+  <li>Tipe dasar: <code>String</code>, <code>int</code>, <code>double</code>, <code>bool</code>, <code>DateTime</code>, <code>null</code>.</li>
+  <li>Koleksi: <code>List</code> dan <code>Map</code> (boleh bersarang).</li>
+  <li>Objek buatan sendiri (misalnya <code>Catatan</code>), asalkan kamu mendaftarkan <strong>TypeAdapter</strong> (dibahas di bagian 5).</li>
+</ul>
+
+<h4>Kapan memakai Hive, SharedPreferences, atau SQLite?</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Aspek</th><th>SharedPreferences</th><th>Hive</th><th>SQLite (sqflite)</th></tr></thead>
+    <tbody>
+      <tr><td>Model data</td><td>Key-value sederhana</td><td>Key-value NoSQL, value boleh objek</td><td>Relasional (tabel, baris, kolom)</td></tr>
+      <tr><td>Tipe value</td><td>String, int, double, bool, List&lt;String&gt;</td><td>Semua tipe dasar, List, Map, objek dengan adapter</td><td>TEXT, INTEGER, REAL, BLOB</td></tr>
+      <tr><td>Cara baca</td><td><code>await</code> (async)</td><td>Sinkron setelah box dibuka</td><td><code>await</code> + query SQL</td></tr>
+      <tr><td>Query rumit (JOIN, GROUP BY)</td><td>Tidak bisa</td><td>Tidak ada; filter manual dengan <code>where()</code> di Dart</td><td>Sangat bisa</td></tr>
+      <tr><td>Ditulis dengan</td><td>Plugin native</td><td>Murni Dart (jalan juga di web dan desktop)</td><td>Plugin native</td></tr>
+      <tr><td>Cocok untuk</td><td>Flag kecil: tema, sudah onboarding, token</td><td>Daftar objek, cache offline, catatan, keranjang belanja</td><td>Data besar yang saling berelasi, laporan, agregasi</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-tip"><h4>💡 Aturan praktis</h4><p>Cuma beberapa pengaturan? Pakai SharedPreferences. Butuh menyimpan daftar objek dengan cepat dan tanpa SQL? Pakai Hive. Butuh relasi antar tabel dan query kompleks? Pakai SQLite. Ketiganya boleh dipakai bersamaan dalam satu aplikasi.</p></div>
+
+<h4>Kenapa <code>hive_ce</code>, bukan <code>hive</code>?</h4>
+<p>Di pub.dev ada package <code>hive</code> versi 2.x yang dulu sangat populer. Sayangnya package itu sudah lama <strong>tidak dirawat</strong> lagi oleh pembuatnya. Komunitas lalu melanjutkannya sebagai <strong>Hive Community Edition</strong>: <code>hive_ce</code> dan <code>hive_ce_flutter</code>. API-nya hampir sama persis (<code>Hive.openBox</code>, <code>box.put</code>, <code>TypeAdapter</code>, dan seterusnya), tetapi rutin diperbarui untuk versi Dart dan Flutter terbaru, serta ada tambahan seperti <code>@GenerateAdapters</code> dan rentang <code>typeId</code> yang jauh lebih besar. Jadi tutorial lama tentang <code>hive</code> umumnya tetap bisa diikuti; yang berbeda hanya nama package dan baris <code>import</code>.</p>
+
+<div class="callout callout-info"><h4>ℹ️ Peta modul ini</h4><p>Kita mulai dari operasi dasar box, menyimpan Map dan List, lalu objek sendiri dengan TypeAdapter. Setelah itu UI reaktif, pola repository + Provider, enkripsi, dan diakhiri mini project <strong>Catatan Kuliah Offline</strong> (CRUD lengkap). Teknik menyimpan Map di bagian 4 akan dipakai lagi di Modul 14 sebagai cache offline data Supabase.</p></div>

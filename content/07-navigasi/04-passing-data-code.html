@@ -1,0 +1,288 @@
+<p class="lead">Navigasi bisa dua arah. <code>Navigator.push</code> mengembalikan sebuah <code>Future</code> yang selesai ketika halaman tujuan ditutup. Nilai yang dikirim lewat <code>Navigator.pop(context, nilai)</code> akan menjadi hasil <code>Future</code> tersebut.</p>
+
+<h4>Pola dasarnya</h4>
+<pre><code class="language-dart">// Halaman ASAL: tunggu hasil dengan await
+onPressed: () async {
+  final String? kelas = await Navigator.push&lt;String&gt;(
+    context,
+    MaterialPageRoute(builder: (context) =&gt; const PilihKelasScreen()),
+  );
+  if (kelas == null) return; // pengguna menekan tombol back
+  debugPrint('Kelas dipilih: $kelas');
+},
+
+
+// Halaman TUJUAN: tutup sambil membawa nilai
+onTap: () =&gt; Navigator.pop(context, 'Kelas A'),
+</code></pre>
+
+<ul>
+  <li><code>push&lt;String&gt;</code> memberi tahu Dart bahwa hasilnya bertipe <code>String?</code>. Tanda tanya muncul karena pengguna bisa menekan back tanpa memilih apa pun, sehingga hasilnya <code>null</code>.</li>
+  <li><code>await</code> membuat kode "menunggu" sampai halaman tujuan di-<code>pop</code>. Karena itu fungsi <code>onPressed</code> harus <code>async</code>.</li>
+</ul>
+
+<h4>Contoh lengkap 1: verifikasi data mahasiswa</h4>
+<p>Mari pelajari cara mengirim data objek Mahasiswa ke halaman detail, dan menerima konfirmasi status kembali:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: DaftarMahasiswaScreen(),
+    );
+  }
+}
+
+// --- HALAMAN 1: DAFTAR MAHASISWA ---
+class DaftarMahasiswaScreen extends StatelessWidget {
+  const DaftarMahasiswaScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Daftar Mahasiswa")),
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () async {
+            // 1. Mengirim data ke DetailMahasiswaScreen dan MENUNGGU hasil balik (await)
+            //    &lt;String&gt; = tipe data yang diharapkan dikirim balik oleh Navigator.pop
+            final hasilBalik = await Navigator.push&lt;String&gt;(
+              context,
+              MaterialPageRoute(
+                builder: (context) =&gt; const DetailMahasiswaScreen(
+                  nama: "Fikri Ramadhan",
+                  nim: "21102045",
+                ),
+              ),
+            );
+
+            // 2. Menerima data yang dikirim balik dari Halaman 2.
+            //    Cek context.mounted karena ada jeda (await) sebelum memakai context lagi.
+            if (hasilBalik != null &amp;&amp; context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Feedback dari halaman detail: $hasilBalik")),
+              );
+            }
+          },
+          child: const Text("Lihat Detail Mahasiswa"),
+        ),
+      ),
+    );
+  }
+}
+
+// --- HALAMAN 2: DETAIL MAHASISWA ---
+class DetailMahasiswaScreen extends StatelessWidget {
+  final String nama;
+  final String nim;
+
+  const DetailMahasiswaScreen({super.key, required this.nama, required this.nim});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text("Profil $nama")),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text("NIM: $nim", style: const TextStyle(fontSize: 18)),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                // Menutup layar DAN mengembalikan data String ke halaman sebelumnya
+                Navigator.pop(context, "Data Telah Diverifikasi!");
+              },
+              child: const Text("Verifikasi &amp; Kembali"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/hasil-snackbar.jpg" alt="Hasil balik dari pop tampil di SnackBar" loading="lazy">
+    <div class="screenshot-caption">Hasil balik dari pop tampil di SnackBar</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap 2: form tambah catatan yang mengembalikan objek</h4>
+<p>Pola ini sangat sering dipakai: halaman daftar membuka halaman form, form mengembalikan objek baru, lalu daftar menambahkannya dengan <code>setState</code>.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class Catatan {
+  final String judul;
+  final bool penting;
+
+  const Catatan({required this.judul, required this.penting});
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.deepPurple),
+      home: const DaftarCatatanScreen(),
+    );
+  }
+}
+
+// Halaman daftar perlu StatefulWidget karena isinya berubah
+class DaftarCatatanScreen extends StatefulWidget {
+  const DaftarCatatanScreen({super.key});
+
+  @override
+  State&lt;DaftarCatatanScreen&gt; createState() =&gt; _DaftarCatatanScreenState();
+}
+
+class _DaftarCatatanScreenState extends State&lt;DaftarCatatanScreen&gt; {
+  final List&lt;Catatan&gt; _catatan = [];
+
+  Future&lt;void&gt; _bukaForm() async {
+    // 1. Buka form dan TUNGGU sampai form ditutup
+    final hasil = await Navigator.push&lt;Catatan&gt;(
+      context,
+      MaterialPageRoute(builder: (context) =&gt; const FormCatatanScreen()),
+    );
+
+    // 2. hasil == null berarti pengguna batal (tekan back)
+    if (hasil == null) return;
+
+    // 3. Setelah await, pastikan State masih terpasang sebelum setState/context
+    if (!mounted) return;
+    setState(() =&gt; _catatan.add(hasil));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Catatan "${hasil.judul}" ditambahkan')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Catatan Kuliah')),
+      body: _catatan.isEmpty
+          ? const Center(child: Text('Belum ada catatan. Tekan tombol +'))
+          : ListView.builder(
+              itemCount: _catatan.length,
+              itemBuilder: (context, index) {
+                final c = _catatan[index];
+                return ListTile(
+                  leading: Icon(
+                    c.penting ? Icons.star : Icons.notes,
+                    color: c.penting ? Colors.amber : null,
+                  ),
+                  title: Text(c.judul),
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Tambah catatan',
+        onPressed: _bukaForm,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class FormCatatanScreen extends StatefulWidget {
+  const FormCatatanScreen({super.key});
+
+  @override
+  State&lt;FormCatatanScreen&gt; createState() =&gt; _FormCatatanScreenState();
+}
+
+class _FormCatatanScreenState extends State&lt;FormCatatanScreen&gt; {
+  final _judulController = TextEditingController();
+  bool _penting = false;
+
+  @override
+  void dispose() {
+    _judulController.dispose();
+    super.dispose();
+  }
+
+  void _simpan() {
+    final judul = _judulController.text.trim();
+    if (judul.isEmpty) return;
+    // Tutup halaman sambil MENGIRIM objek Catatan ke halaman sebelumnya
+    Navigator.pop(context, Catatan(judul: judul, penting: _penting));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Catatan Baru')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(
+              controller: _judulController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Judul catatan',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            SwitchListTile(
+              title: const Text('Tandai penting'),
+              value: _penting,
+              onChanged: (v) =&gt; setState(() =&gt; _penting = v),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(onPressed: _simpan, child: const Text('Simpan')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/catatan-hasil.jpg" alt="Objek Catatan dikembalikan dan ditambahkan ke daftar" loading="lazy">
+    <div class="screenshot-caption">Objek Catatan dikembalikan dan ditambahkan ke daftar</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>_bukaForm()</code> menunggu hasil bertipe <code>Catatan?</code>. Jika <code>null</code>, berarti pengguna batal sehingga fungsi langsung berhenti.</li>
+  <li><code>if (!mounted) return;</code> wajib ada setelah <code>await</code>. Selama menunggu, halaman daftar bisa saja sudah ditutup. Memanggil <code>setState</code> pada State yang sudah dilepas akan menimbulkan error.</li>
+  <li>Di form, <code>Navigator.pop(context, Catatan(...))</code> sekaligus menutup halaman dan mengirim objek.</li>
+  <li>Di dalam <code>State</code> gunakan <code>mounted</code>; di dalam fungsi yang hanya punya <code>BuildContext</code> (seperti contoh 1) gunakan <code>context.mounted</code>.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Lupa <code>await</code>: kode setelah <code>push</code> langsung jalan sebelum pengguna memilih apa pun, dan hasilnya selalu berupa <code>Future</code>, bukan nilai.</li>
+  <li>Tidak menangani <code>null</code>. Pengguna selalu bisa menekan tombol back, jadi hasil <em>pasti</em> bisa <code>null</code>.</li>
+  <li>Tipe hasil tidak cocok, misalnya <code>push&lt;String&gt;</code> tetapi halaman tujuan memanggil <code>pop(context, 123)</code>. Ini menimbulkan error tipe saat runtime.</li>
+  <li>Memakai <code>context</code> setelah <code>await</code> tanpa cek <code>mounted</code>. Analyzer akan memberi peringatan <em>use_build_context_synchronously</em>.</li>
+</ul>
+</div>

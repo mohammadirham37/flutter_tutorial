@@ -1,0 +1,219 @@
+<p class="lead">Daftar data jarang langsung tersedia. Data harus dimuat dulu, bisa gagal, atau ternyata kosong. Aplikasi yang baik menampilkan tampilan yang jelas untuk <strong>setiap keadaan</strong>, bukan layar putih kosong.</p>
+
+<h4>Konsep: empat keadaan</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Keadaan</th><th>Yang ditampilkan</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Loading</strong></td><td><code>CircularProgressIndicator</code> + teks "Memuat..."</td></tr>
+      <tr><td><strong>Error</strong></td><td>Ikon, pesan yang dimengerti pengguna, tombol "Coba Lagi"</td></tr>
+      <tr><td><strong>Kosong</strong> (empty state)</td><td>Ikon, penjelasan kenapa kosong, ajakan bertindak</td></tr>
+      <tr><td><strong>Ada data</strong></td><td>ListView / GridView</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh kecil: pola operator ternary</h4>
+<pre><code class="language-dart">// Pola umum: periksa keadaan dari yang paling "awal"
+return Scaffold(
+  body: sedangMemuat
+      ? const Center(child: CircularProgressIndicator())       // 1. loading
+      : data.isEmpty
+          ? const Center(child: Text('Belum ada data'))        // 2. kosong
+          : ListView.builder(                                  // 3. ada data
+              itemCount: data.length,
+              itemBuilder: (context, i) =&gt; ListTile(title: Text(data[i])),
+            ),
+);
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/state-loading-kecil.jpg" alt="Keadaan loading: lingkaran berputar di tengah layar" loading="lazy">
+    <div class="screenshot-caption">Keadaan loading: lingkaran berputar di tengah layar</div>
+  </div>
+</div>
+<p>Untuk dua atau tiga keadaan, ternary bersarang masih terbaca. Untuk empat keadaan atau lebih, lebih rapi memakai <code>enum</code> + <code>switch</code> seperti contoh berikut.</p>
+
+<h4>Contoh lengkap: enum StatusMuat</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const DaftarTugasScreen(),
+    );
+  }
+}
+
+// Empat kemungkinan keadaan layar daftar
+enum StatusMuat { loading, error, kosong, ada }
+
+class DaftarTugasScreen extends StatefulWidget {
+  const DaftarTugasScreen({super.key});
+
+  @override
+  State&lt;DaftarTugasScreen&gt; createState() =&gt; _DaftarTugasScreenState();
+}
+
+class _DaftarTugasScreenState extends State&lt;DaftarTugasScreen&gt; {
+  StatusMuat _status = StatusMuat.loading;
+  List&lt;String&gt; _tugas = [];
+  int _percobaan = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _muatData();
+  }
+
+  // Simulasi mengambil data: percobaan ke-1 gagal, ke-2 kosong, ke-3 berhasil
+  Future&lt;void&gt; _muatData() async {
+    setState(() =&gt; _status = StatusMuat.loading);
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    _percobaan++;
+    setState(() {
+      if (_percobaan == 1) {
+        _status = StatusMuat.error;
+      } else if (_percobaan == 2) {
+        _tugas = [];
+        _status = StatusMuat.kosong;
+      } else {
+        _tugas = ['Laporan Praktikum 3', 'Kuis Dart', 'Proyek UI Login'];
+        _status = StatusMuat.ada;
+      }
+    });
+  }
+
+  Widget _buildIsi() {
+    switch (_status) {
+      case StatusMuat.loading:
+        return const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Memuat tugas...'),
+            ],
+          ),
+        );
+      case StatusMuat.error:
+        return _PesanStatus(
+          ikon: Icons.wifi_off,
+          judul: 'Gagal memuat data',
+          keterangan: 'Periksa koneksi internet lalu coba lagi.',
+          tombol: FilledButton.icon(
+            onPressed: _muatData,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Coba Lagi'),
+          ),
+        );
+      case StatusMuat.kosong:
+        return _PesanStatus(
+          ikon: Icons.inbox_outlined,
+          judul: 'Belum ada tugas',
+          keterangan: 'Tugas dari dosen akan muncul di sini.',
+          tombol: OutlinedButton(onPressed: _muatData, child: const Text('Muat Ulang')),
+        );
+      case StatusMuat.ada:
+        return ListView.builder(
+          itemCount: _tugas.length,
+          itemBuilder: (context, i) =&gt; ListTile(
+            leading: const Icon(Icons.assignment_outlined),
+            title: Text(_tugas[i]),
+          ),
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Tugas - status: ${_status.name}')),
+      body: _buildIsi(),
+    );
+  }
+}
+
+// Widget kecil yang bisa dipakai ulang untuk empty state &amp; error state
+class _PesanStatus extends StatelessWidget {
+  final IconData ikon;
+  final String judul;
+  final String keterangan;
+  final Widget tombol;
+
+  const _PesanStatus({
+    required this.ikon,
+    required this.judul,
+    required this.keterangan,
+    required this.tombol,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(ikon, size: 80, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(judul, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(keterangan, textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            tombol,
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/state-loading.jpg" alt="Loading saat pertama dibuka" loading="lazy">
+    <div class="screenshot-caption">Loading saat pertama dibuka</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/state-error.jpg" alt="Percobaan pertama gagal: error state" loading="lazy">
+    <div class="screenshot-caption">Percobaan pertama gagal: error state</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/state-kosong.jpg" alt="Setelah Coba Lagi: data kosong" loading="lazy">
+    <div class="screenshot-caption">Setelah Coba Lagi: data kosong</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/state-ada.jpg" alt="Setelah Muat Ulang: data tampil" loading="lazy">
+    <div class="screenshot-caption">Setelah Muat Ulang: data tampil</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><code>enum StatusMuat { loading, error, kosong, ada }</code> membuat semua keadaan tertulis jelas.</li>
+  <li><code>switch (_status)</code> di <code>_buildIsi</code> wajib menangani semua nilai enum. Jika kelak ditambah keadaan baru, compiler akan mengingatkan bagian yang belum ditangani.</li>
+  <li>Widget <code>_PesanStatus</code> dipakai ulang untuk error dan kosong, cukup berbeda ikon, teks, dan tombolnya.</li>
+  <li><code>_muatData</code> selalu mengubah status ke loading dulu, lalu menunggu, lalu mengatur hasil. Pola ini juga akan dipakai di Modul 09 saat memanggil API.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Hanya memeriksa <code>list.isEmpty</code>.</strong> Saat masih loading, list juga kosong, sehingga pengguna sempat melihat tulisan "Belum ada data" padahal data sedang dimuat.</li>
+  <li><strong>Pesan error teknis</strong> seperti "SocketException: Failed host lookup". Tampilkan bahasa manusia dan berikan tombol coba lagi.</li>
+  <li><strong>Lupa <code>if (!mounted) return;</code></strong> setelah <code>await</code>.</li>
+</ul></div>

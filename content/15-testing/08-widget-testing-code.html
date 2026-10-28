@@ -1,0 +1,415 @@
+<p class="lead"><strong>Widget test</strong> menjalankan widget di lingkungan virtual (tanpa emulator), lalu mensimulasikan interaksi pengguna: mengetik, menekan tombol, menggulir. Hasilnya diperiksa dengan cara yang sama seperti unit test, yaitu <code>expect</code>.</p>
+
+<h4>Kosakata dasar WidgetTester</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Perintah</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>testWidgets('...', (tester) async { })</code></td><td>Mendefinisikan widget test; <code>tester</code> adalah “robot” yang mengendalikan UI</td></tr>
+      <tr><td><code>await tester.pumpWidget(widget)</code></td><td>Merender widget untuk pertama kali</td></tr>
+      <tr><td><code>find.text('...')</code>, <code>find.byKey(...)</code>, <code>find.byType(...)</code>, <code>find.byIcon(...)</code></td><td>Mencari widget di layar (finder)</td></tr>
+      <tr><td><code>await tester.tap(finder)</code></td><td>Menekan widget</td></tr>
+      <tr><td><code>await tester.enterText(finder, 'teks')</code></td><td>Mengetik ke <code>TextField</code>/<code>TextFormField</code></td></tr>
+      <tr><td><code>await tester.pump()</code></td><td>Menggambar satu frame berikutnya (setelah setState)</td></tr>
+      <tr><td><code>await tester.pump(Duration)</code></td><td>Memajukan waktu virtual lalu menggambar frame</td></tr>
+      <tr><td><code>await tester.pumpAndSettle()</code></td><td>Terus menggambar frame sampai tidak ada animasi/timer yang tersisa</td></tr>
+      <tr><td><code>findsOneWidget</code>, <code>findsNothing</code>, <code>findsNWidgets(n)</code>, <code>findsWidgets</code></td><td>Matcher jumlah widget yang ditemukan</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh 1: aplikasi penghitung klik</h4>
+<p>Kita mulai dari aplikasi paling sederhana. Simpan sebagai <code>lib/main.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const KlikApp());
+}
+
+class KlikApp extends StatelessWidget {
+  const KlikApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Klik App',
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const KlikPage(),
+    );
+  }
+}
+
+class KlikPage extends StatefulWidget {
+  const KlikPage({super.key});
+
+  @override
+  State&lt;KlikPage&gt; createState() =&gt; _KlikPageState();
+}
+
+class _KlikPageState extends State&lt;KlikPage&gt; {
+  int _jumlah = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Klik App')),
+      body: Center(
+        child: Text(
+          'Diklik $_jumlah kali',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Tambah',
+        onPressed: () =&gt; setState(() =&gt; _jumlah++),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/klik-app-awal.jpg" alt="Klik App kondisi awal" loading="lazy">
+    <div class="screenshot-caption">Kondisi awal: “Diklik 0 kali”</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/klik-app-tiga.jpg" alt="Klik App setelah tiga kali ditekan" loading="lazy">
+    <div class="screenshot-caption">Setelah tombol + ditekan tiga kali</div>
+  </div>
+</div>
+<p>Test berikut melakukan hal yang sama dengan yang Anda lakukan secara manual di emulator, tetapi otomatis:</p>
+<p class="code-file-label">📄 <code>test/widget/klik_app_test.dart</code></p>
+<pre><code class="language-dart">// test/widget/klik_app_test.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:catatan_kuliah/main.dart';
+
+void main() {
+  testWidgets('angka bertambah saat tombol + ditekan', (tester) async {
+    // 1. Render widget
+    await tester.pumpWidget(const KlikApp());
+
+    // 2. Periksa kondisi awal
+    expect(find.text('Diklik 0 kali'), findsOneWidget);
+    expect(find.text('Diklik 1 kali'), findsNothing);
+
+    // 3. Tekan tombol, lalu minta Flutter menggambar frame baru
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pump();
+
+    // 4. Periksa hasilnya
+    expect(find.text('Diklik 1 kali'), findsOneWidget);
+  });
+
+  testWidgets('menekan tombol tiga kali', (tester) async {
+    await tester.pumpWidget(const KlikApp());
+
+    for (var i = 0; i &lt; 3; i++) {
+      await tester.tap(find.byTooltip('Tambah'));
+    }
+    await tester.pump();
+
+    expect(find.text('Diklik 3 kali'), findsOneWidget);
+  });
+}</code></pre>
+<p>Poin penting:</p>
+<ul>
+  <li><code>tester.tap()</code> hanya mengirim sentuhan. Layar <strong>belum</strong> berubah sampai Anda memanggil <code>pump()</code>. Ini kesalahan nomor satu pemula.</li>
+  <li><code>find.byTooltip('Tambah')</code> mencari tombol lewat tooltip-nya. Ini sekaligus memastikan tombol punya label aksesibilitas.</li>
+  <li>Test dimulai dengan memeriksa kondisi awal. Tanpa itu, test bisa lulus walaupun teks awal sudah salah.</li>
+</ul>
+
+<h4>Contoh 2: berbagai cara mencari widget (finder)</h4>
+<p class="code-file-label">📄 <code>test/widget/finder_test.dart</code></p>
+<pre><code class="language-dart">// test/widget/finder_test.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  testWidgets('berbagai cara mencari widget', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          appBar: AppBar(title: const Text('Profil')),
+          body: Column(
+            children: [
+              const Text('Budi Santoso', key: Key('nama')),
+              const Icon(Icons.verified),
+              ElevatedButton(onPressed: () {}, child: const Text('Edit')),
+              const Text('Edit'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Profil'), findsOneWidget); // berdasarkan teks
+    expect(find.byKey(const Key('nama')), findsOneWidget); // berdasarkan Key
+    expect(find.byIcon(Icons.verified), findsOneWidget); // berdasarkan ikon
+    expect(find.byType(ElevatedButton), findsOneWidget); // berdasarkan tipe
+    expect(find.text('Edit'), findsNWidgets(2)); // ada 2 teks "Edit"
+    // Teks "Edit" yang berada DI DALAM ElevatedButton saja
+    expect(find.widgetWithText(ElevatedButton, 'Edit'), findsOneWidget);
+    expect(find.text('Hapus'), findsNothing);
+
+    // Membaca properti widget yang ditemukan
+    final teksNama = tester.widget&lt;Text&gt;(find.byKey(const Key('nama')));
+    expect(teksNama.data, 'Budi Santoso');
+  });
+}</code></pre>
+<p>Urutan prioritas memilih finder: <code>find.byKey</code> paling stabil (tidak terpengaruh perubahan teks), <code>find.text</code> paling mudah dibaca, <code>find.byType</code> jika hanya ada satu widget sejenis. <code>tester.widget&lt;T&gt;(finder)</code> mengambil objek widget-nya untuk memeriksa properti.</p>
+
+<h4>pump() vs pumpAndSettle()</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th></th><th><code>pump()</code></th><th><code>pumpAndSettle()</code></th></tr></thead>
+    <tbody>
+      <tr><td>Jumlah frame</td><td>Tepat satu</td><td>Sebanyak yang dibutuhkan sampai tenang</td></tr>
+      <tr><td>Cocok untuk</td><td>setState sederhana, memeriksa kondisi “di tengah” (loading)</td><td>Navigasi, dialog, SnackBar, Future yang sudah selesai</td></tr>
+      <tr><td>Bahaya</td><td>Animasi belum selesai saat diperiksa</td><td><strong>Timeout</strong> jika ada animasi tanpa akhir (misalnya <code>CircularProgressIndicator</code> yang terus berputar)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh 3: menguji validasi form login (Modul 13)</h4>
+<p>Form login Catatan Kuliah adalah kandidat ideal untuk widget test: banyak aturan validasi, dan bug di sini membuat pengguna tidak bisa masuk sama sekali. Agar mudah diuji, proses login <strong>tidak</strong> dipanggil langsung di dalam halaman, melainkan diterima lewat parameter <code>onLogin</code>. Di aplikasi asli isinya <code>context.read&lt;AuthProvider&gt;().signIn</code>; di test isinya fungsi palsu.</p>
+<p class="code-file-label">📄 <code>lib/pages/login_page.dart</code></p>
+<pre><code class="language-dart">// lib/pages/login_page.dart
+import 'package:flutter/material.dart';
+
+import '../utils/validators.dart';
+
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key, required this.onLogin});
+
+  /// Dipanggil saat form valid. Di Modul 13 isinya AuthProvider.signIn.
+  final Future&lt;void&gt; Function(String email, String password) onLogin;
+
+  @override
+  State&lt;LoginPage&gt; createState() =&gt; _LoginPageState();
+}
+
+class _LoginPageState extends State&lt;LoginPage&gt; {
+  final _formKey = GlobalKey&lt;FormState&gt;();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() =&gt; _loading = true);
+    try {
+      await widget.onLogin(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Login gagal, periksa email/password')),
+      );
+    } finally {
+      if (mounted) setState(() =&gt; _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Masuk')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              TextFormField(
+                key: const Key('field-email'),
+                controller: _emailController,
+                decoration: const InputDecoration(labelText: 'Email'),
+                keyboardType: TextInputType.emailAddress,
+                validator: validasiEmail,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const Key('field-password'),
+                controller: _passwordController,
+                decoration: const InputDecoration(labelText: 'Password'),
+                obscureText: true,
+                validator: validasiPassword,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _loading ? null : _submit,
+                  child: _loading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Masuk'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/login-kosong-error.jpg" alt="Form login kosong dengan pesan validasi" loading="lazy">
+    <div class="screenshot-caption">Tombol Masuk ditekan saat form kosong</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/login-format-salah.jpg" alt="Pesan format email salah dan password pendek" loading="lazy">
+    <div class="screenshot-caption">Email “budi” dan password “123”</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/login-gagal-snackbar.jpg" alt="SnackBar login gagal" loading="lazy">
+    <div class="screenshot-caption">Form valid tetapi onLogin melempar error: SnackBar muncul</div>
+  </div>
+</div>
+<p>Ketiga kondisi pada screenshot di atas kini kita uji secara otomatis, ditambah dua skenario lain:</p>
+<p class="code-file-label">📄 <code>test/widget/login_page_test.dart</code></p>
+<pre><code class="language-dart">// test/widget/login_page_test.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:catatan_kuliah/pages/login_page.dart';
+
+void main() {
+  // Helper agar setiap test tidak menulis MaterialApp berulang kali
+  Future&lt;void&gt; pumpLogin(
+    WidgetTester tester, {
+    Future&lt;void&gt; Function(String, String)? onLogin,
+  }) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoginPage(onLogin: onLogin ?? (email, password) async {}),
+      ),
+    );
+  }
+
+  final fieldEmail = find.byKey(const Key('field-email'));
+  final fieldPassword = find.byKey(const Key('field-password'));
+  final tombolMasuk = find.widgetWithText(FilledButton, 'Masuk');
+
+  testWidgets('form kosong menampilkan dua pesan error', (tester) async {
+    await pumpLogin(tester);
+
+    await tester.tap(tombolMasuk);
+    await tester.pump();
+
+    expect(find.text('Email wajib diisi'), findsOneWidget);
+    expect(find.text('Password wajib diisi'), findsOneWidget);
+  });
+
+  testWidgets('email salah format dan password pendek', (tester) async {
+    await pumpLogin(tester);
+
+    await tester.enterText(fieldEmail, 'budi');
+    await tester.enterText(fieldPassword, '123');
+    await tester.tap(tombolMasuk);
+    await tester.pump();
+
+    expect(find.text('Format email tidak valid'), findsOneWidget);
+    expect(find.text('Password minimal 8 karakter'), findsOneWidget);
+  });
+
+  testWidgets('form valid memanggil onLogin dengan data yang diketik',
+      (tester) async {
+    String? emailDikirim;
+    String? passwordDikirim;
+
+    await pumpLogin(
+      tester,
+      onLogin: (email, password) async {
+        emailDikirim = email;
+        passwordDikirim = password;
+      },
+    );
+
+    await tester.enterText(fieldEmail, '  budi@mhs.unsoed.ac.id ');
+    await tester.enterText(fieldPassword, 'rahasia123');
+    await tester.tap(tombolMasuk);
+    await tester.pumpAndSettle();
+
+    expect(emailDikirim, 'budi@mhs.unsoed.ac.id'); // sudah di-trim
+    expect(passwordDikirim, 'rahasia123');
+    expect(find.text('Email wajib diisi'), findsNothing);
+  });
+
+  testWidgets('login gagal menampilkan SnackBar', (tester) async {
+    await pumpLogin(
+      tester,
+      onLogin: (email, password) async =&gt; throw Exception('401'),
+    );
+
+    await tester.enterText(fieldEmail, 'budi@mhs.unsoed.ac.id');
+    await tester.enterText(fieldPassword, 'salahsalah');
+    await tester.tap(tombolMasuk);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Login gagal, periksa email/password'), findsOneWidget);
+  });
+
+  testWidgets('tombol menampilkan loading selama proses login',
+      (tester) async {
+    await pumpLogin(
+      tester,
+      onLogin: (email, password) =&gt;
+          Future.delayed(const Duration(seconds: 2)),
+    );
+
+    await tester.enterText(fieldEmail, 'budi@mhs.unsoed.ac.id');
+    await tester.enterText(fieldPassword, 'rahasia123');
+    await tester.tap(tombolMasuk);
+    await tester.pump(); // satu frame: setState(_loading = true) terlihat
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 2)); // majukan waktu 2 detik
+    await tester.pump(); // frame setelah loading selesai
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+}</code></pre>
+<p>Penjelasan bagian penting:</p>
+<ul>
+  <li><strong>Helper <code>pumpLogin</code></strong>: membungkus <code>LoginPage</code> dengan <code>MaterialApp</code> (wajib, karena <code>Scaffold</code>, <code>TextFormField</code>, dan <code>SnackBar</code> butuh tema dan <code>ScaffoldMessenger</code>).</li>
+  <li><strong><code>Key('field-email')</code></strong>: diberikan di <code>LoginPage</code> agar test bisa menemukan field dengan pasti. Mencari lewat <code>find.text('Email')</code> rawan karena label bisa berubah.</li>
+  <li><strong><code>find.widgetWithText(FilledButton, 'Masuk')</code></strong>: teks “Masuk” juga ada di judul AppBar, jadi kita batasi pencarian ke tombol saja.</li>
+  <li><strong>Menangkap argumen</strong>: variabel <code>emailDikirim</code> diisi oleh fungsi palsu, lalu diperiksa. Ini cara sederhana memastikan form mengirim data yang benar (termasuk <code>trim()</code>).</li>
+  <li><strong>Test loading</strong>: <code>pump()</code> sekali untuk melihat kondisi tengah (indikator loading tampil), lalu <code>pump(Duration(seconds: 2))</code> memajukan waktu virtual. Test tetap selesai dalam milidetik walaupun “menunggu” 2 detik. Di sini <code>pumpAndSettle()</code> tidak bisa dipakai di tengah, karena indikator loading berputar terus.</li>
+</ul>
+
+<h4>Menggulir sampai widget terlihat</h4>
+<p>Jika widget berada di bawah layar dalam <code>ListView</code>, ia mungkin belum dibangun sehingga <code>find</code> tidak menemukannya. Gulir dulu:</p>
+<pre><code class="language-dart">// di dalam testWidgets, setelah pumpWidget sebuah ListView berisi 100 item
+await tester.scrollUntilVisible(
+  find.text('Catatan 80'),
+  300, // jarak gulir per langkah (pixel)
+  scrollable: find.byType(Scrollable).first,
+);
+expect(find.text('Catatan 80'), findsOneWidget);</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Lupa <code>await</code> di depan <code>tester.tap</code>, <code>tester.pump</code>, atau <code>tester.enterText</code>.</li>
+  <li>Lupa memanggil <code>pump()</code> setelah <code>tap()</code>, lalu bingung kenapa teks belum berubah.</li>
+  <li>Memanggil <code>pumpAndSettle()</code> saat ada animasi tak berujung, sehingga test gagal dengan pesan <code>pumpAndSettle timed out</code>.</li>
+  <li>Me-render halaman tanpa <code>MaterialApp</code>, menghasilkan error <code>No MediaQuery widget ancestor found</code> atau <code>No Material widget found</code>.</li>
+  <li>Halaman langsung memanggil <code>Supabase.instance.client</code>. Di test, Supabase belum diinisialisasi sehingga test crash. Pisahkan aksi lewat parameter atau provider (bagian berikutnya).</li>
+</ul></div>

@@ -1,0 +1,175 @@
+{
+  "id": "modul-01",
+  "badge": "Fundamental",
+  "category": "Dasar",
+  "title": "Pengenalan Flutter, Arsitektur & Setup Lingkungan",
+  "duration": "Pertemuan 1 (150 Menit)",
+  "prerequisites": [
+    "Modul 00: Silabus & Persiapan"
+  ],
+  "summary": "Memahami konsep framework Flutter, arsitektur internal (Framework, Engine, Embedder), instalasi Flutter SDK dan Android Studio, mengatasi error setup yang umum, perintah CLI flutter sehari-hari, anatomi proyek, bedah kode counter bawaan baris per baris, perbedaan Hot Reload/Hot Restart/Full Restart, hingga membuat aplikasi pertama 'Halo Kampus'.",
+  "learningOutcomes": [
+    "Menjelaskan perbedaan arsitektur Native, Hybrid/WebView, dan Flutter Direct Rendering.",
+    "Menginstalasi Flutter SDK, Android SDK, dan ekstensi editor kode, lalu memperbaiki error flutter doctor yang umum.",
+    "Menggunakan perintah CLI flutter: create, devices, emulators, run, pub add, analyze, dan clean.",
+    "Menganalisis peran folder dalam struktur proyek Flutter (android, ios, lib, pubspec.yaml).",
+    "Menjelaskan setiap bagian main.dart bawaan: main, runApp, StatelessWidget, StatefulWidget, setState, dan build.",
+    "Memilih antara Hot Reload, Hot Restart, dan Full Restart sesuai jenis perubahan kode.",
+    "Membuat dan menjalankan aplikasi 'Halo Kampus' pada emulator/perangkat fisik."
+  ],
+  "sections": [
+    {
+      "id": "apa-itu-flutter",
+      "title": "1. Apa itu Flutter & Mengapa Industri Menggunakannya?",
+      "file": "01-apa-itu-flutter.html"
+    },
+    {
+      "id": "arsitektur-flutter",
+      "title": "2. Arsitektur Berlapis Flutter (Architecture Layers)",
+      "file": "02-arsitektur-flutter.html"
+    },
+    {
+      "id": "instalasi-setup",
+      "title": "3. Instalasi dan Setup Environment",
+      "file": "03-instalasi-setup.html"
+    },
+    {
+      "id": "pengenalan-error-setup",
+      "title": "4. Error Setup yang Sering Muncul & Solusinya",
+      "file": "04-error-setup.html"
+    },
+    {
+      "id": "pengenalan-cli-flutter",
+      "title": "5. Perintah CLI Flutter yang Sering Dipakai",
+      "file": "05-cli-flutter.html"
+    },
+    {
+      "id": "anatomi-proyek",
+      "title": "6. Anatomi Struktur Folder Proyek Flutter",
+      "file": "06-anatomi-proyek.html"
+    },
+    {
+      "id": "pengenalan-bedah-main",
+      "title": "7. Bedah main.dart Counter Bawaan Baris per Baris",
+      "file": "07-bedah-main-dart.html"
+    },
+    {
+      "id": "pengenalan-hot-reload",
+      "title": "8. Hot Reload vs Hot Restart vs Full Restart",
+      "file": "08-hot-reload.html"
+    },
+    {
+      "id": "pengenalan-halo-kampus",
+      "title": "9. Aplikasi Pertama: Halo Kampus",
+      "file": "09-halo-kampus.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 1: Membuat & Menjalankan Proyek 'Halo Kampus'",
+    "objective": "Membuktikan kesiapan environment, memahami alur kerja CLI dan Hot Reload/Hot Restart, serta memodifikasi aplikasi perdana di emulator atau smartphone.",
+    "instructions": [
+      "Jalankan <code>flutter doctor -v</code>. Perbaiki semua tanda <code>[✗]</code> pada Flutter, Android toolchain, dan Connected device (lihat section 4). Simpan hasil akhirnya sebagai <code>doctor.txt</code>.",
+      "Buat proyek baru dengan perintah: <code>flutter create --org id.ac.unsoed praktikum1_kampus</code>, lalu buka folder proyek di VS Code.",
+      "Cek device dengan <code>flutter devices</code>. Jika memakai emulator, nyalakan lewat <code>flutter emulators --launch &lt;id&gt;</code>.",
+      "Jalankan aplikasi counter bawaan dengan <code>flutter run</code>. Di file <code>CATATAN.md</code>, tulis penjelasan singkat dengan kata-kata sendiri untuk bagian bernomor 1 sampai 8 dari section 7.",
+      "Ganti seluruh isi <code>lib/main.dart</code> dengan kode Halo Kampus (section 9), hapus <code>test/widget_test.dart</code>, lalu ubah nama, NIM, dan prodi menjadi milik Anda. Ubah judul AppBar menjadi <code>'Portal Mahasiswa - [NIM Anda]'</code>.",
+      "Tambahkan minimal dua <code>ListTile</code> baru (misal hobi dan angkatan) dan ganti <code>seedColor</code> dengan warna pilihan Anda.",
+      "Lakukan percobaan Hot Reload vs Hot Restart: tekan Presensi sampai 5, ubah warna (tekan <kbd>r</kbd>), lalu ubah nilai awal <code>_jumlahHadir</code> menjadi 10 (tekan <kbd>r</kbd>, kemudian <kbd>R</kbd>). Catat hasil tiap langkah di <code>CATATAN.md</code> beserta alasannya.",
+      "Jalankan <code>flutter analyze</code> dan pastikan hasilnya <em>No issues found!</em>.",
+      "Ambil tangkapan layar aplikasi yang berjalan (sebelum dan sesudah percobaan Hot Restart).",
+      "Salin proyek ke folder <code>praktikum-01/</code> di repositori GitHub Praktikum 0, sertakan <code>doctor.txt</code>, <code>CATATAN.md</code>, dan tangkapan layar, lalu commit dan push."
+    ],
+    "expectedOutput": "Aplikasi Halo Kampus berjalan dengan identitas mahasiswa, NIM di AppBar, minimal dua ListTile tambahan dan warna tema sendiri; repositori berisi doctor.txt, CATATAN.md (penjelasan main.dart dan hasil percobaan reload), serta tangkapan layar.",
+    "rubric": "Aplikasi berjalan tanpa error dan flutter analyze bersih (35%), Modifikasi identitas, ListTile, dan tema (20%), Ketepatan catatan percobaan Hot Reload/Hot Restart (25%), Penjelasan main.dart dengan kata-kata sendiri (10%), Kelengkapan berkas di GitHub (10%)."
+  },
+  "quiz": [
+    {
+      "question": "Mengapa Flutter memiliki performa render grafis yang mendekati aplikasi native murni?",
+      "options": [
+        "Karena Flutter menggunakan WebView berkecepatan tinggi",
+        "Karena Flutter memiliki Engine grafis sendiri (Skia/Impeller) yang menggambar langsung ke layar tanpa jembatan (bridge) JavaScript",
+        "Karena semua kode Flutter diubah menjadi file HTML5 sebelum dijalankan",
+        "Karena Flutter tidak mendukung animasi kompleks"
+      ],
+      "correctIndex": 1,
+      "explanation": "Flutter tidak menggunakan web view atau jembatan komunikasi JS bridge saat runtime. Engine grafisnya (Skia/Impeller) mengontrol setiap piksel dan berkomunikasi langsung dengan GPU perangkat."
+    },
+    {
+      "question": "File manakah dalam proyek Flutter yang berfungsi untuk mendaftarkan dependensi pihak ketiga (library dari pub.dev) serta aset gambar?",
+      "options": [
+        "lib/main.dart",
+        "android/build.gradle",
+        "pubspec.yaml",
+        "pubspec.lock"
+      ],
+      "correctIndex": 2,
+      "explanation": "File pubspec.yaml adalah file manifest utama tempat developer mendeklarasikan library/package eksternal, aset gambar, icon font, dan metadata proyek."
+    },
+    {
+      "question": "Fitur Flutter apakah yang memungkinkan developer melihat perubahan kode di antarmuka dalam waktu kurang dari 1 detik tanpa me-restart aplikasi?",
+      "options": [
+        "Cold Restart",
+        "Ahead-of-Time Compiling",
+        "Stateful Hot Reload",
+        "Garbage Collector"
+      ],
+      "correctIndex": 2,
+      "explanation": "Stateful Hot Reload menyuntikkan kode baru ke dalam Dart Virtual Machine yang sedang berjalan tanpa menghapus state saat ini, memungkinkan iterasi UI super cepat."
+    },
+    {
+      "question": "Anda mengubah <code>int _counter = 0;</code> menjadi <code>int _counter = 50;</code> lalu menekan Hot Reload, tetapi angka di layar tidak berubah. Apa yang seharusnya dilakukan?",
+      "options": [
+        "Menjalankan flutter clean",
+        "Menekan Hot Restart (R) karena nilai awal field State hanya dibaca saat objek State dibuat",
+        "Menginstal ulang Flutter SDK",
+        "Menambahkan package baru di pubspec.yaml"
+      ],
+      "correctIndex": 1,
+      "explanation": "Hot Reload mempertahankan objek State yang sudah ada, sehingga nilai awal field tidak dihitung ulang. Hot Restart membuat ulang seluruh aplikasi dari main(), sehingga nilai awal baru dipakai."
+    },
+    {
+      "question": "Apa yang terjadi jika <code>_counter++</code> dijalankan di luar <code>setState()</code> pada aplikasi counter?",
+      "options": [
+        "Aplikasi langsung crash",
+        "Nilai variabel bertambah di memori, tetapi layar tidak digambar ulang sehingga angka tidak berubah",
+        "Flutter otomatis memanggil setState",
+        "Nilai _counter kembali ke 0"
+      ],
+      "correctIndex": 1,
+      "explanation": "setState() memberi tahu framework bahwa ada data yang berubah sehingga build() dipanggil lagi. Tanpa itu, data berubah tetapi tampilan tidak ikut diperbarui."
+    },
+    {
+      "question": "flutter doctor menampilkan pesan <code>cmdline-tools component is missing</code>. Langkah perbaikan yang tepat adalah...",
+      "options": [
+        "Memasang Android SDK Command-line Tools (latest) melalui SDK Manager di Android Studio",
+        "Menjalankan flutter upgrade berulang kali",
+        "Menghapus folder lib/ dari proyek",
+        "Memasang CocoaPods"
+      ],
+      "correctIndex": 0,
+      "explanation": "cmdline-tools adalah komponen Android SDK yang dipasang lewat Android Studio > Settings > Android SDK > SDK Tools. Setelah terpasang, jalankan flutter doctor --android-licenses."
+    },
+    {
+      "question": "Perintah manakah yang tepat untuk menambahkan package http ke proyek Flutter?",
+      "options": [
+        "flutter install http",
+        "npm install http",
+        "flutter pub add http",
+        "flutter create http"
+      ],
+      "correctIndex": 2,
+      "explanation": "flutter pub add menulis package ke pubspec.yaml dengan versi terbaru yang kompatibel lalu langsung mengunduhnya."
+    },
+    {
+      "question": "Setelah menambah package yang memiliki kode native (misalnya shared_preferences), muncul MissingPluginException saat Hot Restart. Apa penyebabnya?",
+      "options": [
+        "Kode Dart salah ketik",
+        "Package tersebut tidak mendukung Android",
+        "Bagian native aplikasi belum dikompilasi ulang, sehingga perlu stop lalu flutter run lagi (Full Restart)",
+        "Emulator kehabisan baterai"
+      ],
+      "correctIndex": 2,
+      "explanation": "Hot Reload dan Hot Restart hanya memperbarui kode Dart. Plugin native harus ikut dikompilasi ke aplikasi, sehingga aplikasi perlu dihentikan dan dijalankan ulang dengan flutter run."
+    }
+  ]
+}

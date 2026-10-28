@@ -1,0 +1,891 @@
+<p class="lead">Saatnya merangkai semua materi menjadi satu aplikasi utuh: <strong>Catatan Kuliah Offline</strong>. Aplikasi ini berjalan 100% tanpa internet dan datanya tetap ada walaupun aplikasi ditutup.</p>
+
+<h4>Fitur yang dibangun</h4>
+<ul>
+  <li><strong>Create:</strong> menambah catatan (judul, mata kuliah, isi) lewat form dengan validasi.</li>
+  <li><strong>Read:</strong> menampilkan daftar catatan dalam <code>ListView</code>.</li>
+  <li><strong>Update:</strong> mengetuk catatan untuk membuka form edit yang sudah terisi.</li>
+  <li><strong>Delete:</strong> menghapus catatan setelah konfirmasi dialog.</li>
+  <li><strong>Cari:</strong> berdasarkan judul, mata kuliah, atau isi.</li>
+  <li><strong>Urutkan:</strong> terbaru, terlama, atau judul A-Z.</li>
+  <li><strong>Empty state:</strong> tampilan khusus saat belum ada catatan dan saat pencarian tidak menemukan hasil.</li>
+</ul>
+
+<h4>Arsitektur</h4>
+<pre><code class="language-text">Widget (HomeScreen, FormCatatanScreen)
+   │  context.watch / context.read
+   ▼
+CatatanProvider (ChangeNotifier)  ← cari, urutkan, tambah, ubah, hapus
+   │
+   ▼
+CatatanRepository                 ← satu-satunya yang menyentuh Hive
+   │
+   ▼
+Box&lt;Catatan&gt; 'catatan_box'  +  CatatanAdapter (typeId 0)
+</code></pre>
+
+<h4>Struktur folder</h4>
+<pre><code class="language-text">catatan_kuliah/
+├── lib/
+│   ├── main.dart
+│   ├── models/
+│   │   ├── catatan.dart
+│   │   └── catatan_adapter.dart
+│   ├── repositories/
+│   │   └── catatan_repository.dart
+│   ├── providers/
+│   │   └── catatan_provider.dart
+│   ├── screens/
+│   │   ├── home_screen.dart
+│   │   └── form_catatan_screen.dart
+│   └── widgets/
+│       ├── catatan_tile.dart
+│       └── empty_state.dart
+└── test/
+    └── catatan_repository_test.dart   (bonus)
+</code></pre>
+
+<div class="callout callout-tip"><h4>💡 Urutan membangun</h4><p>Kerjakan dari lapisan paling bawah ke atas: model, adapter, repository, provider, widget kecil, layar, lalu <code>main.dart</code>. Dengan urutan ini setiap file yang kamu tulis hanya bergantung pada file yang sudah ada, sehingga error merah di editor cepat hilang.</p></div>
+
+<h4>Langkah 0: Buat proyek dan pasang package</h4>
+<pre><code class="language-bash">flutter create catatan_kuliah
+cd catatan_kuliah
+flutter pub add hive_ce hive_ce_flutter provider
+</code></pre>
+<p>Hapus file <code>test/widget_test.dart</code> bawaan karena isinya menguji aplikasi counter yang akan kita ganti.</p>
+
+<h4>Langkah 1: Model <code>Catatan</code></h4>
+<p>Model berisi data murni tanpa kode Hive. <code>copyWith</code> dipakai saat edit agar kita tidak mengubah objek lama, melainkan membuat salinan dengan field yang diganti. <code>id</code> dan <code>dibuatPada</code> sengaja tidak bisa diganti.</p>
+<p class="code-file-label">📄 <code>lib/models/catatan.dart</code></p>
+<pre><code class="language-dart">// lib/models/catatan.dart
+class Catatan {
+  final String id;
+  final String judul;
+  final String mataKuliah;
+  final String isi;
+  final DateTime dibuatPada;
+  final DateTime diubahPada;
+
+  const Catatan({
+    required this.id,
+    required this.judul,
+    required this.mataKuliah,
+    required this.isi,
+    required this.dibuatPada,
+    required this.diubahPada,
+  });
+
+  // Membuat salinan objek dengan sebagian field diganti (dipakai saat edit)
+  Catatan copyWith({
+    String? judul,
+    String? mataKuliah,
+    String? isi,
+    DateTime? diubahPada,
+  }) {
+    return Catatan(
+      id: id,
+      judul: judul ?? this.judul,
+      mataKuliah: mataKuliah ?? this.mataKuliah,
+      isi: isi ?? this.isi,
+      dibuatPada: dibuatPada,
+      diubahPada: diubahPada ?? this.diubahPada,
+    );
+  }
+}
+</code></pre>
+
+<h4>Langkah 2: TypeAdapter manual</h4>
+<p>Adapter ini menerapkan pelajaran dari bagian 5: urutan baca sama dengan urutan tulis, <code>DateTime</code> disimpan sebagai angka milidetik, dan byte pertama adalah nomor versi format agar migrasi di masa depan aman.</p>
+<p class="code-file-label">📄 <code>lib/models/catatan_adapter.dart</code></p>
+<pre><code class="language-dart">// lib/models/catatan_adapter.dart
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+import 'catatan.dart';
+
+class CatatanAdapter extends TypeAdapter&lt;Catatan&gt; {
+  // typeId harus unik di seluruh aplikasi dan TIDAK BOLEH diganti setelah rilis
+  @override
+  final int typeId = 0;
+
+  // Versi format penyimpanan. Naikkan jika suatu saat menambah field baru.
+  static const int _versi = 1;
+
+  @override
+  Catatan read(BinaryReader reader) {
+    final versi = reader.readByte(); // dibaca dulu, dipakai saat migrasi nanti
+    assert(versi &lt;= _versi, 'Data dibuat oleh versi aplikasi yang lebih baru');
+    // Urutan baca HARUS sama persis dengan urutan tulis di write()
+    return Catatan(
+      id: reader.readString(),
+      judul: reader.readString(),
+      mataKuliah: reader.readString(),
+      isi: reader.readString(),
+      dibuatPada: DateTime.fromMillisecondsSinceEpoch(reader.readInt()),
+      diubahPada: DateTime.fromMillisecondsSinceEpoch(reader.readInt()),
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, Catatan obj) {
+    writer.writeByte(_versi);
+    writer.writeString(obj.id);
+    writer.writeString(obj.judul);
+    writer.writeString(obj.mataKuliah);
+    writer.writeString(obj.isi);
+    writer.writeInt(obj.dibuatPada.millisecondsSinceEpoch);
+    writer.writeInt(obj.diubahPada.millisecondsSinceEpoch);
+  }
+}
+</code></pre>
+
+<h4>Langkah 3: Repository</h4>
+<p>Setiap catatan disimpan dengan <code>put(catatan.id, catatan)</code>. Karena key-nya adalah id catatan, menyimpan catatan yang sudah ada otomatis menjadi update, dan menghapus cukup dengan id. Kita tidak memakai index sama sekali.</p>
+<p class="code-file-label">📄 <code>lib/repositories/catatan_repository.dart</code></p>
+<pre><code class="language-dart">// lib/repositories/catatan_repository.dart
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+import '../models/catatan.dart';
+
+/// Satu-satunya kelas yang boleh menyentuh box Hive catatan.
+/// Widget dan provider cukup memanggil method di sini.
+class CatatanRepository {
+  static const String namaBox = 'catatan_box';
+
+  final Box&lt;Catatan&gt; _box;
+
+  CatatanRepository(this._box);
+
+  /// Membuka box lalu membungkusnya menjadi repository.
+  /// Pastikan Hive sudah di-init dan CatatanAdapter sudah didaftarkan.
+  static Future&lt;CatatanRepository&gt; buka() async {
+    final box = await Hive.openBox&lt;Catatan&gt;(namaBox);
+    return CatatanRepository(box);
+  }
+
+  /// READ: semua catatan (urutan belum diatur)
+  List&lt;Catatan&gt; ambilSemua() =&gt; _box.values.toList();
+
+  /// READ: satu catatan berdasarkan id (null jika tidak ada)
+  Catatan? ambil(String id) =&gt; _box.get(id);
+
+  int get jumlah =&gt; _box.length;
+
+  /// CREATE &amp; UPDATE: put() dengan key yang sama akan menimpa data lama
+  Future&lt;void&gt; simpan(Catatan catatan) =&gt; _box.put(catatan.id, catatan);
+
+  /// DELETE: hapus satu catatan
+  Future&lt;void&gt; hapus(String id) =&gt; _box.delete(id);
+
+  /// DELETE: kosongkan seluruh catatan
+  Future&lt;int&gt; hapusSemua() =&gt; _box.clear();
+}
+</code></pre>
+
+<h4>Langkah 4: Provider</h4>
+<p>Provider menyimpan state UI (kata kunci pencarian dan pilihan urutan) dan menyediakan getter <code>daftar</code> yang sudah difilter dan diurutkan. Setiap operasi tulis memanggil repository, lalu <code>notifyListeners()</code>.</p>
+<p class="code-file-label">📄 <code>lib/providers/catatan_provider.dart</code></p>
+<pre><code class="language-dart">// lib/providers/catatan_provider.dart
+import 'package:flutter/foundation.dart';
+
+import '../models/catatan.dart';
+import '../repositories/catatan_repository.dart';
+
+enum UrutanCatatan { terbaru, terlama, judulAZ }
+
+class CatatanProvider with ChangeNotifier {
+  final CatatanRepository _repo;
+
+  CatatanProvider(this._repo);
+
+  String _kataKunci = '';
+  UrutanCatatan _urutan = UrutanCatatan.terbaru;
+
+  String get kataKunci =&gt; _kataKunci;
+  UrutanCatatan get urutan =&gt; _urutan;
+
+  /// Jumlah seluruh catatan di box (tanpa filter pencarian)
+  int get totalCatatan =&gt; _repo.jumlah;
+
+  /// Daftar yang siap ditampilkan: sudah difilter lalu diurutkan
+  List&lt;Catatan&gt; get daftar {
+    final kunci = _kataKunci.trim().toLowerCase();
+    final hasil = _repo.ambilSemua().where((c) {
+      if (kunci.isEmpty) return true;
+      return c.judul.toLowerCase().contains(kunci) ||
+          c.mataKuliah.toLowerCase().contains(kunci) ||
+          c.isi.toLowerCase().contains(kunci);
+    }).toList();
+
+    switch (_urutan) {
+      case UrutanCatatan.terbaru:
+        hasil.sort((a, b) =&gt; b.diubahPada.compareTo(a.diubahPada));
+      case UrutanCatatan.terlama:
+        hasil.sort((a, b) =&gt; a.diubahPada.compareTo(b.diubahPada));
+      case UrutanCatatan.judulAZ:
+        hasil.sort(
+            (a, b) =&gt; a.judul.toLowerCase().compareTo(b.judul.toLowerCase()));
+    }
+    return hasil;
+  }
+
+  void cari(String kataKunci) {
+    _kataKunci = kataKunci;
+    notifyListeners();
+  }
+
+  void ubahUrutan(UrutanCatatan urutan) {
+    _urutan = urutan;
+    notifyListeners();
+  }
+
+  Future&lt;void&gt; tambah({
+    required String judul,
+    required String mataKuliah,
+    required String isi,
+  }) async {
+    final sekarang = DateTime.now();
+    final catatan = Catatan(
+      // id unik sederhana berbasis waktu (tanpa package tambahan)
+      id: sekarang.microsecondsSinceEpoch.toString(),
+      judul: judul,
+      mataKuliah: mataKuliah,
+      isi: isi,
+      dibuatPada: sekarang,
+      diubahPada: sekarang,
+    );
+    await _repo.simpan(catatan);
+    notifyListeners();
+  }
+
+  Future&lt;void&gt; ubah(
+    Catatan lama, {
+    required String judul,
+    required String mataKuliah,
+    required String isi,
+  }) async {
+    final baru = lama.copyWith(
+      judul: judul,
+      mataKuliah: mataKuliah,
+      isi: isi,
+      diubahPada: DateTime.now(),
+    );
+    await _repo.simpan(baru); // key sama, data lama tertimpa
+    notifyListeners();
+  }
+
+  Future&lt;void&gt; hapus(String id) async {
+    await _repo.hapus(id);
+    notifyListeners();
+  }
+}
+</code></pre>
+<ul>
+  <li><code>switch</code> tanpa <code>break</code> adalah sintaks Dart 3: setiap <code>case</code> otomatis berhenti.</li>
+  <li><code>totalCatatan</code> dipisah dari <code>daftar.length</code> agar layar bisa membedakan "belum ada catatan sama sekali" dan "pencarian tidak menemukan apa pun".</li>
+  <li>Id dibuat dari <code>microsecondsSinceEpoch</code> sehingga cukup unik untuk satu perangkat tanpa package tambahan. Di Modul 14 kita akan memakai id dari server.</li>
+</ul>
+
+<h4>Langkah 5: Widget kecil yang dipakai ulang</h4>
+<p class="code-file-label">📄 <code>lib/widgets/empty_state.dart</code></p>
+<pre><code class="language-dart">// lib/widgets/empty_state.dart
+import 'package:flutter/material.dart';
+
+class EmptyState extends StatelessWidget {
+  final IconData ikon;
+  final String judul;
+  final String pesan;
+
+  const EmptyState({
+    super.key,
+    required this.ikon,
+    required this.judul,
+    required this.pesan,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(ikon, size: 72, color: warna.primary.withValues(alpha: 0.5)),
+            const SizedBox(height: 16),
+            Text(
+              judul,
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              pesan,
+              style: TextStyle(color: warna.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<p class="code-file-label">📄 <code>lib/widgets/catatan_tile.dart</code></p>
+<pre><code class="language-dart">// lib/widgets/catatan_tile.dart
+import 'package:flutter/material.dart';
+
+import '../models/catatan.dart';
+
+class CatatanTile extends StatelessWidget {
+  final Catatan catatan;
+  final VoidCallback onTap;
+  final VoidCallback onHapus;
+
+  const CatatanTile({
+    super.key,
+    required this.catatan,
+    required this.onTap,
+    required this.onHapus,
+  });
+
+  String _formatTanggal(DateTime t) {
+    String duaDigit(int n) =&gt; n.toString().padLeft(2, '0');
+    return '${duaDigit(t.day)}/${duaDigit(t.month)}/${t.year} '
+        '${duaDigit(t.hour)}:${duaDigit(t.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: ListTile(
+        onTap: onTap,
+        leading: CircleAvatar(
+          backgroundColor: warna.primaryContainer,
+          child: Text(
+            catatan.mataKuliah.isEmpty
+                ? '?'
+                : catatan.mataKuliah[0].toUpperCase(),
+          ),
+        ),
+        title: Text(
+          catatan.judul,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(catatan.mataKuliah, style: TextStyle(color: warna.primary)),
+            if (catatan.isi.isNotEmpty)
+              Text(catatan.isi, maxLines: 2, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 4),
+            Text(
+              'Diubah: ${_formatTanggal(catatan.diubahPada)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        isThreeLine: true,
+        trailing: IconButton(
+          icon: const Icon(Icons.delete_outline),
+          tooltip: 'Hapus',
+          onPressed: onHapus,
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<p><code>CatatanTile</code> tidak tahu apa pun tentang Provider atau Hive. Ia hanya menerima data dan dua callback (<code>onTap</code>, <code>onHapus</code>), sehingga mudah dipakai ulang dan diuji.</p>
+
+<h4>Langkah 6: Layar form (tambah &amp; edit)</h4>
+<p>Satu layar dipakai untuk dua mode. Jika parameter <code>catatan</code> bernilai <code>null</code>, form berada di mode tambah; jika berisi, form di mode edit dan field langsung terisi data lama.</p>
+<p class="code-file-label">📄 <code>lib/screens/form_catatan_screen.dart</code></p>
+<pre><code class="language-dart">// lib/screens/form_catatan_screen.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../models/catatan.dart';
+import '../providers/catatan_provider.dart';
+
+class FormCatatanScreen extends StatefulWidget {
+  /// null = mode tambah, berisi = mode edit
+  final Catatan? catatan;
+
+  const FormCatatanScreen({super.key, this.catatan});
+
+  @override
+  State&lt;FormCatatanScreen&gt; createState() =&gt; _FormCatatanScreenState();
+}
+
+class _FormCatatanScreenState extends State&lt;FormCatatanScreen&gt; {
+  final _formKey = GlobalKey&lt;FormState&gt;();
+  late final TextEditingController _judulCtrl;
+  late final TextEditingController _matkulCtrl;
+  late final TextEditingController _isiCtrl;
+  bool _menyimpan = false;
+
+  bool get _modeEdit =&gt; widget.catatan != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // Saat mode edit, isi form dengan data lama
+    _judulCtrl = TextEditingController(text: widget.catatan?.judul ?? '');
+    _matkulCtrl = TextEditingController(text: widget.catatan?.mataKuliah ?? '');
+    _isiCtrl = TextEditingController(text: widget.catatan?.isi ?? '');
+  }
+
+  @override
+  void dispose() {
+    _judulCtrl.dispose();
+    _matkulCtrl.dispose();
+    _isiCtrl.dispose();
+    super.dispose();
+  }
+
+  String? _wajibDiisi(String? nilai) {
+    if (nilai == null || nilai.trim().isEmpty) return 'Wajib diisi';
+    return null;
+  }
+
+  Future&lt;void&gt; _simpan() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() =&gt; _menyimpan = true);
+
+    final provider = context.read&lt;CatatanProvider&gt;();
+    final judul = _judulCtrl.text.trim();
+    final matkul = _matkulCtrl.text.trim();
+    final isi = _isiCtrl.text.trim();
+
+    if (_modeEdit) {
+      await provider.ubah(
+        widget.catatan!,
+        judul: judul,
+        mataKuliah: matkul,
+        isi: isi,
+      );
+    } else {
+      await provider.tambah(judul: judul, mataKuliah: matkul, isi: isi);
+    }
+
+    if (!mounted) return; // widget bisa saja sudah ditutup saat menunggu
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_modeEdit ? 'Catatan diperbarui' : 'Catatan disimpan'),
+      ),
+    );
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_modeEdit ? 'Edit Catatan' : 'Catatan Baru'),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: _judulCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Judul',
+                border: OutlineInputBorder(),
+              ),
+              textInputAction: TextInputAction.next,
+              validator: _wajibDiisi,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _matkulCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Mata Kuliah',
+                hintText: 'mis. Pemrograman Mobile',
+                border: OutlineInputBorder(),
+              ),
+              textInputAction: TextInputAction.next,
+              validator: _wajibDiisi,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _isiCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Isi catatan',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(),
+              ),
+              minLines: 6,
+              maxLines: 12,
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: _menyimpan ? null : _simpan,
+              icon: const Icon(Icons.save),
+              label: Text(_modeEdit ? 'Simpan Perubahan' : 'Simpan'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li><code>context.read&lt;CatatanProvider&gt;()</code> diambil <strong>sebelum</strong> <code>await</code>, karena memakai <code>context</code> setelah <code>await</code> perlu dicek dulu.</li>
+  <li><code>if (!mounted) return;</code> setelah <code>await</code> mencegah error jika layar sudah ditutup ketika penyimpanan selesai.</li>
+  <li>Tombol simpan dinonaktifkan (<code>onPressed: null</code>) selama menyimpan agar tidak terjadi simpan ganda.</li>
+</ul>
+
+<h4>Langkah 7: Layar utama</h4>
+<p class="code-file-label">📄 <code>lib/screens/home_screen.dart</code></p>
+<pre><code class="language-dart">// lib/screens/home_screen.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../models/catatan.dart';
+import '../providers/catatan_provider.dart';
+import '../widgets/catatan_tile.dart';
+import '../widgets/empty_state.dart';
+import 'form_catatan_screen.dart';
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  void _bukaForm(BuildContext context, [Catatan? catatan]) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =&gt; FormCatatanScreen(catatan: catatan),
+      ),
+    );
+  }
+
+  Future&lt;void&gt; _konfirmasiHapus(BuildContext context, Catatan catatan) async {
+    final yakin = await showDialog&lt;bool&gt;(
+      context: context,
+      builder: (dialogContext) =&gt; AlertDialog(
+        title: const Text('Hapus catatan?'),
+        content: Text('Catatan "${catatan.judul}" akan dihapus permanen.'),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    // showDialog mengembalikan null jika dialog ditutup dengan tap di luar
+    if (yakin != true) return;
+    if (!context.mounted) return;
+
+    await context.read&lt;CatatanProvider&gt;().hapus(catatan.id);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('"${catatan.judul}" dihapus')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch&lt;CatatanProvider&gt;();
+    final daftar = provider.daftar;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Catatan Kuliah'),
+        actions: [
+          PopupMenuButton&lt;UrutanCatatan&gt;(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Urutkan',
+            initialValue: provider.urutan,
+            onSelected: (u) =&gt; context.read&lt;CatatanProvider&gt;().ubahUrutan(u),
+            itemBuilder: (_) =&gt; const [
+              PopupMenuItem(
+                value: UrutanCatatan.terbaru,
+                child: Text('Terbaru dulu'),
+              ),
+              PopupMenuItem(
+                value: UrutanCatatan.terlama,
+                child: Text('Terlama dulu'),
+              ),
+              PopupMenuItem(
+                value: UrutanCatatan.judulAZ,
+                child: Text('Judul A-Z'),
+              ),
+            ],
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: 'Cari judul, mata kuliah, atau isi...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (teks) =&gt; context.read&lt;CatatanProvider&gt;().cari(teks),
+            ),
+          ),
+          Expanded(child: _buildDaftar(context, provider, daftar)),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () =&gt; _bukaForm(context),
+        icon: const Icon(Icons.add),
+        label: const Text('Catatan'),
+      ),
+    );
+  }
+
+  Widget _buildDaftar(
+    BuildContext context,
+    CatatanProvider provider,
+    List&lt;Catatan&gt; daftar,
+  ) {
+    if (provider.totalCatatan == 0) {
+      return const EmptyState(
+        ikon: Icons.note_alt_outlined,
+        judul: 'Belum ada catatan',
+        pesan: 'Tekan tombol + Catatan untuk menulis catatan kuliah pertamamu.',
+      );
+    }
+    if (daftar.isEmpty) {
+      return EmptyState(
+        ikon: Icons.search_off,
+        judul: 'Tidak ditemukan',
+        pesan: 'Tidak ada catatan yang cocok dengan "${provider.kataKunci}".',
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 88), // agar tidak tertutup FAB
+      itemCount: daftar.length,
+      itemBuilder: (context, index) {
+        final catatan = daftar[index];
+        return CatatanTile(
+          key: ValueKey(catatan.id),
+          catatan: catatan,
+          onTap: () =&gt; _bukaForm(context, catatan),
+          onHapus: () =&gt; _konfirmasiHapus(context, catatan),
+        );
+      },
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li><code>context.watch</code> di <code>build</code> membuat layar dibangun ulang setiap provider memanggil <code>notifyListeners()</code>: setelah tambah, edit, hapus, cari, atau ganti urutan.</li>
+  <li><code>showDialog&lt;bool&gt;</code> mengembalikan <code>true</code>/<code>false</code> dari tombol, atau <code>null</code> jika dialog ditutup dengan mengetuk area luar. Karena itu yang dicek adalah <code>yakin != true</code>.</li>
+  <li><code>context.mounted</code> dicek setelah setiap <code>await</code> sebelum <code>context</code> dipakai lagi.</li>
+  <li><code>ValueKey(catatan.id)</code> membantu Flutter mengenali item yang sama saat urutan list berubah.</li>
+</ul>
+
+<h4>Langkah 8: <code>main.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+import 'package:provider/provider.dart';
+
+import 'models/catatan_adapter.dart';
+import 'providers/catatan_provider.dart';
+import 'repositories/catatan_repository.dart';
+import 'screens/home_screen.dart';
+
+Future&lt;void&gt; main() async {
+  // 1. Wajib sebelum memakai plugin (path_provider) sebelum runApp
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 2. Siapkan folder penyimpanan Hive
+  await Hive.initFlutter();
+
+  // 3. Daftarkan adapter SEBELUM membuka box yang memakainya
+  Hive.registerAdapter(CatatanAdapter());
+
+  // 4. Buka box sekali di awal, lalu bungkus dengan repository
+  final repo = await CatatanRepository.buka();
+
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) =&gt; CatatanProvider(repo),
+      child: const CatatanApp(),
+    ),
+  );
+}
+
+class CatatanApp extends StatelessWidget {
+  const CatatanApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Catatan Kuliah Offline',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+      ),
+      home: const HomeScreen(),
+    );
+  }
+}
+</code></pre>
+
+<h4>Langkah 9: Jalankan dan uji</h4>
+<pre><code class="language-bash">flutter run
+</code></pre>
+
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/catatan-kosong.jpg" alt="Layar utama saat belum ada catatan" loading="lazy">
+    <div class="screenshot-caption">Empty state saat box masih kosong</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/catatan-form-tambah.jpg" alt="Form catatan baru yang sudah diisi" loading="lazy">
+    <div class="screenshot-caption">Form tambah catatan</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/catatan-daftar.jpg" alt="Daftar beberapa catatan kuliah" loading="lazy">
+    <div class="screenshot-caption">Daftar catatan, terbaru di atas</div>
+  </div>
+</div>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/catatan-cari.jpg" alt="Hasil pencarian catatan dengan kata kunci basis" loading="lazy">
+    <div class="screenshot-caption">Pencarian kata "basis"</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/catatan-urutkan.jpg" alt="Menu pilihan urutan catatan" loading="lazy">
+    <div class="screenshot-caption">Menu urutkan di AppBar</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/catatan-edit.jpg" alt="Form edit catatan yang sudah terisi data lama" loading="lazy">
+    <div class="screenshot-caption">Mode edit: form terisi data lama</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/catatan-hapus.jpg" alt="Dialog konfirmasi hapus catatan" loading="lazy">
+    <div class="screenshot-caption">Konfirmasi sebelum menghapus</div>
+  </div>
+</div>
+
+<p>Daftar uji manual:</p>
+<ol>
+  <li>Buka aplikasi pertama kali: muncul tulisan "Belum ada catatan".</li>
+  <li>Tekan <strong>+ Catatan</strong>, lalu langsung tekan Simpan: muncul pesan "Wajib diisi" pada judul dan mata kuliah.</li>
+  <li>Isi form lalu simpan: catatan muncul di daftar dan SnackBar tampil.</li>
+  <li>Tambah minimal 3 catatan, lalu coba ketiga pilihan urutan.</li>
+  <li>Ketik kata kunci di kolom cari; coba juga kata yang tidak ada untuk melihat empty state "Tidak ditemukan".</li>
+  <li>Ketuk sebuah catatan, ubah judulnya, lalu simpan. Catatan itu naik ke atas karena <code>diubahPada</code> diperbarui.</li>
+  <li>Tekan ikon hapus, pilih Batal (data tetap ada), lalu ulangi dan pilih Hapus.</li>
+  <li><strong>Tutup aplikasi sepenuhnya</strong> (bukan hot reload), lalu buka lagi: semua catatan masih ada.</li>
+</ol>
+
+<h4>Bonus: unit test repository</h4>
+<p>Repository yang terpisah dari UI bisa diuji tanpa emulator. Di unit test tidak ada <code>path_provider</code>, sehingga kita memakai <code>Hive.init(folder)</code> dengan folder sementara sebagai pengganti <code>Hive.initFlutter()</code>. Ganti <code>catatan_kuliah</code> pada baris import jika nama proyekmu berbeda (lihat <code>name:</code> di <code>pubspec.yaml</code>).</p>
+<p class="code-file-label">📄 <code>test/catatan_repository_test.dart</code></p>
+<pre><code class="language-dart">// test/catatan_repository_test.dart
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+import 'package:catatan_kuliah/models/catatan.dart';
+import 'package:catatan_kuliah/models/catatan_adapter.dart';
+import 'package:catatan_kuliah/repositories/catatan_repository.dart';
+
+void main() {
+  late Directory tempDir;
+  late CatatanRepository repo;
+
+  setUp(() async {
+    // Di unit test tidak ada path_provider, jadi pakai Hive.init + folder sementara
+    tempDir = await Directory.systemTemp.createTemp('hive_test_');
+    Hive.init(tempDir.path);
+    if (!Hive.isAdapterRegistered(0)) {
+      Hive.registerAdapter(CatatanAdapter());
+    }
+    repo = await CatatanRepository.buka();
+  });
+
+  tearDown(() async {
+    await Hive.deleteFromDisk(); // hapus semua box
+    await Hive.close();
+    await tempDir.delete(recursive: true);
+  });
+
+  Catatan buatCatatan(String id, String judul) {
+    final t = DateTime(2025, 1, 1, 8, 0);
+    return Catatan(
+      id: id,
+      judul: judul,
+      mataKuliah: 'Pemrograman Mobile',
+      isi: 'Isi $judul',
+      dibuatPada: t,
+      diubahPada: t,
+    );
+  }
+
+  test('create dan read', () async {
+    await repo.simpan(buatCatatan('1', 'Widget'));
+    expect(repo.jumlah, 1);
+    expect(repo.ambil('1')?.judul, 'Widget');
+  });
+
+  test('update menimpa data dengan id yang sama', () async {
+    final c = buatCatatan('1', 'Widget');
+    await repo.simpan(c);
+    await repo.simpan(c.copyWith(judul: 'Widget Dasar'));
+    expect(repo.jumlah, 1);
+    expect(repo.ambil('1')?.judul, 'Widget Dasar');
+  });
+
+  test('delete dan hapusSemua', () async {
+    await repo.simpan(buatCatatan('1', 'A'));
+    await repo.simpan(buatCatatan('2', 'B'));
+    await repo.hapus('1');
+    expect(repo.ambil('1'), isNull);
+    expect(repo.jumlah, 1);
+    await repo.hapusSemua();
+    expect(repo.ambilSemua(), isEmpty);
+  });
+
+  test('data tetap ada setelah box ditutup dan dibuka lagi', () async {
+    await repo.simpan(buatCatatan('1', 'Persisten'));
+    await Hive.close(); // seperti aplikasi ditutup
+    final repoBaru = await CatatanRepository.buka();
+    final c = repoBaru.ambil('1');
+    expect(c?.judul, 'Persisten');
+    expect(c?.dibuatPada, DateTime(2025, 1, 1, 8, 0)); // adapter bekerja
+  });
+}
+</code></pre>
+
+<pre><code class="language-bash">flutter test
+</code></pre>
+<pre><code class="language-text">00:00 +0: loading test/catatan_repository_test.dart
+00:00 +0: create dan read
+00:00 +1: update menimpa data dengan id yang sama
+00:00 +2: delete dan hapusSemua
+00:00 +3: data tetap ada setelah box ditutup dan dibuka lagi
+00:00 +4: All tests passed!
+</code></pre>
+<p>Test terakhir paling penting: ia menutup Hive (seperti aplikasi ditutup), membuka box lagi, lalu memastikan data dan tanggalnya terbaca dengan benar. Itu bukti adapter kita bekerja dua arah.</p>
+
+<div class="callout callout-info"><h4>ℹ️ Pengembangan lanjutan</h4><ul>
+<li>Tambahkan field <code>disematkan</code> (pin) dengan menaikkan versi adapter menjadi 2 seperti contoh <code>DosenAdapter</code> di bagian 5.</li>
+<li>Ganti tombol hapus dengan gestur geser (<code>Dismissible</code>) dan SnackBar "Batalkan" yang menyimpan ulang catatan.</li>
+<li>Di Modul 14, pola repository yang sama dipakai lagi: data utama dari Supabase, lalu Hive menjadi cache offline.</li>
+</ul></div>

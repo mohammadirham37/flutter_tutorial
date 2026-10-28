@@ -1,0 +1,164 @@
+<p class="lead">Cara paling sederhana dan paling aman untuk mengirim data ke halaman baru adalah lewat <strong>constructor</strong>. Halaman tujuan hanyalah sebuah class Dart, jadi data cukup dikirim sebagai argumen.</p>
+
+<h4>Pola dasarnya</h4>
+<pre><code class="language-dart">// Halaman ASAL: kirim data lewat argumen constructor
+Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (context) =&gt; const ProfilScreen(nama: 'Sinta', angkatan: 2023),
+  ),
+);
+
+
+// Halaman TUJUAN: deklarasikan field final + parameter required
+class ProfilScreen extends StatelessWidget {
+  final String nama;
+  final int angkatan;
+
+  const ProfilScreen({super.key, required this.nama, required this.angkatan});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(nama)),
+      body: Center(child: Text('Angkatan $angkatan')),
+    );
+  }
+}
+</code></pre>
+
+<ul>
+  <li>Field di halaman tujuan dibuat <code>final</code> karena data kiriman tidak berubah selama halaman tampil.</li>
+  <li>Parameter <code>required</code> membuat compiler protes jika kita lupa mengirim datanya. Kesalahan ketahuan sebelum aplikasi dijalankan.</li>
+  <li>Jika halaman tujuan berupa <code>StatefulWidget</code>, data dibaca di class State dengan <code>widget.nama</code>.</li>
+</ul>
+
+<h4>Contoh lengkap: daftar mata kuliah ke halaman detail</h4>
+<p>Daripada mengirim <code>kode</code>, <code>nama</code>, <code>sks</code> satu per satu, kirim satu objek model utuh.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+// Model data sederhana (idealnya di lib/models/mata_kuliah.dart)
+class MataKuliah {
+  final String kode;
+  final String nama;
+  final int sks;
+  final String dosen;
+
+  const MataKuliah({
+    required this.kode,
+    required this.nama,
+    required this.sks,
+    required this.dosen,
+  });
+}
+
+const daftarMatkul = [
+  MataKuliah(kode: 'IF201', nama: 'Pemrograman Mobile', sks: 3, dosen: 'Dr. Rina'),
+  MataKuliah(kode: 'IF202', nama: 'Basis Data', sks: 3, dosen: 'Budi, M.Kom.'),
+  MataKuliah(kode: 'IF203', nama: 'Jaringan Komputer', sks: 2, dosen: 'Sari, M.T.'),
+  MataKuliah(kode: 'IF204', nama: 'Kecerdasan Buatan', sks: 3, dosen: 'Dr. Agus'),
+];
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const DaftarMatkulScreen(),
+    );
+  }
+}
+
+class DaftarMatkulScreen extends StatelessWidget {
+  const DaftarMatkulScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mata Kuliah Semester 3')),
+      body: ListView.builder(
+        itemCount: daftarMatkul.length,
+        itemBuilder: (context, index) {
+          final mk = daftarMatkul[index];
+          return ListTile(
+            leading: CircleAvatar(child: Text('${mk.sks}')),
+            title: Text(mk.nama),
+            subtitle: Text(mk.kode),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              // Kirim SATU objek utuh, bukan field satu per satu
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =&gt; DetailMatkulScreen(matkul: mk),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class DetailMatkulScreen extends StatelessWidget {
+  // Data yang diterima dari halaman sebelumnya
+  final MataKuliah matkul;
+
+  const DetailMatkulScreen({super.key, required this.matkul});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(matkul.kode)),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(matkul.nama, style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 8),
+            Text('Bobot: ${matkul.sks} SKS'),
+            Text('Dosen pengampu: ${matkul.dosen}'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/constructor-daftar.jpg" alt="Daftar mata kuliah" loading="lazy">
+    <div class="screenshot-caption">Daftar mata kuliah</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/constructor-detail.jpg" alt="Detail menerima objek MataKuliah lewat constructor" loading="lazy">
+    <div class="screenshot-caption">Detail menerima objek MataKuliah lewat constructor</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li>Class <code>MataKuliah</code> adalah model data. Di proyek nyata letakkan di <code>lib/models/</code>.</li>
+  <li>Di <code>onTap</code>, objek <code>mk</code> dikirim ke <code>DetailMatkulScreen(matkul: mk)</code>.</li>
+  <li>Halaman detail tidak perlu tahu dari mana datanya berasal. Ia hanya menampilkan <code>matkul</code> yang diterima. Pemisahan ini membuat halaman mudah dipakai ulang dan diuji.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Constructor vs arguments</h4><p>Selain constructor, Flutter juga punya <code>RouteSettings.arguments</code> (dipakai di named routes, section 6). Constructor lebih disarankan karena tipe datanya diperiksa compiler, sedangkan <code>arguments</code> bertipe <code>Object?</code> dan harus dicek manual.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Menyimpan data kiriman di variabel global agar "bisa diakses dari halaman lain". Ini membuat data sulit dilacak. Kirim lewat constructor, atau pakai Provider (Modul 08) untuk data yang dipakai banyak halaman.</li>
+  <li>Lupa menulis <code>widget.</code> saat membaca field di <code>State</code>: tulis <code>widget.matkul.nama</code>, bukan <code>matkul.nama</code>.</li>
+</ul>
+</div>

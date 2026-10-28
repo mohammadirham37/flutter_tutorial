@@ -1,0 +1,313 @@
+<p class="lead">Debugging mencari bug yang <em>sudah</em> terjadi. Testing mencegah bug yang <em>akan</em> terjadi. Dengan test otomatis, setiap kali Anda mengubah kode, cukup jalankan satu perintah untuk memastikan fitur lama tidak rusak (regresi).</p>
+
+<h4>Piramida pengujian Flutter</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Jenis</th><th>Yang diuji</th><th>Kecepatan</th><th>Butuh emulator?</th><th>Jumlah ideal</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Unit test</strong></td><td>Satu fungsi/class: validator, perhitungan, repository, provider</td><td>Milidetik</td><td>Tidak</td><td>Paling banyak</td></tr>
+      <tr><td><strong>Widget test</strong></td><td>Satu halaman/widget: tampilan dan interaksi</td><td>Ratusan ms</td><td>Tidak</td><td>Sedang</td></tr>
+      <tr><td><strong>Integration test</strong></td><td>Aplikasi utuh di perangkat sungguhan</td><td>Menit</td><td>Ya</td><td>Sedikit, untuk alur penting</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Struktur folder test</h4>
+<p>Semua test berada di folder <code>test/</code> dan nama filenya <strong>wajib</strong> diakhiri <code>_test.dart</code>. Biasakan struktur folder test meniru folder <code>lib/</code>:</p>
+<pre><code class="language-text">catatan_kuliah/
+├── lib/
+│   ├── utils/ipk.dart
+│   ├── utils/validators.dart
+│   └── models/keranjang_krs.dart
+└── test/
+    ├── unit/ipk_test.dart
+    ├── unit/validators_test.dart
+    └── unit/keranjang_krs_test.dart</code></pre>
+<p>Package <code>flutter_test</code> sudah otomatis ada di <code>dev_dependencies</code> proyek baru, jadi tidak perlu dipasang.</p>
+
+<h4>Test pertama: fungsi hitungIpk</h4>
+<p>Agar mudah diuji, letakkan logika di file terpisah di <code>lib/</code>, bukan di dalam widget:</p>
+<p class="code-file-label">📄 <code>lib/utils/ipk.dart</code></p>
+<pre><code class="language-dart">// lib/utils/ipk.dart
+double hitungIpk(List&lt;int&gt; bobot, List&lt;int&gt; sks) {
+  if (bobot.length != sks.length) {
+    throw ArgumentError('Jumlah bobot dan SKS harus sama');
+  }
+  if (bobot.isEmpty) return 0.0;
+
+  var totalBobot = 0;
+  var totalSks = 0;
+  for (var i = 0; i &lt; bobot.length; i++) {
+    totalBobot += bobot[i] * sks[i];
+    totalSks += sks[i];
+  }
+  return double.parse((totalBobot / totalSks).toStringAsFixed(2));
+}
+
+String predikat(double ipk) {
+  if (ipk &gt;= 3.51) return 'Dengan Pujian';
+  if (ipk &gt;= 3.01) return 'Sangat Memuaskan';
+  if (ipk &gt;= 2.76) return 'Memuaskan';
+  return 'Cukup';
+}</code></pre>
+<p>Lalu tulis test-nya. Ganti <code>catatan_kuliah</code> pada import dengan nama proyek Anda (baris <code>name:</code> di <code>pubspec.yaml</code>).</p>
+<p class="code-file-label">📄 <code>test/unit/ipk_test.dart</code></p>
+<pre><code class="language-dart">// test/unit/ipk_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:catatan_kuliah/utils/ipk.dart';
+
+void main() {
+  group('hitungIpk', () {
+    test('menghitung IPK normal dengan benar', () {
+      // Arrange: siapkan data
+      final bobot = [4, 4, 3, 4]; // A, A, B, A
+      final sks = [3, 3, 3, 3];
+
+      // Act: jalankan fungsi yang diuji
+      final hasil = hitungIpk(bobot, sks);
+
+      // Assert: periksa hasilnya
+      expect(hasil, 3.75);
+    });
+
+    test('daftar kosong menghasilkan 0.0', () {
+      expect(hitungIpk([], []), 0.0);
+    });
+
+    test('SKS berbeda ikut menjadi bobot', () {
+      // (4 x 4 + 2 x 2) / 6 = 3.33
+      expect(hitungIpk([4, 2], [4, 2]), 3.33);
+    });
+  });
+
+  group('predikat', () {
+    test('IPK 3.75 berpredikat Dengan Pujian', () {
+      expect(predikat(3.75), 'Dengan Pujian');
+    });
+
+    test('batas bawah tiap predikat', () {
+      expect(predikat(3.51), 'Dengan Pujian');
+      expect(predikat(3.01), 'Sangat Memuaskan');
+      expect(predikat(2.76), 'Memuaskan');
+      expect(predikat(2.0), 'Cukup');
+    });
+  });
+}</code></pre>
+<p>Penjelasan:</p>
+<ul>
+  <li><code>test('deskripsi', () { ... })</code> mendefinisikan satu kasus uji. Tulis deskripsi sebagai kalimat yang menjelaskan perilaku, karena kalimat inilah yang muncul saat test gagal.</li>
+  <li><code>expect(nilaiAktual, nilaiHarapan)</code> adalah inti test. Jika keduanya berbeda, test gagal.</li>
+  <li><code>group()</code> mengelompokkan test yang berkaitan. Nama grup ditambahkan di depan nama test pada laporan.</li>
+  <li>Pola <strong>Arrange-Act-Assert</strong>: siapkan data, jalankan fungsi, periksa hasil. Pola ini membuat test mudah dibaca.</li>
+</ul>
+
+<h4>Menjalankan test</h4>
+<pre><code class="language-bash"># Semua test di folder test/
+flutter test
+
+# Satu file saja
+flutter test test/unit/ipk_test.dart
+
+# Hanya test yang namanya mengandung kata tertentu
+flutter test --plain-name "predikat"
+
+# Output lebih rinci (satu baris per test)
+flutter test --reporter expanded</code></pre>
+<p>Contoh output saat semua lulus dan saat ada yang gagal:</p>
+<pre><code class="language-text"># Semua lulus
+00:01 +5: All tests passed!
+
+# Ada yang gagal (expect(hasil, 3.8) padahal hasilnya 3.75)
+00:00 +0 -1: hitungIpk menghitung IPK normal dengan benar [E]
+  Expected: &lt;3.8&gt;
+    Actual: &lt;3.75&gt;
+
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/unit/ipk_test.dart 16:7                        main.&lt;fn&gt;.&lt;fn&gt;
+...
+00:00 +4 -1: Some tests failed.</code></pre>
+<p><code>+4 -1</code> berarti 4 lulus, 1 gagal. Laporan menunjukkan nilai yang diharapkan, nilai aktual, dan baris test yang gagal. Di VS Code, Anda juga bisa menekan tombol ▶ <em>Run</em> yang muncul di atas setiap <code>test()</code> atau membuka panel <em>Testing</em> (ikon tabung kimia).</p>
+
+<h4>setUp dan tearDown</h4>
+<p>Jika beberapa test membutuhkan objek yang sama, jangan membuatnya sekali di luar lalu dipakai bersama, karena perubahan di satu test akan bocor ke test lain. Gunakan <code>setUp()</code> yang dijalankan ulang <strong>sebelum setiap test</strong>.</p>
+<p class="code-file-label">📄 <code>lib/models/keranjang_krs.dart</code></p>
+<pre><code class="language-dart">// lib/models/keranjang_krs.dart
+class MataKuliah {
+  final String kode;
+  final String nama;
+  final int sks;
+
+  const MataKuliah(this.kode, this.nama, this.sks);
+}
+
+class KeranjangKrs {
+  static const batasSks = 24;
+  final List&lt;MataKuliah&gt; _items = [];
+
+  List&lt;MataKuliah&gt; get items =&gt; List.unmodifiable(_items);
+  int get totalSks =&gt; _items.fold(0, (total, mk) =&gt; total + mk.sks);
+
+  void tambah(MataKuliah mk) {
+    if (_items.any((item) =&gt; item.kode == mk.kode)) {
+      throw StateError('${mk.nama} sudah ada di KRS');
+    }
+    if (totalSks + mk.sks &gt; batasSks) {
+      throw StateError('Total SKS melebihi $batasSks');
+    }
+    _items.add(mk);
+  }
+
+  void hapus(String kode) =&gt; _items.removeWhere((mk) =&gt; mk.kode == kode);
+
+  void kosongkan() =&gt; _items.clear();
+}</code></pre>
+<p class="code-file-label">📄 <code>test/unit/keranjang_krs_test.dart</code></p>
+<pre><code class="language-dart">// test/unit/keranjang_krs_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:catatan_kuliah/models/keranjang_krs.dart';
+
+void main() {
+  late KeranjangKrs keranjang;
+
+  const mobile = MataKuliah('IF301', 'Pemrograman Mobile', 3);
+  const basdat = MataKuliah('IF205', 'Basis Data', 4);
+
+  // Dijalankan SEBELUM setiap test: keranjang selalu baru dan kosong
+  setUp(() {
+    keranjang = KeranjangKrs();
+  });
+
+  test('keranjang baru kosong', () {
+    expect(keranjang.items, isEmpty);
+    expect(keranjang.totalSks, 0);
+  });
+
+  test('menambah mata kuliah menambah total SKS', () {
+    keranjang.tambah(mobile);
+    keranjang.tambah(basdat);
+
+    expect(keranjang.items, hasLength(2));
+    expect(keranjang.totalSks, 7);
+  });
+
+  test('menghapus mata kuliah berdasarkan kode', () {
+    keranjang.tambah(mobile);
+    keranjang.hapus('IF301');
+
+    expect(keranjang.items, isEmpty);
+  });
+
+  test('daftar items tidak bisa diubah dari luar', () {
+    expect(() =&gt; keranjang.items.add(mobile), throwsUnsupportedError);
+  });
+}</code></pre>
+<ul>
+  <li><code>late KeranjangKrs keranjang;</code> dideklarasikan di luar, lalu diisi ulang di <code>setUp</code>. Test kedua tidak terpengaruh mata kuliah yang ditambahkan di test lain.</li>
+  <li><code>tearDown()</code> adalah kebalikannya: dijalankan setelah setiap test, misalnya untuk menutup box Hive atau menghapus file sementara.</li>
+  <li><code>setUpAll()</code>/<code>tearDownAll()</code> dijalankan sekali saja untuk seluruh file, cocok untuk pekerjaan mahal seperti membuka database tes.</li>
+</ul>
+
+<h4>Matcher: cara membandingkan yang lebih ekspresif</h4>
+<p>Argumen kedua <code>expect</code> bisa berupa nilai biasa atau <strong>matcher</strong>. Matcher membuat test lebih mudah dibaca dan pesan gagalnya lebih jelas.</p>
+<p class="code-file-label">📄 <code>test/unit/matchers_test.dart</code></p>
+<pre><code class="language-dart">// test/unit/matchers_test.dart
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('contoh matcher yang sering dipakai', () {
+    final nilai = [80, 90, 75];
+    const nama = 'Pemrograman Mobile';
+
+    expect(nilai.length, equals(3)); // sama dengan 3
+    expect(nilai, contains(90)); // list berisi 90
+    expect(nilai, hasLength(3)); // panjang list 3
+    expect(nilai, isNot(contains(100))); // TIDAK berisi 100
+    expect(nama, startsWith('Pemrograman'));
+    expect(nama, contains('Mobile'));
+    expect(nama, isA&lt;String&gt;()); // bertipe String
+    expect(0.1 + 0.2, closeTo(0.3, 0.0001)); // untuk angka desimal
+    expect(85, greaterThan(80));
+    expect(85, inInclusiveRange(80, 100));
+    expect(&lt;String&gt;[], isEmpty);
+    expect(nilai, everyElement(greaterThanOrEqualTo(75)));
+    expect(nilai, orderedEquals([80, 90, 75]));
+    expect(nilai, unorderedEquals([75, 80, 90]));
+  });
+}</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Matcher</th><th>Lulus jika</th></tr></thead>
+    <tbody>
+      <tr><td><code>equals(x)</code> atau langsung <code>x</code></td><td>Nilai sama dengan <code>x</code> (list dibandingkan isinya)</td></tr>
+      <tr><td><code>isTrue</code>, <code>isFalse</code>, <code>isNull</code>, <code>isNotNull</code></td><td>Sesuai namanya</td></tr>
+      <tr><td><code>isEmpty</code>, <code>isNotEmpty</code>, <code>hasLength(n)</code></td><td>Untuk String, List, Map</td></tr>
+      <tr><td><code>contains(x)</code></td><td>String memuat teks / List memuat elemen</td></tr>
+      <tr><td><code>isA&lt;T&gt;()</code></td><td>Objek bertipe <code>T</code></td></tr>
+      <tr><td><code>closeTo(x, delta)</code></td><td>Angka desimal mendekati <code>x</code></td></tr>
+      <tr><td><code>greaterThan</code>, <code>lessThan</code>, <code>inInclusiveRange</code></td><td>Perbandingan angka</td></tr>
+      <tr><td><code>isNot(m)</code></td><td>Kebalikan matcher <code>m</code></td></tr>
+      <tr><td><code>throwsA(m)</code>, <code>throwsArgumentError</code>, <code>throwsStateError</code></td><td>Fungsi melempar error (bagian berikutnya)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh nyata: menguji validator form login</h4>
+<p>Validator yang dipakai form login di Modul 13 sebaiknya diletakkan di file sendiri agar bisa diuji tanpa UI:</p>
+<p class="code-file-label">📄 <code>lib/utils/validators.dart</code></p>
+<pre><code class="language-dart">// lib/utils/validators.dart
+final _polaEmail = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+String? validasiEmail(String? value) {
+  if (value == null || value.trim().isEmpty) return 'Email wajib diisi';
+  if (!_polaEmail.hasMatch(value.trim())) return 'Format email tidak valid';
+  return null;
+}
+
+String? validasiPassword(String? value) {
+  if (value == null || value.isEmpty) return 'Password wajib diisi';
+  if (value.length &lt; 8) return 'Password minimal 8 karakter';
+  return null;
+}</code></pre>
+<p class="code-file-label">📄 <code>test/unit/validators_test.dart</code></p>
+<pre><code class="language-dart">// test/unit/validators_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:catatan_kuliah/utils/validators.dart';
+
+void main() {
+  group('validasiEmail', () {
+    test('email kosong ditolak', () {
+      expect(validasiEmail(''), 'Email wajib diisi');
+      expect(validasiEmail(null), 'Email wajib diisi');
+      expect(validasiEmail('   '), 'Email wajib diisi');
+    });
+
+    test('format salah ditolak', () {
+      expect(validasiEmail('budi'), 'Format email tidak valid');
+      expect(validasiEmail('budi@kampus'), 'Format email tidak valid');
+    });
+
+    test('email benar lolos (mengembalikan null)', () {
+      expect(validasiEmail('budi@mhs.unsoed.ac.id'), isNull);
+    });
+  });
+
+  group('validasiPassword', () {
+    test('kurang dari 8 karakter ditolak', () {
+      expect(validasiPassword('abc123'), contains('minimal 8'));
+    });
+
+    test('8 karakter atau lebih lolos', () {
+      expect(validasiPassword('rahasia123'), isNull);
+    });
+  });
+}</code></pre>
+<p>Perhatikan bahwa setiap aturan diuji dari dua sisi: <strong>kasus positif</strong> (input benar lolos) dan <strong>kasus negatif</strong> (input salah ditolak). Juga uji <strong>kasus batas</strong>: string berisi spasi saja, nilai <code>null</code>, panjang tepat 8 karakter.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Nama file tidak diakhiri <code>_test.dart</code>, sehingga <code>flutter test</code> tidak menemukannya.</li>
+  <li>Import memakai path relatif ke <code>lib/</code> (<code>import '../../lib/utils/ipk.dart'</code>). Selalu gunakan <code>package:nama_proyek/...</code>.</li>
+  <li>Membandingkan <code>double</code> dengan <code>==</code>: <code>0.1 + 0.2</code> tidak sama persis dengan <code>0.3</code>. Gunakan <code>closeTo</code>.</li>
+  <li>Satu test menguji terlalu banyak hal. Jika gagal, Anda sulit tahu bagian mana yang salah. Lebih baik banyak test kecil.</li>
+  <li>Test saling bergantung (test B hanya lulus jika test A dijalankan dulu). Gunakan <code>setUp</code> agar setiap test mulai dari kondisi bersih.</li>
+</ul></div>

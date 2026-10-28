@@ -1,0 +1,192 @@
+<p class="lead"><code>FutureBuilder</code> cocok untuk satu layar sederhana. Namun jika data yang sama dipakai banyak layar (daftar, detail, form) dan bisa berubah (tambah/hapus), simpan data di <strong>Provider</strong> (Modul 08). Provider menyimpan tiga hal: <strong>status</strong> (loading/error/sukses), <strong>pesan error</strong>, dan <strong>data</strong>.</p>
+
+<h4>Konsep: State Hasil Request</h4>
+<pre><code class="language-dart">enum LoadStatus { initial, loading, success, error }
+</code></pre>
+<p>Dengan <code>enum</code>, UI cukup memakai <code>switch</code> pada status. Ini lebih jelas daripada beberapa variabel <code>bool</code> yang bisa saling bertentangan (misalnya <code>isLoading</code> dan <code>hasError</code> sama-sama <code>true</code>).</p>
+
+<h4>Langkah 1: Provider</h4>
+<p>Provider memakai <code>PostRepository</code> dari section 9, sehingga tidak perlu tahu soal HTTP.</p>
+<p class="code-file-label">📄 <code>lib/providers/post_provider.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+
+import '../models/post.dart';
+import '../repositories/post_repository.dart';
+
+enum LoadStatus { initial, loading, success, error }
+
+class PostProvider extends ChangeNotifier {
+  final PostRepository _repo;
+  PostProvider(this._repo);
+
+  List&lt;Post&gt; _posts = [];
+  LoadStatus _status = LoadStatus.initial;
+  String? _errorMessage;
+
+  List&lt;Post&gt; get posts =&gt; List.unmodifiable(_posts); // UI tidak bisa mengubah langsung
+  LoadStatus get status =&gt; _status;
+  String? get errorMessage =&gt; _errorMessage;
+
+  Future&lt;void&gt; fetchPosts() async {
+    _status = LoadStatus.loading;
+    _errorMessage = null;
+    notifyListeners(); // UI menampilkan loading
+
+    try {
+      _posts = await _repo.getAll();
+      _status = LoadStatus.success;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _status = LoadStatus.error;
+    }
+    notifyListeners(); // UI menampilkan data atau error
+  }
+
+  /// Optimistic delete: hapus dulu dari layar, kembalikan jika server gagal.
+  Future&lt;bool&gt; deletePost(Post post) async {
+    final index = _posts.indexOf(post);
+    _posts.removeAt(index);
+    notifyListeners();
+    try {
+      await _repo.delete(post.id!);
+      return true;
+    } catch (e) {
+      _posts.insert(index, post); // rollback
+      notifyListeners();
+      return false;
+    }
+  }
+}
+</code></pre>
+<p><strong>Penjelasan:</strong> <code>notifyListeners()</code> dipanggil dua kali di <code>fetchPosts</code>: sekali sebelum request (agar spinner muncul), sekali setelah selesai. Pada <code>deletePost</code> kita memakai pola <em>optimistic update</em>: item langsung hilang sehingga aplikasi terasa cepat, lalu dikembalikan jika server menolak.</p>
+
+<h4>Langkah 2: Daftarkan Provider dan Panggil Data Pertama</h4>
+<p>Pasang package: <code>flutter pub add provider</code>. Operator <code>..fetchPosts()</code> (cascade) memanggil fetch tepat saat provider dibuat.</p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'core/api_client.dart';
+import 'providers/post_provider.dart';
+import 'repositories/post_repository.dart';
+
+Widget buatApp(Widget home) {
+  return ChangeNotifierProvider(
+    create: (_) =&gt; PostProvider(
+      RemotePostRepository(ApiClient(baseUrl: 'https://jsonplaceholder.typicode.com')),
+    )..fetchPosts(),
+    child: MaterialApp(home: home),
+  );
+}
+</code></pre>
+
+<h4>Langkah 3: Contoh Lengkap</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Butuh: flutter pub add http provider
+// File: models/post.dart, core/api_exception.dart, core/api_client.dart,
+//       repositories/post_repository.dart, providers/post_provider.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'core/api_client.dart';
+import 'providers/post_provider.dart';
+import 'repositories/post_repository.dart';
+
+void main() {
+  final repo = RemotePostRepository(
+    ApiClient(baseUrl: 'https://jsonplaceholder.typicode.com'),
+  );
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) =&gt; PostProvider(repo)..fetchPosts(),
+      child: const MaterialApp(home: PostProviderScreen()),
+    ),
+  );
+}
+
+class PostProviderScreen extends StatelessWidget {
+  const PostProviderScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch&lt;PostProvider&gt;();
+
+    final Widget body = switch (provider.status) {
+      LoadStatus.initial || LoadStatus.loading =&gt;
+        const Center(child: CircularProgressIndicator()),
+      LoadStatus.error =&gt; Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(provider.errorMessage ?? 'Terjadi kesalahan'),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () =&gt; context.read&lt;PostProvider&gt;().fetchPosts(),
+                child: const Text('Coba Lagi'),
+              ),
+            ],
+          ),
+        ),
+      LoadStatus.success =&gt; RefreshIndicator(
+          onRefresh: () =&gt; context.read&lt;PostProvider&gt;().fetchPosts(),
+          child: ListView.builder(
+            itemCount: provider.posts.length,
+            itemBuilder: (context, i) {
+              final post = provider.posts[i];
+              return Dismissible(
+                key: ValueKey(post.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  color: Colors.red,
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20),
+                  child: const Icon(Icons.delete, color: Colors.white),
+                ),
+                onDismissed: (_) async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final ok = await context.read&lt;PostProvider&gt;().deletePost(post);
+                  messenger.showSnackBar(SnackBar(
+                    content: Text(ok ? 'Post ${post.id} dihapus' : 'Gagal menghapus, data dikembalikan'),
+                  ));
+                },
+                child: ListTile(
+                  leading: CircleAvatar(child: Text('${post.id}')),
+                  title: Text(post.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(post.body, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              );
+            },
+          ),
+        ),
+    };
+
+    return Scaffold(
+      appBar: AppBar(title: Text('Post (${provider.posts.length})')),
+      body: body,
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/provider-list.jpg" alt="Daftar post dari Provider" loading="lazy">
+    <div class="screenshot-caption">Status success: daftar post dari PostProvider</div>
+  </div>
+</div>
+
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>context.watch</code> di <code>build</code> membuat layar ikut berubah setiap <code>notifyListeners()</code>. Di dalam callback tombol, gunakan <code>context.read</code>.</li>
+  <li><code>switch</code> expression memaksa kita menangani <strong>semua</strong> nilai enum; jika ada status baru yang lupa ditangani, analyzer langsung memberi error.</li>
+  <li><code>ScaffoldMessenger.of(context)</code> disimpan ke variabel <strong>sebelum</strong> <code>await</code>, sehingga aman dipakai setelahnya.</li>
+  <li>Geser item ke kiri untuk menghapus. Karena JSONPlaceholder selalu menjawab sukses, rollback hanya terlihat jika internet dimatikan.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Memanggil <code>fetchPosts()</code> di dalam <code>build()</code>: memicu loop rebuild tanpa akhir. Panggil di <code>create</code> provider atau <code>initState</code>.</li>
+  <li>Lupa <code>notifyListeners()</code> setelah mengubah data, sehingga UI tidak berubah.</li>
+  <li>Mengembalikan list internal secara langsung (<code>get posts =&gt; _posts</code>) lalu UI mengubahnya tanpa <code>notifyListeners</code>.</li>
+  <li>Memakai <code>context.watch</code> di dalam <code>onPressed</code>: error, gunakan <code>context.read</code>.</li>
+</ul>
+</div>

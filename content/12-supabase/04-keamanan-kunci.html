@@ -1,0 +1,87 @@
+<p class="lead">Menulis URL dan key langsung di kode (<em>hard-code</em>) memang praktis, tetapi berisiko: begitu kode di-<em>push</em> ke GitHub publik, siapa pun bisa melihat dan memakai project Anda. Di section ini kita belajar memisahkan konfigurasi dari kode.</p>
+
+<h4>Aturan emas</h4>
+<ol>
+  <li><strong>Jangan pernah</strong> memasukkan <em>secret key</em> (<code>sb_secret_...</code>) atau <em>service_role</em> ke aplikasi Flutter. Semua isi APK bisa dibongkar (<em>decompile</em>), dan kunci itu melewati seluruh RLS, sehingga pemegangnya bisa membaca dan menghapus data semua user.</li>
+  <li>Publishable key <strong>memang boleh</strong> ada di aplikasi. Yang melindungi data adalah <strong>RLS</strong>, bukan kerahasiaan publishable key.</li>
+  <li>Meskipun publishable key tidak rahasia, tetap simpan di file konfigurasi terpisah yang <strong>tidak di-commit</strong>. Dengan begitu setiap anggota tim bisa memakai project masing-masing tanpa mengubah kode, dan repo tidak menjadi sasaran penyalahgunaan kuota.</li>
+</ol>
+
+<h4>Cara 1: <code>--dart-define</code></h4>
+<p>Flutter bisa "menyuntikkan" nilai konstanta saat build. Nilai itu dibaca dengan <code>String.fromEnvironment</code>:</p>
+<p class="code-file-label">📄 <code>lib/config/env.dart</code></p>
+<pre><code class="language-dart">// lib/config/env.dart
+class Env {
+  // Nilai diisi saat build oleh --dart-define / --dart-define-from-file.
+  static const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  static const String supabasePublishableKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+  );
+
+  static bool get isConfigured =&gt;
+      supabaseUrl.isNotEmpty &amp;&amp; supabasePublishableKey.isNotEmpty;
+}
+</code></pre>
+<p>Jalankan dengan:</p>
+<pre><code class="language-bash">flutter run \
+  --dart-define=SUPABASE_URL=https://abcdefghijklm.supabase.co \
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxxxxxxxxx
+</code></pre>
+<ul>
+  <li><code>String.fromEnvironment</code> <strong>harus</strong> dipakai sebagai <code>const</code>. Nilainya ditentukan saat kompilasi, bukan saat aplikasi berjalan.</li>
+  <li>Jika lupa memberi <code>--dart-define</code>, nilainya string kosong <code>''</code>. Karena itu kita sediakan <code>isConfigured</code> untuk menampilkan pesan yang jelas.</li>
+</ul>
+
+<h4>Cara 2 (disarankan): <code>--dart-define-from-file</code></h4>
+<p>Mengetik dua define setiap kali menjalankan aplikasi cukup merepotkan. Simpan saja di file JSON di root proyek (sejajar <code>pubspec.yaml</code>):</p>
+<p class="code-file-label">📄 <code>env.json</code></p>
+<pre><code class="language-json">{
+  "SUPABASE_URL": "https://abcdefghijklm.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_xxxxxxxxxxxxxxxxxxxx"
+}
+</code></pre>
+<pre><code class="language-bash">flutter run --dart-define-from-file=env.json
+</code></pre>
+<p>Lalu cegah file itu ikut ter-commit dengan menambahkan baris berikut ke <code>.gitignore</code>, dan sediakan contoh tanpa isi untuk teman satu tim:</p>
+<p class="code-file-label">📄 <code>.gitignore</code></p>
+<pre><code class="language-text"># Konfigurasi rahasia/pribadi
+env.json
+</code></pre>
+<p class="code-file-label">📄 <code>env.example.json</code></p>
+<pre><code class="language-json">{
+  "SUPABASE_URL": "https://YOUR-PROJECT-REF.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_YOUR_KEY"
+}
+</code></pre>
+
+<h4>Agar tombol Run di VS Code ikut membaca env.json</h4>
+<p>Buat file <code>.vscode/launch.json</code>:</p>
+<p class="code-file-label">📄 <code>.vscode/launch.json</code></p>
+<pre><code class="language-json">{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "catatan_kuliah",
+      "request": "launch",
+      "type": "dart",
+      "args": ["--dart-define-from-file=env.json"]
+    }
+  ]
+}
+</code></pre>
+<p>Di Android Studio: <em>Run &rarr; Edit Configurations</em> &rarr; isi <strong>Additional run args</strong> dengan <code>--dart-define-from-file=env.json</code>.</p>
+
+<h4>Inisialisasi memakai Env</h4>
+<pre><code class="language-dart">Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: Env.supabaseUrl,
+    publishableKey: Env.supabasePublishableKey,
+  );
+
+  runApp(const MyApp());
+}
+</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Sudah terlanjur push key ke GitHub?</h4><p>Hapus dari repo saja tidak cukup karena riwayat commit masih menyimpannya. Buka <strong>Project Settings &rarr; API Keys</strong>, buat kunci baru, lalu hapus (<em>revoke</em>) kunci lama. Hal ini <strong>wajib</strong> dilakukan segera jika yang bocor adalah secret key.</p></div>

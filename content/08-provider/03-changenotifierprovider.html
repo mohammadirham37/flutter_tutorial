@@ -1,0 +1,166 @@
+<p class="lead"><code>ChangeNotifierProvider</code> dari package <strong>provider</strong> "menitipkan" sebuah ChangeNotifier di pohon widget. Semua widget di bawahnya bisa mengambil objek itu lewat <code>context</code>, tanpa constructor.</p>
+
+<h4>Instalasi</h4>
+<pre><code class="language-bash">flutter pub add provider
+</code></pre>
+
+<h4>Contoh kecil: mendaftarkan provider</h4>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+class CounterModel extends ChangeNotifier {
+  int _nilai = 0;
+  int get nilai =&gt; _nilai;
+
+  void tambah() {
+    _nilai++;
+    notifyListeners();
+  }
+}
+
+void main() {
+  runApp(
+    // create dipanggil SEKALI; Provider juga otomatis memanggil dispose()
+    ChangeNotifierProvider(
+      create: (context) =&gt; CounterModel(),
+      child: const MyApp(), // seluruh MyApp &amp; turunannya bisa mengakses CounterModel
+    ),
+  );
+}
+</code></pre>
+<ul>
+  <li><code>create</code> dipanggil sekali (secara <em>lazy</em>, saat pertama kali dibaca) untuk membuat objek.</li>
+  <li>Saat provider dibuang dari pohon widget, ia otomatis memanggil <code>dispose()</code> pada objek tersebut.</li>
+  <li>Provider di atas <code>MaterialApp</code> berarti tersedia di <strong>semua halaman</strong>, termasuk halaman yang dibuka dengan <code>Navigator.push</code>.</li>
+</ul>
+
+<h4>Contoh lengkap: satu state, dua halaman</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Pastikan sudah: flutter pub add provider
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+class CounterModel extends ChangeNotifier {
+  int _nilai = 0;
+  int get nilai =&gt; _nilai;
+
+  void tambah() {
+    _nilai++;
+    notifyListeners();
+  }
+
+  void kurang() {
+    if (_nilai == 0) return;
+    _nilai--;
+    notifyListeners();
+  }
+}
+
+void main() {
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) =&gt; CounterModel(),
+      child: const MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const HalamanSatu(),
+    );
+  }
+}
+
+class HalamanSatu extends StatelessWidget {
+  const HalamanSatu({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // watch: widget ini rebuild setiap CounterModel memanggil notifyListeners
+    final nilai = context.watch&lt;CounterModel&gt;().nilai;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Halaman Satu')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Nilai: $nilai', style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 16),
+            FilledButton(
+              // read: hanya memanggil method, tidak berlangganan
+              onPressed: () =&gt; context.read&lt;CounterModel&gt;().tambah(),
+              child: const Text('Tambah'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              // Tidak ada data yang dikirim lewat constructor!
+              onPressed: () =&gt; Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) =&gt; const HalamanDua()),
+              ),
+              child: const Text('Buka Halaman Dua'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class HalamanDua extends StatelessWidget {
+  const HalamanDua({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final nilai = context.watch&lt;CounterModel&gt;().nilai;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Halaman Dua')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Nilai yang sama: $nilai',
+                style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 16),
+            FilledButton.tonal(
+              onPressed: () =&gt; context.read&lt;CounterModel&gt;().kurang(),
+              child: const Text('Kurangi dari Halaman Dua'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/cnp-dua.jpg" alt="Halaman Dua membaca dan mengubah state yang sama" loading="lazy">
+    <div class="screenshot-caption">Halaman Dua membaca dan mengubah state yang sama</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>HalamanDua</code> dibuka tanpa mengirim data apa pun, tetapi bisa membaca dan mengubah nilai yang sama.</li>
+  <li>Saat menekan "Kurangi" di Halaman Dua lalu kembali, Halaman Satu sudah menampilkan nilai terbaru karena ia juga <code>watch</code> objek yang sama.</li>
+  <li><code>context.watch&lt;CounterModel&gt;()</code> dipakai di <code>build</code>; <code>context.read&lt;CounterModel&gt;()</code> dipakai di <code>onPressed</code>. Bedanya dibahas di section berikutnya.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>ProviderNotFoundException.</strong> Muncul jika widget mencari provider yang tidak ada di atasnya. Penyebab tersering: provider dipasang di dalam satu halaman, lalu halaman lain (hasil <code>push</code>) mencoba membacanya. Pasang provider di atas <code>MaterialApp</code> jika dipakai lintas halaman.</li>
+  <li>Lupa menulis tipe generik: <code>context.watch()</code> tanpa <code>&lt;CounterModel&gt;</code> membuat Dart tidak tahu provider mana yang dicari.</li>
+  <li>Memakai <code>Provider</code> biasa (bukan <code>ChangeNotifierProvider</code>) untuk ChangeNotifier. Hasilnya UI tidak pernah rebuild.</li>
+</ul>
+</div>

@@ -1,0 +1,261 @@
+<p class="lead"><em>Sliver</em> adalah potongan area gulir. Dengan <code>CustomScrollView</code>, beberapa sliver (app bar, grid, list, widget biasa) digabung menjadi <strong>satu</strong> area gulir yang mulus. Contoh paling terkenal: header bergambar yang mengecil saat digulir (<em>collapsing header</em>).</p>
+
+<h4>Konsep</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Sliver</th><th>Padanan widget biasa</th></tr></thead>
+    <tbody>
+      <tr><td><code>SliverAppBar</code></td><td><code>AppBar</code> yang bisa membesar/mengecil</td></tr>
+      <tr><td><code>SliverList.builder</code> / <code>.separated</code></td><td><code>ListView.builder</code> / <code>.separated</code></td></tr>
+      <tr><td><code>SliverGrid.count</code> / <code>SliverGrid.builder</code></td><td><code>GridView.count</code> / <code>.builder</code></td></tr>
+      <tr><td><code>SliverToBoxAdapter</code></td><td>Pembungkus untuk widget biasa (Text, Card, dll.)</td></tr>
+      <tr><td><code>SliverPadding</code></td><td><code>Padding</code> untuk sliver</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Properti penting <code>SliverAppBar</code>: <code>expandedHeight</code> (tinggi saat terbuka penuh), <code>pinned</code> (bagian kecilnya tetap menempel di atas), <code>floating</code> (muncul lagi begitu pengguna menggulir sedikit ke atas), <code>snap</code> (bersama floating, langsung terbuka penuh), dan <code>flexibleSpace</code> (isi area yang membesar).</p>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">body: CustomScrollView(
+  // Semua anak CustomScrollView harus berupa SLIVER
+  slivers: [
+    const SliverAppBar(title: Text('Beranda'), pinned: true),
+    // Widget biasa dibungkus SliverToBoxAdapter
+    const SliverToBoxAdapter(
+      child: Padding(padding: EdgeInsets.all(16), child: Text('Halo!')),
+    ),
+    SliverList.builder(
+      itemCount: 30,
+      itemBuilder: (context, i) =&gt; ListTile(title: Text('Item $i')),
+    ),
+  ],
+),
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/sliver-kecil.jpg" alt="CustomScrollView dengan SliverAppBar, teks, dan SliverList" loading="lazy">
+    <div class="screenshot-caption">CustomScrollView dengan SliverAppBar, teks, dan SliverList</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap 1: profil universitas dengan gambar header</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: ProfilUniversitasScreen(),
+    );
+  }
+}
+
+class ProfilUniversitasScreen extends StatelessWidget {
+  const ProfilUniversitasScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // CustomScrollView TIDAK memakai AppBar biasa: SliverAppBar sudah menjadi app bar-nya
+    return Scaffold(
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 200.0,
+            floating: false,
+            pinned: true, // Judul tetap menempel di atas saat discroll
+            backgroundColor: Colors.indigo,
+            foregroundColor: Colors.white,
+            flexibleSpace: FlexibleSpaceBar(
+              title: const Text("Profil Universitas"),
+              background: Image.network(
+                "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600",
+                fit: BoxFit.cover,
+                // Cadangan jika gambar gagal dimuat (offline / URL mati)
+                errorBuilder: (context, error, stackTrace) =&gt;
+                    Container(color: Colors.indigo.shade300),
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text("Fakultas Teknologi Informasi memiliki 4 program studi unggulan..."),
+            ),
+          ),
+          SliverList.builder(
+            itemCount: 20,
+            itemBuilder: (context, index) =&gt; ListTile(
+              leading: const Icon(Icons.article_outlined),
+              title: Text("Berita Kampus Ke-${index + 1}"),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/sliver-profil-buka.jpg" alt="Header gambar terbuka penuh" loading="lazy">
+    <div class="screenshot-caption">Header gambar terbuka penuh</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/sliver-profil-tutup.jpg" alt="Setelah digulir: header mengecil menjadi app bar biasa" loading="lazy">
+    <div class="screenshot-caption">Setelah digulir: header mengecil menjadi app bar biasa</div>
+  </div>
+</div>
+<ul>
+  <li><code>FlexibleSpaceBar</code> mengatur judul yang mengecil dan gambar latar yang memudar.</li>
+  <li><code>errorBuilder</code> pada <code>Image.network</code> menampilkan warna polos jika gambar gagal dimuat (misalnya saat offline).</li>
+</ul>
+
+<h4>Contoh lengkap 2: dashboard dengan grid dan list dalam satu gulir</h4>
+<p>Tanpa sliver, menaruh GridView dan ListView dalam satu halaman yang bisa digulir bersama cukup merepotkan. Dengan <code>CustomScrollView</code>, keduanya cukup ditumpuk sebagai sliver.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const DashboardScreen(),
+    );
+  }
+}
+
+class DashboardScreen extends StatelessWidget {
+  const DashboardScreen({super.key});
+
+  static const _menu = [
+    (Icons.edit_note, 'KRS'),
+    (Icons.grading, 'KHS'),
+    (Icons.calendar_month, 'Jadwal'),
+    (Icons.fact_check, 'Presensi'),
+    (Icons.receipt_long, 'Tagihan'),
+    (Icons.local_library, 'Pustaka'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      body: CustomScrollView(
+        slivers: [
+          // 1. App bar yang mengecil saat digulir
+          SliverAppBar(
+            expandedHeight: 180,
+            pinned: true, // bagian kecilnya tetap menempel di atas
+            backgroundColor: warna.primary,
+            foregroundColor: warna.onPrimary,
+            flexibleSpace: FlexibleSpaceBar(
+              title: const Text('Halo, Nadia'),
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [warna.primary, warna.tertiary],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 24),
+                child: Icon(Icons.school, size: 96, color: warna.onPrimary.withValues(alpha: 0.3)),
+              ),
+            ),
+          ),
+
+          // 2. Widget biasa di antara sliver
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text('Menu Cepat', style: Theme.of(context).textTheme.titleMedium),
+            ),
+          ),
+
+          // 3. Grid di dalam CustomScrollView
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverGrid.count(
+              crossAxisCount: 3,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              children: [
+                for (final (ikon, label) in _menu)
+                  Card(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [Icon(ikon, size: 32), const SizedBox(height: 4), Text(label)],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+              child: Text('Pengumuman Terbaru', style: Theme.of(context).textTheme.titleMedium),
+            ),
+          ),
+
+          // 4. Daftar panjang di bawahnya: satu scroll untuk semuanya
+          SliverList.separated(
+            itemCount: 15,
+            itemBuilder: (context, i) =&gt; ListTile(
+              leading: const Icon(Icons.campaign_outlined),
+              title: Text('Pengumuman ke-${i + 1}'),
+              subtitle: const Text('Fakultas Teknik'),
+            ),
+            separatorBuilder: (context, i) =&gt; const Divider(height: 1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/sliver-dashboard.jpg" alt="Dashboard: header gradasi, grid menu, dan daftar pengumuman" loading="lazy">
+    <div class="screenshot-caption">Dashboard: header gradasi, grid menu, dan daftar pengumuman</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/sliver-dashboard-gulir.jpg" alt="Setelah digulir: header menempel, list berlanjut" loading="lazy">
+    <div class="screenshot-caption">Setelah digulir: header menempel, list berlanjut</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li>Header memakai gradasi warna dari <code>colorScheme</code>, sehingga ikut berubah jika <code>colorSchemeSeed</code> diganti.</li>
+  <li><code>SliverPadding</code> memberi jarak kiri-kanan untuk <code>SliverGrid.count</code>. <code>Padding</code> biasa tidak boleh membungkus sliver.</li>
+  <li>Judul bagian ("Menu Cepat", "Pengumuman Terbaru") adalah widget biasa sehingga dibungkus <code>SliverToBoxAdapter</code>.</li>
+  <li><code>SliverList.separated</code> bekerja persis seperti <code>ListView.separated</code>, termasuk lazy loading.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Memasukkan widget biasa langsung ke <code>slivers</code></strong>, misalnya <code>Text</code> atau <code>ListView</code>. Muncul error "A RenderViewport expected a child of type RenderSliver". Bungkus dengan <code>SliverToBoxAdapter</code> atau ganti dengan versi sliver-nya.</li>
+  <li><strong>Memakai <code>appBar:</code> Scaffold sekaligus SliverAppBar.</strong> Hasilnya dua app bar bertumpuk.</li>
+  <li><strong>Memakai <code>snap: true</code> tanpa <code>floating: true</code>.</strong> Terjadi error assertion; snap hanya berlaku bersama floating.</li>
+</ul></div>

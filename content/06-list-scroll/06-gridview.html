@@ -1,0 +1,248 @@
+<p class="lead">Jika ListView menyusun item ke bawah, <code>GridView</code> menyusunnya dalam baris dan kolom. Cocok untuk menu ikon, galeri foto, atau katalog produk.</p>
+
+<h4>Konsep: dua cara utama</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Konstruktor</th><th>Cara kerja</th><th>Cocok untuk</th></tr></thead>
+    <tbody>
+      <tr><td><code>GridView.count</code></td><td>Jumlah kolom tetap (<code>crossAxisCount</code>), semua anak dibuat sekaligus</td><td>Menu dengan item sedikit</td></tr>
+      <tr><td><code>GridView.builder</code></td><td>Lazy seperti ListView.builder, tata letak diatur <code>gridDelegate</code></td><td>Data banyak / dinamis</td></tr>
+    </tbody>
+  </table>
+</div>
+<p><code>childAspectRatio</code> adalah perbandingan lebar : tinggi tiap kotak. Nilai 1 = persegi, kurang dari 1 = lebih tinggi, lebih dari 1 = lebih lebar.</p>
+
+<h4>Contoh kecil: GridView.count</h4>
+<pre><code class="language-dart">body: GridView.count(
+  crossAxisCount: 3,       // 3 kolom
+  mainAxisSpacing: 8,      // jarak vertikal antar kotak
+  crossAxisSpacing: 8,     // jarak horizontal antar kotak
+  padding: const EdgeInsets.all(8),
+  children: [
+    for (var i = 1; i &lt;= 12; i++)
+      Container(
+        color: Colors.indigo.shade100,
+        alignment: Alignment.center,
+        child: Text('Kotak $i'),
+      ),
+  ],
+),
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/grid-count.jpg" alt="GridView tiga kolom berisi 12 kotak" loading="lazy">
+    <div class="screenshot-caption">GridView tiga kolom berisi 12 kotak</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap 1: menu akademik dengan GridView.count</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const MenuAkademikScreen(),
+    );
+  }
+}
+
+class MenuItem {
+  final String label;
+  final IconData ikon;
+  final Color warna;
+
+  const MenuItem(this.label, this.ikon, this.warna);
+}
+
+class MenuAkademikScreen extends StatelessWidget {
+  const MenuAkademikScreen({super.key});
+
+  static const _menu = [
+    MenuItem('KRS', Icons.edit_note, Colors.indigo),
+    MenuItem('KHS', Icons.grading, Colors.teal),
+    MenuItem('Jadwal', Icons.calendar_month, Colors.orange),
+    MenuItem('Presensi', Icons.fact_check, Colors.green),
+    MenuItem('Tagihan', Icons.receipt_long, Colors.red),
+    MenuItem('E-Learning', Icons.cast_for_education, Colors.purple),
+    MenuItem('Perpustakaan', Icons.local_library, Colors.brown),
+    MenuItem('Beasiswa', Icons.workspace_premium, Colors.amber),
+    MenuItem('Pengumuman', Icons.campaign, Colors.blue),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Menu Akademik')),
+      body: GridView.count(
+        crossAxisCount: 3,
+        padding: const EdgeInsets.all(16),
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.9, // lebar : tinggi = 0.9 (sedikit lebih tinggi)
+        children: [
+          for (final m in _menu)
+            Card(
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () =&gt; ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Membuka menu ${m.label}')),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: 26,
+                      backgroundColor: m.warna.withValues(alpha: 0.15),
+                      child: Icon(m.ikon, color: m.warna, size: 28),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(m.label, textAlign: TextAlign.center),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/grid-menu.jpg" alt="Menu akademik 3 kolom dengan ikon berwarna" loading="lazy">
+    <div class="screenshot-caption">Menu akademik 3 kolom dengan ikon berwarna</div>
+  </div>
+</div>
+<ul>
+  <li>Setiap menu berupa <code>Card</code> + <code>InkWell</code> sehingga ada efek riak saat ditekan.</li>
+  <li><code>m.warna.withValues(alpha: 0.15)</code> membuat latar ikon transparan 15%.</li>
+</ul>
+
+<h4>Contoh lengkap 2: katalog buku dengan GridView.builder</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.deepOrange),
+      home: const KatalogBukuScreen(),
+    );
+  }
+}
+
+class KatalogBukuScreen extends StatefulWidget {
+  const KatalogBukuScreen({super.key});
+
+  @override
+  State&lt;KatalogBukuScreen&gt; createState() =&gt; _KatalogBukuScreenState();
+}
+
+class _KatalogBukuScreenState extends State&lt;KatalogBukuScreen&gt; {
+  // 60 buku contoh, dibuat otomatis
+  final _buku = List.generate(
+    60,
+    (i) =&gt; (judul: 'Buku Informatika ${i + 1}', stok: (i * 7) % 5),
+  );
+  final Set&lt;int&gt; _favorit = {};
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Katalog Buku (${_favorit.length} favorit)')),
+      body: GridView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _buku.length,
+        // Lebar maksimum tiap kotak 180 px: jumlah kolom menyesuaikan lebar layar
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 180,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 0.7,
+        ),
+        itemBuilder: (context, index) {
+          final b = _buku[index];
+          final favorit = _favorit.contains(index);
+          return Card(
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Container(
+                    color: Colors.primaries[index % Colors.primaries.length].shade200,
+                    child: const Icon(Icons.menu_book, size: 48, color: Colors.white),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                  child: Text(b.judul, maxLines: 2, overflow: TextOverflow.ellipsis),
+                ),
+                Row(
+                  children: [
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        b.stok == 0 ? 'Habis' : 'Stok: ${b.stok}',
+                        style: TextStyle(color: b.stok == 0 ? Colors.red : null),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(favorit ? Icons.favorite : Icons.favorite_border),
+                      color: Colors.red,
+                      onPressed: () =&gt; setState(() {
+                        favorit ? _favorit.remove(index) : _favorit.add(index);
+                      }),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/grid-buku.jpg" alt="Katalog 60 buku dengan GridView.builder" loading="lazy">
+    <div class="screenshot-caption">Katalog 60 buku dengan GridView.builder</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><code>SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 180)</code> artinya "setiap kotak maksimal 180 piksel". Di HP muncul 2 kolom, di tablet bisa 4-5 kolom secara otomatis. Inilah cara mudah membuat grid responsif.</li>
+  <li>Alternatifnya, <code>SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2)</code> memberi jumlah kolom tetap.</li>
+  <li>Data buku dibuat dengan <code>List.generate</code> berisi <em>record</em> <code>(judul: ..., stok: ...)</code>.</li>
+  <li>Favorit disimpan di <code>Set&lt;int&gt;</code> berisi index buku.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Garis kuning overflow di dalam kotak grid.</strong> Tinggi kotak ditentukan oleh <code>childAspectRatio</code>, bukan oleh isinya. Kecilkan isi atau ubah rasio (misalnya 0.7).</li>
+  <li><strong>GridView di dalam Column tanpa <code>Expanded</code></strong>: error unbounded height, sama seperti ListView.</li>
+  <li><strong>Memakai GridView.count untuk ratusan item</strong>: semua kotak dibuat sekaligus. Pakai builder.</li>
+</ul></div>

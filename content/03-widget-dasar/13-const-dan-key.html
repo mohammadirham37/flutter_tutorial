@@ -1,0 +1,165 @@
+<p class="lead">Dua hal kecil yang sering muncul di kode Flutter: kata kunci <strong><code>const</code></strong> (supaya widget tidak dibuat ulang tanpa perlu) dan parameter <strong><code>key</code></strong> (supaya Flutter bisa mengenali widget yang sama ketika urutannya berubah).</p>
+
+<h4>Bagian 1: <code>const</code></h4>
+<p>Widget yang ditandai <code>const</code> dibuat <strong>sekali saat kompilasi</strong> dan dipakai ulang. Saat induknya build ulang, Flutter tahu widget <code>const</code> pasti sama sehingga bisa melewatinya. Hasilnya aplikasi lebih hemat kerja.</p>
+<pre><code class="language-dart">// Boleh const: semua nilainya sudah pasti saat kompilasi
+const judul = Text('Jadwal Kuliah');
+const jarak = SizedBox(height: 16);
+const ikon = Icon(Icons.home, color: Colors.indigo);
+const kotak = Padding(padding: EdgeInsets.all(8), child: Text('Halo'));
+</code></pre>
+
+<pre><code class="language-dart">// TIDAK boleh const: ada nilai yang baru diketahui saat aplikasi berjalan
+Widget contoh(String nama, int skor) {
+  return Column(
+    children: [
+      Text('Halo, $nama'),                   // nama berasal dari variabel
+      Text('Skor: $skor'),
+      Container(color: Colors.indigo.shade100), // .shade100 bukan konstanta
+      // Tetapi anak yang nilainya tetap tetap boleh const:
+      const Divider(),
+    ],
+  );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/const-dan-key-2.jpg" alt="Widget dengan nilai dari variabel (tidak bisa const)" loading="lazy">
+    <div class="screenshot-caption">Widget dengan nilai dari variabel (tidak bisa const)</div>
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Syarat <code>const</code></th><th>Contoh</th></tr></thead>
+    <tbody>
+      <tr><td>Class punya konstruktor <code>const</code></td><td><code>const MyWidget({super.key});</code></td></tr>
+      <tr><td>Semua argumen juga konstanta</td><td>Literal <code>'teks'</code>, angka, <code>Colors.red</code>, <code>Icons.home</code>, <code>EdgeInsets.all(8)</code></td></tr>
+      <tr><td>Tidak memakai variabel atau pemanggilan method</td><td>Bukan <code>Text(nama)</code>, bukan <code>Theme.of(context)</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout callout-tip"><h4>💡 Biarkan linter membantu</h4><p>Proyek baru Flutter sudah memakai <code>flutter_lints</code>. Jika muncul garis biru <em>"Use 'const' with the constructor to improve performance"</em>, tekan <kbd>Ctrl</kbd>+<kbd>.</kbd> lalu pilih <strong>Add 'const' modifier</strong>. Perintah <code>dart fix --apply</code> bisa menambahkan <code>const</code> di seluruh proyek sekaligus.</p></div>
+
+<h4>Bagian 2: <code>Key</code></h4>
+<p>Flutter mencocokkan widget lama dan baru berdasarkan <strong>tipe dan posisinya</strong>. Biasanya ini cukup. Masalah muncul jika ada beberapa <strong>StatefulWidget bertipe sama</strong> dalam satu daftar lalu urutannya berubah (dihapus, diurutkan, ditukar). Tanpa key, State bisa "tertinggal" di posisi lama dan menempel ke data yang salah.</p>
+<p>Contoh berikut memperlihatkan masalah itu. Setiap kotak menyimpan angka hitungan di State-nya sendiri. Tekan beberapa kotak, lalu tekan tombol <strong>Tukar urutan</strong>.</p>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: DemoKey()));
+}
+
+class DemoKey extends StatefulWidget {
+  const DemoKey({super.key});
+
+  @override
+  State&lt;DemoKey&gt; createState() =&gt; _DemoKeyState();
+}
+
+class _DemoKeyState extends State&lt;DemoKey&gt; {
+  List&lt;String&gt; _nama = ['Andi', 'Budi', 'Citra'];
+  bool _pakaiKey = false;
+
+  void _tukar() {
+    setState(() =&gt; _nama = _nama.reversed.toList());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Demo Key')),
+      body: Column(
+        children: [
+          SwitchListTile(
+            title: const Text('Pakai ValueKey'),
+            value: _pakaiKey,
+            onChanged: (v) =&gt; setState(() =&gt; _pakaiKey = v),
+          ),
+          for (final n in _nama)
+            KotakHitung(
+              // Tanpa key: State dicocokkan berdasarkan posisi
+              // Dengan key: State dicocokkan berdasarkan nama
+              key: _pakaiKey ? ValueKey(n) : null,
+              nama: n,
+            ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _tukar,
+            icon: const Icon(Icons.swap_vert),
+            label: const Text('Tukar urutan'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class KotakHitung extends StatefulWidget {
+  final String nama;
+
+  const KotakHitung({super.key, required this.nama});
+
+  @override
+  State&lt;KotakHitung&gt; createState() =&gt; _KotakHitungState();
+}
+
+class _KotakHitungState extends State&lt;KotakHitung&gt; {
+  int _hitung = 0; // state milik masing-masing kotak
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        title: Text(widget.nama),
+        subtitle: const Text('Ketuk untuk menambah'),
+        trailing: Text('$_hitung', style: const TextStyle(fontSize: 24)),
+        onTap: () =&gt; setState(() =&gt; _hitung++),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/const-dan-key-3.jpg" alt="Tampilan awal demo Key" loading="lazy">
+    <div class="screenshot-caption">Tampilan awal demo Key</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/const-dan-key-tanpa-key.jpg" alt="Tanpa key: Andi diketuk 3x lalu ditukar, angka 3 tertinggal di baris pertama" loading="lazy">
+    <div class="screenshot-caption">Tanpa key: Andi diketuk 3x lalu ditukar, angka 3 tertinggal di baris pertama</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/const-dan-key-dengan-key.jpg" alt="Dengan ValueKey: angka 3 ikut pindah bersama Andi" loading="lazy">
+    <div class="screenshot-caption">Dengan ValueKey: angka 3 ikut pindah bersama Andi</div>
+  </div>
+</div>
+
+<h4>Apa yang terjadi?</h4>
+<ul>
+  <li><strong>Tanpa key:</strong> ketuk Andi 3 kali (Andi = 3), lalu tukar urutan. Sekarang baris pertama berisi "Citra" tetapi angkanya tetap 3. State tetap di posisi pertama, sementara namanya pindah. Ini salah.</li>
+  <li><strong>Dengan <code>ValueKey(n)</code>:</strong> ulangi langkah yang sama. Angka 3 ikut pindah bersama "Andi" ke baris paling bawah. Flutter mencocokkan State berdasarkan key, bukan posisi.</li>
+</ul>
+
+<h4>Jenis key yang umum</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Key</th><th>Kapan dipakai</th></tr></thead>
+    <tbody>
+      <tr><td><code>ValueKey(id)</code></td><td>Item daftar yang punya nilai unik (id, NIM, email). Paling sering dipakai.</td></tr>
+      <tr><td><code>ObjectKey(objek)</code></td><td>Keunikan ditentukan oleh objeknya sendiri.</td></tr>
+      <tr><td><code>UniqueKey()</code></td><td>Memaksa widget selalu dianggap baru (State di-reset).</td></tr>
+      <tr><td><code>GlobalKey</code></td><td>Mengakses State dari luar, misalnya <code>GlobalKey&lt;FormState&gt;</code> di Modul 05.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Memakai <strong>index</strong> sebagai key (<code>ValueKey(index)</code>). Index ikut berubah saat urutan berubah, jadi tidak membantu. Pakai id unik dari data.</li>
+  <li>Membuat <code>UniqueKey()</code> atau <code>GlobalKey()</code> di dalam <code>build()</code>. Key baru di setiap build membuat State terus di-reset.</li>
+  <li>Menambahkan <code>const</code> pada widget yang argumennya berasal dari variabel. Compiler akan error <em>"Invalid constant value"</em>.</li>
+</ul></div>

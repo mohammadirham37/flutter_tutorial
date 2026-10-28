@@ -1,0 +1,192 @@
+<p class="lead">Fungsi membungkus sekumpulan perintah agar bisa dipakai berulang kali dengan nama. Di Flutter, fungsi ada di mana-mana: <code>build()</code>, <code>onPressed</code>, <code>itemBuilder</code>, semuanya adalah fungsi. Memahami parameter bernama dan fungsi sebagai nilai adalah kunci membaca kode Flutter.</p>
+
+<h4>Fungsi dasar: parameter dan nilai kembali</h4>
+<pre><code class="language-dart">double hitungLuas(double panjang, double lebar) {
+  return panjang * lebar;
+}
+
+void sapa(String nama) {
+  print('Halo, $nama!');
+}
+
+void main() {
+  double luas = hitungLuas(4, 2.5);
+  print(luas); // Output: 10.0
+  sapa('Dimas'); // Output: Halo, Dimas!
+}
+</code></pre>
+<p>Format umum: <code>TipeKembali namaFungsi(TipeParam param) { ... }</code>. Fungsi <code>void</code> tidak mengembalikan nilai. Fungsi yang punya tipe kembali wajib mengakhiri setiap jalurnya dengan <code>return</code>.</p>
+
+<h4>Arrow function <code>=&gt;</code></h4>
+<p>Jika isi fungsi hanya satu ekspresi, tulis dengan panah. <code>=&gt; ekspresi</code> sama dengan <code>{ return ekspresi; }</code>.</p>
+<pre><code class="language-dart">int kuadrat(int x) =&gt; x * x;
+bool isGenap(int x) =&gt; x % 2 == 0;
+String salam(String nama) =&gt; 'Selamat pagi, $nama';
+
+// Fungsi rekursif (memanggil dirinya sendiri)
+int faktorial(int n) =&gt; n &lt;= 1 ? 1 : n * faktorial(n - 1);
+
+void main() {
+  print(kuadrat(9)); // Output: 81
+  print(isGenap(7)); // Output: false
+  print(salam('Ayu')); // Output: Selamat pagi, Ayu
+  print(faktorial(5)); // Output: 120
+}
+</code></pre>
+
+<h4>Parameter posisi opsional <code>[ ]</code></h4>
+<pre><code class="language-dart">String perkenalan(String nama, [String asal = 'Purwokerto', int? umur]) {
+  var teks = 'Saya $nama dari $asal';
+  if (umur != null) {
+    teks += ', umur $umur tahun';
+  }
+  return teks;
+}
+
+void main() {
+  print(perkenalan('Rani')); // Output: Saya Rani dari Purwokerto
+  print(perkenalan('Bayu', 'Cilacap')); // Output: Saya Bayu dari Cilacap
+  print(perkenalan('Sari', 'Banyumas', 19)); // Output: Saya Sari dari Banyumas, umur 19 tahun
+}
+</code></pre>
+<p>Parameter di dalam <code>[ ]</code> boleh tidak diisi. Isinya bisa diberi nilai default (<code>asal = 'Purwokerto'</code>) atau bertipe nullable (<code>int? umur</code>) yang otomatis bernilai <code>null</code>. Kelemahannya: urutan argumen harus diingat.</p>
+
+<h4>Named parameter <code>{ }</code>, <code>required</code>, dan default</h4>
+<p>Named parameter dipanggil dengan menyebut namanya, sehingga urutan bebas dan kode mudah dibaca. Gaya inilah yang dipakai hampir semua widget Flutter, misalnya <code>Text('Halo', style: ..., maxLines: 2)</code>.</p>
+<pre><code class="language-dart">void daftarMahasiswa({
+  required String nama,
+  required String nim,
+  String prodi = 'Informatika',
+  int? semester,
+}) {
+  print('$nim - $nama ($prodi), semester: ${semester ?? '-'}');
+}
+
+void main() {
+  daftarMahasiswa(nama: 'Ayu', nim: 'H1D023010');
+  daftarMahasiswa(
+    nim: 'H1D023011',
+    nama: 'Bima',
+    semester: 3,
+    prodi: 'Teknik Elektro',
+  );
+  // daftarMahasiswa(nama: 'Cici'); // ERROR: parameter nim wajib diisi
+
+  // Output:
+  // H1D023010 - Ayu (Informatika), semester: -
+  // H1D023011 - Bima (Teknik Elektro), semester: 3
+}
+</code></pre>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Jenis</th><th>Deklarasi</th><th>Pemanggilan</th></tr></thead>
+    <tbody>
+      <tr><td>Posisi wajib</td><td><code>f(int a)</code></td><td><code>f(1)</code></td></tr>
+      <tr><td>Posisi opsional</td><td><code>f([int a = 0])</code></td><td><code>f()</code> atau <code>f(1)</code></td></tr>
+      <tr><td>Named opsional</td><td><code>f({int a = 0})</code> / <code>f({int? a})</code></td><td><code>f()</code> atau <code>f(a: 1)</code></td></tr>
+      <tr><td>Named wajib</td><td><code>f({required int a})</code></td><td><code>f(a: 1)</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Parameter posisi dan named boleh digabung, asalkan yang posisi ditulis lebih dulu, misalnya <code>void kirim(String tujuan, {bool penting = false})</code>.</p>
+
+<h4>Fungsi sebagai nilai dan fungsi anonim</h4>
+<p>Di Dart, fungsi adalah objek: bisa disimpan di variabel, dikirim sebagai argumen, dan dikembalikan dari fungsi lain. Fungsi tanpa nama disebut <strong>fungsi anonim</strong> (lambda).</p>
+<pre><code class="language-dart">void main() {
+  // Fungsi anonim disimpan dalam variabel bertipe fungsi
+  int Function(int, int) tambah = (a, b) =&gt; a + b;
+  print(tambah(2, 3)); // Output: 5
+
+  // Fungsi anonim dengan body blok
+  var cetakBintang = (int n) {
+    print('*' * n);
+  };
+  cetakBintang(5); // Output: *****
+
+  // Fungsi anonim langsung dipakai sebagai argumen
+  var angka = [3, 1, 2];
+  angka.forEach((n) {
+    print('angka $n');
+  });
+  // Output:
+  // angka 3
+  // angka 1
+  // angka 2
+}
+</code></pre>
+<p>Bentuk <code>(n) { ... }</code> dan <code>(n) =&gt; ...</code> inilah yang Anda tulis di Flutter, misalnya <code>onPressed: () { ... }</code>.</p>
+
+<h4>Closure: fungsi yang "mengingat" variabel</h4>
+<pre><code class="language-dart">int Function() buatPenghitung() {
+  int hitung = 0;
+  return () {
+    hitung++;
+    return hitung;
+  };
+}
+
+void main() {
+  var klikTombolA = buatPenghitung();
+  var klikTombolB = buatPenghitung();
+
+  print(klikTombolA()); // Output: 1
+  print(klikTombolA()); // Output: 2
+  print(klikTombolA()); // Output: 3
+  print(klikTombolB()); // Output: 1
+}
+</code></pre>
+<p>Fungsi yang dikembalikan tetap bisa mengakses variabel <code>hitung</code> walaupun <code>buatPenghitung()</code> sudah selesai dijalankan. Setiap pemanggilan <code>buatPenghitung()</code> membuat variabel <code>hitung</code> sendiri, sehingga penghitung A dan B tidak saling mengganggu.</p>
+
+<h4>Higher-order function</h4>
+<p>Fungsi yang menerima fungsi lain sebagai parameter, atau mengembalikan fungsi, disebut <em>higher-order function</em>.</p>
+<pre><code class="language-dart">int hitung(int a, int b, int Function(int, int) operasi) {
+  return operasi(a, b);
+}
+
+int Function(int) pengali(int faktor) {
+  return (x) =&gt; x * faktor;
+}
+
+int kuadrat(int x) =&gt; x * x;
+
+void main() {
+  print(hitung(10, 4, (a, b) =&gt; a + b)); // Output: 14
+  print(hitung(10, 4, (a, b) =&gt; a * b)); // Output: 40
+
+  final kaliDua = pengali(2);
+  final kaliTiga = pengali(3);
+  print(kaliDua(5)); // Output: 10
+  print(kaliTiga(5)); // Output: 15
+
+  // Mengirim fungsi yang sudah ada tanpa tanda kurung (tear-off)
+  print([1, 2, 3].map(kuadrat).toList()); // Output: [1, 4, 9]
+}
+</code></pre>
+
+<h4><code>typedef</code> dan callback</h4>
+<p><code>typedef</code> memberi nama untuk tipe fungsi agar mudah dibaca. Flutter memakai pola ini, misalnya <code>VoidCallback</code> dan <code>ValueChanged&lt;T&gt;</code>.</p>
+<pre><code class="language-dart">typedef SaatDitekan = void Function(String namaTombol);
+
+void buatTombol(String label, {required SaatDitekan onPressed}) {
+  print('[Tombol $label dibuat]');
+  onPressed(label); // simulasi pengguna menekan tombol
+}
+
+void main() {
+  buatTombol('Simpan', onPressed: (nama) {
+    print('Tombol $nama ditekan, data disimpan.');
+  });
+  // Output:
+  // [Tombol Simpan dibuat]
+  // Tombol Simpan ditekan, data disimpan.
+}
+</code></pre>
+<p>Pola ini sama persis dengan <code>ElevatedButton(onPressed: () { ... })</code>: kita "menitipkan" fungsi, lalu widget yang memanggilnya ketika tombol benar-benar ditekan.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><code>onPressed: simpan()</code> memanggil fungsi <em>saat itu juga</em> dan mengirim hasilnya. Yang benar <code>onPressed: simpan</code> (tear-off) atau <code>onPressed: () =&gt; simpan()</code>.</li>
+  <li>Lupa <code>return</code> pada fungsi blok yang punya tipe kembali.</li>
+  <li>Menulis arrow function dengan blok: <code>() =&gt; { ... }</code>. Di Dart, ini bukan blok, melainkan Set literal. Gunakan <code>() { ... }</code>.</li>
+</ul></div>

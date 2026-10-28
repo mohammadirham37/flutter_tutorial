@@ -1,0 +1,278 @@
+<p>Widget <code>Row</code> (horizontal) dan <code>Column</code> (vertikal) adalah fondasi 80% susunan UI:</p>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
+  <div class="card p-4 border border-slate-200 dark:border-slate-800 rounded-lg">
+    <div class="font-bold text-indigo-600 mb-2">Column (Vertikal)</div>
+    <ul class="text-xs space-y-1 text-slate-600 dark:text-slate-300">
+      <li><strong>MainAxis:</strong> Atas ke Bawah (Y-axis)</li>
+      <li><strong>CrossAxis:</strong> Kiri ke Kanan (X-axis)</li>
+      <li>Contoh alignment: <code>MainAxisAlignment.spaceBetween</code>, <code>CrossAxisAlignment.center</code></li>
+    </ul>
+  </div>
+  <div class="card p-4 border border-slate-200 dark:border-slate-800 rounded-lg">
+    <div class="font-bold text-emerald-600 mb-2">Row (Horizontal)</div>
+    <ul class="text-xs space-y-1 text-slate-600 dark:text-slate-300">
+      <li><strong>MainAxis:</strong> Kiri ke Kanan (X-axis)</li>
+      <li><strong>CrossAxis:</strong> Atas ke Bawah (Y-axis)</li>
+      <li>Contoh alignment: <code>MainAxisAlignment.spaceEvenly</code>, <code>CrossAxisAlignment.stretch</code></li>
+    </ul>
+  </div>
+</div>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">Row(
+  mainAxisAlignment: MainAxisAlignment.spaceEvenly, // atur di sumbu utama (horizontal)
+  crossAxisAlignment: CrossAxisAlignment.center,    // atur di sumbu silang (vertikal)
+  children: const [
+    Icon(Icons.home),
+    Icon(Icons.search),
+    Icon(Icons.person),
+  ],
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/row-column-1.jpg" alt="Row dengan MainAxisAlignment.spaceEvenly" loading="lazy">
+    <div class="screenshot-caption">Row dengan MainAxisAlignment.spaceEvenly</div>
+  </div>
+</div>
+
+<h4>Nilai <code>MainAxisAlignment</code></h4>
+<p>Gambar di bawah memakai tiga kotak (■) di dalam sebuah <code>Row</code> selebar layar:</p>
+<pre><code class="language-text">start         |■■■                  |
+center        |         ■■■         |
+end           |                  ■■■|
+spaceBetween  |■         ■         ■|   jarak hanya di ANTARA kotak
+spaceAround   |  ■      ■      ■    |   jarak tepi = setengah jarak antar kotak
+spaceEvenly   |    ■     ■     ■    |   semua jarak sama besar
+</code></pre>
+
+<h4>Nilai <code>CrossAxisAlignment</code></h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Nilai</th><th>Pada Row (sumbu silang = vertikal)</th><th>Pada Column (sumbu silang = horizontal)</th></tr></thead>
+    <tbody>
+      <tr><td><code>start</code></td><td>Rata atas</td><td>Rata kiri</td></tr>
+      <tr><td><code>center</code> (default)</td><td>Tengah vertikal</td><td>Tengah horizontal</td></tr>
+      <tr><td><code>end</code></td><td>Rata bawah</td><td>Rata kanan</td></tr>
+      <tr><td><code>stretch</code></td><td>Anak ditarik setinggi Row</td><td>Anak ditarik selebar Column</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>MainAxisSize: seberapa besar Row/Column itu sendiri?</h4>
+<p>Secara default, <code>Row</code> mengambil <strong>seluruh lebar</strong> yang tersedia dan <code>Column</code> mengambil <strong>seluruh tinggi</strong> (<code>MainAxisSize.max</code>). Dengan <code>MainAxisSize.min</code>, ukurannya menyusut sebesar anak-anaknya saja. Ini berguna misalnya untuk tombol berisi ikon dan teks.</p>
+<pre><code class="language-dart">Column(
+  mainAxisSize: MainAxisSize.min, // tinggi Column = total tinggi anak
+  children: const [
+    Icon(Icons.cloud_done, size: 64),
+    Text('Data tersimpan'),
+  ],
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/row-column-2.jpg" alt="Column dengan MainAxisSize.min" loading="lazy">
+    <div class="screenshot-caption">Column dengan MainAxisSize.min</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: playground alignment</h4>
+<p>Jalankan contoh ini lalu ganti pilihan pada dropdown. Kamu bisa langsung melihat efek setiap nilai alignment pada <code>Row</code> dan <code>Column</code>.</p>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: PlaygroundAlignment()));
+}
+
+class PlaygroundAlignment extends StatefulWidget {
+  const PlaygroundAlignment({super.key});
+
+  @override
+  State&lt;PlaygroundAlignment&gt; createState() =&gt; _PlaygroundAlignmentState();
+}
+
+class _PlaygroundAlignmentState extends State&lt;PlaygroundAlignment&gt; {
+  MainAxisAlignment _main = MainAxisAlignment.start;
+  CrossAxisAlignment _cross = CrossAxisAlignment.center;
+
+  // Tiga kotak dengan ukuran berbeda agar efek cross axis terlihat
+  List&lt;Widget&gt; get _kotak =&gt; [
+        Container(width: 50, height: 50, color: Colors.red),
+        Container(width: 50, height: 80, color: Colors.green),
+        Container(width: 50, height: 30, color: Colors.blue),
+      ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Playground Row &amp; Column')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Pilihan mainAxisAlignment
+          DropdownButton&lt;MainAxisAlignment&gt;(
+            value: _main,
+            isExpanded: true,
+            items: [
+              for (final v in MainAxisAlignment.values)
+                DropdownMenuItem(value: v, child: Text('mainAxisAlignment: ${v.name}')),
+            ],
+            onChanged: (v) =&gt; setState(() =&gt; _main = v!),
+          ),
+          // Pilihan crossAxisAlignment (baseline butuh pengaturan khusus, jadi dilewati)
+          DropdownButton&lt;CrossAxisAlignment&gt;(
+            value: _cross,
+            isExpanded: true,
+            items: [
+              for (final v in CrossAxisAlignment.values)
+                if (v != CrossAxisAlignment.baseline)
+                  DropdownMenuItem(value: v, child: Text('crossAxisAlignment: ${v.name}')),
+            ],
+            onChanged: (v) =&gt; setState(() =&gt; _cross = v!),
+          ),
+          const SizedBox(height: 16),
+          const Text('Row (sumbu utama = horizontal)'),
+          Container(
+            height: 120,
+            color: Colors.grey.shade200,
+            child: Row(
+              mainAxisAlignment: _main,
+              crossAxisAlignment: _cross,
+              children: _kotak,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('Column (sumbu utama = vertikal)'),
+          Container(
+            height: 260,
+            color: Colors.grey.shade200,
+            child: Column(
+              mainAxisAlignment: _main,
+              crossAxisAlignment: _cross,
+              children: _kotak,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/row-column-3.jpg" alt="Playground alignment: start dan center" loading="lazy">
+    <div class="screenshot-caption">Playground alignment: start dan center</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/row-column-spacebetween.jpg" alt="Setelah memilih spaceBetween" loading="lazy">
+    <div class="screenshot-caption">Setelah memilih spaceBetween</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><code>MainAxisAlignment.values</code> berisi semua nilai enum, sehingga dropdown dibuat dengan perulangan <code>for</code> di dalam list (<em>collection for</em>).</li>
+  <li>Kotak hijau lebih tinggi daripada yang lain sehingga perbedaan <code>start</code>, <code>center</code>, <code>end</code> di sumbu silang terlihat jelas pada Row.</li>
+  <li>Coba pilih <code>stretch</code>: di Column, kotak yang ditulis <code>width: 50</code> justru melebar penuh. Stretch memberi constraint <em>ketat</em> selebar Column, sehingga permintaan <code>width: 50</code> diabaikan. Ini bukti aturan "constraints go down".</li>
+  <li><code>v!</code> dipakai karena <code>onChanged</code> memberi nilai nullable.</li>
+</ul>
+
+<h4>Contoh praktis: baris profil dan kolom statistik</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: ProfilSingkat()));
+}
+
+class ProfilSingkat extends StatelessWidget {
+  const ProfilSingkat({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Row &amp; Column Praktis')),
+      body: const Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start, // semua rata kiri
+          children: [
+            // Row 1: avatar + nama (Column di dalam Row)
+            Row(
+              children: [
+                CircleAvatar(radius: 32, child: Icon(Icons.person, size: 32)),
+                SizedBox(width: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Nadia Putri', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text('H1D021001 • Informatika'),
+                  ],
+                ),
+              ],
+            ),
+            SizedBox(height: 24),
+            // Row 2: tiga statistik dengan jarak merata
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                Statistik(nilai: '3.85', label: 'IPK'),
+                Statistik(nilai: '98', label: 'SKS'),
+                Statistik(nilai: '5', label: 'Semester'),
+              ],
+            ),
+            Divider(height: 32),
+            // Row 3: label kiri, nilai kanan
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [Text('Dosen Wali'), Text('Dr. Ratna Dewi')],
+            ),
+            SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [Text('Status'), Text('Aktif', style: TextStyle(color: Colors.green))],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class Statistik extends StatelessWidget {
+  final String nilai;
+  final String label;
+
+  const Statistik({super.key, required this.nilai, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(nilai, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(color: Colors.grey)),
+      ],
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/row-column-4.jpg" alt="Row dan Column praktis untuk profil singkat" loading="lazy">
+    <div class="screenshot-caption">Row dan Column praktis untuk profil singkat</div>
+  </div>
+</div>
+<p>Pola <code>spaceBetween</code> untuk "label di kiri, nilai di kanan" dan <code>spaceAround</code> untuk deretan statistik akan sangat sering kamu pakai.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Tertukar sumbu.</strong> Ingat: <code>mainAxis</code> selalu searah susunan anak. Row = horizontal, Column = vertikal.</li>
+  <li><strong>Memakai <code>Center</code> untuk menengahkan anak Column secara vertikal.</strong> Pakai <code>mainAxisAlignment: MainAxisAlignment.center</code>.</li>
+  <li><strong><code>mainAxisAlignment</code> tidak berefek</strong> karena Row/Column memakai <code>MainAxisSize.min</code> (tidak ada ruang sisa untuk dibagi).</li>
+  <li><strong>Teks rata kiri tidak jalan</strong> di Column: default <code>crossAxisAlignment</code> adalah <code>center</code>. Tulis <code>CrossAxisAlignment.start</code>.</li>
+</ul></div>

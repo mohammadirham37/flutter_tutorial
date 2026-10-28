@@ -1,0 +1,496 @@
+<p class="lead">Sekarang kita ganti HomeScreen sementara dari Modul 13 dengan halaman daftar catatan lengkap. Sebelum itu, kita siapkan empat file kecil yang dipakai berulang.</p>
+
+<h4>File: <code>lib/utils/date_format.dart</code></h4>
+<p>Format tanggal sederhana tanpa package tambahan. Jika ingin format yang lebih lengkap, Anda bisa memakai package <code>intl</code>.</p>
+<p class="code-file-label">📄 <code>lib/utils/date_format.dart</code></p>
+<pre><code class="language-dart">/// Format tanggal sederhana tanpa package tambahan, contoh: 5 Okt 2026 14:07.
+String formatTanggal(DateTime waktu) {
+  const bulan = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'Mei',
+    'Jun',
+    'Jul',
+    'Agu',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Des',
+  ];
+  final lokal = waktu.toLocal();
+  final jam = lokal.hour.toString().padLeft(2, '0');
+  final menit = lokal.minute.toString().padLeft(2, '0');
+  return '${lokal.day} ${bulan[lokal.month - 1]} ${lokal.year} $jam:$menit';
+}
+</code></pre>
+<p><code>toLocal()</code> penting: Supabase menyimpan waktu dalam UTC, sedangkan pengguna di Purwokerto berada di WIB (UTC+7).</p>
+
+<h4>File: <code>lib/widgets/confirm_dialog.dart</code></h4>
+<p>Dialog "Ya/Batal" dipakai untuk logout dan hapus catatan (dua tempat). Daripada menulis <code>AlertDialog</code> berkali-kali, kita buat fungsi bersama:</p>
+<p class="code-file-label">📄 <code>lib/widgets/confirm_dialog.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+/// Dialog konfirmasi Ya/Batal yang dipakai ulang di beberapa layar.
+/// Mengembalikan true jika pengguna menekan tombol konfirmasi.
+Future&lt;bool&gt; showConfirmDialog(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String confirmLabel,
+}) async {
+  final hasil = await showDialog&lt;bool&gt;(
+    context: context,
+    builder: (dialogContext) =&gt; AlertDialog(
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () =&gt; Navigator.of(dialogContext).pop(false),
+          child: const Text('Batal'),
+        ),
+        FilledButton(
+          onPressed: () =&gt; Navigator.of(dialogContext).pop(true),
+          child: Text(confirmLabel),
+        ),
+      ],
+    ),
+  );
+  return hasil ?? false;
+}
+</code></pre>
+<p><code>showDialog&lt;bool&gt;</code> mengembalikan nilai yang dikirim lewat <code>Navigator.pop(true/false)</code>, atau <code>null</code> jika user menutup dialog dengan mengetuk area luar. Karena itu ada <code>?? false</code>.</p>
+
+<h4>File: <code>lib/widgets/note_card.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/widgets/note_card.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+import '../models/note.dart';
+import '../utils/date_format.dart';
+
+class NoteCard extends StatelessWidget {
+  const NoteCard({super.key, required this.note, this.onTap});
+
+  final Note note;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: ListTile(
+        onTap: onTap,
+        contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        title: Text(
+          note.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text(note.content, maxLines: 2, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    note.category,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  formatTanggal(note.updatedAt),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>File: <code>lib/widgets/offline_banner.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/widgets/offline_banner.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+/// Pita peringatan yang muncul ketika data diambil dari cache Hive.
+class OfflineBanner extends StatelessWidget {
+  const OfflineBanner({super.key, required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: scheme.tertiaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+        child: Row(
+          children: [
+            Icon(Icons.cloud_off, color: scheme.onTertiaryContainer),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Mode offline: menampilkan data tersimpan.',
+                style: TextStyle(color: scheme.onTertiaryContainer),
+              ),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('Coba lagi')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>File: <code>lib/screens/home_screen.dart</code> (versi final)</h4>
+<p>Hapus seluruh isi HomeScreen sementara dari Modul 13 dan ganti dengan kode berikut:</p>
+<p class="code-file-label">📄 <code>lib/screens/home_screen.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../models/note.dart';
+import '../providers/auth_provider.dart';
+import '../providers/notes_provider.dart';
+import '../widgets/confirm_dialog.dart';
+import '../widgets/note_card.dart';
+import '../widgets/offline_banner.dart';
+import 'note_detail_screen.dart';
+import 'note_form_screen.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State&lt;HomeScreen&gt; createState() =&gt; _HomeScreenState();
+}
+
+class _HomeScreenState extends State&lt;HomeScreen&gt; {
+  final _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Tunggu frame pertama selesai, baru muat data (notifyListeners tidak
+    // boleh dipanggil ketika widget tree sedang dibangun).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read&lt;NotesProvider&gt;().loadNotes();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _logout() async {
+    final yakin = await showConfirmDialog(
+      context,
+      title: 'Keluar?',
+      message: 'Catatan yang tersimpan di perangkat akan dihapus.',
+      confirmLabel: 'Keluar',
+    );
+    if (!yakin || !mounted) return;
+
+    // Ambil referensi provider sebelum await berikutnya.
+    final notes = context.read&lt;NotesProvider&gt;();
+    final auth = context.read&lt;AuthProvider&gt;();
+    await notes.clear(); // hapus cache Hive
+    await auth.signOut(); // AuthGate otomatis kembali ke LoginScreen
+  }
+
+  Future&lt;bool&gt; _confirmDelete(Note note) {
+    return showConfirmDialog(
+      context,
+      title: 'Hapus catatan?',
+      message: '"${note.title}" akan dihapus permanen.',
+      confirmLabel: 'Hapus',
+    );
+  }
+
+  Future&lt;void&gt; _delete(Note note) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final error = await context.read&lt;NotesProvider&gt;().deleteNote(note);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          error == null
+              ? 'Catatan dihapus'
+              : 'Gagal menghapus, catatan dikembalikan. $error',
+        ),
+      ),
+    );
+  }
+
+  void _openForm() {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) =&gt; const NoteFormScreen()));
+  }
+
+  void _openDetail(Note note) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) =&gt; NoteDetailScreen(noteId: note.id)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch&lt;NotesProvider&gt;();
+    final name = context.read&lt;AuthProvider&gt;().displayName;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Catatan Kuliah'),
+            Text('Halo, $name', style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Keluar',
+            icon: const Icon(Icons.logout),
+            onPressed: _logout,
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openForm,
+        icon: const Icon(Icons.add),
+        label: const Text('Catatan'),
+      ),
+      body: Column(
+        children: [
+          if (provider.isOffline) OfflineBanner(onRetry: provider.loadNotes),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: TextField(
+              controller: _searchController,
+              onChanged: provider.setQuery,
+              decoration: InputDecoration(
+                hintText: 'Cari judul atau isi catatan...',
+                prefixIcon: const Icon(Icons.search),
+                border: const OutlineInputBorder(),
+                isDense: true,
+                suffixIcon: provider.query.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          provider.setQuery('');
+                        },
+                      ),
+              ),
+            ),
+          ),
+          _CategoryFilter(
+            selected: provider.categoryFilter,
+            onSelected: provider.setCategoryFilter,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: provider.loadNotes,
+              child: _buildBody(provider),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(NotesProvider provider) {
+    // 1. Loading pertama kali (belum ada data sama sekali)
+    if (provider.isLoading &amp;&amp; !provider.hasNotes) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // 2. Error dan tidak ada data cadangan
+    if (provider.errorMessage != null &amp;&amp; !provider.hasNotes) {
+      return _MessageView(
+        icon: Icons.error_outline,
+        message: provider.errorMessage!,
+        action: FilledButton.icon(
+          onPressed: provider.loadNotes,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Coba lagi'),
+        ),
+      );
+    }
+
+    final notes = provider.visibleNotes;
+
+    // 3. Kosong
+    if (notes.isEmpty) {
+      return _MessageView(
+        icon: Icons.note_alt_outlined,
+        message: provider.hasNotes
+            ? 'Tidak ada catatan yang cocok.'
+            : 'Belum ada catatan.\nTekan tombol + untuk menambah.',
+      );
+    }
+
+    // 4. Ada data
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(top: 4, bottom: 88),
+      itemCount: notes.length,
+      itemBuilder: (context, index) {
+        final note = notes[index];
+        return Dismissible(
+          key: ValueKey(note.id),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 24),
+            color: Theme.of(context).colorScheme.errorContainer,
+            child: Icon(
+              Icons.delete,
+              color: Theme.of(context).colorScheme.onErrorContainer,
+            ),
+          ),
+          confirmDismiss: (_) =&gt; _confirmDelete(note),
+          onDismissed: (_) =&gt; _delete(note),
+          child: NoteCard(note: note, onTap: () =&gt; _openDetail(note)),
+        );
+      },
+    );
+  }
+}
+
+/// Deretan chip untuk memfilter kategori.
+class _CategoryFilter extends StatelessWidget {
+  const _CategoryFilter({required this.selected, required this.onSelected});
+
+  final String? selected;
+  final ValueChanged&lt;String?&gt; onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: const Text('Semua'),
+              selected: selected == null,
+              onSelected: (_) =&gt; onSelected(null),
+            ),
+          ),
+          for (final category in Note.categories)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(category),
+                selected: selected == category,
+                onSelected: (_) =&gt; onSelected(category),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tampilan pesan di tengah layar yang tetap bisa ditarik (pull-to-refresh).
+class _MessageView extends StatelessWidget {
+  const _MessageView({required this.icon, required this.message, this.action});
+
+  final IconData icon;
+  final String message;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(32),
+      children: [
+        const SizedBox(height: 48),
+        Icon(icon, size: 64, color: Theme.of(context).colorScheme.outline),
+        const SizedBox(height: 16),
+        Text(message, textAlign: TextAlign.center),
+        if (action != null) ...[
+          const SizedBox(height: 16),
+          Center(child: action),
+        ],
+      ],
+    );
+  }
+}
+</code></pre>
+
+<h4>Membedah HomeScreen</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Bagian</th><th>Penjelasan</th></tr></thead>
+    <tbody>
+      <tr><td><code>addPostFrameCallback</code> di <code>initState</code></td><td>Menunda <code>loadNotes()</code> sampai frame pertama selesai digambar, karena <code>loadNotes</code> langsung memanggil <code>notifyListeners</code>.</td></tr>
+      <tr><td><code>_logout()</code></td><td>Konfirmasi, lalu <code>notes.clear()</code> (kosongkan state + Hive), lalu <code>auth.signOut()</code>. Provider diambil <em>sebelum</em> <code>await</code> pertama yang memakai context.</td></tr>
+      <tr><td><code>OfflineBanner(onRetry: provider.loadNotes)</code></td><td>Banner hanya muncul jika data berasal dari cache. Tombol "Coba lagi" memanggil ulang server.</td></tr>
+      <tr><td><code>TextField(onChanged: provider.setQuery)</code></td><td>Setiap ketikan memperbarui filter. Ikon ✕ mengosongkan pencarian.</td></tr>
+      <tr><td><code>_CategoryFilter</code></td><td>Deretan <code>ChoiceChip</code>. Memilih "Semua" berarti <code>null</code>.</td></tr>
+      <tr><td><code>RefreshIndicator(onRefresh: provider.loadNotes)</code></td><td>Tarik ke bawah untuk memuat ulang. Child-nya <strong>harus</strong> bisa di-scroll, karena itu tampilan kosong/error juga berupa <code>ListView</code> dengan <code>AlwaysScrollableScrollPhysics</code>.</td></tr>
+      <tr><td><code>_buildBody</code> dengan 4 kondisi</td><td>Urutan pengecekan: (1) loading pertama, (2) error tanpa data, (3) kosong, (4) daftar. Jika ada data cache, error tidak menutupi data.</td></tr>
+      <tr><td><code>Dismissible</code></td><td><code>key: ValueKey(note.id)</code> harus unik dan stabil. <code>confirmDismiss</code> menampilkan dialog; jika hasilnya <code>false</code>, kartu kembali ke tempatnya. <code>onDismissed</code> memanggil optimistic delete.</td></tr>
+      <tr><td><code>ScaffoldMessenger.of(context)</code> sebelum <code>await</code></td><td>Di <code>_delete</code>, messenger diambil sebelum menunggu server, sehingga aman dipakai setelahnya tanpa melanggar aturan <code>context</code> setelah <code>await</code>.</td></tr>
+      <tr><td><code>padding: bottom: 88</code></td><td>Memberi ruang agar kartu terakhir tidak tertutup FAB.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>Hasil di emulator, terhubung ke project Supabase dengan akun demo:</p>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/14-proyek-crud/home-kosong.jpg" alt="Daftar kosong" loading="lazy">
+    <div class="screenshot-caption">Akun baru: belum ada catatan (empty state)</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/14-proyek-crud/home-daftar.jpg" alt="Daftar catatan" loading="lazy">
+    <div class="screenshot-caption">Catatan dari tabel notes, urut terakhir diubah</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/14-proyek-crud/home-filter.jpg" alt="Filter kategori" loading="lazy">
+    <div class="screenshot-caption">Chip "Tugas" dipilih</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/14-proyek-crud/logout-konfirmasi.jpg" alt="Dialog logout" loading="lazy">
+    <div class="screenshot-caption">Konfirmasi sebelum logout</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/14-proyek-crud/home-cari.jpg" alt="Pencarian catatan" loading="lazy">
+    <div class="screenshot-caption">Kata kunci "basis" menyaring daftar catatan</div>
+  </div>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Error "A dismissed Dismissible widget is still part of the tree"</h4><p>Error ini muncul jika item yang sudah digeser tidak segera dihapus dari list. Optimistic delete di <code>NotesProvider</code> menghapusnya secara sinkron sebelum <code>await</code>, sehingga error ini tidak terjadi.</p></div>

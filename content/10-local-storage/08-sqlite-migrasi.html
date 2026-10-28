@@ -1,0 +1,191 @@
+<p class="lead">Aplikasi terus berkembang. Di versi 2 kamu ingin menambah kolom <code>prioritas</code> pada tabel tugas. Masalahnya, pengguna lama sudah punya database versi 1 berisi data penting. Kita tidak boleh menghapusnya; kita harus <strong>memigrasi</strong> struktur tabel. Inilah fungsi <code>version</code> dan <code>onUpgrade</code>.</p>
+
+<h4>Konsep: Kapan Callback Dipanggil?</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kondisi di HP pengguna</th><th>Callback yang berjalan</th></tr></thead>
+    <tbody>
+      <tr><td>Aplikasi baru dipasang (file belum ada)</td><td><code>onCreate(db, versiTerbaru)</code></td></tr>
+      <tr><td>File ada, versinya lebih kecil dari <code>version</code></td><td><code>onUpgrade(db, versiLama, versiBaru)</code></td></tr>
+      <tr><td>File ada, versinya lebih besar (aplikasi di-downgrade)</td><td><code>onDowngrade</code> (jika diisi)</td></tr>
+      <tr><td>Setiap kali database dibuka, sebelum yang lain</td><td><code>onConfigure(db)</code></td></tr>
+      <tr><td>Setiap kali database selesai dibuka</td><td><code>onOpen(db)</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh Kecil: Menambah Kolom di Versi 2</h4>
+<pre><code class="language-dart">import 'package:sqflite/sqflite.dart';
+
+Future&lt;Database&gt; buka(String path) {
+  return openDatabase(
+    path,
+    version: 2, // naik dari 1 ke 2
+    onCreate: (db, version) async {
+      // Pengguna BARU langsung mendapat struktur terbaru
+      await db.execute('''
+        CREATE TABLE tugas (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          judul TEXT NOT NULL,
+          prioritas INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+    },
+    onUpgrade: (db, oldVersion, newVersion) async {
+      // Pengguna LAMA (versi 1) cukup ditambah kolomnya, data tetap aman
+      if (oldVersion &lt; 2) {
+        await db.execute('ALTER TABLE tugas ADD COLUMN prioritas INTEGER NOT NULL DEFAULT 0');
+      }
+    },
+  );
+}
+</code></pre>
+<p>Aturan emas: <strong><code>onCreate</code> selalu membuat struktur terbaru</strong>, sedangkan <strong><code>onUpgrade</code> berisi langkah perubahan dari setiap versi lama</strong>.</p>
+
+<h4>Pola Migrasi Bertahap</h4>
+<p>Pengguna bisa melompat versi (dari 1 langsung ke 3). Karena itu tulis setiap langkah dengan <code>if (oldVersion &lt; N)</code> yang berurutan, <strong>bukan</strong> <code>if (oldVersion == N)</code>.</p>
+<p class="code-file-label">📄 <code>lib/data/migrasi_database.dart</code></p>
+<pre><code class="language-dart">import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+
+/// Riwayat skema:
+///  v1: tabel tugas (id, judul)
+///  v2: + kolom prioritas
+///  v3: + tabel catatan
+class MigrasiDatabase {
+  static const int versiSkema = 3;
+  static Database? _db;
+
+  static Future&lt;Database&gt; get database async =&gt; _db ??= await _open();
+
+  static Future&lt;Database&gt; _open() async {
+    final path = join(await getDatabasesPath(), 'migrasi_demo.db');
+    return openDatabase(
+      path,
+      version: versiSkema,
+      onConfigure: (db) async {
+        // Aktifkan foreign key setiap kali dibuka (dipakai di section Relasi)
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
+      onCreate: (db, version) async {
+        // Struktur TERBARU untuk pengguna baru
+        await db.execute('''
+          CREATE TABLE tugas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            judul TEXT NOT NULL,
+            prioritas INTEGER NOT NULL DEFAULT 0
+          )
+        ''');
+        await _buatTabelCatatan(db);
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion &lt; 2) {
+          await db.execute(
+            'ALTER TABLE tugas ADD COLUMN prioritas INTEGER NOT NULL DEFAULT 0',
+          );
+        }
+        if (oldVersion &lt; 3) {
+          await _buatTabelCatatan(db);
+        }
+      },
+    );
+  }
+
+  static Future&lt;void&gt; _buatTabelCatatan(Database db) async {
+    await db.execute('''
+      CREATE TABLE catatan (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        isi TEXT NOT NULL,
+        dibuat TEXT NOT NULL
+      )
+    ''');
+  }
+
+  /// Daftar kolom suatu tabel, untuk melihat hasil migrasi
+  static Future&lt;List&lt;String&gt;&gt; kolom(String tabel) async {
+    final db = await database;
+    final info = await db.rawQuery('PRAGMA table_info($tabel)');
+    return info.map((r) =&gt; '${r['name']} (${r['type']})').toList();
+  }
+}
+</code></pre>
+<p><strong>Penjelasan:</strong> fungsi <code>_buatTabelCatatan</code> dipakai di dua tempat (onCreate dan onUpgrade) sehingga definisi tabel tidak ditulis dua kali. <code>PRAGMA table_info</code> adalah perintah SQLite untuk melihat struktur tabel.</p>
+
+<h4>Contoh Lengkap: Melihat Struktur Database</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Pastikan sudah: flutter pub add sqflite path, dan membuat lib/data/migrasi_database.dart
+import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart'; // untuk db.getVersion()
+
+import 'data/migrasi_database.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: StrukturScreen()));
+
+class StrukturScreen extends StatefulWidget {
+  const StrukturScreen({super.key});
+
+  @override
+  State&lt;StrukturScreen&gt; createState() =&gt; _StrukturScreenState();
+}
+
+class _StrukturScreenState extends State&lt;StrukturScreen&gt; {
+  // Future disimpan sekali agar query tidak diulang setiap rebuild
+  late final Future&lt;Map&lt;String, List&lt;String&gt;&gt;&gt; _future = _muat();
+
+  Future&lt;Map&lt;String, List&lt;String&gt;&gt;&gt; _muat() async {
+    final db = await MigrasiDatabase.database;
+    return {
+      'Versi skema': ['${await db.getVersion()}'],
+      'Tabel tugas': await MigrasiDatabase.kolom('tugas'),
+      'Tabel catatan': await MigrasiDatabase.kolom('catatan'),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Hasil Migrasi')),
+      body: FutureBuilder(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return Center(child: Text('${snapshot.error}'));
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              for (final entry in snapshot.data!.entries)
+                Card(
+                  child: ListTile(
+                    title: Text(entry.key),
+                    subtitle: Text(entry.value.join('\n')),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/migrasi.jpg" alt="Struktur tabel hasil migrasi" loading="lazy">
+    <div class="screenshot-caption">Versi skema 3 dengan kolom dan tabel terbaru</div>
+  </div>
+</div>
+
+
+<p>Coba eksperimen: ubah <code>versiSkema</code> menjadi 1 dan hapus bagian yang belum ada di v1, jalankan (setelah uninstall), lalu kembalikan ke 3 tanpa uninstall. Data lama tetap ada, dan kolom/tabel baru muncul.</p>
+
+<div class="callout callout-tip"><h4>💡 Fase Belajar vs Produksi</h4><p>Saat masih belajar dan belum ada pengguna, cara paling cepat setelah mengubah <code>onCreate</code> adalah <strong>uninstall aplikasi</strong> (atau Clear storage) lalu jalankan ulang. Setelah aplikasi dirilis, jangan lakukan itu: selalu naikkan <code>version</code> dan tulis <code>onUpgrade</code>.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Mengubah <code>CREATE TABLE</code> tanpa menaikkan <code>version</code>: pengguna lama mendapat error <em>no such column</em>.</li>
+  <li>Hot reload/hot restart tidak membuat ulang database. Perubahan skema baru terlihat setelah migrasi atau uninstall.</li>
+  <li>Menulis <code>if (oldVersion == 1)</code>: pengguna yang melompat dari v1 ke v3 tidak mendapat langkah v2 → v3.</li>
+  <li>Menurunkan nomor <code>version</code>: memicu <code>onDowngrade</code> atau error. Nomor versi hanya boleh naik.</li>
+  <li>SQLite hanya mendukung sebagian <code>ALTER TABLE</code> (tambah/ganti nama kolom). Untuk mengubah tipe kolom, buat tabel baru, salin data, hapus tabel lama.</li>
+</ul>
+</div>

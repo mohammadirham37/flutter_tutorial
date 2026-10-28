@@ -1,0 +1,125 @@
+<p class="lead">Kode aplikasi nyata penuh dengan <code>Future</code> (ambil data dari Supabase, baca Hive) dan error (input tidak valid, koneksi putus). Bagian ini membahas cara menguji keduanya.</p>
+
+<h4>1. Menguji Future</h4>
+<p>Cara paling mudah: jadikan fungsi test <code>async</code>, lalu <code>await</code> hasilnya seperti di kode biasa. Alternatifnya, gunakan matcher <code>completion()</code>.</p>
+<p class="code-file-label">📄 <code>test/unit/async_test.dart</code></p>
+<pre><code class="language-dart">// test/unit/async_test.dart
+import 'package:flutter_test/flutter_test.dart';
+
+Future&lt;String&gt; ambilNamaMahasiswa(String nim) async {
+  await Future.delayed(const Duration(milliseconds: 100));
+  if (nim.isEmpty) throw ArgumentError('NIM kosong');
+  return 'Budi Santoso';
+}
+
+Stream&lt;int&gt; hitungMundur(int dari) async* {
+  for (var i = dari; i &gt;= 0; i--) {
+    yield i;
+  }
+}
+
+void main() {
+  test('cara 1: async/await di dalam test', () async {
+    final nama = await ambilNamaMahasiswa('H1D021001');
+    expect(nama, 'Budi Santoso');
+  });
+
+  test('cara 2: matcher completion', () {
+    expect(ambilNamaMahasiswa('H1D021001'), completion('Budi Santoso'));
+  });
+
+  test('Future yang gagal diuji dengan expectLater + throwsA', () async {
+    await expectLater(
+      ambilNamaMahasiswa(''),
+      throwsA(isA&lt;ArgumentError&gt;()),
+    );
+  });
+
+  test('Stream mengeluarkan nilai berurutan', () {
+    expect(hitungMundur(3), emitsInOrder([3, 2, 1, 0, emitsDone]));
+  });
+}</code></pre>
+<p>Penjelasan:</p>
+<ul>
+  <li><strong>Cara 1</strong> (<code>async</code>/<code>await</code>) paling mudah dibaca dan paling sering dipakai.</li>
+  <li><strong>Cara 2</strong> <code>completion(x)</code>: test menunggu Future selesai lalu membandingkan hasilnya dengan <code>x</code>.</li>
+  <li>Untuk Future yang <strong>gagal</strong>, gunakan <code>await expectLater(future, throwsA(...))</code>. Kata <code>await</code> penting: tanpa itu test bisa selesai sebelum Future-nya gagal.</li>
+  <li><code>emitsInOrder</code> menguji Stream: nilai apa saja yang keluar dan urutannya. <code>emitsDone</code> memastikan Stream sudah ditutup.</li>
+</ul>
+
+<h4>2. Menguji exception pada fungsi biasa</h4>
+<p>Test juga harus memastikan kode <em>menolak</em> input yang salah. Kuncinya: bungkus pemanggilan dengan <code>() =&gt;</code> agar <code>expect</code> yang menjalankan fungsinya dan menangkap error.</p>
+<p class="code-file-label">📄 <code>test/unit/exception_test.dart</code></p>
+<pre><code class="language-dart">// test/unit/exception_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:catatan_kuliah/models/keranjang_krs.dart';
+import 'package:catatan_kuliah/utils/ipk.dart';
+
+void main() {
+  test('hitungIpk melempar ArgumentError jika panjang list beda', () {
+    // Bungkus pemanggilan dengan () =&gt; supaya error ditangkap oleh expect
+    expect(() =&gt; hitungIpk([4, 3], [3]), throwsArgumentError);
+  });
+
+  test('menambah matkul yang sama dua kali melempar StateError', () {
+    final keranjang = KeranjangKrs();
+    const mk = MataKuliah('IF301', 'Pemrograman Mobile', 3);
+    keranjang.tambah(mk);
+
+    expect(() =&gt; keranjang.tambah(mk), throwsStateError);
+  });
+
+  test('pesan error melebihi 24 SKS bisa diperiksa', () {
+    final keranjang = KeranjangKrs();
+    for (var i = 0; i &lt; 6; i++) {
+      keranjang.tambah(MataKuliah('MK$i', 'Matkul $i', 4)); // 24 SKS
+    }
+
+    expect(
+      () =&gt; keranjang.tambah(const MataKuliah('MK9', 'Matkul 9', 2)),
+      throwsA(
+        isA&lt;StateError&gt;().having(
+          (e) =&gt; e.message,
+          'message',
+          contains('melebihi 24'),
+        ),
+      ),
+    );
+  });
+}</code></pre>
+<ul>
+  <li><code>throwsArgumentError</code>, <code>throwsStateError</code>, <code>throwsUnsupportedError</code>, <code>throwsException</code> adalah matcher siap pakai untuk tipe error umum.</li>
+  <li><code>throwsA(isA&lt;StateError&gt;())</code> adalah bentuk umumnya, bisa dipakai untuk class exception buatan sendiri, misalnya <code>throwsA(isA&lt;AuthException&gt;())</code>.</li>
+  <li><code>.having((e) =&gt; e.message, 'message', contains(...))</code> memeriksa isi properti error. Berguna jika satu fungsi bisa melempar beberapa pesan berbeda.</li>
+</ul>
+
+<h4>Perbedaan kecil yang sering membuat bingung</h4>
+<pre><code class="language-dart">// SALAH: hitungIpk dijalankan SEBELUM expect, error tidak tertangkap
+// dan test gagal dengan pesan "ArgumentError" mentah.
+// expect(hitungIpk([4], []), throwsArgumentError);
+
+// BENAR: expect yang menjalankan fungsi di dalam closure
+// expect(() =&gt; hitungIpk([4], []), throwsArgumentError);
+
+// BENAR untuk fungsi async: future langsung, tanpa closure, dan di-await
+// await expectLater(repository.addNote('', 'isi'), throwsArgumentError);</code></pre>
+
+<h4>3. Ringkasan pola test async dan error</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Yang diuji</th><th>Pola</th></tr></thead>
+    <tbody>
+      <tr><td>Future berhasil</td><td><code>expect(await f(), hasil)</code></td></tr>
+      <tr><td>Future gagal</td><td><code>await expectLater(f(), throwsA(isA&lt;E&gt;()))</code></td></tr>
+      <tr><td>Fungsi biasa melempar error</td><td><code>expect(() =&gt; f(), throwsA(isA&lt;E&gt;()))</code></td></tr>
+      <tr><td>Stream</td><td><code>expect(stream, emitsInOrder([a, b, emitsDone]))</code></td></tr>
+      <tr><td>Fungsi TIDAK melempar error</td><td><code>expect(() =&gt; f(), returnsNormally)</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Lupa <code>async</code> pada fungsi test padahal di dalamnya ada <code>await</code> (error kompilasi), atau lupa <code>await</code> pada <code>expectLater</code> (test lulus palsu).</li>
+  <li>Memakai <code>Future.delayed</code> berdetik-detik di kode yang diuji. Test jadi lambat. Pada widget test, waktu bisa “dipercepat” dengan <code>tester.pump(Duration)</code>.</li>
+  <li>Menguji fungsi yang langsung memanggil Supabase. Test menjadi lambat, butuh internet, dan mengotori database. Solusinya ada di bagian berikutnya: <em>fake</em> dan <em>mock</em>.</li>
+</ul></div>

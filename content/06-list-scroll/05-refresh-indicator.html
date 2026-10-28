@@ -1,0 +1,151 @@
+<p class="lead">Menarik daftar ke bawah untuk memuat ulang (<em>pull to refresh</em>) dibuat dengan membungkus widget gulir memakai <code>RefreshIndicator</code>.</p>
+
+<h4>Konsep</h4>
+<ul>
+  <li><code>onRefresh</code> harus berupa fungsi yang mengembalikan <code>Future</code>. Lingkaran loading terus berputar sampai Future selesai.</li>
+  <li>Anak RefreshIndicator harus widget yang bisa digulir (ListView, GridView, CustomScrollView).</li>
+  <li>Jika item sedikit dan tidak memenuhi layar, daftar tidak bisa ditarik. Tambahkan <code>physics: const AlwaysScrollableScrollPhysics()</code>.</li>
+</ul>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">// onRefresh WAJIB mengembalikan Future: indikator berputar sampai Future selesai
+Future&lt;void&gt; _muatUlang() async {
+  await Future.delayed(const Duration(seconds: 1)); // pura-pura ambil dari server
+  setState(() =&gt; _berita = ['Berita terbaru', ..._berita]);
+}
+
+@override
+Widget build(BuildContext context) {
+  return RefreshIndicator(
+    onRefresh: _muatUlang,
+    child: ListView.builder(
+      // agar tetap bisa ditarik walau item sedikit
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: _berita.length,
+      itemBuilder: (context, index) =&gt; ListTile(title: Text(_berita[index])),
+    ),
+  );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/refresh-kecil.jpg" alt="Daftar berita di dalam RefreshIndicator" loading="lazy">
+    <div class="screenshot-caption">Daftar berita di dalam RefreshIndicator</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: katalog mata kuliah dengan pull-to-refresh</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: DaftarMataKuliahScreen(),
+    );
+  }
+}
+
+
+class DaftarMataKuliahScreen extends StatefulWidget {
+  const DaftarMataKuliahScreen({super.key});
+
+  @override
+  State&lt;DaftarMataKuliahScreen&gt; createState() =&gt; _DaftarMataKuliahScreenState();
+}
+
+class _DaftarMataKuliahScreenState extends State&lt;DaftarMataKuliahScreen&gt; {
+  // Simulasi data dari database kampus
+  final List&lt;Map&lt;String, dynamic&gt;&gt; _daftarMatkul = [
+    {"kode": "IF101", "nama": "Algoritma &amp; Pemrograman", "sks": 3, "dosen": "Dr. Bambang, M.Kom."},
+    {"kode": "IF203", "nama": "Struktur Data &amp; Graf", "sks": 3, "dosen": "Nadia Fitri, M.T."},
+    {"kode": "IF305", "nama": "Pemrograman Mobile (Flutter)", "sks": 4, "dosen": "Irham Akbar, M.Cs."},
+    {"kode": "IF401", "nama": "Kecerdasan Buatan (AI)", "sks": 3, "dosen": "Prof. Hartono"},
+    {"kode": "IF408", "nama": "Keamanan Siber &amp; Kriptografi", "sks": 3, "dosen": "Eko Prasetyo, Ph.D."},
+  ];
+
+  // Fungsi simulasi refresh data dari server
+  Future&lt;void&gt; _refreshData() async {
+    await Future.delayed(const Duration(seconds: 2));
+    setState(() {
+      _daftarMatkul.shuffle(); // Acak urutan sebagai tanda data baru
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Katalog Mata Kuliah"),
+        backgroundColor: Colors.indigo,
+        foregroundColor: Colors.white,
+      ),
+      // RefreshIndicator menambahkan gestur tarik ke bawah untuk refresh
+      body: RefreshIndicator(
+        onRefresh: _refreshData,
+        // AlwaysScrollableScrollPhysics: tarik-ke-bawah tetap bisa walau item sedikit
+        child: ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: _daftarMatkul.length,
+          separatorBuilder: (context, index) =&gt; const Divider(height: 1, indent: 72),
+          itemBuilder: (context, index) {
+            final matkul = _daftarMatkul[index];
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Colors.indigo.shade100,
+                child: Text(
+                  "${matkul['sks']}",
+                  style: const TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold),
+                ),
+              ),
+              title: Text(
+                matkul['nama'],
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text("${matkul['kode']} • Dosen: ${matkul['dosen']}"),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+              onTap: () {
+                // Aksi saat item baris ditekan
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Membuka ${matkul['nama']}")),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/refresh-katalog.jpg" alt="Katalog mata kuliah dengan ListView.separated. Tarik ke bawah untuk memuat ulang" loading="lazy">
+    <div class="screenshot-caption">Katalog mata kuliah dengan ListView.separated. Tarik ke bawah untuk memuat ulang</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><code>_refreshData</code> menunggu 2 detik (pura-pura mengambil data dari server), lalu mengacak urutan sebagai tanda data berubah.</li>
+  <li><code>ListView.separated</code> dipakai agar setiap mata kuliah dipisah garis tipis.</li>
+  <li><code>CircleAvatar</code> di <code>leading</code> menampilkan jumlah SKS.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Tips</h4><p>Pada Modul 09 (REST API), isi <code>onRefresh</code> akan diganti dengan pemanggilan <code>http.get</code> sungguhan. Polanya sama persis: <code>await</code> ambil data, lalu <code>setState</code>.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>onRefresh tidak <code>async</code> / tidak mengembalikan Future.</strong> Indikator langsung hilang atau terjadi error tipe.</li>
+  <li><strong>Lupa memeriksa <code>mounted</code></strong> setelah <code>await</code> pada data sungguhan; jika pengguna sudah keluar halaman, <code>setState</code> akan error.</li>
+  <li><strong>RefreshIndicator dibungkuskan ke Column.</strong> Ia harus langsung membungkus widget yang bisa digulir.</li>
+</ul></div>

@@ -1,0 +1,197 @@
+{
+  "id": "modul-10",
+  "badge": "Local Storage",
+  "category": "Penyimpanan",
+  "title": "Penyimpanan Data Lokal (SharedPreferences & SQLite)",
+  "duration": "Pertemuan 10 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 09: Integrasi REST API"
+  ],
+  "summary": "Membangun aplikasi yang datanya tetap ada setelah ditutup. Mempelajari SharedPreferences (SharedPreferencesAsync & WithCache) untuk tema, onboarding, dan sesi login, lalu SQLite dengan sqflite: membuka database, model toMap/fromMap, CRUD, migrasi onUpgrade, query aman dengan whereArgs, transaksi & batch, relasi tabel, hingga studi kasus aplikasi Catatan Kuliah multi-file, ditutup perbandingan dengan Hive dan Supabase.",
+  "learningOutcomes": [
+    "Memilih solusi persistensi lokal yang tepat sesuai jenis dan kompleksitas data.",
+    "Menyimpan dan membaca preferensi (tema, onboarding, sesi login) dengan SharedPreferencesAsync dan SharedPreferencesWithCache.",
+    "Merancang skema tabel SQLite, model toMap/fromMap, dan operasi CRUD dengan sqflite.",
+    "Mengelola perubahan skema dengan version, onCreate, dan onUpgrade tanpa menghilangkan data pengguna.",
+    "Menulis query aman (whereArgs) untuk pencarian, filter, agregasi, serta memakai transaksi, batch, dan relasi foreign key.",
+    "Membangun aplikasi CRUD offline multi-file (Model, Database, Provider, Screen) dan menggunakan path_provider untuk file."
+  ],
+  "sections": [
+    {
+      "id": "perbandingan-storage",
+      "title": "1. Mengapa Perlu Penyimpanan Lokal & Pilihannya",
+      "file": "01-perbandingan-storage.html"
+    },
+    {
+      "id": "shared-preferences-guide",
+      "title": "2. Dasar SharedPreferences (Async & WithCache)",
+      "file": "02-shared-preferences-guide.html"
+    },
+    {
+      "id": "ls-prefs-tema",
+      "title": "3. Studi Kasus: Menyimpan Tema Terang/Gelap",
+      "file": "03-prefs-tema.html"
+    },
+    {
+      "id": "ls-prefs-onboarding-sesi",
+      "title": "4. Studi Kasus: Onboarding & Sesi Login",
+      "file": "04-prefs-onboarding-sesi.html"
+    },
+    {
+      "id": "ls-sqlite-pengenalan",
+      "title": "5. Pengenalan SQLite & Membuka Database",
+      "file": "05-sqlite-pengenalan.html"
+    },
+    {
+      "id": "ls-sqlite-model",
+      "title": "6. Model toMap & fromMap",
+      "file": "06-sqlite-model.html"
+    },
+    {
+      "id": "sqflite-crud-guide",
+      "title": "7. CRUD Lengkap dengan sqflite",
+      "file": "07-sqflite-crud-guide.html"
+    },
+    {
+      "id": "ls-sqlite-migrasi",
+      "title": "8. Migrasi Skema: version, onCreate, onUpgrade",
+      "file": "08-sqlite-migrasi.html"
+    },
+    {
+      "id": "ls-sqlite-query",
+      "title": "9. Query Lanjutan, rawQuery & SQL Injection",
+      "file": "09-sqlite-query.html"
+    },
+    {
+      "id": "ls-sqlite-transaksi",
+      "title": "10. Transaksi & Batch",
+      "file": "10-sqlite-transaksi.html"
+    },
+    {
+      "id": "ls-sqlite-relasi",
+      "title": "11. Relasi Tabel: Foreign Key & JOIN",
+      "file": "11-sqlite-relasi.html"
+    },
+    {
+      "id": "ls-studi-kasus-catatan",
+      "title": "12. Studi Kasus: Aplikasi Catatan Kuliah Multi-File",
+      "file": "12-studi-kasus-catatan.html"
+    },
+    {
+      "id": "ls-path-provider",
+      "title": "13. Menyimpan File dengan path_provider",
+      "file": "13-path-provider.html"
+    },
+    {
+      "id": "ls-perbandingan-akhir",
+      "title": "14. Perbandingan: SharedPreferences, SQLite, Hive, Supabase",
+      "file": "14-perbandingan-akhir.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 10: Aplikasi Tugas Kuliah Offline dengan SQLite & SharedPreferences",
+    "objective": "Membangun aplikasi manajemen tugas kuliah yang sepenuhnya berfungsi tanpa internet, menyimpan pengaturan di SharedPreferences dan data berelasi di SQLite.",
+    "instructions": [
+      "Buat tabel <code>mata_kuliah</code> (id, nama, sks) dan <code>tugas</code> (id, judul, matkul_id, tenggat, isSelesai) dengan foreign key <code>ON DELETE CASCADE</code> dan <code>PRAGMA foreign_keys = ON</code>.",
+      "Buat model <code>MataKuliah</code> dan <code>Tugas</code> lengkap dengan <code>toMap</code>, <code>fromMap</code>, dan <code>copyWith</code> (konversi bool dan DateTime).",
+      "Buat kelas database singleton dengan operasi CRUD bertipe; semua filter wajib memakai <code>whereArgs</code>.",
+      "Tampilkan daftar tugas (hasil JOIN dengan nama mata kuliah) memakai Provider; tambah dan edit melalui satu form dengan validasi dan pemilih tanggal.",
+      "Centang untuk menandai selesai (UPDATE) dan geser untuk menghapus (DELETE) dengan tombol URUNGKAN.",
+      "Tambahkan pencarian judul (LIKE) dan filter per mata kuliah, serta ringkasan jumlah tugas per mata kuliah (GROUP BY).",
+      "Naikkan versi database menjadi 2 dengan menambah kolom <code>prioritas</code> melalui <code>onUpgrade</code>, lalu buktikan data lama tidak hilang.",
+      "Simpan pilihan tema (terang/gelap/sistem) dan urutan daftar terakhir di SharedPreferences; tutup aplikasi sepenuhnya lalu buka kembali untuk membuktikan semua data dan pengaturan tetap tersimpan."
+    ],
+    "expectedOutput": "Aplikasi tugas kuliah offline yang persisten: data tugas dan mata kuliah tersimpan di SQLite (termasuk setelah migrasi versi 2), pengaturan tema tersimpan di SharedPreferences, dan semuanya tetap ada setelah aplikasi di-restart.",
+    "rubric": "Desain skema, relasi & migrasi (25%), Model dan lapisan database bertipe (20%), Fungsionalitas CRUD + pencarian/filter aman (30%), SharedPreferences untuk tema (10%), UX: validasi, urungkan, pesan kosong (15%)."
+  },
+  "quiz": [
+    {
+      "question": "Kapan kita sebaiknya memilih SharedPreferences dibandingkan SQLite?",
+      "options": [
+        "Ketika hanya perlu menyimpan data pengaturan sederhana seperti preferensi tema gelap dan token autentikasi",
+        "Ketika perlu menyimpan data ribuan transaksi keuangan yang saling berelasi",
+        "Ketika aplikasi membutuhkan query SELECT yang kompleks dengan filter JOIN",
+        "SharedPreferences tidak pernah digunakan di industri"
+      ],
+      "correctIndex": 0,
+      "explanation": "SharedPreferences dirancang khusus untuk menyimpan pasangan kunci-nilai (key-value) berukuran kecil seperti preferensi pengguna, flags, atau token login. SQLite digunakan saat data berstruktur relasional banyak tabel."
+    },
+    {
+      "question": "Mengapa pada SQLite tipe data Boolean biasanya disimpan sebagai tipe INTEGER (0 dan 1)?",
+      "options": [
+        "Karena SQLite tidak memiliki tipe data Boolean terpisah secara natif, sehingga angka 0 mewakili false dan 1 mewakili true",
+        "Agar data lebih cepat terkirim ke internet",
+        "Karena Flutter melarang penggunaan kata true di file SQL",
+        "Karena SQLite hanya menerima angka ganjil"
+      ],
+      "correctIndex": 0,
+      "explanation": "Engine SQLite tidak memiliki tipe data BOOLEAN khusus tersendiri; nilai boolean disimpan sebagai integer 0 (false) dan 1 (true)."
+    },
+    {
+      "question": "Menurut dokumentasi shared_preferences terbaru, API mana yang dianjurkan untuk proyek baru?",
+      "options": [
+        "SharedPreferences.getInstance() (API lama)",
+        "SharedPreferencesAsync atau SharedPreferencesWithCache",
+        "localStorage dari dart:html",
+        "File teks di folder temporary"
+      ],
+      "correctIndex": 1,
+      "explanation": "Sejak versi 2.3.0, SharedPreferences (legacy) direncanakan untuk di-deprecate. Kode baru dianjurkan memakai SharedPreferencesAsync (selalu baca dari disk) atau SharedPreferencesWithCache (baca sinkron dari cache)."
+    },
+    {
+      "question": "Kamu menambah kolom baru di CREATE TABLE pada onCreate, tetapi di HP yang sudah memasang versi lama muncul error 'no such column'. Mengapa?",
+      "options": [
+        "sqflite tidak mendukung kolom baru",
+        "onCreate hanya berjalan saat database belum ada; perlu menaikkan version dan menulis ALTER TABLE di onUpgrade",
+        "Harus memakai hot reload",
+        "Nama kolom harus huruf kapital"
+      ],
+      "correctIndex": 1,
+      "explanation": "Database yang sudah ada tidak menjalankan onCreate lagi. Perubahan skema untuk pengguna lama dilakukan lewat onUpgrade setelah nomor version dinaikkan."
+    },
+    {
+      "question": "Mana cara yang AMAN dari SQL injection untuk mencari mahasiswa berdasarkan input pengguna?",
+      "options": [
+        "db.rawQuery(\"SELECT * FROM mahasiswa WHERE nama = '$input'\")",
+        "db.query('mahasiswa', where: 'nama = ?', whereArgs: [input])",
+        "db.execute('SELECT ' + input)",
+        "db.query('mahasiswa', where: \"nama = '$input'\")"
+      ],
+      "correctIndex": 1,
+      "explanation": "Dengan placeholder ? dan whereArgs, nilai dikirim terpisah dari perintah SQL sehingga input seperti x' OR '1'='1 diperlakukan sebagai teks biasa."
+    },
+    {
+      "question": "Apa yang terjadi jika sebuah exception dilempar di dalam callback db.transaction?",
+      "options": [
+        "Hanya perintah terakhir yang dibatalkan",
+        "Semua perubahan di dalam transaksi dibatalkan (rollback)",
+        "Database terhapus",
+        "Exception diabaikan dan data tetap tersimpan"
+      ],
+      "correctIndex": 1,
+      "explanation": "Transaksi bersifat atomik: jika callback melempar exception, sqflite melakukan rollback sehingga tidak ada perubahan yang tersimpan."
+    },
+    {
+      "question": "Mengapa ON DELETE CASCADE tidak berjalan padahal sudah ditulis di CREATE TABLE?",
+      "options": [
+        "SQLite tidak mendukung foreign key sama sekali",
+        "Foreign key di SQLite nonaktif secara default; harus menjalankan PRAGMA foreign_keys = ON (misalnya di onConfigure)",
+        "Harus memakai rawDelete",
+        "CASCADE hanya berjalan di iOS"
+      ],
+      "correctIndex": 1,
+      "explanation": "SQLite mematikan penegakan foreign key secara default. PRAGMA foreign_keys = ON perlu dijalankan setiap kali database dibuka, tempat yang tepat adalah onConfigure."
+    },
+    {
+      "question": "Folder mana yang TIDAK cocok untuk menyimpan data penting pengguna karena bisa dihapus sistem kapan saja?",
+      "options": [
+        "getApplicationDocumentsDirectory()",
+        "getApplicationSupportDirectory()",
+        "getTemporaryDirectory()",
+        "getDatabasesPath()"
+      ],
+      "correctIndex": 2,
+      "explanation": "Folder temporary ditujukan untuk cache; sistem operasi boleh mengosongkannya saat ruang penyimpanan menipis."
+    }
+  ]
+}

@@ -1,0 +1,186 @@
+<p class="lead">Tiga widget kecil untuk mengatur jarak dan proporsi: <strong><code>SizedBox</code></strong> (jarak tetap), <strong><code>Spacer</code></strong> (jarak fleksibel yang mendorong widget lain), dan <strong><code>AspectRatio</code></strong> (menjaga perbandingan lebar : tinggi).</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Widget</th><th>Ukuran jarak</th><th>Contoh pemakaian</th></tr></thead>
+    <tbody>
+      <tr><td><code>SizedBox(width: 8)</code></td><td>Tetap, persis 8 px</td><td>Jarak ikon ke teks</td></tr>
+      <tr><td><code>Spacer()</code></td><td>Mengisi seluruh sisa ruang</td><td>Mendorong tombol ke ujung kanan</td></tr>
+      <tr><td><code>AspectRatio(aspectRatio: 16 / 9)</code></td><td>Tinggi dihitung dari lebar</td><td>Banner, thumbnail video</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Spacer</h4>
+<p><code>Spacer</code> sebenarnya adalah <code>Expanded</code> yang berisi kotak kosong. Ia hanya bisa dipakai di Row/Column.</p>
+<pre><code class="language-dart">Row(
+  children: [
+    const Text('Total SKS'),
+    const Spacer(), // dorong widget berikutnya ke ujung kanan
+    const Text('21'),
+    const SizedBox(width: 8),
+    IconButton(onPressed: () {}, icon: const Icon(Icons.info_outline)),
+  ],
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/sizedbox-spacer-aspectratio-1.jpg" alt="Spacer mendorong nilai dan tombol ke kanan" loading="lazy">
+    <div class="screenshot-caption">Spacer mendorong nilai dan tombol ke kanan</div>
+  </div>
+</div>
+<p>Seperti Expanded, Spacer punya <code>flex</code>. <code>Spacer(flex: 2)</code> mengambil jatah dua kali <code>Spacer()</code>.</p>
+
+<h4>AspectRatio</h4>
+<pre><code class="language-dart">AspectRatio(
+  aspectRatio: 16 / 9, // lebar : tinggi
+  child: Container(
+    color: Colors.black12,
+    alignment: Alignment.center,
+    child: const Icon(Icons.play_circle, size: 64),
+  ),
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/sizedbox-spacer-aspectratio-2.jpg" alt="AspectRatio 16:9" loading="lazy">
+    <div class="screenshot-caption">AspectRatio 16:9</div>
+  </div>
+</div>
+<p>Jika lebar tersedia 360 px, tinggi otomatis menjadi 360 / (16/9) = 202,5 px. Di tablet yang lebih lebar, tinggi ikut membesar sehingga proporsinya tetap.</p>
+
+<h4>Contoh lengkap: kartu video kuliah</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: ThemeData(colorSchemeSeed: Colors.red),
+    home: const DaftarVideo(),
+  ));
+}
+
+class DaftarVideo extends StatelessWidget {
+  const DaftarVideo({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Rekaman Kuliah')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: const [
+          KartuVideo(judul: 'Pertemuan 3: Widget Dasar', durasi: '1:32:10', ditonton: true),
+          SizedBox(height: 16),
+          KartuVideo(judul: 'Pertemuan 4: Layouting', durasi: '1:45:02'),
+          SizedBox(height: 24),
+          // Tiga kotak persegi (1:1) sejajar, sama besar
+          Text('Galeri praktikum (AspectRatio 1:1):'),
+          SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: KotakPersegi(warna: Colors.orange)),
+              SizedBox(width: 8),
+              Expanded(child: KotakPersegi(warna: Colors.teal)),
+              SizedBox(width: 8),
+              Expanded(child: KotakPersegi(warna: Colors.purple)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class KartuVideo extends StatelessWidget {
+  final String judul;
+  final String durasi;
+  final bool ditonton;
+
+  const KartuVideo({super.key, required this.judul, required this.durasi, this.ditonton = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Thumbnail selalu 16:9 berapa pun lebar layar
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Container(
+              color: Colors.blueGrey.shade800,
+              alignment: Alignment.center,
+              child: const Icon(Icons.play_circle_fill, size: 64, color: Colors.white),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(judul, style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 8),
+                Text(durasi),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 4, 4),
+            child: Row(
+              children: [
+                if (ditonton) const Chip(label: Text('Sudah ditonton')),
+                const Spacer(), // tombol selalu di kanan, ada chip atau tidak
+                IconButton(onPressed: () {}, icon: const Icon(Icons.download)),
+                IconButton(onPressed: () {}, icon: const Icon(Icons.share)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class KotakPersegi extends StatelessWidget {
+  final Color warna;
+
+  const KotakPersegi({super.key, required this.warna});
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 1,
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: warna, borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/sizedbox-spacer-aspectratio-3.jpg" alt="Kartu video dengan AspectRatio dan Spacer" loading="lazy">
+    <div class="screenshot-caption">Kartu video dengan AspectRatio dan Spacer</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><strong>Thumbnail:</strong> <code>AspectRatio(16 / 9)</code> menjamin proporsi video tidak gepeng di HP mana pun.</li>
+  <li><strong>Baris tombol:</strong> <code>Spacer</code> mendorong tombol unduh dan bagikan ke kanan, baik saat chip "Sudah ditonton" ada maupun tidak.</li>
+  <li><strong>Galeri:</strong> <code>Expanded</code> membagi lebar sama rata, lalu <code>AspectRatio(1)</code> membuat tinggi sama dengan lebar sehingga kotak benar-benar persegi.</li>
+  <li><code>DecoratedBox</code> adalah versi ringan Container yang hanya memberi dekorasi.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Spacer di luar Row/Column</strong>, misalnya di dalam <code>Stack</code> atau <code>ListView</code>, menimbulkan error ParentDataWidget.</li>
+  <li><strong>Spacer di Row yang berada di ruang tak terbatas</strong> (misalnya di dalam <code>SingleChildScrollView</code> horizontal). Tidak ada sisa ruang yang bisa diisi.</li>
+  <li><strong>AspectRatio di dalam constraint ketat</strong>, misalnya <code>SizedBox(width: 100, height: 100)</code>. Ukurannya sudah dipaksa, jadi rasio tidak berlaku.</li>
+  <li><strong>Menulis <code>aspectRatio: 16 / 9</code> sebagai <code>9 / 16</code></strong>. Ingat urutannya lebar dibagi tinggi.</li>
+</ul></div>

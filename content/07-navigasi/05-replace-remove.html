@@ -1,0 +1,204 @@
+<p class="lead">Tidak semua halaman boleh "dikembalikan" dengan tombol back. Setelah login, pengguna tidak seharusnya kembali ke form login. Setelah logout, pengguna tidak boleh kembali ke halaman berisi data pribadi. Untuk kasus ini kita memakai <code>pushReplacement</code> dan <code>pushAndRemoveUntil</code>.</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Metode</th><th>Tumpukan sebelum</th><th>Tumpukan sesudah</th><th>Kasus</th></tr></thead>
+    <tbody>
+      <tr><td><code>push(Home)</code></td><td>[Login]</td><td>[Login, Home]</td><td>Halaman detail biasa</td></tr>
+      <tr><td><code>pushReplacement(Home)</code></td><td>[Login]</td><td>[Home]</td><td>Splash → Login, Login → Home</td></tr>
+      <tr><td><code>pushAndRemoveUntil(Login, (r) =&gt; false)</code></td><td>[Home, Pengaturan]</td><td>[Login]</td><td>Logout</td></tr>
+      <tr><td><code>popUntil((r) =&gt; r.isFirst)</code></td><td>[Home, A, B]</td><td>[Home]</td><td>Tombol "Kembali ke Beranda"</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">// 1) Ganti halaman saat ini: [Login] menjadi [Home]
+Navigator.pushReplacement(
+  context,
+  MaterialPageRoute(builder: (context) =&gt; const HomeScreen()),
+);
+
+
+// 2) Push Login lalu hapus SEMUA rute di bawahnya
+//    (route) =&gt; false artinya "jangan sisakan satu rute pun"
+Navigator.pushAndRemoveUntil(
+  context,
+  MaterialPageRoute(builder: (context) =&gt; const LoginScreen()),
+  (route) =&gt; false,
+);
+
+// 3) Kembali terus sampai ke rute pertama (tanpa push baru)
+Navigator.popUntil(context, (route) =&gt; route.isFirst);
+</code></pre>
+
+<p>Parameter ketiga <code>pushAndRemoveUntil</code> adalah <em>predicate</em>: fungsi yang dipanggil untuk setiap route lama, dari atas ke bawah. Route dibuang selama fungsi mengembalikan <code>false</code>. Dengan <code>(route) =&gt; false</code>, semua route lama dibuang.</p>
+
+<h4>Contoh lengkap: Splash → Login → Home → Pengaturan → Logout</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.blue),
+      home: const SplashScreen(),
+    );
+  }
+}
+
+// ---------------- SPLASH ----------------
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State&lt;SplashScreen&gt; createState() =&gt; _SplashScreenState();
+}
+
+class _SplashScreenState extends State&lt;SplashScreen&gt; {
+  @override
+  void initState() {
+    super.initState();
+    _lanjutKeLogin();
+  }
+
+  Future&lt;void&gt; _lanjutKeLogin() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return; // halaman bisa saja sudah ditutup selama menunggu
+    // Splash diganti Login -&gt; tombol back tidak akan kembali ke splash
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) =&gt; const LoginScreen()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FlutterLogo(size: 96),
+            SizedBox(height: 16),
+            CircularProgressIndicator(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------- LOGIN ----------------
+class LoginScreen extends StatelessWidget {
+  const LoginScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: Center(
+        child: FilledButton(
+          onPressed: () {
+            // Login sukses: GANTI halaman login dengan Home
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) =&gt; const HomeScreen()),
+            );
+          },
+          child: const Text('Masuk'),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------- HOME ----------------
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // Tidak ada panah back di sini karena Home adalah satu-satunya rute
+      appBar: AppBar(title: const Text('Home')),
+      body: Center(
+        child: FilledButton.tonal(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) =&gt; const PengaturanScreen()),
+            );
+          },
+          child: const Text('Buka Pengaturan'),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------- PENGATURAN ----------------
+class PengaturanScreen extends StatelessWidget {
+  const PengaturanScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pengaturan')),
+      body: Center(
+        child: FilledButton.icon(
+          style: FilledButton.styleFrom(backgroundColor: Colors.red),
+          icon: const Icon(Icons.logout),
+          label: const Text('Logout'),
+          onPressed: () {
+            // Stack saat ini: [Home, Pengaturan]
+            // Setelah ini  : [Login]  (Home &amp; Pengaturan dibuang semua)
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) =&gt; const LoginScreen()),
+              (route) =&gt; false,
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/replace-login.jpg" alt="Splash sudah diganti Login (tanpa panah kembali)" loading="lazy">
+    <div class="screenshot-caption">Splash sudah diganti Login (tanpa panah kembali)</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/replace-logout.jpg" alt="Setelah logout: tumpukan hanya [Login]" loading="lazy">
+    <div class="screenshot-caption">Setelah logout: tumpukan hanya [Login]</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan alur tumpukan:</strong></p>
+<ol>
+  <li>Aplikasi mulai: <code>[Splash]</code>. Setelah 2 detik, <code>pushReplacement</code> → <code>[Login]</code>.</li>
+  <li>Tekan Masuk: <code>pushReplacement</code> → <code>[Home]</code>. Perhatikan AppBar Home tidak punya panah kembali.</li>
+  <li>Buka Pengaturan: <code>push</code> → <code>[Home, Pengaturan]</code>.</li>
+  <li>Logout: <code>pushAndRemoveUntil</code> → <code>[Login]</code>. Tekan back di Android, aplikasi tertutup karena tidak ada halaman lain.</li>
+</ol>
+
+<div class="callout callout-info"><h4>ℹ️ Hubungan dengan Modul 13–14</h4><p>Di proyek CRUD + Auth nanti, perpindahan login/home tidak lagi memakai <code>pushReplacement</code> manual, melainkan sebuah <em>auth gate</em>: widget yang memilih menampilkan Login atau Home berdasarkan status sesi di Provider. Konsepnya sama: halaman login tidak boleh tersisa di tumpukan setelah login.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Memakai <code>push</code> biasa setelah login sehingga tombol back membawa pengguna kembali ke form login.</li>
+  <li>Logout dengan <code>pushReplacement</code>: hanya halaman teratas yang diganti, halaman Home masih tersisa di bawah.</li>
+  <li>Navigasi di <code>initState</code> setelah <code>Future.delayed</code> tanpa cek <code>mounted</code>.</li>
+</ul>
+</div>

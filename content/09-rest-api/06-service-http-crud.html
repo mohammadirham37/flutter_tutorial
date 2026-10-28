@@ -1,0 +1,215 @@
+<p class="lead">Setelah bisa membaca data, sekarang kita <strong>mengirim</strong> data: membuat (POST), mengubah (PUT/PATCH), dan menghapus (DELETE). Ketiga method ini mirip GET, bedanya ada <strong>body JSON</strong> dan <strong>header <code>Content-Type</code></strong>.</p>
+
+<div class="callout callout-info"><h4>ℹ️ JSONPlaceholder Hanya Berpura-pura Menyimpan</h4><p>JSONPlaceholder menerima POST/PUT/PATCH/DELETE dan membalas seolah berhasil, tetapi <strong>data tidak benar-benar tersimpan</strong>. POST selalu mengembalikan <code>id: 101</code>, dan jika kamu GET lagi, data baru tidak muncul. Ini normal. Untuk latihan, kita perbarui list di aplikasi secara lokal berdasarkan response server. Untuk data yang benar-benar tersimpan, gunakan mockapi.io atau backend sendiri (dan Supabase di Modul 12).</p></div>
+
+<h4>Pola Umum Request dengan Body</h4>
+<pre><code class="language-dart">import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+Future&lt;void&gt; contohPost() async {
+  final response = await http.post(
+    Uri.parse('https://jsonplaceholder.typicode.com/posts'),
+    headers: {'Content-Type': 'application/json; charset=UTF-8'}, // wajib untuk JSON
+    body: jsonEncode({'title': 'Halo', 'body': 'Isi', 'userId': 1}), // Map -&gt; String
+  );
+  print(response.statusCode); // 201
+  print(response.body);       // {"title": "Halo", "body": "Isi", "userId": 1, "id": 101}
+}
+</code></pre>
+
+<h4>PUT vs PATCH</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th></th><th>PUT</th><th>PATCH</th></tr></thead>
+    <tbody>
+      <tr><td>Isi body</td><td>Seluruh field objek</td><td>Hanya field yang berubah</td></tr>
+      <tr><td>Field yang tidak dikirim</td><td>Bisa terhapus/di-reset oleh server</td><td>Tetap seperti semula</td></tr>
+      <tr><td>Contoh</td><td><code>{"id":1,"title":"Baru","body":"...","userId":1}</code></td><td><code>{"title":"Baru"}</code></td></tr>
+      <tr><td>Kapan dipakai</td><td>Form edit yang mengirim semua isian</td><td>Toggle status, ganti satu field</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh Kecil Setiap Method</h4>
+<pre><code class="language-dart">import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import 'models/post.dart';
+
+const baseUrl = 'https://jsonplaceholder.typicode.com';
+const jsonHeaders = {'Content-Type': 'application/json; charset=UTF-8'};
+
+// CREATE: POST /posts -&gt; 201 Created
+Future&lt;Post&gt; createPost(Post post) async {
+  final response = await http.post(
+    Uri.parse('$baseUrl/posts'),
+    headers: jsonHeaders,
+    body: jsonEncode(post.toJson()),
+  );
+  if (response.statusCode != 201) {
+    throw Exception('Gagal membuat post (HTTP ${response.statusCode})');
+  }
+  // Server mengembalikan data yang sudah memiliki id
+  return Post.fromJson(jsonDecode(response.body) as Map&lt;String, dynamic&gt;);
+}
+
+// UPDATE penuh: PUT /posts/{id} -&gt; 200 OK
+Future&lt;Post&gt; updatePost(Post post) async {
+  final response = await http.put(
+    Uri.parse('$baseUrl/posts/${post.id}'),
+    headers: jsonHeaders,
+    body: jsonEncode(post.toJson()),
+  );
+  if (response.statusCode != 200) {
+    throw Exception('Gagal mengubah post (HTTP ${response.statusCode})');
+  }
+  return Post.fromJson(jsonDecode(response.body) as Map&lt;String, dynamic&gt;);
+}
+
+// UPDATE sebagian: PATCH /posts/{id} -&gt; 200 OK
+Future&lt;Post&gt; updateTitle(int id, String title) async {
+  final response = await http.patch(
+    Uri.parse('$baseUrl/posts/$id'),
+    headers: jsonHeaders,
+    body: jsonEncode({'title': title}), // hanya field yang berubah
+  );
+  if (response.statusCode != 200) {
+    throw Exception('Gagal mengubah judul (HTTP ${response.statusCode})');
+  }
+  return Post.fromJson(jsonDecode(response.body) as Map&lt;String, dynamic&gt;);
+}
+
+// DELETE /posts/{id} -&gt; 200 OK (beberapa API memakai 204 No Content)
+Future&lt;void&gt; deletePost(int id) async {
+  final response = await http.delete(Uri.parse('$baseUrl/posts/$id'));
+  if (response.statusCode != 200 &amp;&amp; response.statusCode != 204) {
+    throw Exception('Gagal menghapus post (HTTP ${response.statusCode})');
+  }
+}
+</code></pre>
+<p><strong>Penjelasan:</strong> setiap fungsi mengecek status code yang sesuai standar (POST = 201, lainnya = 200). Fungsi create/update mengembalikan <code>Post</code> dari response server karena server bisa menambahkan data (misalnya <code>id</code> atau waktu dibuat). DELETE tidak perlu mengembalikan apa pun.</p>
+
+<h4>Contoh Lengkap: Playground CRUD</h4>
+<p>Aplikasi berikut punya 5 tombol (GET, POST, PUT, PATCH, DELETE) dan menampilkan status code serta body response. Cara cepat untuk melihat perilaku setiap method.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Pastikan sudah: flutter pub add http
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+void main() =&gt; runApp(const MaterialApp(home: CrudPlaygroundScreen()));
+
+class CrudPlaygroundScreen extends StatefulWidget {
+  const CrudPlaygroundScreen({super.key});
+
+  @override
+  State&lt;CrudPlaygroundScreen&gt; createState() =&gt; _CrudPlaygroundScreenState();
+}
+
+class _CrudPlaygroundScreenState extends State&lt;CrudPlaygroundScreen&gt; {
+  static const _base = 'https://jsonplaceholder.typicode.com/posts';
+  static const _headers = {'Content-Type': 'application/json; charset=UTF-8'};
+
+  String _output = 'Pilih salah satu method di bawah.';
+  bool _loading = false;
+
+  // Satu fungsi pembantu agar setiap tombol cukup mengirim request-nya
+  Future&lt;void&gt; _jalankan(String label, Future&lt;http.Response&gt; Function() request) async {
+    setState(() {
+      _loading = true;
+      _output = 'Mengirim $label ...';
+    });
+    try {
+      final res = await request();
+      final pretty = res.body.isEmpty
+          ? '(body kosong)'
+          : const JsonEncoder.withIndent('  ').convert(jsonDecode(res.body));
+      _output = '$label\nStatus: ${res.statusCode}\n\n$pretty';
+    } catch (e) {
+      _output = '$label gagal: $e';
+    }
+    if (mounted) setState(() =&gt; _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tombol = &lt;String, Future&lt;http.Response&gt; Function()&gt;{
+      'GET /posts/1': () =&gt; http.get(Uri.parse('$_base/1')),
+      'POST /posts': () =&gt; http.post(
+            Uri.parse(_base),
+            headers: _headers,
+            body: jsonEncode({'title': 'Post Baru', 'body': 'Dari Flutter', 'userId': 1}),
+          ),
+      'PUT /posts/1': () =&gt; http.put(
+            Uri.parse('$_base/1'),
+            headers: _headers,
+            body: jsonEncode({'id': 1, 'title': 'Diganti total', 'body': 'Baru', 'userId': 1}),
+          ),
+      'PATCH /posts/1': () =&gt; http.patch(
+            Uri.parse('$_base/1'),
+            headers: _headers,
+            body: jsonEncode({'title': 'Hanya judul berubah'}),
+          ),
+      'DELETE /posts/1': () =&gt; http.delete(Uri.parse('$_base/1')),
+    };
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Playground CRUD HTTP')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final entry in tombol.entries)
+                  FilledButton.tonal(
+                    onPressed: _loading ? null : () =&gt; _jalankan(entry.key, entry.value),
+                    child: Text(entry.key),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: SelectableText(
+                _output,
+                style: const TextStyle(fontFamily: 'monospace'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/crud-post.jpg" alt="Response POST 201" loading="lazy">
+    <div class="screenshot-caption">POST /posts: status 201 dan id 101</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/crud-patch.jpg" alt="Response PATCH 200" loading="lazy">
+    <div class="screenshot-caption">PATCH /posts/1: hanya judul yang berubah</div>
+  </div>
+</div>
+
+
+<p>Coba tekan <strong>PATCH</strong>: response berisi seluruh post dengan judul baru, sedangkan <strong>PUT</strong> mengembalikan persis yang kita kirim. <strong>DELETE</strong> mengembalikan <code>{}</code> dengan status 200.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li><strong>Lupa <code>jsonEncode</code></strong>: jika <code>body</code> diisi Map langsung, package <code>http</code> mengirimnya sebagai form (<code>title=Halo&amp;body=Isi</code>), bukan JSON. Server JSON akan menolak atau mengabaikannya.</li>
+  <li><strong>Lupa header <code>Content-Type</code></strong>: banyak server (Laravel, Express) tidak membaca body sebagai JSON tanpa header ini.</li>
+  <li>Mengecek <code>statusCode == 200</code> untuk POST, padahal standarnya <code>201</code>. Lebih aman cek rentang 2xx.</li>
+  <li>Menganggap data JSONPlaceholder tersimpan, lalu bingung karena GET tidak menampilkan data baru.</li>
+  <li>PUT ke id yang tidak ada (mis. <code>/posts/101</code>) di JSONPlaceholder menghasilkan 500. Tangani error ini, jangan biarkan aplikasi crash.</li>
+</ul>
+</div>

@@ -1,0 +1,143 @@
+<p class="lead">Di banyak bahasa, error paling sering adalah memakai nilai yang ternyata kosong (<em>null</em>), dikenal sebagai <code>NullPointerException</code>. Dart 3 menerapkan <strong>Sound Null Safety</strong>: secara default, semua tipe <strong>tidak boleh</strong> null, dan compiler memaksa kita menangani kemungkinan null sebelum program dijalankan.</p>
+
+<h4>Tipe non-nullable vs nullable</h4>
+<pre><code class="language-dart">void main() {
+  String nama = 'Ayu';
+  // nama = null; // ERROR: String tidak boleh null
+
+  String? nomorHp; // tanda ? artinya boleh null, nilai awalnya null
+  print(nama.length); // Output: 3
+  print(nomorHp); // Output: null
+  // print(nomorHp.length); // ERROR: nomorHp mungkin null
+
+  nomorHp = '08123456789';
+  print(nomorHp.length); // Output: 11
+}
+</code></pre>
+<p>Setelah <code>nomorHp</code> diisi String, Dart tahu nilainya pasti tidak null, sehingga <code>nomorHp.length</code> diizinkan. Kemampuan ini disebut <strong>type promotion</strong>.</p>
+
+<h4>Ringkasan operator null safety</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Sintaks</th><th>Arti</th><th>Contoh</th></tr></thead>
+    <tbody>
+      <tr><td><code>Tipe?</code></td><td>Tipe nullable (boleh null)</td><td><code>String? email;</code></td></tr>
+      <tr><td><code>?.</code></td><td>Akses hanya jika tidak null</td><td><code>email?.length</code></td></tr>
+      <tr><td><code>??</code></td><td>Nilai cadangan jika null</td><td><code>email ?? '-'</code></td></tr>
+      <tr><td><code>??=</code></td><td>Isi hanya jika masih null</td><td><code>email ??= 'a@b.c';</code></td></tr>
+      <tr><td><code>!</code></td><td>Paksa anggap tidak null (crash jika ternyata null)</td><td><code>email!.length</code></td></tr>
+      <tr><td><code>late</code></td><td>Diisi nanti, dijanjikan sebelum dipakai</td><td><code>late String token;</code></td></tr>
+      <tr><td><code>required</code></td><td>Named parameter wajib diisi</td><td><code>{required String nim}</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Memakai <code>?.</code>, <code>??</code>, dan <code>??=</code></h4>
+<pre><code class="language-dart">String? cariEmail(String nim) {
+  final data = {'H1D023001': 'ayu@mhs.unsoed.ac.id'};
+  return data[nim]; // null jika nim tidak terdaftar
+}
+
+void main() {
+  String? email1 = cariEmail('H1D023001');
+  String? email2 = cariEmail('H1D099999');
+
+  print(email1?.toUpperCase()); // Output: AYU@MHS.UNSOED.AC.ID
+  print(email2?.toUpperCase()); // Output: null
+  print(email2 ?? 'Email belum terdaftar'); // Output: Email belum terdaftar
+  print(email2?.length ?? 0); // Output: 0
+
+  email2 ??= 'default@unsoed.ac.id';
+  print(email2); // Output: default@unsoed.ac.id
+}
+</code></pre>
+<p><code>email2?.length ?? 0</code> adalah kombinasi yang sangat umum: "ambil panjangnya jika ada, jika tidak pakai 0".</p>
+
+<h4>Type promotion dengan pengecekan null</h4>
+<pre><code class="language-dart">int hitungPanjang(String? teks) {
+  if (teks == null) {
+    return 0;
+  }
+  // Di sini Dart tahu teks pasti tidak null
+  return teks.length;
+}
+
+class Profil {
+  String? bio;
+}
+
+void cetakBio(Profil p) {
+  // if (p.bio != null) print(p.bio.length); // ERROR: field tidak dipromosikan
+  final bio = p.bio; // salin ke variabel lokal dulu
+  if (bio != null) {
+    print('Panjang bio: ${bio.length}');
+  } else {
+    print('Bio kosong');
+  }
+}
+
+void main() {
+  print(hitungPanjang(null)); // Output: 0
+  print(hitungPanjang('Flutter')); // Output: 7
+
+  cetakBio(Profil()); // Output: Bio kosong
+  cetakBio(Profil()..bio = 'Suka Dart'); // Output: Panjang bio: 9
+}
+</code></pre>
+<p>Promotion berjalan untuk variabel lokal dan parameter. Untuk field class yang publik dan bisa diubah, Dart tidak bisa menjamin nilainya tetap sama di antara pengecekan dan pemakaian, sehingga trik "salin ke variabel lokal" sangat sering dipakai.</p>
+
+<h4>Operator <code>!</code>: gunakan dengan hati-hati</h4>
+<pre><code class="language-dart">void main() {
+  Map&lt;String, int&gt; nilai = {'Ayu': 90};
+
+  int nilaiAyu = nilai['Ayu']!; // kita YAKIN kunci 'Ayu' ada
+  print(nilaiAyu); // Output: 90
+
+  // int nilaiBudi = nilai['Budi']!;
+  // CRASH saat runtime: Null check operator used on a null value
+
+  int nilaiBudi = nilai['Budi'] ?? 0; // cara yang aman
+  print(nilaiBudi); // Output: 0
+}
+</code></pre>
+<p><code>!</code> mematikan perlindungan null safety. Gunakan hanya jika Anda benar-benar yakin nilainya tidak null. Dalam banyak kasus, <code>??</code> atau pengecekan <code>if</code> adalah pilihan yang lebih aman.</p>
+
+<h4><code>late</code> pada field class</h4>
+<pre><code class="language-dart">class KoneksiDatabase {
+  late String namaDb; // belum ada nilai saat objek dibuat
+
+  void buka(String nama) {
+    namaDb = nama;
+    print('Database $namaDb dibuka');
+  }
+}
+
+void main() {
+  final db = KoneksiDatabase();
+  // print(db.namaDb); // CRASH: LateInitializationError, belum diisi
+  db.buka('kampus.db'); // Output: Database kampus.db dibuka
+  print(db.namaDb); // Output: kampus.db
+}
+</code></pre>
+<p>Di Flutter, <code>late</code> biasa dipakai untuk controller yang dibuat di <code>initState()</code>, misalnya <code>late TextEditingController _namaController;</code>.</p>
+
+<h4>Null-aware pada List dan Map</h4>
+<pre><code class="language-dart">List&lt;String&gt;? ambilDaftar(bool ada) =&gt; ada ? ['Dart', 'Flutter'] : null;
+
+void main() {
+  final daftar = ambilDaftar(false);
+  print(daftar?.length); // Output: null
+  print(daftar?[0]); // Output: null
+  print(daftar?.isEmpty ?? true); // Output: true
+
+  final daftar2 = ambilDaftar(true);
+  print(daftar2?[1]); // Output: Flutter
+}
+</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Menaburkan <code>!</code> di mana-mana agar error compiler hilang. Error-nya hanya pindah menjadi crash saat aplikasi dipakai.</li>
+  <li>Membuat semua variabel nullable (<code>String?</code>) "supaya aman". Justru sebaliknya: jadikan non-nullable sebisa mungkin, dan nullable hanya untuk data yang memang bisa tidak ada.</li>
+  <li>Memakai <code>late</code> lalu lupa mengisinya, sehingga muncul <code>LateInitializationError</code>.</li>
+</ul></div>

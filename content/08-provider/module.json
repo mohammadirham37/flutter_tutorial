@@ -1,0 +1,188 @@
+{
+  "id": "modul-08",
+  "badge": "State Management",
+  "category": "Arsitektur",
+  "title": "Manajemen State Terstruktur dengan Provider",
+  "duration": "Pertemuan 8 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 07: Navigasi & Routing"
+  ],
+  "summary": "Memahami batasan setState() dan bahaya 'prop drilling' pada aplikasi skala besar. Menguasai Provider: ChangeNotifier, ChangeNotifierProvider, context.watch/read/select, Consumer, Selector, MultiProvider, pola state async (isLoading/error/data), ProxyProvider, struktur folder model/service/provider/UI, auth gate, serta kesalahan umum dan cara memperbaikinya.",
+  "learningOutcomes": [
+    "Menganalisis perbedaan Ephemeral State (State Lokal) vs App State (State Global).",
+    "Menjelaskan alur reaktif ChangeNotifier dan notifyListeners().",
+    "Menerapkan Provider untuk memisahkan Business Logic dari kode antarmuka UI.",
+    "Mengoptimalkan performa render dengan context.select, Consumer, dan Selector.",
+    "Mengelola beberapa provider dengan MultiProvider dan ChangeNotifierProxyProvider.",
+    "Menerapkan pola state async isLoading/error/data untuk data dari service.",
+    "Menyusun struktur folder model/service/provider/UI dan auth gate berbasis Provider.",
+    "Mengenali dan memperbaiki kesalahan umum: read di build, provider di initState, notify setelah dispose."
+  ],
+  "sections": [
+    {
+      "id": "masalah-setstate",
+      "title": "1. Masalah 'Prop Drilling' & Kapan Butuh State Management?",
+      "file": "01-masalah-setstate.html"
+    },
+    {
+      "id": "prov-changenotifier",
+      "title": "2. ChangeNotifier dari Nol",
+      "file": "02-changenotifier.html"
+    },
+    {
+      "id": "prov-changenotifierprovider",
+      "title": "3. ChangeNotifierProvider: Menyediakan State ke Pohon Widget",
+      "file": "03-changenotifierprovider.html"
+    },
+    {
+      "id": "prov-watch-read-select",
+      "title": "4. watch, read, select, Consumer & Selector",
+      "file": "04-watch-read-select.html"
+    },
+    {
+      "id": "provider-implementasi",
+      "title": "5. Tiga Pilar Utama Arsitektur Provider: Contoh KRS",
+      "file": "05-provider-implementasi.html"
+    },
+    {
+      "id": "prov-multiprovider",
+      "title": "6. MultiProvider",
+      "file": "06-multiprovider.html"
+    },
+    {
+      "id": "prov-async-state",
+      "title": "7. State Async: isLoading, error, data",
+      "file": "07-async-state.html"
+    },
+    {
+      "id": "prov-proxyprovider",
+      "title": "8. ProxyProvider (Pengenalan)",
+      "file": "08-proxyprovider.html"
+    },
+    {
+      "id": "prov-struktur-folder",
+      "title": "9. Struktur Folder & Auth Gate",
+      "file": "09-struktur-folder.html"
+    },
+    {
+      "id": "prov-kesalahan-umum",
+      "title": "10. Kesalahan Umum & Cara Memperbaikinya",
+      "file": "10-kesalahan-umum.html"
+    },
+    {
+      "id": "prov-studi-kasus",
+      "title": "11. Studi Kasus: Aplikasi Tugas Kuliah Multi-Halaman",
+      "file": "11-studi-kasus.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 8: Sistem Pengambilan SKS & Keranjang Rencana Studi",
+    "objective": "Menerapkan Provider untuk sinkronisasi state keranjang KRS antar beberapa layar secara real-time, lengkap dengan pemuatan data async dan struktur folder yang rapi.",
+    "instructions": [
+      "Tambahkan package <code>provider</code> ke dalam proyek menggunakan perintah: <code>flutter pub add provider</code>.",
+      "Susun folder <code>lib/models</code>, <code>lib/services</code>, <code>lib/providers</code>, <code>lib/screens</code>, dan <code>lib/widgets</code>.",
+      "Buat model <code>MataKuliah</code> dan <code>MatkulService</code> yang mengembalikan daftar mata kuliah setelah <code>Future.delayed</code> 2 detik.",
+      "Buat <code>KatalogProvider</code> dengan pola <code>isLoading</code> / <code>error</code> / <code>data</code>, lengkap dengan tampilan loading, error + tombol Coba Lagi, dan <code>RefreshIndicator</code>.",
+      "Buat <code>KrsProvider</code> yang mencatat mata kuliah yang dipilih, total SKS, dan saldo kuota SKS tersisa. Getter list harus mengembalikan <code>List.unmodifiable</code>.",
+      "Daftarkan kedua provider dengan <code>MultiProvider</code> di atas <code>MaterialApp</code>.",
+      "Buat Layar 1 (Katalog Matkul): Menampilkan daftar mata kuliah dengan tombol '+ Ambil Matkul'. Tombol ini memanggil <code>context.read&lt;KrsProvider&gt;().tambahMatkul(...)</code>.",
+      "Cegah penambahan jika kuota melebihi 24 SKS atau mata kuliah sudah diambil, dan tampilkan SnackBar peringatan.",
+      "Buat Layar 2 (Kartu Rencana Studi): Menampilkan daftar mata kuliah yang sudah diambil, tombol hapus dengan dialog konfirmasi, dan total kalkulasi SKS.",
+      "Pasang badge angka di ikon tab bar yang otomatis bertambah saat mata kuliah baru diambil. Gunakan <code>context.select</code> atau <code>Selector</code> agar hanya badge yang rebuild.",
+      "Muat data katalog dari <code>initState</code> memakai <code>WidgetsBinding.instance.addPostFrameCallback</code>.",
+      "Bonus: tambahkan <code>AuthProvider</code> sederhana dan <code>AuthGate</code> yang menampilkan layar login sebelum katalog."
+    ],
+    "expectedOutput": "Dua atau lebih halaman yang saling terhubung secara reaktif tanpa perlu restart halaman; saat mata kuliah diambil di halaman 1, angka di halaman 2 dan badge tab langsung bertambah. Katalog menampilkan loading, error, dan data dengan benar.",
+    "rubric": "Desain class ChangeNotifier dan penggunaan notifyListeners (25%), Penggunaan context.watch, read, dan select yang tepat (25%), Pola async isLoading/error/data (20%), Pencegahan over-quota 24 SKS dan feedback UI (15%), Struktur folder model/service/provider/UI (15%). Bonus AuthGate +10%."
+  },
+  "quiz": [
+    {
+      "question": "Metode pemanggilan Provider manakah yang harus digunakan di dalam fungsi 'onPressed: () {}' sebuah tombol?",
+      "options": [
+        "context.watch&lt;T&gt;()",
+        "context.read&lt;T&gt;()",
+        "setState()",
+        "Provider.of(listen: true)"
+      ],
+      "correctIndex": 1,
+      "explanation": "context.read&lt;T&gt;() digunakan untuk memicu aksi/method tanpa mendaftarkan widget untuk rebuild saat terjadi perubahan nilai. Memanggil context.watch di dalam callback tombol dilarang oleh Flutter karena tombol tidak berada di alur build."
+    },
+    {
+      "question": "Apa fungsi pemanggilan method 'notifyListeners()' di dalam class yang mewarisi ChangeNotifier?",
+      "options": [
+        "Mengirim sinyal lonceng notifikasi ke server backend",
+        "Memberitahu framework Flutter bahwa state internal telah berubah, sehingga seluruh widget pendengar (listener) akan di-rebuild secara otomatis",
+        "Menutup aplikasi secara paksa",
+        "Menghapus cache memori smartphone"
+      ],
+      "correctIndex": 1,
+      "explanation": "notifyListeners() adalah jantung dari ChangeNotifier yang memancarkan sinyal ke semua Consumer atau context.watch yang sedang mengamati model tersebut untuk memperbarui tampilannya."
+    },
+    {
+      "question": "Sebuah widget hanya membutuhkan totalSks dari KrsProvider dan tidak ingin rebuild ketika field lain berubah. Cara paling tepat adalah ...",
+      "options": [
+        "context.select((KrsProvider p) =&gt; p.totalSks)",
+        "context.read&lt;KrsProvider&gt;().totalSks",
+        "context.watch&lt;KrsProvider&gt;()",
+        "Membuat KrsProvider baru di widget tersebut"
+      ],
+      "correctIndex": 0,
+      "explanation": "select hanya memicu rebuild jika nilai yang dipilih berubah. read di build tidak pernah memicu rebuild, sedangkan watch memicu rebuild untuk setiap notifyListeners."
+    },
+    {
+      "question": "Memanggil context.read&lt;DataProvider&gt;().muatData() langsung di initState (dan muatData langsung memanggil notifyListeners) menyebabkan error. Perbaikannya adalah ...",
+      "options": [
+        "Membungkusnya dengan WidgetsBinding.instance.addPostFrameCallback",
+        "Mengganti read dengan watch",
+        "Memindahkan panggilan ke dalam build()",
+        "Menghapus notifyListeners dari provider"
+      ],
+      "correctIndex": 0,
+      "explanation": "notifyListeners saat widget sedang dibangun menimbulkan error 'setState() or markNeedsBuild() called during build'. addPostFrameCallback menjalankan kode setelah frame pertama selesai."
+    },
+    {
+      "question": "Pada pola state async, mengapa _isLoading = false sebaiknya diletakkan di blok finally?",
+      "options": [
+        "Agar loading selalu dimatikan, baik request berhasil maupun gagal",
+        "Agar request berjalan lebih cepat",
+        "Karena Dart melarang assignment di blok try",
+        "Agar error tidak pernah terjadi"
+      ],
+      "correctIndex": 0,
+      "explanation": "Blok finally selalu dijalankan setelah try/catch. Tanpa finally, jika terjadi exception, isLoading bisa tetap true dan UI terjebak di tampilan loading."
+    },
+    {
+      "question": "Bagian builder mana yang di-build ulang ketika memakai Consumer&lt;T&gt;?",
+      "options": [
+        "Hanya widget yang dikembalikan oleh builder Consumer",
+        "Seluruh halaman tempat Consumer berada",
+        "Seluruh aplikasi mulai dari MaterialApp",
+        "Tidak ada, Consumer tidak pernah rebuild"
+      ],
+      "correctIndex": 0,
+      "explanation": "Consumer membatasi rebuild pada builder-nya saja. Widget di luar Consumer (induknya) tidak ikut di-build ulang."
+    },
+    {
+      "question": "Halaman A memiliki provider. Halaman B dibuka dengan Navigator.push dan perlu memakai OBJEK provider yang sama. Cara yang benar adalah ...",
+      "options": [
+        "Membungkus halaman B dengan ChangeNotifierProvider.value(value: objekYangSudahAda, ...)",
+        "Membungkus halaman B dengan ChangeNotifierProvider(create: (_) =&gt; objekYangSudahAda)",
+        "Membuat objek provider baru di halaman B",
+        "Mengirim provider melalui Navigator.pop"
+      ],
+      "correctIndex": 0,
+      "explanation": ".value dipakai untuk objek yang sudah ada dan tidak akan men-dispose objek tersebut. Memakai create dengan objek yang sudah ada menyebabkan objek di-dispose saat halaman B ditutup."
+    },
+    {
+      "question": "Dalam struktur folder model/service/provider/UI, lapisan mana yang seharusnya memanggil HTTP atau database?",
+      "options": [
+        "services",
+        "screens",
+        "models",
+        "widgets"
+      ],
+      "correctIndex": 0,
+      "explanation": "Service adalah satu-satunya lapisan yang tahu cara mengakses data. Provider memanggil service, UI memanggil provider. Dengan begitu sumber data mudah diganti dan diuji."
+    }
+  ]
+}

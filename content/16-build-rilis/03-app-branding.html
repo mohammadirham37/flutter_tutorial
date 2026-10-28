@@ -1,0 +1,111 @@
+<p class="lead">Aplikasi profesional tidak boleh menampilkan ikon bawaan Flutter atau layar putih kosong saat pertama dibuka. Dua package generator membuat semua ukuran ikon dan splash screen untuk Android dan iOS secara otomatis dari satu gambar.</p>
+
+<h4>Menyiapkan aset gambar</h4>
+<pre><code class="language-text">catatan_kuliah/
+├── assets/
+│   ├── icon/
+│   │   ├── icon.png              # 1024x1024, latar penuh (untuk iOS dan Android lama)
+│   │   └── icon_foreground.png   # 1024x1024, latar TRANSPARAN, logo di tengah
+│   └── splash/
+│       └── logo.png              # logo transparan untuk splash
+└── pubspec.yaml</code></pre>
+<ul>
+  <li>Gunakan PNG persegi minimal 1024×1024 piksel. Jangan memberi sudut membulat sendiri; Android dan iOS akan memotongnya sesuai bentuk masing-masing.</li>
+  <li>Untuk <em>adaptive icon</em> Android, logo pada <code>icon_foreground.png</code> harus berada di area tengah (sekitar 66% bagian dalam), karena pinggirannya bisa terpotong menjadi lingkaran, kotak membulat, atau bentuk lain tergantung merek HP.</li>
+</ul>
+
+<h4>Langkah 1: ikon aplikasi dengan flutter_launcher_icons</h4>
+<pre><code class="language-bash">flutter pub add dev:flutter_launcher_icons</code></pre>
+<p>Konfigurasi bisa ditulis di <code>pubspec.yaml</code> atau di file terpisah. File terpisah membuat <code>pubspec.yaml</code> tetap rapi:</p>
+<p class="code-file-label">📄 <code>flutter_launcher_icons.yaml</code> (di root proyek)</p>
+<pre><code class="language-yaml">flutter_launcher_icons:
+  # Android: ganti ikon bawaan (ic_launcher) dengan ikon baru
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"           # 1024x1024, tanpa sudut membulat
+  min_sdk_android: 21
+  # Adaptive icon (Android 8+): background warna + foreground transparan
+  adaptive_icon_background: "#1E3A8A"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  adaptive_icon_monochrome: "assets/icon/icon_foreground.png" # ikon bertema Android 13+
+  # iOS menolak ikon transparan di App Store
+  remove_alpha_ios: true
+  background_color_ios: "#1E3A8A"</code></pre>
+<pre><code class="language-bash">dart run flutter_launcher_icons</code></pre>
+<p>Output yang diharapkan:</p>
+<pre><code class="language-text">• Creating colors.xml file and adding it to your Android project
+• Overwriting the default Android launcher icon with a new icon
+• Creating mipmap xml file Android
+• Overwriting default iOS launcher icon with new icon
+
+✓ Successfully generated launcher icons</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Opsi</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>android: true</code></td><td>Timpa ikon bawaan <code>ic_launcher</code>. Isi dengan nama lain (misalnya <code>"launcher_icon"</code>) jika ingin membuat ikon baru tanpa menghapus yang lama.</td></tr>
+      <tr><td><code>image_path</code></td><td>Gambar sumber untuk semua platform</td></tr>
+      <tr><td><code>adaptive_icon_background</code> / <code>_foreground</code></td><td>Dua lapisan adaptive icon Android 8+. Keduanya wajib diisi agar adaptive icon dibuat.</td></tr>
+      <tr><td><code>adaptive_icon_monochrome</code></td><td>Versi satu warna untuk fitur <em>themed icons</em> Android 13+</td></tr>
+      <tr><td><code>remove_alpha_ios</code></td><td>Hapus transparansi ikon iOS (syarat App Store)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Langkah 2: splash screen dengan flutter_native_splash</h4>
+<p>Splash screen native tampil <em>sebelum</em> Flutter selesai dimuat, menggantikan layar putih kosong.</p>
+<pre><code class="language-bash">flutter pub add dev:flutter_native_splash</code></pre>
+<p class="code-file-label">📄 <code>flutter_native_splash.yaml</code> (di root proyek)</p>
+<pre><code class="language-yaml">flutter_native_splash:
+  # Android 11 ke bawah dan iOS
+  color: "#1E3A8A"
+  image: assets/splash/logo.png
+  color_dark: "#0F172A"
+  image_dark: assets/splash/logo.png
+
+  # Android 12+ punya aturan splash sendiri
+  android_12:
+    color: "#1E3A8A"
+    image: assets/splash/logo.png
+    color_dark: "#0F172A"
+    image_dark: assets/splash/logo.png
+
+  android: true
+  ios: true
+  web: false</code></pre>
+<pre><code class="language-bash">dart run flutter_native_splash:create
+
+# Mengembalikan ke splash bawaan jika ingin membatalkan
+dart run flutter_native_splash:remove</code></pre>
+<p>Kenapa ada blok <code>android_12</code> terpisah? Mulai Android 12, sistem selalu menampilkan splash berupa <strong>ikon di tengah lingkaran</strong> di atas satu warna latar. Gambar penuh layar tidak didukung. Siapkan logo yang tetap terlihat baik jika dipotong menjadi lingkaran (sekitar 1152×1152 px dengan logo di dalam lingkaran berdiameter 768 px).</p>
+
+<h4>Langkah 3 (opsional): menahan splash selama inisialisasi</h4>
+<p>Aplikasi Catatan Kuliah perlu menginisialisasi Supabase dan Hive sebelum halaman pertama tampil. Splash bisa ditahan sampai proses itu selesai. Untuk fitur ini, package harus dipindah ke <code>dependencies</code> biasa (bukan <code>dev</code>), karena dipakai di kode aplikasi:</p>
+<pre><code class="language-bash">flutter pub remove flutter_native_splash
+flutter pub add flutter_native_splash</code></pre>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
+
+Future&lt;void&gt; main() async {
+  final binding = WidgetsFlutterBinding.ensureInitialized();
+  // Tahan splash selama inisialisasi (Supabase, Hive, dll.)
+  FlutterNativeSplash.preserve(widgetsBinding: binding);
+
+  await Future.delayed(const Duration(seconds: 1)); // ganti dengan inisialisasi asli
+
+  FlutterNativeSplash.remove(); // splash hilang, frame pertama tampil
+  runApp(const MaterialApp(home: Scaffold(body: Center(child: Text('Siap!')))));
+}</code></pre>
+<p><code>preserve()</code> menahan splash native, <code>remove()</code> menghilangkannya. Jangan lupa memanggil <code>remove()</code> juga pada jalur error (misalnya di blok <code>catch</code>), agar aplikasi tidak “macet” di splash selamanya.</p>
+
+<h4>Melihat hasilnya</h4>
+<p>Ikon dan splash adalah bagian native, jadi <strong>hot reload tidak cukup</strong>. Hentikan aplikasi, hapus aplikasi lama dari emulator (beberapa launcher menyimpan cache ikon), lalu jalankan ulang <code>flutter run</code>.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Logo foreground mengisi seluruh gambar 1024×1024, sehingga terpotong di HP dengan ikon berbentuk lingkaran.</li>
+  <li>Menulis konfigurasi di dua tempat (di <code>pubspec.yaml</code> dan file terpisah). Pilih salah satu.</li>
+  <li>Lupa menjalankan ulang perintah generator setelah mengganti gambar.</li>
+  <li>Memakai <code>FlutterNativeSplash.preserve</code> sementara package masih di <code>dev_dependencies</code>. <code>flutter analyze</code> memberi peringatan <code>depend_on_referenced_packages</code>.</li>
+</ul></div>

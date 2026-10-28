@@ -1,0 +1,222 @@
+<p class="lead"><code>onChanged</code> cukup untuk membaca teks. Namun sering kita juga perlu <strong>mengubah</strong> isi field dari kode, <strong>mengosongkan</strong> field setelah tombol Simpan ditekan, atau <strong>memberi nilai awal</strong>. Untuk itu Flutter menyediakan <code>TextEditingController</code>.</p>
+
+<h4>Konsep: tiga langkah wajib</h4>
+<ol>
+  <li><strong>Buat</strong> controller sebagai field di dalam <code>State</code> (bukan di dalam <code>build</code>).</li>
+  <li><strong>Hubungkan</strong> ke TextField lewat parameter <code>controller:</code>.</li>
+  <li><strong>Buang</strong> (<code>dispose()</code>) controller di method <code>dispose()</code> milik State.</li>
+</ol>
+<p>Setelah terhubung, kita bisa memakai <code>controller.text</code> (membaca atau mengubah isi), <code>controller.clear()</code> (mengosongkan), dan <code>controller.addListener(...)</code> (dipanggil setiap isi berubah).</p>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">class ContohController extends StatefulWidget {
+  const ContohController({super.key});
+
+  @override
+  State&lt;ContohController&gt; createState() =&gt; _ContohControllerState();
+}
+
+class _ContohControllerState extends State&lt;ContohController&gt; {
+  // 1. Buat controller sebagai field di State
+  final _namaController = TextEditingController();
+
+  // 3. Wajib dibuang saat widget dihapus dari layar
+  @override
+  void dispose() {
+    _namaController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // 2. Hubungkan controller ke TextField
+        TextField(controller: _namaController),
+        FilledButton(
+          // Baca isi TextField kapan saja lewat .text
+          onPressed: () =&gt; debugPrint('Nama: ${_namaController.text}'),
+          child: const Text('Cetak'),
+        ),
+      ],
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/controller-kecil.jpg" alt="TextField terhubung controller dan tombol Cetak" loading="lazy">
+    <div class="screenshot-caption">TextField terhubung controller dan tombol Cetak</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: membaca, mengubah, mengosongkan, dan mendengarkan</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const ControllerDemoScreen(),
+    );
+  }
+}
+
+class ControllerDemoScreen extends StatefulWidget {
+  const ControllerDemoScreen({super.key});
+
+  @override
+  State&lt;ControllerDemoScreen&gt; createState() =&gt; _ControllerDemoScreenState();
+}
+
+class _ControllerDemoScreenState extends State&lt;ControllerDemoScreen&gt; {
+  // Nilai awal bisa diisi lewat parameter text
+  final _judulController = TextEditingController(text: 'Rancang Bangun Aplikasi');
+  final List&lt;String&gt; _riwayat = [];
+  int _jumlahKata = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _jumlahKata = _hitung(_judulController.text);
+    // Listener dipanggil SETIAP kali teks (atau posisi kursor) berubah
+    _judulController.addListener(_hitungKata);
+  }
+
+  int _hitung(String teks) {
+    final bersih = teks.trim();
+    return bersih.isEmpty ? 0 : bersih.split(RegExp(r'\s+')).length;
+  }
+
+  void _hitungKata() {
+    setState(() =&gt; _jumlahKata = _hitung(_judulController.text));
+  }
+
+  @override
+  void dispose() {
+    _judulController.removeListener(_hitungKata);
+    _judulController.dispose();
+    super.dispose();
+  }
+
+  void _simpan() {
+    final judul = _judulController.text.trim();
+    if (judul.isEmpty) return;
+    setState(() =&gt; _riwayat.insert(0, judul));
+    _judulController.clear(); // mengosongkan TextField
+  }
+
+  void _isiContoh() {
+    // Mengubah isi TextField dari kode
+    _judulController.text = 'Sistem Informasi Presensi Berbasis Flutter';
+  }
+
+  void _hurufBesar() {
+    _judulController.text = _judulController.text.toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('TextEditingController')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _judulController,
+              decoration: InputDecoration(
+                labelText: 'Judul Skripsi',
+                border: const OutlineInputBorder(),
+                helperText: 'Jumlah kata: $_jumlahKata',
+                // Tombol hapus hanya muncul jika ada teks
+                suffixIcon: _judulController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: _judulController.clear,
+                      ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: _simpan,
+                  icon: const Icon(Icons.save),
+                  label: const Text('Simpan'),
+                ),
+                OutlinedButton(onPressed: _isiContoh, child: const Text('Isi contoh')),
+                OutlinedButton(onPressed: _hurufBesar, child: const Text('HURUF BESAR')),
+              ],
+            ),
+            const Divider(height: 32),
+            Text('Riwayat judul (${_riwayat.length})',
+                style: Theme.of(context).textTheme.titleMedium),
+            Expanded(
+              child: ListView(
+                children: [
+                  for (final judul in _riwayat)
+                    ListTile(leading: const Icon(Icons.history), title: Text(judul)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/controller-awal.jpg" alt="Nilai awal dari TextEditingController(text: ...) dan jumlah kata" loading="lazy">
+    <div class="screenshot-caption">Nilai awal dari TextEditingController(text: ...) dan jumlah kata</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/controller-riwayat.jpg" alt="Setelah Isi contoh, Simpan, lalu field kosong kembali" loading="lazy">
+    <div class="screenshot-caption">Setelah Isi contoh, Simpan, lalu field kosong kembali</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><code>TextEditingController(text: '...')</code> memberi isi awal pada field.</li>
+  <li><code>addListener(_hitungKata)</code> di <code>initState</code> membuat <code>_hitungKata</code> dipanggil setiap teks berubah, baik karena diketik maupun diubah dari kode. Inilah bedanya dengan <code>onChanged</code>, yang hanya terpanggil saat pengguna mengetik.</li>
+  <li><code>_judulController.text = '...'</code> mengganti isi field dari kode (tombol "Isi contoh" dan "HURUF BESAR").</li>
+  <li><code>_judulController.clear()</code> mengosongkan field setelah disimpan. Tombol silang di <code>suffixIcon</code> juga memanggil <code>clear</code>.</li>
+  <li>Di <code>dispose()</code> kita melepas listener lalu membuang controller. Urutannya: bersihkan milik kita dulu, <code>super.dispose()</code> paling akhir.</li>
+</ul>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th></th><th><code>onChanged</code></th><th><code>TextEditingController</code></th></tr></thead>
+    <tbody>
+      <tr><td>Membaca teks</td><td>Ya, lewat parameter callback</td><td>Ya, kapan saja lewat <code>.text</code></td></tr>
+      <tr><td>Mengubah / mengosongkan dari kode</td><td>Tidak bisa</td><td>Bisa</td></tr>
+      <tr><td>Perlu <code>dispose</code></td><td>Tidak</td><td>Ya, wajib</td></tr>
+      <tr><td>Cocok untuk</td><td>Pencarian sederhana, preview langsung</td><td>Form yang dikirim, nilai awal, tombol hapus</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Membuat controller di dalam <code>build()</code>.</strong> Setiap kali <code>setState</code> dipanggil, controller baru dibuat sehingga teks yang diketik hilang. Selalu jadikan field di State.</li>
+  <li><strong>Lupa <code>dispose()</code>.</strong> Controller tetap tersimpan di memori setelah layar ditutup (<em>memory leak</em>).</li>
+  <li><strong>Memakai controller di StatelessWidget.</strong> StatelessWidget tidak punya <code>dispose</code>, jadi controller harus berada di StatefulWidget.</li>
+  <li><strong>Memanggil <code>setState</code> di <code>initState</code> sebelum layar tampil.</strong> Cukup isi variabel langsung, seperti <code>_jumlahKata = _hitung(...)</code> pada contoh.</li>
+</ul></div>

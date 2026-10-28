@@ -1,0 +1,267 @@
+<p class="lead">Database relasional bisa menghubungkan tabel. Contoh: satu <strong>mata kuliah</strong> punya banyak <strong>tugas</strong> (relasi <em>one-to-many</em>). Daripada menulis nama mata kuliah berulang di setiap tugas, tabel tugas cukup menyimpan <code>matkul_id</code> yang menunjuk ke tabel mata kuliah.</p>
+
+<h4>Rancangan Tabel</h4>
+<pre><code class="language-text">mata_kuliah                     tugas
+┌────┬──────────────────┬─────┐  ┌────┬──────────────┬───────────┐
+│ id │ nama             │ sks │  │ id │ judul        │ matkul_id │──┐
+├────┼──────────────────┼─────┤  ├────┼──────────────┼───────────┤  │
+│ 1  │ Pemrograman Mob. │ 3   │&lt;─┤ 1  │ Laporan 1    │ 1         │  │ FOREIGN KEY
+│ 2  │ Basis Data       │ 3   │&lt;─┤ 2  │ Kuis ERD     │ 2         │  │ -&gt; mata_kuliah.id
+└────┴──────────────────┴─────┘  │ 3  │ Laporan 2    │ 1         │──┘
+                                 └────┴──────────────┴───────────┘
+</code></pre>
+
+<h4>Konsep Penting</h4>
+<ul>
+  <li><code>FOREIGN KEY (matkul_id) REFERENCES mata_kuliah(id)</code> memastikan tugas hanya bisa menunjuk mata kuliah yang ada.</li>
+  <li><code>ON DELETE CASCADE</code>: jika mata kuliah dihapus, semua tugasnya ikut terhapus otomatis.</li>
+  <li>SQLite <strong>mematikan</strong> foreign key secara default. Aktifkan dengan <code>PRAGMA foreign_keys = ON</code> di <code>onConfigure</code> (dijalankan setiap database dibuka).</li>
+  <li><code>JOIN</code> menggabungkan baris dari dua tabel dalam satu query.</li>
+</ul>
+
+<h4>Contoh Kecil: Skema dan JOIN</h4>
+<pre><code class="language-sql">CREATE TABLE mata_kuliah (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nama TEXT NOT NULL,
+  sks INTEGER NOT NULL
+);
+
+CREATE TABLE tugas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  judul TEXT NOT NULL,
+  matkul_id INTEGER NOT NULL,
+  FOREIGN KEY (matkul_id) REFERENCES mata_kuliah(id) ON DELETE CASCADE
+);
+
+-- Tugas beserta nama mata kuliahnya
+SELECT t.id, t.judul, m.nama AS matkul_nama
+FROM tugas t
+JOIN mata_kuliah m ON m.id = t.matkul_id
+ORDER BY m.nama;
+</code></pre>
+
+<h4>Model untuk Hasil JOIN</h4>
+<p>Hasil JOIN berisi kolom dari dua tabel, jadi kita buat model khusus untuk tampilan:</p>
+<p class="code-file-label">📄 <code>lib/models/relasi_models.dart</code></p>
+<pre><code class="language-dart">class MataKuliah {
+  final int? id;
+  final String nama;
+  final int sks;
+  final int jumlahTugas; // hasil COUNT, bukan kolom tabel
+
+  const MataKuliah({this.id, required this.nama, required this.sks, this.jumlahTugas = 0});
+
+  Map&lt;String, Object?&gt; toMap() =&gt; {if (id != null) 'id': id, 'nama': nama, 'sks': sks};
+
+  factory MataKuliah.fromMap(Map&lt;String, Object?&gt; m) =&gt; MataKuliah(
+        id: m['id'] as int?,
+        nama: m['nama'] as String,
+        sks: m['sks'] as int,
+        jumlahTugas: m['jumlah_tugas'] as int? ?? 0,
+      );
+}
+
+class TugasDenganMatkul {
+  final int id;
+  final String judul;
+  final String matkulNama;
+
+  const TugasDenganMatkul({required this.id, required this.judul, required this.matkulNama});
+
+  factory TugasDenganMatkul.fromMap(Map&lt;String, Object?&gt; m) =&gt; TugasDenganMatkul(
+        id: m['id'] as int,
+        judul: m['judul'] as String,
+        matkulNama: m['matkul_nama'] as String, // alias dari "AS matkul_nama"
+      );
+}
+</code></pre>
+
+<h4>Database Helper dengan Relasi</h4>
+<p class="code-file-label">📄 <code>lib/data/relasi_database.dart</code></p>
+<pre><code class="language-dart">import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+
+import '../models/relasi_models.dart';
+
+class RelasiDatabase {
+  static Database? _db;
+
+  static Future&lt;Database&gt; get database async =&gt; _db ??= await openDatabase(
+        join(await getDatabasesPath(), 'relasi_demo.db'),
+        version: 1,
+        onConfigure: (db) =&gt; db.execute('PRAGMA foreign_keys = ON'),
+        onCreate: (db, version) async {
+          await db.execute('''
+            CREATE TABLE mata_kuliah (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              nama TEXT NOT NULL,
+              sks INTEGER NOT NULL
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE tugas (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              judul TEXT NOT NULL,
+              matkul_id INTEGER NOT NULL,
+              FOREIGN KEY (matkul_id) REFERENCES mata_kuliah(id) ON DELETE CASCADE
+            )
+          ''');
+          // Data awal
+          final mobile = await db.insert('mata_kuliah', {'nama': 'Pemrograman Mobile', 'sks': 3});
+          final basdat = await db.insert('mata_kuliah', {'nama': 'Basis Data', 'sks': 3});
+          await db.insert('tugas', {'judul': 'Laporan Praktikum 10', 'matkul_id': mobile});
+          await db.insert('tugas', {'judul': 'Proyek CRUD', 'matkul_id': mobile});
+          await db.insert('tugas', {'judul': 'Kuis ERD', 'matkul_id': basdat});
+        },
+      );
+
+  /// Mata kuliah + jumlah tugasnya (LEFT JOIN agar matkul tanpa tugas tetap muncul)
+  static Future&lt;List&lt;MataKuliah&gt;&gt; semuaMatkul() async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT m.id, m.nama, m.sks, COUNT(t.id) AS jumlah_tugas
+      FROM mata_kuliah m
+      LEFT JOIN tugas t ON t.matkul_id = m.id
+      GROUP BY m.id
+      ORDER BY m.nama
+    ''');
+    return rows.map(MataKuliah.fromMap).toList();
+  }
+
+  /// Semua tugas beserta nama mata kuliahnya (INNER JOIN)
+  static Future&lt;List&lt;TugasDenganMatkul&gt;&gt; semuaTugas() async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT t.id, t.judul, m.nama AS matkul_nama
+      FROM tugas t
+      JOIN mata_kuliah m ON m.id = t.matkul_id
+      ORDER BY m.nama, t.id
+    ''');
+    return rows.map(TugasDenganMatkul.fromMap).toList();
+  }
+
+  static Future&lt;void&gt; tambahTugas(String judul, int matkulId) async {
+    final db = await database;
+    await db.insert('tugas', {'judul': judul, 'matkul_id': matkulId});
+  }
+
+  /// Menghapus matkul: tugas-tugasnya ikut terhapus berkat ON DELETE CASCADE
+  static Future&lt;void&gt; hapusMatkul(int id) async {
+    final db = await database;
+    await db.delete('mata_kuliah', where: 'id = ?', whereArgs: [id]);
+  }
+}
+</code></pre>
+
+<h4>Contoh Lengkap: Mata Kuliah dan Tugasnya</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Pastikan sudah: flutter pub add sqflite path, serta membuat
+// lib/models/relasi_models.dart dan lib/data/relasi_database.dart
+import 'package:flutter/material.dart';
+
+import 'data/relasi_database.dart';
+import 'models/relasi_models.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: RelasiScreen()));
+
+class RelasiScreen extends StatefulWidget {
+  const RelasiScreen({super.key});
+
+  @override
+  State&lt;RelasiScreen&gt; createState() =&gt; _RelasiScreenState();
+}
+
+class _RelasiScreenState extends State&lt;RelasiScreen&gt; {
+  List&lt;MataKuliah&gt; _matkul = [];
+  List&lt;TugasDenganMatkul&gt; _tugas = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _muat();
+  }
+
+  Future&lt;void&gt; _muat() async {
+    final matkul = await RelasiDatabase.semuaMatkul();
+    final tugas = await RelasiDatabase.semuaTugas();
+    if (!mounted) return;
+    setState(() {
+      _matkul = matkul;
+      _tugas = tugas;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final judulStyle = Theme.of(context).textTheme.titleMedium;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Relasi Mata Kuliah - Tugas')),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          Text('Mata Kuliah', style: judulStyle),
+          for (final m in _matkul)
+            Card(
+              child: ListTile(
+                title: Text(m.nama),
+                subtitle: Text('${m.sks} SKS • ${m.jumlahTugas} tugas'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Tambah tugas',
+                      icon: const Icon(Icons.add_task),
+                      onPressed: () async {
+                        await RelasiDatabase.tambahTugas('Tugas baru ${m.nama}', m.id!);
+                        await _muat();
+                      },
+                    ),
+                    IconButton(
+                      tooltip: 'Hapus matkul',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () async {
+                        await RelasiDatabase.hapusMatkul(m.id!);
+                        await _muat();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          Text('Semua Tugas (hasil JOIN)', style: judulStyle),
+          for (final t in _tugas)
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.assignment_outlined),
+              title: Text(t.judul),
+              subtitle: Text(t.matkulNama),
+            ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/relasi-awal.jpg" alt="Mata kuliah dan tugas" loading="lazy">
+    <div class="screenshot-caption">Data awal: matkul dan hasil JOIN</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/relasi-hapus.jpg" alt="Setelah matkul dihapus" loading="lazy">
+    <div class="screenshot-caption">Basis Data dihapus: tugas Kuis ERD ikut hilang (CASCADE)</div>
+  </div>
+</div>
+
+
+<p><strong>Penjelasan:</strong> tekan ikon hapus pada "Basis Data". Matkul hilang <strong>dan</strong> tugas "Kuis ERD" juga hilang dari daftar JOIN, padahal kita hanya menjalankan satu <code>DELETE</code> pada tabel <code>mata_kuliah</code>. Itulah efek <code>ON DELETE CASCADE</code>.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Lupa <code>PRAGMA foreign_keys = ON</code>: CASCADE tidak berjalan dan tugas "yatim" (menunjuk matkul yang sudah tidak ada) tetap tersimpan.</li>
+  <li>Memakai <code>JOIN</code> biasa saat ingin menampilkan matkul yang belum punya tugas. Gunakan <code>LEFT JOIN</code>.</li>
+  <li>Dua tabel punya kolom bernama sama (<code>id</code>, <code>nama</code>). Gunakan alias (<code>m.nama AS matkul_nama</code>) agar kunci Map tidak bertabrakan.</li>
+  <li>Melakukan query per item di dalam loop (N+1 query). Satu query JOIN jauh lebih efisien.</li>
+</ul>
+</div>

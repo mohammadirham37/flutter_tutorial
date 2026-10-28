@@ -1,0 +1,554 @@
+<p class="lead">Sekarang kita gabungkan semua materi modul ini menjadi satu aplikasi utuh: <strong>formulir pendaftaran mahasiswa baru</strong> yang memakai TextFormField, validasi, password, DatePicker, Radio, Dropdown, Slider, FilterChip, Switch, Checkbox, dialog konfirmasi, dan halaman hasil.</p>
+
+<h4>Rancangan aplikasi</h4>
+<ol>
+  <li><strong>Model data</strong> <code>DataPendaftar</code>: satu objek yang menampung semua isian. Lebih rapi daripada mengirim sepuluh variabel terpisah.</li>
+  <li><strong>Validators</strong>: aturan NIM, email, nomor HP, password, dan konfirmasi.</li>
+  <li><strong>PendaftaranScreen</strong>: form tiga bagian (Data Diri, Kontak &amp; Akun, Data Akademik).</li>
+  <li><strong>HasilPendaftaranScreen</strong>: menampilkan ringkasan data. Perpindahan halaman memakai <code>Navigator.push</code>, yang akan dibahas tuntas di Modul 07.</li>
+</ol>
+
+<h4>Alur saat tombol Kirim ditekan</h4>
+<ol>
+  <li>Tutup keyboard dengan <code>unfocus()</code>.</li>
+  <li>Jalankan <code>validate()</code> untuk semua TextFormField dan Dropdown.</li>
+  <li>Periksa manual input yang bukan FormField: jenis kelamin, minat, persetujuan.</li>
+  <li>Kumpulkan isian ke objek <code>DataPendaftar</code>.</li>
+  <li>Tampilkan dialog konfirmasi. Jika disetujui, buka halaman hasil.</li>
+</ol>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Pendaftaran Mahasiswa',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const PendaftaranScreen(),
+    );
+  }
+}
+
+// ======================= MODEL DATA =======================
+enum JenisKelamin { lakiLaki, perempuan }
+
+class DataPendaftar {
+  final String nama;
+  final String nim;
+  final String email;
+  final String noHp;
+  final String prodi;
+  final JenisKelamin jenisKelamin;
+  final DateTime tanggalLahir;
+  final List&lt;String&gt; minat;
+  final int semester;
+  final bool ikutBeasiswa;
+
+  const DataPendaftar({
+    required this.nama,
+    required this.nim,
+    required this.email,
+    required this.noHp,
+    required this.prodi,
+    required this.jenisKelamin,
+    required this.tanggalLahir,
+    required this.minat,
+    required this.semester,
+    required this.ikutBeasiswa,
+  });
+}
+
+// ======================= VALIDATOR =======================
+class Validators {
+  static final _emailRegex = RegExp(r'^[\w.+-]+@[\w-]+(\.[\w-]+)+$');
+
+  static String? wajib(String? v, String field) =&gt;
+      (v == null || v.trim().isEmpty) ? '$field wajib diisi' : null;
+
+  static String? nim(String? v) {
+    if (v == null || v.trim().isEmpty) return 'NIM wajib diisi';
+    if (!RegExp(r'^[A-Z]\d[A-Z]\d{6}$').hasMatch(v.trim().toUpperCase())) {
+      return 'Format NIM contoh: H1D024001';
+    }
+    return null;
+  }
+
+  static String? email(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Email wajib diisi';
+    if (!_emailRegex.hasMatch(v.trim())) return 'Format email tidak valid';
+    return null;
+  }
+
+  static String? noHp(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Nomor HP wajib diisi';
+    if (!RegExp(r'^08\d{8,11}$').hasMatch(v.trim())) {
+      return 'Nomor HP diawali 08, 10-13 digit';
+    }
+    return null;
+  }
+
+  static String? password(String? v) {
+    if (v == null || v.isEmpty) return 'Password wajib diisi';
+    if (v.length &lt; 8) return 'Password minimal 8 karakter';
+    return null;
+  }
+
+  static String? konfirmasi(String? v, String asli) {
+    if (v == null || v.isEmpty) return 'Ulangi password';
+    if (v != asli) return 'Konfirmasi password tidak sama';
+    return null;
+  }
+}
+
+String formatTanggal(DateTime t) {
+  const bulan = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+  ];
+  return '${t.day} ${bulan[t.month - 1]} ${t.year}';
+}
+
+// ======================= LAYAR FORM =======================
+class PendaftaranScreen extends StatefulWidget {
+  const PendaftaranScreen({super.key});
+
+  @override
+  State&lt;PendaftaranScreen&gt; createState() =&gt; _PendaftaranScreenState();
+}
+
+class _PendaftaranScreenState extends State&lt;PendaftaranScreen&gt; {
+  final _formKey = GlobalKey&lt;FormState&gt;();
+
+  final _namaC = TextEditingController();
+  final _nimC = TextEditingController();
+  final _emailC = TextEditingController();
+  final _hpC = TextEditingController();
+  final _passwordC = TextEditingController();
+  final _konfirmasiC = TextEditingController();
+  final _tanggalC = TextEditingController();
+
+  static const _daftarProdi = [
+    'S1 Informatika',
+    'S1 Teknik Elektro',
+    'S1 Teknik Sipil',
+    'S1 Teknik Industri',
+  ];
+  static const _daftarMinat = ['Mobile', 'Web', 'AI', 'Jaringan', 'UI/UX'];
+
+  String? _prodi;
+  JenisKelamin? _jenisKelamin;
+  DateTime? _tanggalLahir;
+  final Set&lt;String&gt; _minat = {};
+  double _semester = 1;
+  bool _ikutBeasiswa = false;
+  bool _setuju = false;
+  bool _sembunyikan = true;
+
+  @override
+  void dispose() {
+    for (final c in [_namaC, _nimC, _emailC, _hpC, _passwordC, _konfirmasiC, _tanggalC]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _pilihTanggalLahir() async {
+    final hasil = await showDatePicker(
+      context: context,
+      initialDate: _tanggalLahir ?? DateTime(2005, 1, 1),
+      firstDate: DateTime(1990),
+      lastDate: DateTime.now(),
+      helpText: 'Tanggal lahir',
+    );
+    if (hasil == null) return;
+    setState(() {
+      _tanggalLahir = hasil;
+      _tanggalC.text = formatTanggal(hasil);
+    });
+  }
+
+  void _tampilkanError(String pesan) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(pesan), backgroundColor: Colors.red));
+  }
+
+  Future&lt;void&gt; _kirim() async {
+    FocusScope.of(context).unfocus();
+
+    // 1. Validasi semua TextFormField &amp; DropdownButtonFormField
+    final formValid = _formKey.currentState!.validate();
+    if (!formValid) {
+      _tampilkanError('Masih ada isian yang salah');
+      return;
+    }
+    // 2. Validasi input yang tidak memakai FormField
+    if (_jenisKelamin == null) {
+      _tampilkanError('Pilih jenis kelamin');
+      return;
+    }
+    if (_minat.isEmpty) {
+      _tampilkanError('Pilih minimal satu bidang minat');
+      return;
+    }
+    if (!_setuju) {
+      _tampilkanError('Centang pernyataan persetujuan');
+      return;
+    }
+
+    // 3. Kumpulkan data ke satu objek
+    final data = DataPendaftar(
+      nama: _namaC.text.trim(),
+      nim: _nimC.text.trim().toUpperCase(),
+      email: _emailC.text.trim(),
+      noHp: _hpC.text.trim(),
+      prodi: _prodi!,
+      jenisKelamin: _jenisKelamin!,
+      tanggalLahir: _tanggalLahir!,
+      minat: _minat.toList(),
+      semester: _semester.round(),
+      ikutBeasiswa: _ikutBeasiswa,
+    );
+
+    // 4. Konfirmasi lewat dialog
+    final yakin = await showDialog&lt;bool&gt;(
+      context: context,
+      builder: (dialogContext) =&gt; AlertDialog(
+        title: const Text('Kirim pendaftaran?'),
+        content: Text('Pastikan data ${data.nama} (${data.nim}) sudah benar.'),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, false),
+            child: const Text('Periksa lagi'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, true),
+            child: const Text('Ya, kirim'),
+          ),
+        ],
+      ),
+    );
+    if (yakin != true || !mounted) return;
+
+    // 5. Tampilkan hasil di layar baru (detail navigasi dibahas di Modul 07)
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) =&gt; HasilPendaftaranScreen(data: data)),
+    );
+  }
+
+  Widget _judulBagian(String teks) =&gt; Padding(
+        padding: const EdgeInsets.only(top: 24, bottom: 8),
+        child: Text(teks, style: Theme.of(context).textTheme.titleMedium),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    const jarak = SizedBox(height: 12);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pendaftaran Mahasiswa Baru')),
+      body: Form(
+        key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+          children: [
+            _judulBagian('A. Data Diri'),
+            TextFormField(
+              controller: _namaC,
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Nama Lengkap',
+                prefixIcon: Icon(Icons.person_outline),
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =&gt; Validators.wajib(v, 'Nama'),
+            ),
+            jarak,
+            TextFormField(
+              controller: _nimC,
+              textCapitalization: TextCapitalization.characters,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'NIM',
+                hintText: 'H1D024001',
+                prefixIcon: Icon(Icons.badge_outlined),
+                border: OutlineInputBorder(),
+              ),
+              validator: Validators.nim,
+            ),
+            jarak,
+            TextFormField(
+              controller: _tanggalC,
+              readOnly: true,
+              onTap: _pilihTanggalLahir,
+              decoration: const InputDecoration(
+                labelText: 'Tanggal Lahir',
+                prefixIcon: Icon(Icons.cake_outlined),
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =&gt; Validators.wajib(v, 'Tanggal lahir'),
+            ),
+            jarak,
+            const Text('Jenis Kelamin'),
+            RadioGroup&lt;JenisKelamin&gt;(
+              groupValue: _jenisKelamin,
+              onChanged: (v) =&gt; setState(() =&gt; _jenisKelamin = v),
+              child: const Row(
+                children: [
+                  Expanded(
+                    child: RadioListTile(
+                      value: JenisKelamin.lakiLaki,
+                      title: Text('Laki-laki'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  Expanded(
+                    child: RadioListTile(
+                      value: JenisKelamin.perempuan,
+                      title: Text('Perempuan'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            _judulBagian('B. Kontak &amp; Akun'),
+            TextFormField(
+              controller: _emailC,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                prefixIcon: Icon(Icons.email_outlined),
+                border: OutlineInputBorder(),
+              ),
+              validator: Validators.email,
+            ),
+            jarak,
+            TextFormField(
+              controller: _hpC,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Nomor HP',
+                hintText: '081234567890',
+                prefixIcon: Icon(Icons.phone_outlined),
+                border: OutlineInputBorder(),
+              ),
+              validator: Validators.noHp,
+            ),
+            jarak,
+            TextFormField(
+              controller: _passwordC,
+              obscureText: _sembunyikan,
+              textInputAction: TextInputAction.next,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                prefixIcon: const Icon(Icons.lock_outline),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: Icon(_sembunyikan ? Icons.visibility : Icons.visibility_off),
+                  onPressed: () =&gt; setState(() =&gt; _sembunyikan = !_sembunyikan),
+                ),
+              ),
+              validator: Validators.password,
+            ),
+            jarak,
+            TextFormField(
+              controller: _konfirmasiC,
+              obscureText: _sembunyikan,
+              textInputAction: TextInputAction.done,
+              decoration: const InputDecoration(
+                labelText: 'Konfirmasi Password',
+                prefixIcon: Icon(Icons.lock_reset),
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =&gt; Validators.konfirmasi(v, _passwordC.text),
+            ),
+
+            _judulBagian('C. Data Akademik'),
+            DropdownButtonFormField&lt;String&gt;(
+              initialValue: _prodi,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Program Studi',
+                prefixIcon: Icon(Icons.school_outlined),
+                border: OutlineInputBorder(),
+              ),
+              items: _daftarProdi
+                  .map((p) =&gt; DropdownMenuItem(value: p, child: Text(p)))
+                  .toList(),
+              onChanged: (v) =&gt; setState(() =&gt; _prodi = v),
+              validator: (v) =&gt; v == null ? 'Pilih program studi' : null,
+            ),
+            jarak,
+            Text('Semester saat ini: ${_semester.round()}'),
+            Slider(
+              value: _semester,
+              min: 1,
+              max: 14,
+              divisions: 13,
+              label: 'Semester ${_semester.round()}',
+              onChanged: (v) =&gt; setState(() =&gt; _semester = v),
+            ),
+            const Text('Bidang minat (boleh lebih dari satu)'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final m in _daftarMinat)
+                  // FilterChip = versi "chip" dari checkbox
+                  FilterChip(
+                    label: Text(m),
+                    selected: _minat.contains(m),
+                    onSelected: (pilih) =&gt; setState(() {
+                      pilih ? _minat.add(m) : _minat.remove(m);
+                    }),
+                  ),
+              ],
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Mengajukan beasiswa'),
+              value: _ikutBeasiswa,
+              onChanged: (v) =&gt; setState(() =&gt; _ikutBeasiswa = v),
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text('Saya menyatakan data di atas benar.'),
+              value: _setuju,
+              onChanged: (v) =&gt; setState(() =&gt; _setuju = v ?? false),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _kirim,
+              icon: const Icon(Icons.send),
+              label: const Text('Kirim Pendaftaran'),
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ======================= LAYAR HASIL =======================
+class HasilPendaftaranScreen extends StatelessWidget {
+  final DataPendaftar data;
+
+  const HasilPendaftaranScreen({super.key, required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final baris = &lt;(IconData, String, String)&gt;[
+      (Icons.person, 'Nama', data.nama),
+      (Icons.badge, 'NIM', data.nim),
+      (Icons.wc, 'Jenis Kelamin',
+          data.jenisKelamin == JenisKelamin.lakiLaki ? 'Laki-laki' : 'Perempuan'),
+      (Icons.cake, 'Tanggal Lahir', formatTanggal(data.tanggalLahir)),
+      (Icons.email, 'Email', data.email),
+      (Icons.phone, 'Nomor HP', data.noHp),
+      (Icons.school, 'Program Studi', data.prodi),
+      (Icons.timeline, 'Semester', '${data.semester}'),
+      (Icons.interests, 'Minat', data.minat.join(', ')),
+      (Icons.card_giftcard, 'Beasiswa', data.ikutBeasiswa ? 'Ya' : 'Tidak'),
+    ];
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pendaftaran Berhasil')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Icon(Icons.check_circle, color: Colors.green, size: 80),
+          const SizedBox(height: 8),
+          Text(
+            'Selamat datang, ${data.nama}!',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Column(
+              children: [
+                for (final (ikon, label, nilai) in baris)
+                  ListTile(
+                    leading: Icon(ikon),
+                    title: Text(label),
+                    subtitle: Text(nilai),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () =&gt; Navigator.pop(context),
+            icon: const Icon(Icons.edit),
+            label: const Text('Kembali &amp; ubah data'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/pendaftaran-awal.jpg" alt="Bagian atas form pendaftaran" loading="lazy">
+    <div class="screenshot-caption">Bagian atas form pendaftaran</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/pendaftaran-error.jpg" alt="Kirim ditekan saat form kosong: pesan error dan SnackBar merah" loading="lazy">
+    <div class="screenshot-caption">Kirim ditekan saat form kosong: pesan error dan SnackBar merah</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/pendaftaran-akademik.jpg" alt="Bagian Data Akademik: Dropdown, Slider, FilterChip, Switch, Checkbox" loading="lazy">
+    <div class="screenshot-caption">Bagian Data Akademik: Dropdown, Slider, FilterChip, Switch, Checkbox</div>
+  </div>
+</div>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/pendaftaran-konfirmasi.jpg" alt="Dialog konfirmasi setelah semua isian valid" loading="lazy">
+    <div class="screenshot-caption">Dialog konfirmasi setelah semua isian valid</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/pendaftaran-hasil.jpg" alt="Halaman hasil pendaftaran" loading="lazy">
+    <div class="screenshot-caption">Halaman hasil pendaftaran</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan bagian penting:</strong></p>
+<ul>
+  <li><strong>Validasi NIM</strong> memakai pola <code>^[A-Z]\d[A-Z]\d{6}$</code>: huruf, angka, huruf, lalu enam angka (contoh H1D024001). Isian diubah ke huruf besar dulu dengan <code>toUpperCase()</code>.</li>
+  <li><strong>Banyak controller</strong> di-dispose sekaligus dengan perulangan <code>for (final c in [...]) c.dispose();</code>.</li>
+  <li><strong>FilterChip</strong> berfungsi seperti checkbox dalam bentuk chip. Pilihan disimpan di <code>Set&lt;String&gt;</code> agar tidak ada duplikat.</li>
+  <li><strong>Radio dalam Row</strong>: dua <code>RadioListTile</code> dibungkus <code>Expanded</code> agar berbagi lebar, dan <code>RadioGroup</code> membungkus Row tersebut.</li>
+  <li><strong>Record</strong> <code>(IconData, String, String)</code> di halaman hasil adalah fitur Dart 3 untuk mengelompokkan beberapa nilai tanpa membuat kelas. <code>for (final (ikon, label, nilai) in baris)</code> langsung memecahnya menjadi tiga variabel.</li>
+  <li><strong>Data dikirim ke halaman hasil</strong> lewat konstruktor: <code>HasilPendaftaranScreen(data: data)</code>.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Uji form Anda seperti penguji</h4>
+<ul>
+  <li>Tekan Kirim tanpa mengisi apa pun: semua pesan error harus muncul.</li>
+  <li>Isi NIM dengan huruf kecil (h1d024001): harus tetap diterima.</li>
+  <li>Isi email <code>budi@</code>, nomor HP <code>0812</code>, password 5 huruf: masing-masing harus ditolak dengan pesan yang jelas.</li>
+  <li>Isi password dan konfirmasi berbeda satu huruf: harus ditolak.</li>
+  <li>Isi semua dengan benar tetapi tidak memilih minat: SnackBar harus muncul.</li>
+</ul></div>
+
+<div class="callout callout-info"><h4>ℹ️ Dipakai lagi di Modul 13-14</h4><p>Kelas <code>Validators</code>, pola <code>GlobalKey&lt;FormState&gt;</code>, toggle password, dan tombol yang nonaktif saat mengirim akan dipakai ulang untuk layar login dan register pada proyek CRUD + autentikasi. Simpan kode ini baik-baik.</p></div>

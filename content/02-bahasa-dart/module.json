@@ -1,0 +1,213 @@
+{
+  "id": "modul-02",
+  "badge": "Bahasa Dart",
+  "category": "Dasar",
+  "title": "Fondasi Bahasa Pemrograman Dart Modern (Dart 3)",
+  "duration": "Pertemuan 2 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 01: Setup & Flutter Basics"
+  ],
+  "summary": "Belajar Dart dari nol secara berurutan: program pertama, variabel dan tipe data, operator, control flow, fungsi, koleksi, null safety, OOP, fitur modern Dart 3 (records, patterns, sealed class), error handling, sampai pemrograman asinkron dengan Future dan Stream. Ditutup dengan studi kasus sistem nilai dan IPK mahasiswa.",
+  "learningOutcomes": [
+    "Menulis dan menjalankan program Dart murni dengan dart run maupun DartPad.",
+    "Memakai variabel, tipe data, final/const/late, interpolasi string, dan konversi tipe dengan benar.",
+    "Menggunakan operator (aritmatika, logika, null-aware, cascade, ternary) dan control flow termasuk switch expression Dart 3.",
+    "Menulis fungsi dengan parameter posisi, named, required, dan default, serta memanfaatkan closure dan higher-order function.",
+    "Mengolah List, Set, dan Map dengan map, where, fold, sort, spread, collection-if, dan collection-for.",
+    "Menerapkan Sound Null Safety untuk mencegah error null saat runtime.",
+    "Merancang class dengan berbagai constructor, getter/setter, inheritance, abstract class, interface, mixin, extension, dan enhanced enum.",
+    "Memakai records, pattern matching, destructuring, dan sealed class dengan exhaustive switch.",
+    "Menangani error dengan try/catch/finally, throw, dan exception kustom.",
+    "Menulis kode asinkron dengan Future, async/await, Future.wait, Stream, async*, dan StreamController."
+  ],
+  "sections": [
+    {
+      "id": "dart-program-pertama",
+      "title": "1. Program Dart Pertama: main(), print & Komentar",
+      "file": "01-program-pertama.html"
+    },
+    {
+      "id": "dart-variables",
+      "title": "2. Variabel, Tipe Data & Konversi Tipe",
+      "file": "02-variabel-tipe-data.html"
+    },
+    {
+      "id": "dart-operator",
+      "title": "3. Operator: Aritmatika, Logika, Null-aware & Cascade",
+      "file": "03-operator.html"
+    },
+    {
+      "id": "dart-control-flow",
+      "title": "4. Control Flow: Percabangan & Perulangan",
+      "file": "04-control-flow.html"
+    },
+    {
+      "id": "dart-fungsi",
+      "title": "5. Fungsi: Parameter, Closure & Higher-Order Function",
+      "file": "05-fungsi.html"
+    },
+    {
+      "id": "dart-koleksi",
+      "title": "6. Koleksi: List, Set & Map",
+      "file": "06-koleksi.html"
+    },
+    {
+      "id": "dart-null-safety",
+      "title": "7. Sound Null Safety",
+      "file": "07-null-safety.html"
+    },
+    {
+      "id": "dart-oop",
+      "title": "8. Object-Oriented Programming (OOP)",
+      "file": "08-oop.html"
+    },
+    {
+      "id": "dart-modern",
+      "title": "9. Fitur Modern Dart 3: Records, Patterns & Sealed Class",
+      "file": "09-dart3-modern.html"
+    },
+    {
+      "id": "dart-error-handling",
+      "title": "10. Error Handling: try, catch & Exception Kustom",
+      "file": "10-error-handling.html"
+    },
+    {
+      "id": "dart-async",
+      "title": "11. Pemrograman Asinkron: Future, async/await & Stream",
+      "file": "11-async.html"
+    },
+    {
+      "id": "dart-studi-kasus",
+      "title": "12. Studi Kasus: Sistem Nilai & IPK Mahasiswa",
+      "file": "12-studi-kasus.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 2: Sistem Pengelolaan Nilai & IPK Mahasiswa dengan Dart 3",
+    "objective": "Menerapkan seluruh dasar Dart (variabel, control flow, fungsi, koleksi, null safety, OOP, fitur Dart 3, error handling, dan async) secara bertahap dalam program console pengelolaan nilai mahasiswa.",
+    "instructions": [
+      "<strong>Persiapan.</strong> Buat proyek dengan <code>dart create -t console praktikum_dart</code>. Kerjakan setiap tugas di file terpisah di folder <code>bin/</code> (misalnya <code>bin/tugas1.dart</code>) dan jalankan dengan <code>dart run bin/tugas1.dart</code>. Pastikan <code>dart analyze</code> tidak menampilkan error.",
+      "<strong>Tugas 1 - Variabel &amp; Control Flow (10%).</strong> Simpan daftar nilai <code>[92, 78, 65, 54, 81, 47]</code> dalam <code>List&lt;int&gt;</code>. Dengan perulangan <code>for-in</code> dan <em>switch expression</em> ber-relational pattern, cetak setiap nilai beserta huruf mutunya (A/AB/B/BC/C/D/E). Gunakan <code>continue</code> untuk melewati nilai negatif jika ada.",
+      "<strong>Tugas 2 - Fungsi &amp; Koleksi (15%).</strong> Buat fungsi <code>hitungStatistik(List&lt;int&gt; nilai)</code> yang mengembalikan <em>record</em> <code>({double rataRata, int tertinggi, int terendah, int jumlahLulus})</code> memakai <code>fold</code>, <code>reduce</code>, dan <code>where</code>. Buat juga fungsi dengan named parameter <code>cetakLaporan({required String judul, required List&lt;int&gt; nilai, int batasLulus = 60})</code>.",
+      "<strong>Tugas 3 - OOP (25%).</strong> Buat <em>enhanced enum</em> <code>NilaiHuruf</code> (label, bobot, batas bawah), class <code>MataKuliah</code> (kode, nama, sks, nilaiAngka) dengan getter <code>huruf</code> dan <code>mutu</code>, serta class <code>Mahasiswa</code> dengan field private <code>_khs</code>, getter <code>totalSks</code>, <code>ipk</code>, dan <code>predikat</code>. Tambahkan <code>factory MataKuliah.fromJson(Map&lt;String, dynamic&gt; json)</code> dan override <code>toString()</code>.",
+      "<strong>Tugas 4 - Null Safety &amp; Error Handling (15%).</strong> Buat exception kustom <code>DataNilaiException</code>. Lempar exception ini jika SKS di luar 1-6 atau nilai di luar 0-100. Baca input nilai dari List String (misalnya <code>['85', 'delapan', '70']</code>) memakai <code>int.tryParse</code> dan operator <code>??</code>, lalu laporkan data yang tidak valid tanpa menghentikan program.",
+      "<strong>Tugas 5 - Fitur Dart 3 (15%).</strong> Buat <code>sealed class HasilMuat</code> dengan turunan <code>MuatBerhasil</code> dan <code>MuatGagal</code>. Tangani keduanya dengan <em>exhaustive switch</em> dan object pattern. Gunakan <code>if-case</code> di <code>fromJson</code> untuk memvalidasi bentuk JSON, serta <code>.indexed</code> dengan destructuring saat mencetak KHS bernomor.",
+      "<strong>Tugas 6 - Asynchronous (20%).</strong> Buat fungsi <code>Future&lt;HasilMuat&gt; muatKhsDariServer(String nim)</code> dengan <code>Future.delayed</code>. Ambil data dua semester secara paralel memakai <code>Future.wait</code> atau record <code>.wait</code>. Buat juga <code>Stream&lt;int&gt; simpanKeServer()</code> dengan <code>async*</code> yang mengirim persentase progres, lalu cetak 'Data KRS Mahasiswa [Nama] berhasil disinkronkan' setelah stream selesai.",
+      "<strong>Pengumpulan.</strong> Kumpulkan folder proyek (tanpa folder <code>.dart_tool</code>) dan tangkapan layar output terminal setiap tugas. Sertakan komentar singkat di setiap file yang menjelaskan konsep yang dipakai."
+    ],
+    "expectedOutput": "Enam program console yang berjalan tanpa error dan lolos dart analyze: konversi nilai ke huruf mutu, laporan statistik nilai, KHS bernomor lengkap dengan total SKS, IPK dua desimal, dan predikat, peringatan untuk data yang tidak valid tanpa program berhenti, serta simulasi pemuatan data paralel dan progres sinkronisasi asinkron.",
+    "rubric": "Tugas 1 Variabel & Control Flow (10%), Tugas 2 Fungsi & Koleksi (15%), Tugas 3 OOP: enum, class, constructor, getter, factory (25%), Tugas 4 Null Safety & Error Handling (15%), Tugas 5 Records/Patterns/Sealed Class (15%), Tugas 6 Future, Future.wait & Stream (20%). Pengurangan nilai jika dart analyze menampilkan error atau output tidak sesuai."
+  },
+  "quiz": [
+    {
+      "question": "Apa perbedaan utama antara final dan const di Dart?",
+      "options": [
+        "final untuk angka, const untuk String",
+        "final diisi sekali dan nilainya boleh ditentukan saat runtime, sedangkan const harus sudah diketahui saat compile-time",
+        "const boleh diubah, final tidak boleh",
+        "Tidak ada perbedaan, keduanya sama persis"
+      ],
+      "correctIndex": 1,
+      "explanation": "final hanya bisa diisi sekali tetapi nilainya boleh berasal dari runtime (misalnya DateTime.now()). const harus berupa nilai compile-time, sehingga objek const yang isinya sama bisa dipakai bersama dan dihemat memorinya, seperti const widget di Flutter."
+    },
+    {
+      "question": "Apa hasil dari print(17 ~/ 5) dan print(17 / 5) di Dart?",
+      "options": [
+        "3 dan 3",
+        "3.4 dan 3",
+        "3 dan 3.4",
+        "2 dan 3.4"
+      ],
+      "correctIndex": 2,
+      "explanation": "Operator ~/ melakukan pembagian bulat sehingga hasilnya 3, sedangkan / selalu menghasilkan double, yaitu 3.4. Sisa baginya (17 % 5) adalah 2."
+    },
+    {
+      "question": "Apa fungsi operator ?? (null-coalescing) pada Dart?",
+      "options": [
+        "Memaksa compiler mengabaikan null safety",
+        "Memberikan nilai cadangan jika ekspresi di sisi kirinya bernilai null",
+        "Mengecek apakah dua objek identik di memori",
+        "Menghapus nilai null dari List secara otomatis"
+      ],
+      "correctIndex": 1,
+      "explanation": "a ?? b memakai a jika tidak null, dan memakai b jika a bernilai null. Contoh: email ?? 'Belum diisi'."
+    },
+    {
+      "question": "Perhatikan deklarasi void daftar({required String nim, String prodi = 'Informatika'}). Pemanggilan mana yang VALID?",
+      "options": [
+        "daftar('H1D023001')",
+        "daftar(prodi: 'Elektro')",
+        "daftar(nim: 'H1D023001')",
+        "daftar()"
+      ],
+      "correctIndex": 2,
+      "explanation": "nim adalah named parameter yang required, jadi wajib ditulis dengan namanya (nim: ...). prodi punya nilai default sehingga boleh dihilangkan. Named parameter tidak bisa diisi berdasarkan posisi."
+    },
+    {
+      "question": "Apa output dari kode berikut? var n = [78, 92, 55]; print(n.where((x) => x >= 60).map((x) => x + 5).toList());",
+      "options": [
+        "[83, 97, 60]",
+        "[83, 97]",
+        "[78, 92]",
+        "(83, 97)"
+      ],
+      "correctIndex": 1,
+      "explanation": "where menyaring nilai >= 60 sehingga tersisa [78, 92], lalu map menambah 5 menjadi [83, 97]. toList() mengubah Iterable menjadi List sehingga dicetak dengan kurung siku."
+    },
+    {
+      "question": "Kapan sebaiknya kita memakai operator ! (null assertion) pada variabel nullable?",
+      "options": [
+        "Setiap kali compiler menampilkan error null, agar error cepat hilang",
+        "Hanya jika kita benar-benar yakin nilainya tidak null, karena jika ternyata null aplikasi akan crash saat runtime",
+        "Untuk mengubah variabel menjadi nullable",
+        "Untuk memberi nilai default ketika variabel null"
+      ],
+      "correctIndex": 1,
+      "explanation": "Operator ! mematikan perlindungan null safety. Jika nilainya ternyata null, muncul error 'Null check operator used on a null value'. Pilihan yang lebih aman biasanya pengecekan if, ?. atau ??."
+    },
+    {
+      "question": "Apa perbedaan extends, implements, dan with pada class Dart?",
+      "options": [
+        "Ketiganya sama, hanya beda gaya penulisan",
+        "extends mewarisi isi dari satu induk, implements berjanji menyediakan semua method interface tanpa mewarisi isinya, with menempelkan mixin beserta isinya",
+        "extends boleh banyak induk, implements hanya satu",
+        "with hanya bisa dipakai pada abstract class"
+      ],
+      "correctIndex": 1,
+      "explanation": "Sebuah class hanya bisa extends satu class, tetapi boleh implements banyak interface (semua method wajib ditulis ulang) dan with banyak mixin (isinya ikut terbawa)."
+    },
+    {
+      "question": "Apa keuntungan utama sealed class ketika dipakai bersama switch expression?",
+      "options": [
+        "Program berjalan lebih cepat",
+        "Objek sealed class tidak bisa bernilai null",
+        "Compiler mengetahui semua turunannya sehingga memberi error jika ada kasus yang belum ditangani (exhaustive checking)",
+        "Sealed class bisa dibuat objeknya secara langsung"
+      ],
+      "correctIndex": 2,
+      "explanation": "Turunan sealed class hanya boleh ditulis di file yang sama, sehingga compiler tahu daftar lengkapnya. Switch tanpa cabang _ akan ditolak jika ada turunan yang terlewat, cocok untuk status seperti Memuat, Sukses, dan Gagal."
+    },
+    {
+      "question": "Apa yang terjadi pada kode berikut? try { int.parse('12a'); print('A'); } on FormatException { print('B'); } finally { print('C'); }",
+      "options": [
+        "Mencetak A lalu C",
+        "Mencetak B lalu C",
+        "Mencetak A, B, lalu C",
+        "Program crash tanpa mencetak apa pun"
+      ],
+      "correctIndex": 1,
+      "explanation": "int.parse('12a') melempar FormatException sehingga print('A') dilewati. Blok on FormatException mencetak B, dan finally selalu dijalankan sehingga mencetak C."
+    },
+    {
+      "question": "Tiga permintaan API yang tidak saling bergantung masing-masing butuh 1 detik. Cara paling efisien untuk menunggu ketiganya adalah...",
+      "options": [
+        "Meng-await ketiganya satu per satu secara berurutan (total sekitar 3 detik)",
+        "Memakai Future.wait (atau record .wait) agar berjalan paralel (total sekitar 1 detik)",
+        "Memakai Stream.fromIterable",
+        "Tidak memakai await sama sekali lalu langsung membaca hasilnya"
+      ],
+      "correctIndex": 1,
+      "explanation": "Future.wait([...]) atau (f1, f2, f3).wait menjalankan semua Future bersamaan dan menunggu hingga semuanya selesai, sehingga total waktu kira-kira sama dengan permintaan yang paling lama."
+    }
+  ]
+}

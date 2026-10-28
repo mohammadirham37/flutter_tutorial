@@ -1,0 +1,185 @@
+{
+  "id": "modul-06",
+  "badge": "Lists & Slivers",
+  "category": "Performa",
+  "title": "Scrollable Views & Optimasi Performa List Data",
+  "duration": "Pertemuan 6 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 05: Interaktivitas & Form"
+  ],
+  "summary": "Menampilkan konten yang bisa digulir dengan SingleChildScrollView, ListView (biasa, builder, separated), ListTile, dan GridView; menambahkan interaksi swipe-to-delete, pull-to-refresh, infinite scroll, serta pencarian; menangani loading/empty state; dan menyusun tampilan lanjutan dengan CustomScrollView dan Slivers.",
+  "learningOutcomes": [
+    "Menggunakan SingleChildScrollView untuk halaman berisi konten terbatas dan mengatasi error overflow.",
+    "Membedakan ListView biasa, ListView.builder, dan ListView.separated serta memilihnya sesuai jumlah data.",
+    "Menyusun baris daftar yang informatif dengan ListTile.",
+    "Menerapkan Dismissible (swipe to delete + urungkan) dan RefreshIndicator (pull-to-refresh).",
+    "Membangun grid responsif dengan GridView.count dan GridView.builder.",
+    "Menangani loading, error, dan empty state serta memuat data bertahap dengan ScrollController.",
+    "Membuat pencarian dan filter daftar secara real-time dengan TextField.",
+    "Mengimplementasikan CustomScrollView dengan SliverAppBar, SliverList, dan SliverGrid."
+  ],
+  "sections": [
+    {
+      "id": "list-single-child-scroll",
+      "title": "1. SingleChildScrollView: Halaman yang Bisa Digulir",
+      "file": "01-single-child-scroll.html"
+    },
+    {
+      "id": "listview-vs-builder",
+      "title": "2. ListView, ListView.builder & ListView.separated",
+      "file": "02-listview-vs-builder.html"
+    },
+    {
+      "id": "list-listtile",
+      "title": "3. Ragam ListTile",
+      "file": "03-listtile.html"
+    },
+    {
+      "id": "list-dismissible",
+      "title": "4. Swipe to Delete dengan Dismissible",
+      "file": "04-dismissible.html"
+    },
+    {
+      "id": "implementasi-listview-builder",
+      "title": "5. Pull-to-Refresh dengan RefreshIndicator",
+      "file": "05-refresh-indicator.html"
+    },
+    {
+      "id": "list-gridview",
+      "title": "6. GridView.count & GridView.builder",
+      "file": "06-gridview.html"
+    },
+    {
+      "id": "list-loading-empty-state",
+      "title": "7. Loading, Error & Empty State",
+      "file": "07-state-kosong-loading.html"
+    },
+    {
+      "id": "list-infinite-scroll",
+      "title": "8. Infinite Scroll dengan ScrollController",
+      "file": "08-infinite-scroll.html"
+    },
+    {
+      "id": "list-search-filter",
+      "title": "9. Pencarian & Filter Daftar",
+      "file": "09-search-filter.html"
+    },
+    {
+      "id": "slivers-header",
+      "title": "10. CustomScrollView, SliverAppBar, SliverList & SliverGrid",
+      "file": "10-slivers-header.html"
+    },
+    {
+      "id": "list-studi-kasus-matkul",
+      "title": "11. Studi Kasus: Daftar Mata Kuliah",
+      "file": "11-studi-kasus-matkul.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 6: Direktori Dosen dengan Pencarian, Swipe, dan Load More",
+    "objective": "Membangun direktori dosen interaktif yang tetap lancar dengan banyak data, lengkap dengan pencarian, filter, swipe, pull-to-refresh, dan penanganan setiap keadaan layar.",
+    "instructions": [
+      "Buat model <code>Dosen</code> (id, nama, NIDN, bidang keahlian, tersedia untuk bimbingan) dan dataset minimal 40 data (boleh dibuat dengan <code>List.generate</code>).",
+      "Tampilkan data dengan <code>ListView.builder</code> atau <code>ListView.separated</code>; setiap baris berupa <code>ListTile</code> dengan avatar inisial, nama, bidang, dan indikator ketersediaan.",
+      "Tambahkan <code>TextField</code> atau <code>SearchBar</code> untuk mencari berdasarkan nama atau bidang tanpa mengubah data asli, plus <code>ChoiceChip</code> untuk filter bidang.",
+      "Tambahkan <code>Dismissible</code>: geser ke kanan untuk menandai favorit (item tidak hilang), geser ke kiri untuk menghapus dengan dialog konfirmasi dan SnackBar URUNGKAN. Gunakan id sebagai key.",
+      "Simulasikan pemuatan bertahap: tampilkan 15 data pertama, lalu muat 15 berikutnya saat mendekati bawah dengan <code>ScrollController</code> (beri jeda <code>Future.delayed</code>).",
+      "Tangani keadaan loading awal, daftar kosong, dan hasil pencarian kosong dengan tampilan yang berbeda.",
+      "Tambahkan <code>RefreshIndicator</code> untuk mereset daftar ke halaman pertama.",
+      "Buat tab kedua (atau layar terpisah) berisi dosen favorit dalam <code>GridView.builder</code> dengan <code>SliverGridDelegateWithMaxCrossAxisExtent</code>.",
+      "Pastikan controller di-dispose dan <code>flutter analyze</code> bersih."
+    ],
+    "expectedOutput": "Direktori dosen yang lancar saat digulir, bisa dicari dan difilter secara instan, mendukung swipe favorit/hapus dengan urungkan, memuat data bertahap, dan menampilkan pesan yang jelas saat loading atau kosong.",
+    "rubric": "ListView.builder + ListTile yang benar (20%), Pencarian & filter tanpa merusak data asli (20%), Dismissible dengan key unik, konfirmasi, dan urungkan (20%), Infinite scroll dengan penjaga loading ganda (15%), Loading/empty state + RefreshIndicator (15%), GridView favorit dan kerapian kode (10%)."
+  },
+  "quiz": [
+    {
+      "question": "Mengapa ListView.builder jauh lebih hemat memori dibanding ListView biasa saat menampilkan 10.000 data?",
+      "options": [
+        "Karena ListView.builder hanya merender item yang saat ini tampak di layar viewport dan mendaur ulang item yang terlewat",
+        "Karena ListView.builder mengompres resolusi gambar menjadi hitam putih",
+        "Karena ListView.builder menghapus data dari RAM secara permanen",
+        "Karena ListView.builder dijalankan di server bukan di HP pengguna"
+      ],
+      "correctIndex": 0,
+      "explanation": "ListView.builder menggunakan konsep viewport lazy recycling. Widget anak hanya dibuat saat mendekati layar yang terlihat dan dibuang/digunakan ulang saat keluar layar, menjaga konsumsi memori tetap stabil."
+    },
+    {
+      "question": "Properti SliverAppBar manakah yang jika diatur bernilai 'true' akan membuat judul AppBar tetap menempel di atas layar saat pengguna menggulir konten jauh ke bawah?",
+      "options": [
+        "floating: true",
+        "pinned: true",
+        "snap: true",
+        "stretch: true"
+      ],
+      "correctIndex": 1,
+      "explanation": "pinned: true memastikan AppBar tidak akan hilang saat pengguna menggulir ke bawah, melainkan tetap terlihat (menempel) di bagian atas layar."
+    },
+    {
+      "question": "Kapan SingleChildScrollView lebih tepat dipakai daripada ListView.builder?",
+      "options": [
+        "Untuk halaman dengan isi terbatas seperti form atau profil yang hanya perlu bisa digulir",
+        "Untuk menampilkan 10.000 data dari API",
+        "Untuk membuat grid dua kolom",
+        "Untuk membuat item yang bisa digeser untuk dihapus"
+      ],
+      "correctIndex": 0,
+      "explanation": "SingleChildScrollView membuat seluruh isinya sekaligus, sehingga cocok untuk konten terbatas. Untuk data banyak gunakan ListView.builder yang lazy."
+    },
+    {
+      "question": "Muncul error \"Vertical viewport was given unbounded height\" saat ListView diletakkan di dalam Column. Perbaikan yang tepat adalah...",
+      "options": [
+        "Membungkus ListView dengan Expanded",
+        "Mengganti Column dengan Row",
+        "Menghapus itemCount",
+        "Membungkus Column dengan SingleChildScrollView"
+      ],
+      "correctIndex": 0,
+      "explanation": "Column memberi tinggi tak terbatas kepada anaknya, sedangkan ListView ingin mengisi seluruh tinggi yang tersedia. Expanded memberi ListView tinggi sisa yang jelas."
+    },
+    {
+      "question": "Mengapa key pada Dismissible sebaiknya memakai id unik data (misalnya ValueKey(item.id)) dan bukan index?",
+      "options": [
+        "Karena index bergeser setelah item dihapus sehingga Flutter bisa salah mengenali item",
+        "Karena index tidak boleh berupa angka",
+        "Karena ValueKey membuat animasi lebih cepat",
+        "Karena Dismissible tidak menerima tipe int"
+      ],
+      "correctIndex": 0,
+      "explanation": "Setelah item dihapus, index item-item lain berubah. Key berbasis index membuat Flutter mengira item lain adalah item yang sama, memicu error atau tampilan yang salah."
+    },
+    {
+      "question": "Apa syarat fungsi onRefresh pada RefreshIndicator?",
+      "options": [
+        "Harus mengembalikan Future; indikator berputar sampai Future selesai",
+        "Harus mengembalikan bool",
+        "Harus memanggil Navigator.pop",
+        "Harus bersifat synchronous tanpa async"
+      ],
+      "correctIndex": 0,
+      "explanation": "onRefresh bertipe Future<void> Function(). RefreshIndicator menampilkan lingkaran loading sampai Future tersebut selesai."
+    },
+    {
+      "question": "Pada infinite scroll, mengapa diperlukan variabel penjaga seperti _sedangMemuat?",
+      "options": [
+        "Agar halaman yang sama tidak dimuat berkali-kali karena listener scroll terpanggil sangat sering",
+        "Agar ListView tidak bisa digulir",
+        "Agar ScrollController tidak perlu di-dispose",
+        "Agar data otomatis tersimpan ke database"
+      ],
+      "correctIndex": 0,
+      "explanation": "Listener ScrollController dipanggil setiap perubahan posisi gulir. Tanpa penjaga, beberapa permintaan halaman yang sama terkirim bersamaan sehingga data menjadi dobel."
+    },
+    {
+      "question": "Widget Text ingin diletakkan di antara SliverAppBar dan SliverList di dalam CustomScrollView. Caranya adalah...",
+      "options": [
+        "Membungkus Text dengan SliverToBoxAdapter",
+        "Meletakkan Text langsung di daftar slivers",
+        "Membungkus Text dengan Expanded",
+        "Memindahkan Text ke parameter appBar Scaffold"
+      ],
+      "correctIndex": 0,
+      "explanation": "Semua anak CustomScrollView harus berupa sliver. Widget biasa dibungkus SliverToBoxAdapter agar bisa ditempatkan di antara sliver lain."
+    }
+  ]
+}

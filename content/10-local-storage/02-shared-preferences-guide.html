@@ -1,0 +1,170 @@
+<p class="lead"><code>shared_preferences</code> menyimpan data kecil berbentuk <strong>pasangan kunci-nilai</strong> (key-value), seperti kamus: kunci <code>'tema'</code> bernilai <code>'gelap'</code>. Di Android data disimpan di DataStore/SharedPreferences, di iOS di NSUserDefaults, dan di web di LocalStorage.</p>
+
+<p>Pasang package: <code>flutter pub add shared_preferences</code></p>
+<pre><code class="language-bash">flutter pub add shared_preferences
+</code></pre>
+
+<h4>Tipe Data yang Didukung</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Tipe</th><th>Simpan</th><th>Baca (null jika belum ada)</th></tr></thead>
+    <tbody>
+      <tr><td><code>bool</code></td><td><code>setBool('sudahOnboarding', true)</code></td><td><code>getBool('sudahOnboarding')</code></td></tr>
+      <tr><td><code>int</code></td><td><code>setInt('counter', 10)</code></td><td><code>getInt('counter')</code></td></tr>
+      <tr><td><code>double</code></td><td><code>setDouble('ukuranFont', 1.2)</code></td><td><code>getDouble('ukuranFont')</code></td></tr>
+      <tr><td><code>String</code></td><td><code>setString('nama', 'Budi')</code></td><td><code>getString('nama')</code></td></tr>
+      <tr><td><code>List&lt;String&gt;</code></td><td><code>setStringList('riwayat', ['a', 'b'])</code></td><td><code>getStringList('riwayat')</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Tiga API: Mana yang Dipakai?</h4>
+<p>Sejak versi 2.3.0, package ini menyediakan tiga class. Dokumentasi resminya menyatakan class lama <code>SharedPreferences</code> akan di-<em>deprecate</em> dan menganjurkan dua class baru untuk kode baru.</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Class</th><th>Cara membuat</th><th>Baca data</th><th>Kapan dipakai</th></tr></thead>
+    <tbody>
+      <tr><td><code>SharedPreferencesAsync</code></td><td><code>SharedPreferencesAsync()</code></td><td><code>await</code> (selalu dari disk)</td><td>Pilihan default. Selalu membaca nilai terbaru.</td></tr>
+      <tr><td><code>SharedPreferencesWithCache</code></td><td><code>await SharedPreferencesWithCache.create(...)</code></td><td>Sinkron (dari cache memori)</td><td>Nilai dibaca sangat sering, mis. di <code>build()</code> atau saat start aplikasi.</td></tr>
+      <tr><td><code>SharedPreferences</code> (lama)</td><td><code>await SharedPreferences.getInstance()</code></td><td>Sinkron</td><td>Kode lama/tutorial lama. Hindari untuk proyek baru.</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Di modul ini kita memakai <strong><code>SharedPreferencesAsync</code></strong> untuk kebanyakan contoh dan <strong><code>SharedPreferencesWithCache</code></strong> ketika butuh baca sinkron.</p>
+
+<h4>Contoh Kecil: <code>SharedPreferencesAsync</code></h4>
+<pre><code class="language-dart">import 'package:shared_preferences/shared_preferences.dart';
+
+Future&lt;void&gt; contohAsync() async {
+  final prefs = SharedPreferencesAsync();
+
+  // Simpan
+  await prefs.setString('nama', 'Budi');
+  await prefs.setInt('semester', 3);
+  await prefs.setStringList('matkulFavorit', ['Mobile', 'Basis Data']);
+
+  // Baca: hasilnya nullable, beri nilai default dengan ??
+  final nama = await prefs.getString('nama') ?? 'Tamu';
+  final semester = await prefs.getInt('semester') ?? 1;
+  print('$nama semester $semester');
+
+  // Cek dan hapus
+  final ada = await prefs.containsKey('nama');
+  await prefs.remove('nama');
+  print('Sebelum dihapus ada: $ada');
+
+  // Hapus beberapa kunci saja (lebih aman daripada clear() tanpa filter)
+  await prefs.clear(allowList: {'semester', 'matkulFavorit'});
+}
+</code></pre>
+
+<h4>Contoh Kecil: <code>SharedPreferencesWithCache</code></h4>
+<p>Class ini dibuat sekali (async), lalu pembacaan bersifat sinkron tanpa <code>await</code>. Parameter <code>allowList</code> membatasi kunci yang boleh dipakai; kunci di luar daftar akan memicu error, sehingga typo cepat ketahuan.</p>
+<pre><code class="language-dart">import 'package:shared_preferences/shared_preferences.dart';
+
+Future&lt;void&gt; contohWithCache() async {
+  final prefs = await SharedPreferencesWithCache.create(
+    cacheOptions: const SharedPreferencesWithCacheOptions(
+      allowList: {'tema', 'counter'},
+    ),
+  );
+
+  await prefs.setInt('counter', 5); // tulis tetap async
+  final int counter = prefs.getInt('counter') ?? 0; // baca sinkron, tanpa await
+  print(counter);
+}
+</code></pre>
+
+<h4>Contoh Lengkap: Counter yang Tidak Hilang</h4>
+<p>Ini perbaikan dari contoh di section 1. Angka dibaca saat layar dibuka dan disimpan setiap kali bertambah.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Pastikan sudah: flutter pub add shared_preferences
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: CounterAwet()));
+
+class CounterAwet extends StatefulWidget {
+  const CounterAwet({super.key});
+
+  @override
+  State&lt;CounterAwet&gt; createState() =&gt; _CounterAwetState();
+}
+
+class _CounterAwetState extends State&lt;CounterAwet&gt; {
+  static const _kunci = 'demo_counter';
+  final _prefs = SharedPreferencesAsync();
+  int? _counter; // null = sedang membaca dari penyimpanan
+
+  @override
+  void initState() {
+    super.initState();
+    _muat();
+  }
+
+  Future&lt;void&gt; _muat() async {
+    final nilai = await _prefs.getInt(_kunci) ?? 0;
+    if (mounted) setState(() =&gt; _counter = nilai);
+  }
+
+  Future&lt;void&gt; _tambah() async {
+    final baru = (_counter ?? 0) + 1;
+    setState(() =&gt; _counter = baru); // UI langsung berubah
+    await _prefs.setInt(_kunci, baru); // lalu disimpan
+  }
+
+  Future&lt;void&gt; _reset() async {
+    await _prefs.remove(_kunci);
+    if (mounted) setState(() =&gt; _counter = 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Counter Tersimpan'),
+        actions: [IconButton(onPressed: _reset, icon: const Icon(Icons.restart_alt))],
+      ),
+      body: Center(
+        child: _counter == null
+            ? const CircularProgressIndicator()
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('$_counter', style: Theme.of(context).textTheme.displayLarge),
+                  const Text('Tutup aplikasi lalu buka lagi, angka tetap ada.'),
+                ],
+              ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _counter == null ? null : _tambah,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/counter-awet.jpg" alt="Counter tersimpan" loading="lazy">
+    <div class="screenshot-caption">Counter tersimpan dengan SharedPreferencesAsync</div>
+  </div>
+</div>
+
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>_counter</code> bertipe <code>int?</code>. Nilai <code>null</code> berarti data belum selesai dibaca, sehingga kita menampilkan spinner. Membaca storage selalu butuh waktu.</li>
+  <li>Kunci disimpan dalam konstanta <code>_kunci</code>. Menulis string <code>'demo_counter'</code> berulang kali berisiko typo.</li>
+  <li>Pada <code>_tambah</code>, UI diperbarui dulu baru disimpan, sehingga aplikasi terasa responsif.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li><strong>Menyimpan data penting/besar</strong>. Dokumentasi resmi menegaskan SharedPreferences bukan untuk data kritis. Gunakan untuk pengaturan kecil saja.</li>
+  <li><strong>Lupa <code>await</code></strong> pada <code>SharedPreferencesAsync</code>, sehingga yang didapat <code>Future&lt;int?&gt;</code>, bukan <code>int?</code>.</li>
+  <li>Membaca dengan tipe berbeda dari saat menyimpan (simpan <code>setInt</code>, baca <code>getString</code>): hasilnya error tipe.</li>
+  <li>Memanggil <code>clear()</code> tanpa <code>allowList</code> saat logout. Semua data ikut terhapus, termasuk pengaturan tema.</li>
+  <li>Data lama dari <code>SharedPreferences</code> versi lama tidak otomatis terbaca oleh <code>SharedPreferencesAsync</code> di Android. Untuk migrasi, package menyediakan fungsi <code>migrateLegacySharedPreferencesToSharedPreferencesAsyncIfNecessary</code>.</li>
+</ul>
+</div>

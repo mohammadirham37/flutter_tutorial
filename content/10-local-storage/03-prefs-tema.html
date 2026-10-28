@@ -1,0 +1,161 @@
+<p class="lead">Kasus nyata pertama: pengguna memilih <strong>tema Terang, Gelap, atau Ikuti Sistem</strong>, dan pilihan itu harus tetap berlaku ketika aplikasi dibuka lagi. Kita gabungkan SharedPreferences dengan Provider (Modul 08).</p>
+
+<h4>Konsep</h4>
+<ol>
+  <li><code>MaterialApp</code> punya parameter <code>themeMode</code> (<code>ThemeMode.light</code>, <code>.dark</code>, <code>.system</code>).</li>
+  <li>Enum tidak bisa disimpan langsung, jadi simpan <strong>namanya</strong> (<code>ThemeMode.dark.name</code> = <code>'dark'</code>), lalu ubah kembali dengan <code>ThemeMode.values.byName('dark')</code>.</li>
+  <li>Tema harus sudah diketahui <strong>sebelum</strong> layar pertama tampil agar tidak "berkedip" dari terang ke gelap. Karena itu preferensi dibaca di <code>main()</code> sebelum <code>runApp</code> memakai <code>SharedPreferencesWithCache</code>.</li>
+</ol>
+
+<h4>Contoh Kecil: Enum ke String dan Sebaliknya</h4>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+void contohEnum() {
+  const mode = ThemeMode.dark;
+  final String disimpan = mode.name; // 'dark'
+  final ThemeMode dibaca = ThemeMode.values.byName(disimpan); // ThemeMode.dark
+  print('$disimpan -&gt; $dibaca');
+}
+</code></pre>
+
+<h4>Langkah 1: ThemeProvider</h4>
+<p class="code-file-label">📄 <code>lib/providers/theme_provider.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class ThemeProvider extends ChangeNotifier {
+  static const kunciTema = 'theme_mode';
+
+  final SharedPreferencesWithCache _prefs;
+  ThemeMode _mode;
+
+  // Nilai awal dibaca sinkron dari cache, jadi tidak perlu loading
+  ThemeProvider(this._prefs) : _mode = _baca(_prefs);
+
+  ThemeMode get mode =&gt; _mode;
+
+  static ThemeMode _baca(SharedPreferencesWithCache prefs) {
+    final nama = prefs.getString(kunciTema);
+    if (nama == null) return ThemeMode.system;
+    try {
+      return ThemeMode.values.byName(nama);
+    } on ArgumentError {
+      return ThemeMode.system; // nilai rusak/tidak dikenal
+    }
+  }
+
+  Future&lt;void&gt; setMode(ThemeMode mode) async {
+    if (mode == _mode) return;
+    _mode = mode;
+    notifyListeners(); // UI berubah seketika
+    await _prefs.setString(kunciTema, mode.name); // lalu disimpan
+  }
+}
+</code></pre>
+
+<h4>Langkah 2: Baca Preferensi Sebelum <code>runApp</code></h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Pastikan sudah: flutter pub add shared_preferences provider
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'providers/theme_provider.dart';
+
+Future&lt;void&gt; main() async {
+  // Wajib sebelum memakai plugin di main()
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final prefs = await SharedPreferencesWithCache.create(
+    cacheOptions: const SharedPreferencesWithCacheOptions(
+      allowList: {ThemeProvider.kunciTema},
+    ),
+  );
+
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) =&gt; ThemeProvider(prefs),
+      child: const TemaApp(),
+    ),
+  );
+}
+
+class TemaApp extends StatelessWidget {
+  const TemaApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final mode = context.watch&lt;ThemeProvider&gt;().mode;
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo, brightness: Brightness.light),
+      darkTheme: ThemeData(colorSchemeSeed: Colors.indigo, brightness: Brightness.dark),
+      themeMode: mode,
+      home: const PengaturanScreen(),
+    );
+  }
+}
+
+class PengaturanScreen extends StatelessWidget {
+  const PengaturanScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProv = context.watch&lt;ThemeProvider&gt;();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pengaturan Tampilan')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text('Tema aplikasi', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          SegmentedButton&lt;ThemeMode&gt;(
+            segments: const [
+              ButtonSegment(value: ThemeMode.light, icon: Icon(Icons.light_mode), label: Text('Terang')),
+              ButtonSegment(value: ThemeMode.dark, icon: Icon(Icons.dark_mode), label: Text('Gelap')),
+              ButtonSegment(value: ThemeMode.system, icon: Icon(Icons.phone_android), label: Text('Sistem')),
+            ],
+            selected: {themeProv.mode},
+            onSelectionChanged: (pilihan) =&gt; themeProv.setMode(pilihan.first),
+          ),
+          const SizedBox(height: 24),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: Text('Mode tersimpan: ${themeProv.mode.name}'),
+              subtitle: const Text('Tutup lalu buka aplikasi: tema tetap sama.'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/tema-terang.jpg" alt="Tema terang" loading="lazy">
+    <div class="screenshot-caption">Mode Terang dipilih</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/tema-gelap.jpg" alt="Tema gelap" loading="lazy">
+    <div class="screenshot-caption">Mode Gelap dipilih dan tersimpan</div>
+  </div>
+</div>
+
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>WidgetsFlutterBinding.ensureInitialized()</code> wajib dipanggil karena kita memakai plugin (<code>SharedPreferencesWithCache.create</code>) sebelum <code>runApp</code>.</li>
+  <li>Objek <code>prefs</code> dioper ke <code>ThemeProvider</code> lewat constructor. Provider tidak perlu membuat instance sendiri dan mudah diganti saat testing.</li>
+  <li><code>SegmentedButton</code> adalah komponen Material 3 untuk memilih satu dari beberapa opsi.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Lupa <code>WidgetsFlutterBinding.ensureInitialized()</code>: muncul error <em>Binding has not yet been initialized</em>.</li>
+  <li>Membaca tema di <code>initState</code> layar pertama: tampilan sempat terang sebentar lalu berubah gelap (<em>flicker</em>).</li>
+  <li>Menyimpan <code>mode.toString()</code> (<code>'ThemeMode.dark'</code>) lalu membacanya dengan <code>byName</code>: gagal. Pakai <code>.name</code>.</li>
+  <li>Lupa menambahkan kunci ke <code>allowList</code>: <code>SharedPreferencesWithCache</code> melempar error saat kunci dipakai.</li>
+</ul>
+</div>

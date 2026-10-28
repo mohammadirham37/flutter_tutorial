@@ -1,0 +1,202 @@
+<p class="lead">Jaringan itu tidak bisa diandalkan: sinyal hilang di dalam lift, server kampus down saat KRS-an, atau URL salah ketik. Aplikasi yang baik <strong>tidak crash</strong> dan memberi pesan yang dimengerti pengguna. Di section ini kita mengenali jenis-jenis kegagalan dan cara menanganinya satu per satu.</p>
+
+<h4>Dua Jenis Kegagalan</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Jenis</th><th>Contoh</th><th>Bagaimana terdeteksi</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Request sampai, tetapi server menolak</strong></td><td>404, 401, 500</td><td>Tidak ada exception! Harus cek <code>response.statusCode</code>.</td></tr>
+      <tr><td><strong>Tidak ada internet / host salah</strong></td><td>Mode pesawat, DNS gagal</td><td><code>SocketException</code> / <code>http.ClientException</code></td></tr>
+      <tr><td><strong>Server terlalu lama</strong></td><td>Server lambat, sinyal lemah</td><td><code>TimeoutException</code> (jika memakai <code>.timeout()</code>)</td></tr>
+      <tr><td><strong>Response bukan JSON yang diharapkan</strong></td><td>Halaman HTML error</td><td><code>FormatException</code> / <code>TypeError</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Langkah 1: Cek Status Code</h4>
+<pre><code class="language-dart">import 'package:http/http.dart' as http;
+
+Future&lt;String&gt; ambil() async {
+  final response = await http.get(Uri.parse('https://jsonplaceholder.typicode.com/posts/9999'));
+
+  // http TIDAK melempar error untuk 404, jadi kita cek sendiri
+  if (response.statusCode &gt;= 200 &amp;&amp; response.statusCode &lt; 300) {
+    return response.body;
+  }
+  throw Exception('Server membalas ${response.statusCode}');
+}
+</code></pre>
+
+<h4>Langkah 2: Tangkap Exception dengan <code>try/catch</code> dan <code>on</code></h4>
+<p>Klausa <code>on NamaException catch (e)</code> menangkap jenis error tertentu. Urutannya dari yang paling spesifik ke paling umum.</p>
+<pre><code class="language-dart">import 'dart:async'; // TimeoutException
+import 'dart:io'; // SocketException (tidak tersedia di web)
+
+import 'package:http/http.dart' as http;
+
+Future&lt;String&gt; ambilDenganPenanganan() async {
+  try {
+    final response = await http
+        .get(Uri.parse('https://jsonplaceholder.typicode.com/posts/1'))
+        .timeout(const Duration(seconds: 10)); // batas waktu 10 detik
+    return 'Status ${response.statusCode}';
+  } on SocketException {
+    return 'Tidak ada koneksi internet.';
+  } on TimeoutException {
+    return 'Server terlalu lama merespons. Coba lagi.';
+  } on http.ClientException catch (e) {
+    return 'Gagal menghubungi server: ${e.message}';
+  } catch (e) {
+    return 'Terjadi kesalahan tak terduga: $e';
+  }
+}
+</code></pre>
+<div class="callout callout-info"><h4>ℹ️ SocketException vs ClientException</h4><p>Di Android/iOS, error koneksi dari package <code>http</code> berbentuk <code>ClientException</code> yang <em>juga</em> merupakan <code>SocketException</code>, sehingga kedua klausa di atas bisa menangkapnya. Di Flutter Web, <code>dart:io</code> tidak berfungsi dan error koneksi hanya berupa <code>http.ClientException</code>. Karena itu selalu sediakan klausa <code>http.ClientException</code>.</p></div>
+
+<h4>Langkah 3: Exception Buatan Sendiri</h4>
+<p>Agar UI cukup menampilkan satu pesan yang ramah, ubah semua jenis error menjadi satu class <code>ApiException</code>:</p>
+<p class="code-file-label">📄 <code>lib/services/api_exception.dart</code></p>
+<pre><code class="language-dart">class ApiException implements Exception {
+  final String message;
+  final int? statusCode;
+
+  const ApiException(this.message, {this.statusCode});
+
+  // Menerjemahkan status code menjadi pesan yang dimengerti pengguna
+  factory ApiException.fromStatus(int code) {
+    final pesan = switch (code) {
+      400 =&gt; 'Data yang dikirim tidak valid.',
+      401 =&gt; 'Sesi berakhir, silakan login ulang.',
+      403 =&gt; 'Anda tidak punya akses ke data ini.',
+      404 =&gt; 'Data tidak ditemukan.',
+      422 =&gt; 'Validasi gagal, periksa kembali isian.',
+      &gt;= 500 =&gt; 'Server sedang bermasalah. Coba beberapa saat lagi.',
+      _ =&gt; 'Terjadi kesalahan (kode $code).',
+    };
+    return ApiException(pesan, statusCode: code);
+  }
+
+  @override
+  String toString() =&gt; message; // agar Text('$error') langsung rapi
+}
+</code></pre>
+
+<h4>Contoh Lengkap: Simulator Error</h4>
+<p>Aplikasi ini punya tombol untuk memicu setiap jenis kegagalan: sukses, 404, host tidak ada, dan timeout (endpoint httpbin <code>/delay/5</code> butuh 5 detik, sedangkan batas kita 2 detik). Coba juga nyalakan mode pesawat di emulator.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Pastikan sudah: flutter pub add http, dan membuat lib/services/api_exception.dart
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+import 'services/api_exception.dart';
+
+/// Satu fungsi GET yang mengubah semua jenis kegagalan menjadi ApiException.
+Future&lt;dynamic&gt; getJson(String url, {Duration timeout = const Duration(seconds: 10)}) async {
+  try {
+    final res = await http.get(Uri.parse(url)).timeout(timeout);
+    if (res.statusCode &lt; 200 || res.statusCode &gt;= 300) {
+      throw ApiException.fromStatus(res.statusCode);
+    }
+    return jsonDecode(res.body);
+  } on SocketException {
+    throw const ApiException('Tidak ada koneksi internet. Periksa Wi-Fi atau data seluler.');
+  } on TimeoutException {
+    throw const ApiException('Koneksi lambat, server tidak merespons tepat waktu.');
+  } on http.ClientException {
+    throw const ApiException('Gagal menghubungi server.');
+  } on FormatException {
+    throw const ApiException('Format data dari server tidak dikenali.');
+  }
+}
+
+void main() =&gt; runApp(const MaterialApp(home: ErrorDemoScreen()));
+
+class ErrorDemoScreen extends StatefulWidget {
+  const ErrorDemoScreen({super.key});
+
+  @override
+  State&lt;ErrorDemoScreen&gt; createState() =&gt; _ErrorDemoScreenState();
+}
+
+class _ErrorDemoScreenState extends State&lt;ErrorDemoScreen&gt; {
+  String _pesan = 'Pilih skenario.';
+  bool _sukses = true;
+  bool _loading = false;
+
+  Future&lt;void&gt; _coba(String url, {Duration timeout = const Duration(seconds: 10)}) async {
+    setState(() =&gt; _loading = true);
+    try {
+      final data = await getJson(url, timeout: timeout);
+      _sukses = true;
+      _pesan = 'Berhasil: ${(data as Map)['title']}';
+    } on ApiException catch (e) {
+      _sukses = false;
+      _pesan = e.statusCode == null ? e.message : '${e.message} (HTTP ${e.statusCode})';
+    }
+    if (mounted) setState(() =&gt; _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const base = 'https://jsonplaceholder.typicode.com';
+    return Scaffold(
+      appBar: AppBar(title: const Text('Simulasi Error Jaringan')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          FilledButton(onPressed: () =&gt; _coba('$base/posts/1'), child: const Text('Sukses (200)')),
+          FilledButton.tonal(onPressed: () =&gt; _coba('$base/posts/9999'), child: const Text('Tidak ditemukan (404)')),
+          FilledButton.tonal(
+            onPressed: () =&gt; _coba('https://host-tidak-ada.invalid/data'),
+            child: const Text('Host salah / offline'),
+          ),
+          FilledButton.tonal(
+            onPressed: () =&gt; _coba('https://httpbin.org/delay/5', timeout: const Duration(seconds: 2)),
+            child: const Text('Timeout (2 detik)'),
+          ),
+          const SizedBox(height: 24),
+          if (_loading)
+            const Center(child: CircularProgressIndicator())
+          else
+            Card(
+              color: _sukses ? Colors.green.shade50 : Colors.red.shade50,
+              child: ListTile(
+                leading: Icon(
+                  _sukses ? Icons.check_circle : Icons.error_outline,
+                  color: _sukses ? Colors.green : Colors.red,
+                ),
+                title: Text(_pesan),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/error-404.jpg" alt="Pesan error 404" loading="lazy">
+    <div class="screenshot-caption">Skenario 404 diterjemahkan menjadi pesan ramah</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/error-host.jpg" alt="Pesan error host salah" loading="lazy">
+    <div class="screenshot-caption">Host tidak ditemukan / offline</div>
+  </div>
+</div>
+
+
+<p><strong>Penjelasan:</strong> fungsi <code>getJson</code> adalah satu-satunya tempat yang tahu soal <code>SocketException</code>, <code>TimeoutException</code>, dan status code. UI hanya perlu menangkap <code>ApiException</code> dan menampilkan <code>message</code>. Pola ini akan kita pakai lagi di service/repository layer.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Hanya memakai <code>try/catch</code> tanpa mengecek status code, sehingga response 500 dianggap sukses lalu <code>jsonDecode</code> gagal dengan pesan membingungkan.</li>
+  <li>Menampilkan <code>e.toString()</code> mentah kepada pengguna (<code>ClientException with SocketException: Failed host lookup...</code>). Terjemahkan menjadi kalimat yang ramah.</li>
+  <li>Tidak memberi <code>.timeout()</code>: tanpa batas waktu, spinner bisa berputar sangat lama.</li>
+  <li>Menelan error diam-diam: <code>catch (e) {}</code> tanpa pesan apa pun membuat pengguna dan programmer sama-sama bingung.</li>
+</ul>
+</div>

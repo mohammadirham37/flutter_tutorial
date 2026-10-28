@@ -1,0 +1,210 @@
+<p class="lead">Widget <strong><code>Image</code></strong> menampilkan gambar. Ada dua sumber yang paling sering dipakai: <strong>asset</strong> (file gambar yang ikut dibundel di dalam aplikasi) dan <strong>network</strong> (gambar dari internet lewat URL).</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Konstruktor</th><th>Sumber</th><th>Kapan dipakai</th></tr></thead>
+    <tbody>
+      <tr><td><code>Image.asset('assets/...')</code></td><td>File di folder proyek</td><td>Logo, ilustrasi, ikon kustom yang selalu sama.</td></tr>
+      <tr><td><code>Image.network('https://...')</code></td><td>Internet</td><td>Foto profil, gambar berita, data dari server.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Langkah 1: siapkan folder asset</h4>
+<p>Buat folder <code>assets/images/</code> di akar proyek (sejajar dengan <code>lib/</code> dan <code>pubspec.yaml</code>), lalu salin gambar ke sana, misalnya <code>logo_unsoed.png</code>.</p>
+<pre><code class="language-text">nama_proyek/
+├── assets/
+│   └── images/
+│       └── logo_unsoed.png
+├── lib/
+│   └── main.dart
+└── pubspec.yaml
+</code></pre>
+
+<h4>Langkah 2: daftarkan di <code>pubspec.yaml</code></h4>
+<p>Buka <code>pubspec.yaml</code>, cari bagian <code>flutter:</code>, lalu tambahkan <code>assets:</code>. Perhatikan indentasi: <code>assets:</code> menjorok 2 spasi di bawah <code>flutter:</code>, dan daftar di bawahnya menjorok 4 spasi.</p>
+<p class="code-file-label">📄 <code>pubspec.yaml</code> (potongan)</p>
+<pre><code class="language-yaml">flutter:
+  uses-material-design: true
+
+  # Daftarkan seluruh isi folder (akhiri dengan garis miring)
+  assets:
+    - assets/images/
+</code></pre>
+<p>Setelah menyimpan <code>pubspec.yaml</code>, jalankan perintah berikut lalu <strong>hentikan dan jalankan ulang</strong> aplikasi (hot reload tidak cukup untuk asset baru):</p>
+<pre><code class="language-bash">flutter pub get
+flutter run
+</code></pre>
+
+<h4>Langkah 3: tampilkan gambar</h4>
+<pre><code class="language-dart">Image.asset(
+  'assets/images/logo_unsoed.png',
+  width: 120,
+  height: 120,
+  fit: BoxFit.contain, // gambar utuh, tidak terpotong
+)
+</code></pre>
+
+<h4>Gambar dari internet</h4>
+<pre><code class="language-dart">Image.network(
+  'https://picsum.photos/id/1/400/250',
+  height: 180,
+  width: double.infinity,
+  fit: BoxFit.cover, // penuhi kotak, boleh terpotong
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/image-2.jpg" alt="Image.network dengan BoxFit.cover" loading="lazy">
+    <div class="screenshot-caption">Image.network dengan BoxFit.cover</div>
+  </div>
+</div>
+<div class="callout callout-info"><h4>ℹ️ Izin internet di Android</h4><p>Saat debug, izin internet sudah aktif. Untuk build rilis Android, pastikan <code>android/app/src/main/AndroidManifest.xml</code> berisi <code>&lt;uses-permission android:name="android.permission.INTERNET"/&gt;</code>. Detailnya dibahas di Modul 09 dan 16.</p></div>
+
+<h4>Nilai <code>BoxFit</code> yang perlu diketahui</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Nilai</th><th>Hasil</th></tr></thead>
+    <tbody>
+      <tr><td><code>BoxFit.cover</code></td><td>Memenuhi kotak, sisi yang berlebih dipotong. Cocok untuk banner dan foto.</td></tr>
+      <tr><td><code>BoxFit.contain</code></td><td>Gambar utuh di dalam kotak, mungkin ada ruang kosong. Cocok untuk logo.</td></tr>
+      <tr><td><code>BoxFit.fill</code></td><td>Ditarik memenuhi kotak, gambar bisa gepeng.</td></tr>
+      <tr><td><code>BoxFit.fitWidth</code> / <code>fitHeight</code></td><td>Menyesuaikan lebar atau tinggi saja.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh lengkap: gambar network dengan loading dan error</h4>
+<p>Contoh ini hanya memakai gambar network supaya langsung bisa dijalankan tanpa menyiapkan asset. Gambar dari internet butuh waktu dimuat dan bisa gagal (misalnya saat offline), jadi kita tampilkan indikator loading dan ikon cadangan.</p>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.green),
+      home: const DemoGambar(),
+    );
+  }
+}
+
+class DemoGambar extends StatelessWidget {
+  const DemoGambar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Demo Image')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Text('1. BoxFit.cover dengan sudut membulat'),
+          const SizedBox(height: 8),
+          // ClipRRect memotong anak menjadi sudut membulat
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.network(
+              'https://picsum.photos/id/1011/600/300',
+              height: 180,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              // Dipanggil berulang selama gambar diunduh
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child; // selesai dimuat
+                return const SizedBox(
+                  height: 180,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              },
+              // Dipanggil jika gambar gagal dimuat
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  height: 180,
+                  color: Colors.grey.shade300,
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.broken_image, size: 48),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text('2. Foto profil bulat dengan CircleAvatar'),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 32,
+                foregroundImage: const NetworkImage('https://i.pravatar.cc/150?img=12'),
+                // child tampil jika foregroundImage belum/gagal dimuat
+                child: const Icon(Icons.person),
+              ),
+              const SizedBox(width: 12),
+              const Text('Nadia Putri', style: TextStyle(fontSize: 18)),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Text('3. URL salah: errorBuilder bekerja'),
+          const SizedBox(height: 8),
+          Image.network(
+            'https://contoh.invalid/gambar-tidak-ada.png',
+            height: 100,
+            errorBuilder: (context, error, stackTrace) =&gt; const Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Gambar gagal dimuat'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/image-3.jpg" alt="Gambar network dengan sudut membulat, CircleAvatar, dan errorBuilder" loading="lazy">
+    <div class="screenshot-caption">Gambar network dengan sudut membulat, CircleAvatar, dan errorBuilder</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><code>loadingBuilder</code> menerima <code>progress</code>. Jika <code>null</code>, artinya gambar sudah selesai diunduh sehingga kita kembalikan <code>child</code> (gambar aslinya).</li>
+  <li><code>errorBuilder</code> mencegah layar merah dan menggantinya dengan tampilan cadangan.</li>
+  <li><code>ClipRRect</code> memotong gambar agar sudutnya membulat. <code>Image</code> sendiri tidak punya properti <code>borderRadius</code>.</li>
+  <li><code>CircleAvatar</code> dengan <code>foregroundImage</code> tetap menampilkan ikon <code>child</code> jika foto gagal dimuat.</li>
+</ul>
+
+<h4>Versi asset dari contoh di atas</h4>
+<p>Setelah langkah 1 dan 2 selesai, kamu bisa mengganti <code>Image.network(...)</code> dengan asset, dan <code>NetworkImage</code> dengan <code>AssetImage</code>:</p>
+<pre><code class="language-dart">Column(
+  children: [
+    Image.asset('assets/images/logo_unsoed.png', height: 100),
+    const SizedBox(height: 12),
+    const CircleAvatar(
+      radius: 32,
+      backgroundImage: AssetImage('assets/images/logo_unsoed.png'),
+    ),
+  ],
+)
+</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>"Unable to load asset"</strong>: path di kode berbeda dengan nama file (huruf besar/kecil berpengaruh), atau folder belum didaftarkan di <code>pubspec.yaml</code>.</li>
+  <li><strong>Indentasi YAML salah</strong>: <code>assets:</code> harus berada di dalam <code>flutter:</code> (2 spasi), bukan di tingkat paling kiri.</li>
+  <li><strong>Hanya hot reload</strong> setelah menambah asset. Lakukan <code>flutter pub get</code> dan jalankan ulang aplikasi.</li>
+  <li><strong>Gambar network tanpa <code>errorBuilder</code></strong>: saat internet mati, pengguna melihat area kosong atau pesan error.</li>
+</ul></div>

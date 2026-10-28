@@ -1,0 +1,157 @@
+<p class="lead">Pengguna terbiasa <strong>menarik layar ke bawah</strong> untuk memuat ulang data (Instagram, Gmail). Di Flutter, gestur ini disediakan widget <code>RefreshIndicator</code>.</p>
+
+<h4>Konsep</h4>
+<ul>
+  <li><code>RefreshIndicator</code> membungkus widget yang bisa di-scroll (<code>ListView</code>, <code>CustomScrollView</code>).</li>
+  <li>Parameter <code>onRefresh</code> wajib mengembalikan <code>Future</code>. Spinner tetap tampil sampai Future itu selesai.</li>
+  <li>Child harus bisa di-scroll <strong>meskipun isinya sedikit</strong>. Gunakan <code>physics: const AlwaysScrollableScrollPhysics()</code>.</li>
+</ul>
+
+<h4>Contoh Kecil</h4>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+class AngkaAcak extends StatefulWidget {
+  const AngkaAcak({super.key});
+
+  @override
+  State&lt;AngkaAcak&gt; createState() =&gt; _AngkaAcakState();
+}
+
+class _AngkaAcakState extends State&lt;AngkaAcak&gt; {
+  int _versi = 1;
+
+  Future&lt;void&gt; _refresh() async {
+    await Future.delayed(const Duration(seconds: 1)); // pura-pura memanggil API
+    setState(() =&gt; _versi++);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [ListTile(title: Text('Data versi $_versi'))],
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Contoh Lengkap: FutureBuilder + Pull-to-Refresh</h4>
+<p>Memakai <code>Post</code> (section 3) dan <code>PostService</code> (section 5). Kuncinya: <code>_refresh()</code> membuat Future baru, menyimpannya lewat <code>setState</code>, lalu <strong>menunggu</strong> Future yang sama agar spinner RefreshIndicator berhenti tepat ketika data tiba.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Butuh: flutter pub add http, lib/models/post.dart, lib/services/post_service.dart
+import 'package:flutter/material.dart';
+
+import 'models/post.dart';
+import 'services/post_service.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: RefreshPostScreen()));
+
+class RefreshPostScreen extends StatefulWidget {
+  const RefreshPostScreen({super.key});
+
+  @override
+  State&lt;RefreshPostScreen&gt; createState() =&gt; _RefreshPostScreenState();
+}
+
+class _RefreshPostScreenState extends State&lt;RefreshPostScreen&gt; {
+  final _service = PostService();
+  late Future&lt;List&lt;Post&gt;&gt; _future;
+  DateTime _terakhir = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _service.fetchPosts();
+  }
+
+  Future&lt;void&gt; _refresh() async {
+    final future = _service.fetchPosts();
+    setState(() {
+      _future = future;
+      _terakhir = DateTime.now();
+    });
+    try {
+      await future; // spinner RefreshIndicator berhenti setelah ini
+    } catch (_) {
+      // error sudah ditampilkan oleh FutureBuilder, tidak perlu dilempar lagi
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final jam = '${_terakhir.hour.toString().padLeft(2, '0')}:'
+        '${_terakhir.minute.toString().padLeft(2, '0')}:'
+        '${_terakhir.second.toString().padLeft(2, '0')}';
+    return Scaffold(
+      appBar: AppBar(title: const Text('Tarik untuk Refresh')),
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: FutureBuilder&lt;List&lt;Post&gt;&gt;(
+          future: _future,
+          builder: (context, snapshot) {
+            // Loading pertama kali: belum ada data sama sekali
+            if (snapshot.connectionState == ConnectionState.waiting &amp;&amp; !snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            // Error: tetap pakai ListView agar layar masih bisa ditarik
+            if (snapshot.hasError) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 120),
+                  const Icon(Icons.cloud_off, size: 64),
+                  Center(child: Text('${snapshot.error}')),
+                  const Center(child: Text('Tarik ke bawah untuk mencoba lagi')),
+                ],
+              );
+            }
+            final posts = snapshot.data ?? [];
+            return ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              itemCount: posts.length + 1,
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text('Diperbarui pukul $jam • ${posts.length} post'),
+                  );
+                }
+                final post = posts[index - 1];
+                return ListTile(
+                  leading: CircleAvatar(child: Text('${post.id}')),
+                  title: Text(post.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/pull-refresh.jpg" alt="Daftar dengan jam pembaruan" loading="lazy">
+    <div class="screenshot-caption">Baris pertama menunjukkan waktu pembaruan terakhir</div>
+  </div>
+</div>
+
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li>Kondisi loading memakai <code>&amp;&amp; !snapshot.hasData</code>. Saat refresh, Future baru sedang berjalan tetapi kita tidak ingin layar berkedip menjadi spinner besar karena RefreshIndicator sudah menampilkan spinner kecil di atas.</li>
+  <li>Tampilan error juga dibuat sebagai <code>ListView</code> dengan <code>AlwaysScrollableScrollPhysics</code>. Jika memakai <code>Center</code> biasa, layar error tidak bisa ditarik untuk mencoba lagi.</li>
+  <li>Baris pertama list menampilkan jam pembaruan sehingga efek refresh terlihat jelas.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li><code>onRefresh: () { _load(); }</code> tanpa <code>async</code>/<code>return</code>: spinner langsung hilang sebelum data datang. Pastikan fungsi mengembalikan Future yang ditunggu.</li>
+  <li>Membungkus <code>Column</code> atau <code>Center</code> dengan RefreshIndicator: tidak bisa ditarik karena bukan widget scroll.</li>
+  <li>Lupa <code>AlwaysScrollableScrollPhysics</code> ketika item sedikit, sehingga gestur tarik tidak berfungsi.</li>
+</ul>
+</div>

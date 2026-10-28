@@ -1,0 +1,98 @@
+<p class="lead">Tabel bisa dibuat lewat <strong>Table Editor</strong> dengan klik-klik, tetapi di praktikum ini kita memakai <strong>SQL Editor</strong>. Perintah SQL bisa disimpan, dibagikan, dan dijalankan ulang persis sama. Kebiasaan ini juga yang dipakai tim profesional (disebut <em>migration</em>).</p>
+
+<h4>Membuka SQL Editor</h4>
+<ol>
+  <li>Di sidebar dashboard klik <strong>SQL Editor</strong>.</li>
+  <li>Klik <strong>New query</strong> (atau ikon +).</li>
+  <li>Tempel SQL, lalu klik <strong>Run</strong> (atau <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Enter</kbd>).</li>
+  <li>Hasil atau pesan error muncul di panel bawah. "Success. No rows returned" artinya perintah berhasil.</li>
+</ol>
+
+<h4>Tabel pertama: <code>mata_kuliah</code></h4>
+<pre><code class="language-sql">create table public.mata_kuliah (
+  id bigint generated always as identity primary key,
+  kode text not null unique,
+  nama text not null,
+  sks int not null default 3 check (sks between 1 and 6),
+  semester int not null check (semester between 1 and 8),
+  created_at timestamptz not null default now()
+);
+</code></pre>
+<p>Kita bedah baris demi baris:</p>
+<ul>
+  <li><code>public.mata_kuliah</code>: tabel dibuat di schema <code>public</code>. Hanya tabel di schema ini yang bisa diakses lewat API dari Flutter.</li>
+  <li><code>bigint generated always as identity primary key</code>: id berupa angka yang naik otomatis (1, 2, 3, ...). Kita tidak perlu mengirim id saat insert.</li>
+  <li><code>text not null unique</code>: kode wajib diisi dan tidak boleh ada yang sama. Insert kode ganda akan ditolak dengan error <code>23505</code>.</li>
+  <li><code>default 3</code>: jika kolom tidak dikirim saat insert, nilainya otomatis 3.</li>
+  <li><code>check (sks between 1 and 6)</code>: database menolak nilai di luar rentang (error <code>23514</code>). Validasi di database adalah lapis pertahanan terakhir, meskipun form Flutter juga sudah memvalidasi.</li>
+  <li><code>timestamptz not null default now()</code>: waktu dibuat terisi otomatis dalam UTC dengan zona waktu.</li>
+</ul>
+
+<h4>Mengisi data awal</h4>
+<pre><code class="language-sql">insert into public.mata_kuliah (kode, nama, sks, semester) values
+  ('INF101', 'Algoritma dan Pemrograman', 4, 1),
+  ('INF102', 'Matematika Diskrit', 3, 1),
+  ('INF201', 'Struktur Data', 3, 2),
+  ('INF202', 'Basis Data', 3, 3),
+  ('INF301', 'Pemrograman Mobile', 3, 5),
+  ('INF302', 'Jaringan Komputer', 3, 4),
+  ('INF303', 'Kecerdasan Buatan', 3, 5),
+  ('INF304', 'Rekayasa Perangkat Lunak', 3, 4);
+
+-- Cek hasilnya
+select * from public.mata_kuliah order by semester;
+</code></pre>
+
+<h4>Tipe data PostgreSQL yang sering dipakai</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Tipe Postgres</th><th>Tipe di Dart</th><th>Contoh penggunaan</th></tr></thead>
+    <tbody>
+      <tr><td><code>text</code></td><td><code>String</code></td><td>nama, judul, isi catatan (tanpa batas panjang)</td></tr>
+      <tr><td><code>int</code> / <code>bigint</code></td><td><code>int</code></td><td>sks, jumlah, id identity</td></tr>
+      <tr><td><code>numeric</code> / <code>float8</code></td><td><code>num</code> / <code>double</code></td><td>IPK, harga</td></tr>
+      <tr><td><code>boolean</code></td><td><code>bool</code></td><td><code>is_done</code>, <code>is_pinned</code></td></tr>
+      <tr><td><code>timestamptz</code></td><td><code>String</code> ISO-8601 &rarr; <code>DateTime.parse()</code></td><td><code>created_at</code></td></tr>
+      <tr><td><code>date</code></td><td><code>String</code> <code>'2026-10-28'</code></td><td>tanggal lahir, deadline</td></tr>
+      <tr><td><code>uuid</code></td><td><code>String</code></td><td>id user (<code>auth.users.id</code>), id catatan</td></tr>
+      <tr><td><code>jsonb</code></td><td><code>Map</code> / <code>List</code></td><td>data fleksibel/pengaturan</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Identity (angka) atau UUID?</h4>
+<pre><code class="language-sql">-- Contoh tabel ber-id UUID (akan kita pakai untuk catatan di Modul 14)
+create table public.contoh_uuid (
+  id uuid primary key default gen_random_uuid(),
+  judul text not null
+);
+</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th></th><th><code>bigint identity</code></th><th><code>uuid default gen_random_uuid()</code></th></tr></thead>
+    <tbody>
+      <tr><td>Bentuk</td><td>1, 2, 3, ...</td><td><code>3f6c2a9e-8b1d-4c7a-...</code></td></tr>
+      <tr><td>Bisa ditebak?</td><td>Ya (id berikutnya mudah ditebak)</td><td>Tidak</td></tr>
+      <tr><td>Bisa dibuat di HP sebelum online?</td><td>Tidak</td><td>Ya (package <code>uuid</code>)</td></tr>
+      <tr><td>Cocok untuk</td><td>Data referensi/master</td><td>Data milik user, sinkronisasi offline</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Relasi ke tabel user (<code>auth.users</code>)</h4>
+<p>Supabase menyimpan akun hasil register di tabel <code>auth.users</code> (schema <code>auth</code>, dikelola Supabase, tidak bisa diakses langsung lewat API). Tabel milik kita cukup menyimpan id user sebagai <em>foreign key</em>:</p>
+<pre><code class="language-sql">create table public.contoh_milik_user (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid()
+    references auth.users (id) on delete cascade,
+  isi text not null
+);
+</code></pre>
+<ul>
+  <li><code>default auth.uid()</code>: saat insert dari aplikasi, <code>user_id</code> otomatis terisi id user yang sedang login. Aplikasi tidak perlu mengirimnya.</li>
+  <li><code>on delete cascade</code>: jika akun user dihapus, semua barisnya ikut terhapus.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Membersihkan tabel latihan</h4><p>Tabel <code>contoh_uuid</code> dan <code>contoh_milik_user</code> hanya untuk latihan. Hapus dengan <code>drop table public.contoh_uuid, public.contoh_milik_user;</code></p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Tabel baru tanpa RLS = terbuka untuk siapa saja</h4><p>Tabel yang dibuat lewat SQL tidak otomatis dilindungi. Selama RLS belum aktif, siapa pun yang memegang publishable key bisa membaca <em>dan mengubah</em> isinya (dashboard akan memberi label peringatan <strong>UNRESTRICTED</strong>). Sebaliknya, jika RLS aktif tetapi belum ada policy, hasil query dari aplikasi selalu <strong>kosong</strong>. Section berikutnya membahas cara mengatur keduanya dengan benar.</p></div>

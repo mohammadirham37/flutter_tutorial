@@ -1,0 +1,281 @@
+<p class="lead">Dart 3 menambahkan fitur yang membuat kode lebih ringkas dan lebih aman: <strong>records</strong> (mengelompokkan beberapa nilai tanpa membuat class), <strong>patterns</strong> (membongkar dan mencocokkan bentuk data), serta <strong>sealed class</strong> (switch yang dijamin lengkap oleh compiler).</p>
+
+<h4>Records</h4>
+<p>Record adalah kumpulan beberapa nilai yang dibungkus jadi satu, ditulis dengan tanda kurung. Field-nya bisa berdasarkan posisi (diakses dengan <code>$1</code>, <code>$2</code>, ...) atau bernama.</p>
+<pre><code class="language-dart">void main() {
+  var mhs = ('Ayu', 3.75); // record posisi
+  print(mhs.$1); // Output: Ayu
+  print(mhs.$2); // Output: 3.75
+
+  ({String nama, int sks}) matkul = (nama: 'Pemrograman Mobile', sks: 3);
+  print(matkul.nama); // Output: Pemrograman Mobile
+  print(matkul); // Output: (nama: Pemrograman Mobile, sks: 3)
+
+  var campur = ('H1D023001', nama: 'Ayu', aktif: true); // posisi + bernama
+  print(campur.$1); // Output: H1D023001
+  print(campur.aktif); // Output: true
+
+  // Record dibandingkan berdasarkan isinya
+  print(('Ayu', 20) == ('Ayu', 20)); // Output: true
+}
+</code></pre>
+
+<h4>Fungsi yang mengembalikan beberapa nilai</h4>
+<p>Sebelum Dart 3, mengembalikan lebih dari satu nilai harus memakai List, Map, atau class khusus. Dengan record, cukup tulis tipe kembalian sebagai record.</p>
+<pre><code class="language-dart">({double rataRata, int tertinggi, int terendah}) hitungStatistik(List&lt;int&gt; nilai) {
+  final urut = [...nilai]..sort();
+  final total = nilai.fold(0, (a, b) =&gt; a + b);
+  return (
+    rataRata: total / nilai.length,
+    tertinggi: urut.last,
+    terendah: urut.first,
+  );
+}
+
+void main() {
+  final s = hitungStatistik([80, 65, 90, 75]);
+  print('Rata-rata: ${s.rataRata}'); // Output: Rata-rata: 77.5
+  print('Tertinggi: ${s.tertinggi}'); // Output: Tertinggi: 90
+  print('Terendah: ${s.terendah}'); // Output: Terendah: 65
+
+  // Langsung dibongkar (destructuring) ke variabel
+  final (:rataRata, :tertinggi, :terendah) = hitungStatistik([60, 70]);
+  print('$rataRata $tertinggi $terendah'); // Output: 65.0 70 60
+}
+</code></pre>
+<p><code>[...nilai]..sort()</code> menyalin list dulu sebelum diurutkan agar list asli tidak berubah. <code>:rataRata</code> adalah singkatan dari <code>rataRata: rataRata</code>.</p>
+
+<h4>Destructuring</h4>
+<p><em>Destructuring</em> berarti membongkar isi record, List, atau Map langsung ke beberapa variabel.</p>
+<pre><code class="language-dart">void main() {
+  var (nama, ipk) = ('Bima', 3.6);
+  print('$nama: $ipk'); // Output: Bima: 3.6
+
+  // Menukar dua variabel tanpa variabel bantu
+  var a = 1;
+  var b = 2;
+  (a, b) = (b, a);
+  print('a=$a, b=$b'); // Output: a=2, b=1
+
+  // List pattern dengan rest element (...)
+  var [pertama, kedua, ...sisa] = [10, 20, 30, 40];
+  print('$pertama $kedua $sisa'); // Output: 10 20 [30, 40]
+
+  // Destructuring di for-in: Map entries
+  final nilai = {'Ayu': 90, 'Bima': 78};
+  for (final MapEntry(:key, :value) in nilai.entries) {
+    print('$key mendapat $value');
+  }
+  // Output:
+  // Ayu mendapat 90
+  // Bima mendapat 78
+
+  // .indexed menghasilkan record (indeks, elemen)
+  for (final (i, mk) in ['Mobile', 'Web'].indexed) {
+    print('${i + 1}. $mk');
+  }
+  // Output:
+  // 1. Mobile
+  // 2. Web
+}
+</code></pre>
+
+<h4>Pattern matching di switch</h4>
+<p>Pattern di <code>switch</code> bisa mencocokkan <strong>rentang nilai</strong> (relational pattern), <strong>tipe</strong>, <strong>bentuk List</strong>, dan <strong>record</strong>, ditambah syarat tambahan dengan <code>when</code> (guard).</p>
+<pre><code class="language-dart">String kategoriNilai(int nilai) =&gt; switch (nilai) {
+      &gt;= 85 &amp;&amp; &lt;= 100 =&gt; 'Sangat baik',
+      &gt;= 70 &amp;&amp; &lt; 85 =&gt; 'Baik',
+      &gt;= 60 &amp;&amp; &lt; 70 =&gt; 'Cukup',
+      &gt;= 0 &amp;&amp; &lt; 60 =&gt; 'Kurang',
+      _ =&gt; 'Nilai tidak valid',
+    };
+
+void main() {
+  print(kategoriNilai(91)); // Output: Sangat baik
+  print(kategoriNilai(70)); // Output: Baik
+  print(kategoriNilai(59)); // Output: Kurang
+  print(kategoriNilai(120)); // Output: Nilai tidak valid
+}
+</code></pre>
+
+<pre><code class="language-dart">String jelaskan(Object data) =&gt; switch (data) {
+      int n when n &lt; 0 =&gt; 'Bilangan negatif $n',
+      int n =&gt; 'Bilangan bulat $n',
+      double d =&gt; 'Desimal ${d.toStringAsFixed(1)}',
+      String s when s.isEmpty =&gt; 'Teks kosong',
+      String s =&gt; 'Teks "$s" (${s.length} huruf)',
+      [] =&gt; 'List kosong',
+      [var x] =&gt; 'List berisi satu: $x',
+      [var x, ...] =&gt; 'List diawali $x',
+      (String nama, int umur) =&gt; 'Record: $nama umur $umur',
+      _ =&gt; 'Tipe lain: ${data.runtimeType}',
+    };
+
+void main() {
+  print(jelaskan(-5)); // Output: Bilangan negatif -5
+  print(jelaskan(42)); // Output: Bilangan bulat 42
+  print(jelaskan(3.14159)); // Output: Desimal 3.1
+  print(jelaskan('')); // Output: Teks kosong
+  print(jelaskan('Dart')); // Output: Teks "Dart" (4 huruf)
+  print(jelaskan([])); // Output: List kosong
+  print(jelaskan([7])); // Output: List berisi satu: 7
+  print(jelaskan([1, 2, 3])); // Output: List diawali 1
+  print(jelaskan(('Ayu', 20))); // Output: Record: Ayu umur 20
+  print(jelaskan(true)); // Output: Tipe lain: bool
+}
+</code></pre>
+<p>Cabang dicek dari atas ke bawah. <code>int n when n &lt; 0</code> artinya "jika data bertipe int, simpan sebagai <code>n</code>, <em>dan</em> nilainya negatif". Karena itu cabang yang lebih spesifik harus ditulis lebih dulu.</p>
+
+<h4>if-case: validasi bentuk data</h4>
+<p>Pattern juga bisa dipakai di <code>if</code> dengan kata kunci <code>case</code>. Ini sangat praktis untuk memeriksa JSON: cek kunci yang wajib ada <em>sekaligus</em> tipenya, lalu langsung ambil nilainya.</p>
+<pre><code class="language-dart">void prosesJson(Map&lt;String, dynamic&gt; json) {
+  if (json case {'nama': String nama, 'ipk': double ipk}) {
+    print('Valid: $nama, IPK $ipk');
+  } else {
+    print('Format JSON tidak sesuai: $json');
+  }
+}
+
+void main() {
+  prosesJson({'nama': 'Ayu', 'ipk': 3.8}); // Output: Valid: Ayu, IPK 3.8
+  prosesJson({'nama': 'Bima'}); // Output: Format JSON tidak sesuai: {nama: Bima}
+  prosesJson({'nama': 'Citra', 'ipk': '3.5'}); // Output: Format JSON tidak sesuai: {nama: Citra, ipk: 3.5}
+}
+</code></pre>
+<p>Data ketiga ditolak karena <code>'3.5'</code> adalah String, bukan double. Tanpa pattern, kita harus menulis beberapa <code>if</code> dan <code>is</code> secara manual.</p>
+
+<h4>Object pattern</h4>
+<p>Object pattern mencocokkan objek berdasarkan nilai getter/field-nya.</p>
+<pre><code class="language-dart">class Mahasiswa {
+  final String nama;
+  final int semester;
+  final double ipk;
+  const Mahasiswa(this.nama, this.semester, this.ipk);
+}
+
+String evaluasi(Mahasiswa m) =&gt; switch (m) {
+      Mahasiswa(semester: &gt; 14) =&gt; '${m.nama}: melewati batas masa studi',
+      Mahasiswa(:var nama, ipk: &gt;= 3.5) =&gt; '$nama: kandidat cumlaude',
+      Mahasiswa(:var nama, :var ipk) when ipk &lt; 2.0 =&gt; '$nama: peringatan akademik',
+      Mahasiswa(:var nama) =&gt; '$nama: normal',
+    };
+
+void main() {
+  print(evaluasi(const Mahasiswa('Ayu', 5, 3.8))); // Output: Ayu: kandidat cumlaude
+  print(evaluasi(const Mahasiswa('Bima', 15, 3.0))); // Output: Bima: melewati batas masa studi
+  print(evaluasi(const Mahasiswa('Citra', 4, 1.9))); // Output: Citra: peringatan akademik
+  print(evaluasi(const Mahasiswa('Dodi', 6, 3.1))); // Output: Dodi: normal
+}
+</code></pre>
+
+<h4>Sealed class dan exhaustive switch</h4>
+<p><code>sealed class</code> adalah abstract class yang turunannya hanya boleh ditulis di file yang sama. Karena compiler tahu <strong>semua</strong> turunannya, switch terhadap sealed class tidak perlu cabang <code>_</code>, dan compiler akan memberi error jika ada turunan yang terlewat. Ini disebut <em>exhaustive checking</em>.</p>
+<pre><code class="language-dart">sealed class HasilLogin {}
+
+class LoginBerhasil extends HasilLogin {
+  final String nama;
+  LoginBerhasil(this.nama);
+}
+
+class PasswordSalah extends HasilLogin {
+  final int sisaPercobaan;
+  PasswordSalah(this.sisaPercobaan);
+}
+
+class AkunDiblokir extends HasilLogin {}
+
+HasilLogin login(String username, String password) {
+  if (username == 'admin') return AkunDiblokir();
+  if (password == 'rahasia') return LoginBerhasil(username);
+  return PasswordSalah(2);
+}
+
+String pesanUntuk(HasilLogin hasil) =&gt; switch (hasil) {
+      LoginBerhasil(:final nama) =&gt; 'Selamat datang, $nama!',
+      PasswordSalah(:final sisaPercobaan) =&gt;
+        'Password salah. Sisa percobaan: $sisaPercobaan',
+      AkunDiblokir() =&gt; 'Akun diblokir, hubungi admin.',
+    };
+
+void main() {
+  print(pesanUntuk(login('ayu', 'rahasia'))); // Output: Selamat datang, ayu!
+  print(pesanUntuk(login('ayu', '12345'))); // Output: Password salah. Sisa percobaan: 2
+  print(pesanUntuk(login('admin', 'apa saja'))); // Output: Akun diblokir, hubungi admin.
+}
+</code></pre>
+<p>Coba hapus baris <code>AkunDiblokir() =&gt; ...</code>, lalu jalankan <code>dart analyze</code>. Compiler akan menolak dengan pesan bahwa tipe <code>HasilLogin</code> tidak tertangani secara lengkap (<em>not exhaustively matched</em>).</p>
+
+<p>Pola yang sama sangat cocok untuk status pemuatan data di aplikasi (Memuat, Sukses, Gagal), yang akan Anda pakai bersama Provider dan REST API:</p>
+<pre><code class="language-dart">sealed class StatusData {}
+
+class Memuat extends StatusData {}
+
+class Sukses extends StatusData {
+  final List&lt;String&gt; data;
+  Sukses(this.data);
+}
+
+class Gagal extends StatusData {
+  final String pesan;
+  Gagal(this.pesan);
+}
+
+String tampilan(StatusData status) =&gt; switch (status) {
+      Memuat() =&gt; 'Menampilkan loading...',
+      Sukses(data: []) =&gt; 'Belum ada data',
+      Sukses(:final data) =&gt; 'Menampilkan ${data.length} item',
+      Gagal(:final pesan) =&gt; 'Error: $pesan',
+    };
+
+void main() {
+  print(tampilan(Memuat())); // Output: Menampilkan loading...
+  print(tampilan(Sukses([]))); // Output: Belum ada data
+  print(tampilan(Sukses(['Ayu', 'Bima']))); // Output: Menampilkan 2 item
+  print(tampilan(Gagal('Koneksi terputus'))); // Output: Error: Koneksi terputus
+}
+</code></pre>
+<p>Di Flutter, fungsi seperti <code>tampilan()</code> akan mengembalikan widget (misalnya <code>CircularProgressIndicator()</code> atau <code>ListView</code>), bukan String.</p>
+
+<h4>Class modifier (ringkas)</h4>
+<p>Dart 3 menambahkan kata kunci untuk mengatur bagaimana class boleh dipakai <strong>dari file/library lain</strong>. Di dalam file yang sama, batasan ini tidak berlaku.</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Modifier</th><th>Boleh dibuat objek?</th><th>Boleh <code>extends</code>?</th><th>Boleh <code>implements</code>?</th><th>Kegunaan</th></tr></thead>
+    <tbody>
+      <tr><td><code>abstract</code></td><td>Tidak</td><td>Ya</td><td>Ya</td><td>Kerangka dengan method abstrak</td></tr>
+      <tr><td><code>base</code></td><td>Ya</td><td>Ya</td><td>Tidak</td><td>Wajib mewarisi implementasi asli</td></tr>
+      <tr><td><code>interface</code></td><td>Ya</td><td>Tidak</td><td>Ya</td><td>Murni kontrak</td></tr>
+      <tr><td><code>final</code></td><td>Ya</td><td>Tidak</td><td>Tidak</td><td>Class tertutup, tidak bisa diturunkan</td></tr>
+      <tr><td><code>sealed</code></td><td>Tidak</td><td>Hanya di file sama</td><td>Hanya di file sama</td><td>Exhaustive switch</td></tr>
+      <tr><td><code>mixin class</code></td><td>Ya</td><td>Ya</td><td>Ya</td><td>Bisa dipakai sebagai class maupun mixin</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Kombinasi yang paling sering dipakai di aplikasi adalah <code>abstract interface class</code> untuk kontrak <em>repository</em>, sehingga sumber data mudah diganti (misalnya data palsu untuk testing di Modul 15):</p>
+<pre><code class="language-dart">abstract interface class MahasiswaRepository {
+  List&lt;String&gt; ambilSemuaNama();
+}
+
+final class RepositoryMemori implements MahasiswaRepository {
+  final _data = ['Ayu', 'Bima', 'Citra'];
+
+  @override
+  List&lt;String&gt; ambilSemuaNama() =&gt; List.unmodifiable(_data);
+}
+
+void tampilkan(MahasiswaRepository repo) {
+  print(repo.ambilSemuaNama().join(', '));
+}
+
+void main() {
+  tampilkan(RepositoryMemori()); // Output: Ayu, Bima, Citra
+}
+</code></pre>
+
+<div class="callout callout-tip"><h4>💡 Ringkasan</h4>
+<ul>
+  <li><strong>Record</strong>: kembalikan beberapa nilai sekaligus tanpa membuat class.</li>
+  <li><strong>Destructuring</strong>: <code>var (a, b) = ...</code>, <code>var [x, ...sisa] = ...</code>, <code>for (final (i, e) in list.indexed)</code>.</li>
+  <li><strong>Pattern</strong> di switch dan <code>if-case</code>: cocokkan rentang, tipe, dan bentuk data.</li>
+  <li><strong>Sealed class</strong>: kumpulan status yang terbatas, dan compiler memastikan semuanya ditangani.</li>
+</ul></div>

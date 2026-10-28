@@ -1,0 +1,154 @@
+<p class="lead">Jika kamu mencoba <code>box.put('a', Mahasiswa(...))</code> tanpa persiapan, Hive akan melempar <code>HiveError: Cannot write, unknown type: Mahasiswa. Did you forget to register an adapter?</code>. Hive tidak tahu cara mengubah objek buatanmu menjadi byte. Tugas itu dikerjakan oleh <strong>TypeAdapter</strong>.</p>
+
+<h4>Cara kerja TypeAdapter</h4>
+<p>TypeAdapter adalah kelas yang berisi tiga hal:</p>
+<ol>
+  <li><code>typeId</code>: nomor unik untuk tipe ini. Hive menulis nomor ini di depan data agar tahu adapter mana yang harus dipakai saat membaca.</li>
+  <li><code>write()</code>: mengubah objek menjadi urutan nilai (serialisasi).</li>
+  <li><code>read()</code>: membaca urutan nilai itu kembali menjadi objek (deserialisasi).</li>
+</ol>
+<p>Kita menulis adapter secara manual dulu (tanpa code generator) supaya jelas apa yang sebenarnya terjadi.</p>
+
+<h4>Langkah 1: Model dan adapter</h4>
+<p class="code-file-label">📄 <code>lib/models/mahasiswa.dart</code></p>
+<pre><code class="language-dart">// lib/models/mahasiswa.dart
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+class Mahasiswa {
+  final String nim;
+  final String nama;
+  final int semester;
+  final double ipk;
+
+  const Mahasiswa({
+    required this.nim,
+    required this.nama,
+    required this.semester,
+    required this.ipk,
+  });
+
+  @override
+  String toString() =&gt; 'Mahasiswa($nim, $nama, smt $semester, IPK $ipk)';
+}
+
+class MahasiswaAdapter extends TypeAdapter&lt;Mahasiswa&gt; {
+  @override
+  final int typeId = 1; // nomor unik untuk kelas Mahasiswa
+
+  @override
+  Mahasiswa read(BinaryReader reader) {
+    // Urutan baca = urutan tulis
+    final nim = reader.readString();
+    final nama = reader.readString();
+    final semester = reader.readInt();
+    final ipk = reader.readDouble();
+    return Mahasiswa(nim: nim, nama: nama, semester: semester, ipk: ipk);
+  }
+
+  @override
+  void write(BinaryWriter writer, Mahasiswa obj) {
+    writer.writeString(obj.nim);
+    writer.writeString(obj.nama);
+    writer.writeInt(obj.semester);
+    writer.writeDouble(obj.ipk);
+  }
+}
+</code></pre>
+
+<p>Method yang tersedia di <code>BinaryWriter</code> dan <code>BinaryReader</code> berpasangan: <code>writeString/readString</code>, <code>writeInt/readInt</code>, <code>writeDouble/readDouble</code>, <code>writeBool/readBool</code>, <code>writeByte/readByte</code>, <code>writeList/readList</code>, <code>writeMap/readMap</code>, serta <code>write/read</code> yang otomatis memakai tipe yang dikenal Hive.</p>
+
+<h4>Langkah 2: Daftarkan adapter lalu pakai box bertipe</h4>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+import 'models/mahasiswa.dart';
+
+Future&lt;void&gt; demoMahasiswa() async {
+  // Di main(): setelah Hive.initFlutter(), sebelum openBox
+  Hive.registerAdapter(MahasiswaAdapter());
+
+  final box = await Hive.openBox&lt;Mahasiswa&gt;('mahasiswa_box');
+
+  await box.put(
+    'H1D023001',
+    const Mahasiswa(nim: 'H1D023001', nama: 'Siti', semester: 4, ipk: 3.75),
+  );
+  await box.put(
+    'H1D023002',
+    const Mahasiswa(nim: 'H1D023002', nama: 'Andi', semester: 4, ipk: 3.20),
+  );
+
+  final siti = box.get('H1D023001'); // tipe: Mahasiswa?
+  debugPrint('$siti');
+  debugPrint('IPK Siti: ${siti?.ipk}');
+
+  final ipkTinggi = box.values.where((m) =&gt; m.ipk &gt;= 3.5).toList();
+  debugPrint('IPK &gt;= 3.5: ${ipkTinggi.map((m) =&gt; m.nama).toList()}');
+}
+</code></pre>
+
+<p>Output:</p>
+<pre><code class="language-text">Mahasiswa(H1D023001, Siti, smt 4, IPK 3.75)
+IPK Siti: 3.75
+IPK &gt;= 3.5: [Siti]
+</code></pre>
+<p>Perhatikan bahwa <code>box.get()</code> langsung mengembalikan <code>Mahasiswa?</code>, bukan Map. Filter seperti "IPK minimal 3.5" dikerjakan dengan <code>where()</code> biasa di Dart.</p>
+
+<h4>Aturan typeId</h4>
+<ul>
+  <li><strong>Unik per aplikasi.</strong> Dua adapter dengan <code>typeId</code> sama memicu <code>HiveError: There is already a TypeAdapter for typeId 1</code>.</li>
+  <li><strong>Jangan pernah diganti</strong> setelah aplikasi dipakai orang. Data lama di file tetap bertanda typeId lama, sehingga tidak bisa dibaca lagi.</li>
+  <li>Rentang yang diizinkan <code>hive_ce</code> adalah 0 sampai 65439 (package <code>hive</code> lama hanya 0 sampai 223). Mulailah dari 0, 1, 2, dan seterusnya.</li>
+  <li><code>Hive.initFlutter()</code> sudah mendaftarkan adapter bawaan untuk <code>Color</code> (typeId 200) dan <code>TimeOfDay</code> (typeId 201). Hindari dua nomor itu.</li>
+  <li>Daftarkan adapter <strong>sebelum</strong> <code>openBox</code> yang menyimpan tipe tersebut.</li>
+</ul>
+
+<h4>Aturan urutan field</h4>
+<p>Adapter manual membaca data secara berurutan seperti kaset: tidak ada nama field di file, hanya nilai-nilai yang berjajar. Jika di <code>write()</code> urutannya nim, nama, semester, ipk, maka <code>read()</code> wajib membaca nim, nama, semester, ipk juga. Tertukar sedikit saja (misalnya <code>readDouble</code> sebelum <code>readInt</code>) akan menghasilkan data aneh atau error <code>RangeError</code>.</p>
+
+<h4>Hati-hati saat model berubah (migrasi)</h4>
+<p>Bayangkan aplikasi sudah dipakai, lalu kamu menambah field <code>email</code>. Data lama di HP pengguna tidak punya email. Jika <code>read()</code> langsung memanggil <code>readString()</code> keempat, Hive membaca melewati batas data dan aplikasi crash.</p>
+<p>Trik sederhana: tulis <strong>nomor versi format</strong> sebagai byte pertama sejak awal. Saat membaca, field baru hanya dibaca jika versinya mendukung.</p>
+<pre><code class="language-dart">// Versi 2 dari model: field baru `email`
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+class Dosen {
+  final String nidn;
+  final String nama;
+  final String email; // FIELD BARU di versi 2
+
+  const Dosen({required this.nidn, required this.nama, this.email = ''});
+}
+
+class DosenAdapter extends TypeAdapter&lt;Dosen&gt; {
+  @override
+  final int typeId = 2;
+
+  static const int _versiSekarang = 2;
+
+  @override
+  Dosen read(BinaryReader reader) {
+    final versi = reader.readByte(); // byte pertama = versi format
+    final nidn = reader.readString();
+    final nama = reader.readString();
+    // Data versi 1 belum punya email, jadi hanya dibaca jika versi &gt;= 2
+    final email = versi &gt;= 2 ? reader.readString() : '';
+    return Dosen(nidn: nidn, nama: nama, email: email);
+  }
+
+  @override
+  void write(BinaryWriter writer, Dosen obj) {
+    writer.writeByte(_versiSekarang);
+    writer.writeString(obj.nidn);
+    writer.writeString(obj.nama);
+    writer.writeString(obj.email); // field baru selalu DITAMBAH DI AKHIR
+  }
+}
+</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Aturan migrasi adapter manual</h4><ul>
+<li>Field baru selalu <strong>ditambah di akhir</strong>, jangan disisipkan di tengah.</li>
+<li>Jangan menghapus atau mengubah tipe field lama. Jika tidak dipakai lagi, tetap baca lalu abaikan nilainya.</li>
+<li>Selama masih tahap belajar dan data boleh hilang, cara paling cepat adalah menghapus aplikasi dari emulator (uninstall) agar file box ikut terhapus.</li>
+<li>Kode yang dibuat generator (bagian 6) menulis nomor indeks untuk setiap field, sehingga migrasi jauh lebih aman. Itu alasan utama memakai codegen di proyek nyata.</li>
+</ul></div>

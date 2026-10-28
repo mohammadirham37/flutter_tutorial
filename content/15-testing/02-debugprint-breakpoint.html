@@ -1,0 +1,150 @@
+<p class="lead">Setelah tahu letak error, langkah berikutnya adalah memahami <em>kenapa</em> kode berperilaku salah. Ada dua cara: mencetak isi variabel ke console (logging), atau menghentikan aplikasi di baris tertentu lalu memeriksa semua variabel (breakpoint).</p>
+
+<h4>1. debugPrint: cara paling sederhana</h4>
+<p><code>print()</code> memang bisa dipakai, tetapi lint bawaan Flutter (<code>avoid_print</code>) akan memberi peringatan. Gunakan <code>debugPrint()</code> dari <code>package:flutter/foundation.dart</code>. Bedanya, <code>debugPrint</code> membatasi kecepatan output sehingga log panjang tidak terpotong oleh Android.</p>
+<pre><code class="language-dart">import 'dart:developer' as developer;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
+class KeranjangDebug {
+  final List&lt;int&gt; sks = [];
+
+  void tambah(int nilaiSks) {
+    debugPrint('tambah() dipanggil dengan sks=$nilaiSks');
+    sks.add(nilaiSks);
+    debugPrint('isi sekarang: $sks, total=${sks.fold(0, (a, b) =&gt; a + b)}');
+  }
+}</code></pre>
+<p>Output di Debug Console saat <code>tambah(3)</code> lalu <code>tambah(4)</code> dipanggil:</p>
+<pre><code class="language-text">I/flutter ( 5123): tambah() dipanggil dengan sks=3
+I/flutter ( 5123): isi sekarang: [3], total=3
+I/flutter ( 5123): tambah() dipanggil dengan sks=4
+I/flutter ( 5123): isi sekarang: [3, 4], total=7</code></pre>
+<p>Tulis log yang <strong>informatif</strong>: sebutkan nama fungsi dan nilai variabelnya, bukan sekadar <code>debugPrint('masuk')</code>.</p>
+
+<h4>2. log dari dart:developer: log yang lebih terstruktur</h4>
+<p><code>developer.log()</code> mendukung nama kategori (<code>name</code>), objek error, dan stack trace. Log ini tampil rapi di tab <em>Logging</em> DevTools dan bisa difilter berdasarkan nama.</p>
+<pre><code class="language-dart">Future&lt;void&gt; muatCatatan() async {
+  developer.log('Mulai memuat catatan', name: 'catatan.repo');
+  try {
+    await Future.delayed(const Duration(seconds: 1));
+    throw Exception('Timeout ke server');
+  } catch (e, stackTrace) {
+    developer.log(
+      'Gagal memuat catatan',
+      name: 'catatan.repo',
+      error: e,
+      stackTrace: stackTrace,
+      level: 1000, // 1000 = SEVERE
+    );
+  }
+}</code></pre>
+<p>Poin penting:</p>
+<ul>
+  <li><code>catch (e, stackTrace)</code>: parameter kedua menangkap stack trace, sehingga Anda tahu dari mana error berasal.</li>
+  <li><code>name: 'catatan.repo'</code>: kategori log. Di DevTools, ketik <code>catatan</code> di kolom filter untuk hanya melihat log ini.</li>
+  <li><code>level: 1000</code>: tingkat keparahan (800 = INFO, 900 = WARNING, 1000 = SEVERE).</li>
+</ul>
+
+<h4>3. kDebugMode dan assert</h4>
+<p>Log dan pemeriksaan tambahan sebaiknya hanya aktif saat pengembangan. Flutter menyediakan konstanta <code>kDebugMode</code> dan pernyataan <code>assert</code>:</p>
+<pre><code class="language-dart">void catatDebug(String pesan) {
+  // kDebugMode bernilai false di build release,
+  // sehingga blok ini dibuang total oleh compiler.
+  if (kDebugMode) {
+    debugPrint('[DEBUG] $pesan');
+  }
+}
+
+double hitungRataRata(List&lt;int&gt; nilai) {
+  // assert hanya diperiksa di mode debug
+  assert(nilai.isNotEmpty, 'List nilai tidak boleh kosong');
+  return nilai.reduce((a, b) =&gt; a + b) / nilai.length;
+}</code></pre>
+<p><code>assert</code> sangat berguna untuk menangkap “hal yang seharusnya tidak pernah terjadi”. Di mode debug, <code>hitungRataRata([])</code> langsung berhenti dengan pesan jelas, bukan menghasilkan <code>NaN</code> diam-diam.</p>
+
+<h4>4. Breakpoint di VS Code</h4>
+<p>Breakpoint menghentikan aplikasi tepat di satu baris sehingga Anda bisa melihat nilai <em>semua</em> variabel tanpa menulis <code>debugPrint</code>. Langkahnya:</p>
+<ol>
+  <li>Jalankan aplikasi dengan mode debug: tekan <kbd>F5</kbd> (atau menu <em>Run → Start Debugging</em>). Jangan pakai <code>flutter run</code> di terminal jika ingin breakpoint VS Code bekerja.</li>
+  <li>Klik di sebelah kiri nomor baris sampai muncul titik merah.</li>
+  <li>Lakukan aksi di aplikasi yang menjalankan baris tersebut. Aplikasi akan berhenti dan baris tersebut disorot kuning.</li>
+  <li>Lihat panel <strong>Variables</strong> (nilai variabel lokal), <strong>Watch</strong> (ekspresi yang Anda pantau), dan <strong>Call Stack</strong>.</li>
+</ol>
+<pre><code class="language-dart">int hitungTotalSks(List&lt;int&gt; daftarSks) {
+  var total = 0;
+  for (final sks in daftarSks) {
+    total += sks; // &lt;- pasang breakpoint di baris ini (klik kiri nomor baris)
+  }
+  return total;
+}
+
+class TombolHitung extends StatelessWidget {
+  const TombolHitung({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton(
+      onPressed: () {
+        final total = hitungTotalSks([3, 4, 2, 3]);
+        // Bisa juga berhenti lewat kode (hanya jika debugger terhubung)
+        if (total &gt; 10) developer.debugger(message: 'Total SKS &gt; 10');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Total SKS: $total')),
+        );
+      },
+      child: const Text('Hitung SKS'),
+    );
+  }
+}</code></pre>
+<p>Saat berhenti di baris <code>total += sks;</code>, gunakan tombol kontrol debug:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Tombol</th><th>Pintasan</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td>Continue</td><td><kbd>F5</kbd></td><td>Lanjut sampai breakpoint berikutnya</td></tr>
+      <tr><td>Step Over</td><td><kbd>F10</kbd></td><td>Jalankan baris ini, berhenti di baris berikutnya</td></tr>
+      <tr><td>Step Into</td><td><kbd>F11</kbd></td><td>Masuk ke dalam fungsi yang dipanggil di baris ini</td></tr>
+      <tr><td>Step Out</td><td><kbd>Shift</kbd>+<kbd>F11</kbd></td><td>Selesaikan fungsi saat ini, kembali ke pemanggil</td></tr>
+      <tr><td>Restart</td><td><kbd>Shift</kbd>+<kbd>Cmd/Ctrl</kbd>+<kbd>F5</kbd></td><td>Hot restart aplikasi</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Breakpoint bersyarat dan logpoint</h4>
+<p>Klik kanan titik merah lalu pilih <em>Edit Breakpoint</em>:</p>
+<ul>
+  <li><strong>Expression</strong>: berhenti hanya jika kondisi benar, misalnya <code>sks &gt; 3</code>. Berguna di dalam loop panjang.</li>
+  <li><strong>Log Message</strong> (logpoint): tidak berhenti, hanya mencetak pesan seperti <code>total sekarang {total}</code>. Ini seperti <code>debugPrint</code> tanpa mengubah kode.</li>
+</ul>
+
+<h4>Konfigurasi launch.json</h4>
+<p>Jika aplikasi butuh argumen tambahan (misalnya file konfigurasi Supabase di Modul 16), buat <code>.vscode/launch.json</code> lewat menu <em>Run → Add Configuration</em>:</p>
+<p class="code-file-label">📄 <code>.vscode/launch.json</code></p>
+<pre><code class="language-json">{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Catatan Kuliah (debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": ["--dart-define-from-file=config/dev.json"]
+    },
+    {
+      "name": "Catatan Kuliah (profile)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "profile",
+      "args": ["--dart-define-from-file=config/dev.json"]
+    }
+  ]
+}</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Memasang breakpoint lalu menjalankan aplikasi dengan <code>flutter run</code> di terminal biasa. Debugger VS Code tidak terhubung, jadi aplikasi tidak pernah berhenti.</li>
+  <li>Meninggalkan puluhan <code>debugPrint</code> di kode yang dikumpulkan. Hapus atau bungkus dengan <code>if (kDebugMode)</code>.</li>
+  <li>Mencetak data sensitif (password, token Supabase) ke log. Log Android bisa dibaca oleh siapa pun yang memegang HP lewat <code>adb logcat</code>.</li>
+  <li>Menulis <code>catch (e) {}</code> kosong. Error “tertelan” dan Anda tidak akan pernah tahu ada masalah. Minimal log errornya.</li>
+</ul></div>

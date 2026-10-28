@@ -1,0 +1,220 @@
+<p class="lead"><code>NotesProvider</code> memegang semua state halaman catatan: daftar catatan, status loading, mode offline, pesan error, kata kunci pencarian, dan filter kategori.</p>
+
+<h4>File: <code>lib/providers/notes_provider.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/providers/notes_provider.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../data/note_repository.dart';
+import '../models/note.dart';
+
+class NotesProvider extends ChangeNotifier {
+  NotesProvider(this._repository);
+
+  final NoteRepository _repository;
+
+  List&lt;Note&gt; _notes = [];
+  bool _isLoading = false;
+  bool _isOffline = false;
+  String? _errorMessage;
+  String _query = '';
+  String? _categoryFilter; // null = semua kategori
+
+  bool get isLoading =&gt; _isLoading;
+  bool get isOffline =&gt; _isOffline;
+  String? get errorMessage =&gt; _errorMessage;
+  String get query =&gt; _query;
+  String? get categoryFilter =&gt; _categoryFilter;
+  bool get hasNotes =&gt; _notes.isNotEmpty;
+
+  /// Daftar yang ditampilkan di layar setelah difilter pencarian &amp; kategori.
+  List&lt;Note&gt; get visibleNotes {
+    final q = _query.toLowerCase();
+    return _notes.where((note) {
+      final cocokKategori =
+          _categoryFilter == null || note.category == _categoryFilter;
+      final cocokCari =
+          q.isEmpty ||
+          note.title.toLowerCase().contains(q) ||
+          note.content.toLowerCase().contains(q);
+      return cocokKategori &amp;&amp; cocokCari;
+    }).toList();
+  }
+
+  Note? findById(String id) {
+    for (final note in _notes) {
+      if (note.id == id) return note;
+    }
+    return null;
+  }
+
+  /// Memuat catatan (dipanggil saat HomeScreen dibuka &amp; saat pull-to-refresh).
+  Future&lt;void&gt; loadNotes() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final result = await _repository.getNotes();
+      _notes = result.notes;
+      _isOffline = result.fromCache;
+    } catch (e) {
+      _errorMessage = _friendlyError(e);
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Mengembalikan null jika berhasil, atau pesan error jika gagal.
+  Future&lt;String?&gt; addNote({
+    required String title,
+    required String content,
+    required String category,
+  }) async {
+    try {
+      final note = await _repository.addNote(
+        title: title,
+        content: content,
+        category: category,
+      );
+      _notes.insert(0, note);
+      _isOffline = false;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      return _friendlyError(e);
+    }
+  }
+
+  Future&lt;String?&gt; updateNote(Note note) async {
+    try {
+      final updated = await _repository.updateNote(note);
+      _notes.removeWhere((n) =&gt; n.id == updated.id);
+      _notes.insert(0, updated); // yang baru diubah naik ke atas
+      _isOffline = false;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      return _friendlyError(e);
+    }
+  }
+
+  /// Optimistic delete: hapus dari layar dulu, baru kirim ke server.
+  /// Jika server gagal, catatan dikembalikan ke posisi semula (rollback).
+  Future&lt;String?&gt; deleteNote(Note note) async {
+    final index = _notes.indexWhere((n) =&gt; n.id == note.id);
+    if (index == -1) return null;
+
+    _notes.removeAt(index);
+    notifyListeners();
+
+    try {
+      await _repository.deleteNote(note.id);
+      return null;
+    } catch (e) {
+      _notes.insert(index, note);
+      notifyListeners();
+      return _friendlyError(e);
+    }
+  }
+
+  void setQuery(String value) {
+    _query = value;
+    notifyListeners();
+  }
+
+  void setCategoryFilter(String? category) {
+    _categoryFilter = category;
+    notifyListeners();
+  }
+
+  /// Dipanggil saat logout: kosongkan state dan cache Hive.
+  Future&lt;void&gt; clear() async {
+    _notes = [];
+    _query = '';
+    _categoryFilter = null;
+    _errorMessage = null;
+    _isOffline = false;
+    await _repository.clearCache();
+    notifyListeners();
+  }
+
+  String _friendlyError(Object e) {
+    if (e is PostgrestException) {
+      if (e.code == '42501') {
+        return 'Akses ditolak oleh Row Level Security. Periksa policy tabel notes.';
+      }
+      if (e.code == '42P01' || e.code == 'PGRST205') {
+        return 'Tabel notes belum dibuat. Jalankan SQL di Supabase.';
+      }
+      return 'Kesalahan database: ${e.message}';
+    }
+    if (e is TimeoutException) {
+      return 'Server terlalu lama merespons. Coba lagi.';
+    }
+    return 'Tidak dapat terhubung ke server. Periksa koneksi internet.';
+  }
+}
+</code></pre>
+
+<h4>State yang dikelola</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Field</th><th>Kegunaan di UI</th></tr></thead>
+    <tbody>
+      <tr><td><code>_notes</code></td><td>Semua catatan milik user (sumber data)</td></tr>
+      <tr><td><code>visibleNotes</code></td><td>Getter: <code>_notes</code> setelah difilter pencarian + kategori. Inilah yang ditampilkan ListView</td></tr>
+      <tr><td><code>isLoading</code></td><td>Spinner saat pertama kali memuat</td></tr>
+      <tr><td><code>isOffline</code></td><td>Menampilkan <code>OfflineBanner</code></td></tr>
+      <tr><td><code>errorMessage</code></td><td>Tampilan error + tombol "Coba lagi"</td></tr>
+      <tr><td><code>query</code>, <code>categoryFilter</code></td><td>Isi kolom pencarian dan chip yang terpilih</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Pencarian dan filter tanpa query ulang</h4>
+<p><code>visibleNotes</code> dihitung dari data di memori. Mengetik di kolom pencarian <em>tidak</em> mengirim request ke server, sehingga hasilnya instan dan tetap berfungsi saat offline. Untuk ratusan catatan cara ini lebih dari cukup. Untuk data sangat besar, gunakan <code>.ilike()</code> di server (Modul 12).</p>
+
+<h4>Optimistic delete dengan rollback</h4>
+<pre><code class="language-text">user geser catatan ──▶ konfirmasi "Hapus"
+                         │
+                         ▼
+   1. simpan index, hapus dari _notes, notifyListeners()   ← UI langsung hilang (terasa cepat)
+                         │
+   2. await repository.deleteNote(id)
+            │                         │
+         sukses                     gagal (offline / RLS)
+            │                         │
+         selesai          3. _notes.insert(index, note)   ← kembalikan ke posisi semula
+                             notifyListeners()            ← catatan muncul lagi
+                             return pesan error           ← SnackBar
+</code></pre>
+<p>Disebut <em>optimistic</em> karena kita "optimis" server akan berhasil, sehingga UI diperbarui duluan. Keuntungannya, aplikasi terasa instan. Konsekuensinya, kita <strong>wajib</strong> menyediakan rollback jika ternyata gagal.</p>
+<p>Untuk tambah dan edit kita memakai cara sebaliknya (<em>pessimistic</em>): tunggu server, baru perbarui list. Alasannya, id dan tanggal catatan baru berasal dari database.</p>
+
+<h4>Kontrak nilai kembali: <code>Future&lt;String?&gt;</code></h4>
+<p><code>addNote</code>, <code>updateNote</code>, dan <code>deleteNote</code> mengembalikan <code>null</code> jika sukses atau <code>String</code> pesan error jika gagal. UI cukup menulis:</p>
+<pre><code class="language-dart">final error = await provider.addNote(
+  title: 'Basis Data',
+  content: 'Normalisasi sampai 3NF',
+  category: 'Kuliah',
+);
+if (error == null) {
+  // sukses
+} else {
+  // tampilkan error di SnackBar
+}
+</code></pre>
+
+<h4>Menerjemahkan error</h4>
+<p><code>_friendlyError</code> mengubah exception menjadi kalimat untuk user: <code>42501</code> (RLS menolak), <code>42P01</code>/<code>PGRST205</code> (tabel belum dibuat), <code>TimeoutException</code>, dan selain itu dianggap masalah koneksi.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Mengembalikan <code>_notes</code> langsung lewat getter</strong>: UI bisa mengubah list tanpa <code>notifyListeners</code>. Di sini UI hanya menerima <code>visibleNotes</code>, yaitu list baru hasil <code>where().toList()</code>.</li>
+  <li><strong>Lupa <code>notifyListeners()</code> setelah rollback</strong>: catatan "hilang" di layar padahal masih ada di server.</li>
+  <li><strong>Memanggil <code>loadNotes()</code> langsung di <code>initState</code></strong>: <code>notifyListeners</code> terpanggil saat build pertama dan memicu error <em>setState() or markNeedsBuild() called during build</em>. Solusinya ada di HomeScreen (section 7).</li>
+</ul></div>

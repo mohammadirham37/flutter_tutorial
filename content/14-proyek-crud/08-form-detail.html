@@ -1,0 +1,314 @@
+<p class="lead">Satu layar form untuk dua keperluan, tambah dan edit, adalah pola yang sangat umum. Perbedaannya hanya ditentukan oleh ada atau tidaknya parameter <code>note</code>.</p>
+
+<h4>File: <code>lib/screens/note_form_screen.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/screens/note_form_screen.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../models/note.dart';
+import '../providers/notes_provider.dart';
+
+/// Satu layar untuk dua keperluan:
+/// - note == null  -&gt; mode TAMBAH
+/// - note != null  -&gt; mode EDIT
+class NoteFormScreen extends StatefulWidget {
+  const NoteFormScreen({super.key, this.note});
+
+  final Note? note;
+
+  @override
+  State&lt;NoteFormScreen&gt; createState() =&gt; _NoteFormScreenState();
+}
+
+class _NoteFormScreenState extends State&lt;NoteFormScreen&gt; {
+  final _formKey = GlobalKey&lt;FormState&gt;();
+  late final TextEditingController _titleController;
+  late final TextEditingController _contentController;
+  late String _category;
+  bool _isSaving = false;
+
+  bool get _isEdit =&gt; widget.note != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // Mode edit: isi form dengan data lama. Mode tambah: form kosong.
+    _titleController = TextEditingController(text: widget.note?.title ?? '');
+    _contentController = TextEditingController(
+      text: widget.note?.content ?? '',
+    );
+    _category = widget.note?.category ?? Note.categories.first;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _save() async {
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() =&gt; _isSaving = true);
+    final provider = context.read&lt;NotesProvider&gt;();
+    final title = _titleController.text.trim();
+    final content = _contentController.text.trim();
+
+    final String? error;
+    if (_isEdit) {
+      error = await provider.updateNote(
+        widget.note!.copyWith(
+          title: title,
+          content: content,
+          category: _category,
+        ),
+      );
+    } else {
+      error = await provider.addNote(
+        title: title,
+        content: content,
+        category: _category,
+      );
+    }
+
+    if (!mounted) return;
+    setState(() =&gt; _isSaving = false);
+
+    final messenger = ScaffoldMessenger.of(context);
+    if (error == null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(_isEdit ? 'Catatan diperbarui' : 'Catatan disimpan'),
+        ),
+      );
+      Navigator.of(context).pop();
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(_isEdit ? 'Edit Catatan' : 'Catatan Baru')),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextFormField(
+                controller: _titleController,
+                textInputAction: TextInputAction.next,
+                maxLength: 100,
+                decoration: const InputDecoration(
+                  labelText: 'Judul',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Judul wajib diisi';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField&lt;String&gt;(
+                initialValue: _category,
+                decoration: const InputDecoration(
+                  labelText: 'Kategori',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  for (final category in Note.categories)
+                    DropdownMenuItem(value: category, child: Text(category)),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() =&gt; _category = value);
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _contentController,
+                minLines: 6,
+                maxLines: 12,
+                keyboardType: TextInputType.multiline,
+                decoration: const InputDecoration(
+                  labelText: 'Isi catatan',
+                  alignLabelWithHint: true,
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Isi catatan wajib diisi';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _isSaving ? null : _save,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      )
+                    : const Icon(Icons.save),
+                label: Text(_isSaving ? 'Menyimpan...' : 'Simpan'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Membedah NoteFormScreen</h4>
+<ul>
+  <li><strong><code>bool get _isEdit =&gt; widget.note != null</code></strong> adalah satu sumber kebenaran untuk judul AppBar, pesan sukses, dan method provider yang dipanggil.</li>
+  <li><strong>Controller diisi di <code>initState</code></strong> dengan <code>widget.note?.title ?? ''</code>. Mode edit langsung menampilkan data lama, sedangkan mode tambah kosong.</li>
+  <li><strong><code>DropdownButtonFormField</code> dengan <code>initialValue</code></strong> memilih kategori awal. Itemnya diambil dari <code>Note.categories</code>.</li>
+  <li><strong><code>maxLength: 100</code></strong> menampilkan penghitung karakter dan sejalan dengan <code>check</code> di SQL.</li>
+  <li><strong><code>_isSaving</code></strong> adalah state lokal (bukan di provider) karena hanya relevan untuk layar ini: menonaktifkan tombol dan menampilkan spinner.</li>
+  <li><strong><code>final String? error;</code> diisi di if/else</strong>: Dart mengizinkan variabel <code>final</code> diisi tepat sekali di setiap cabang.</li>
+  <li><strong>Setelah <code>await</code>: <code>if (!mounted) return;</code></strong>, baru <code>setState</code>, SnackBar, dan <code>pop</code>.</li>
+  <li><strong>Edit memakai <code>copyWith</code></strong>, sehingga id catatan lama tetap dipakai untuk filter <code>.eq('id', ...)</code>.</li>
+</ul>
+
+<h4>File: <code>lib/screens/note_detail_screen.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/screens/note_detail_screen.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../models/note.dart';
+import '../providers/notes_provider.dart';
+import '../utils/date_format.dart';
+import '../widgets/confirm_dialog.dart';
+import 'note_form_screen.dart';
+
+class NoteDetailScreen extends StatelessWidget {
+  const NoteDetailScreen({super.key, required this.noteId});
+
+  final String noteId;
+
+  Future&lt;void&gt; _delete(BuildContext context, Note note) async {
+    final yakin = await showConfirmDialog(
+      context,
+      title: 'Hapus catatan?',
+      message: '"${note.title}" akan dihapus permanen.',
+      confirmLabel: 'Hapus',
+    );
+    if (!yakin || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final provider = context.read&lt;NotesProvider&gt;();
+    // Tutup halaman detail dulu, baru hapus (optimistic delete).
+    Navigator.of(context).pop();
+    final error = await provider.deleteNote(note);
+    messenger.showSnackBar(SnackBar(content: Text(error ?? 'Catatan dihapus')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Ambil versi terbaru catatan dari provider, sehingga setelah diedit
+    // halaman ini langsung menampilkan perubahan.
+    final note = context.select&lt;NotesProvider, Note?&gt;(
+      (provider) =&gt; provider.findById(noteId),
+    );
+
+    if (note == null) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: Text('Catatan tidak ditemukan.')),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Detail Catatan'),
+        actions: [
+          IconButton(
+            tooltip: 'Edit',
+            icon: const Icon(Icons.edit),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) =&gt; NoteFormScreen(note: note)),
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'Hapus',
+            icon: const Icon(Icons.delete_outline),
+            onPressed: () =&gt; _delete(context, note),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(note.title, style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Chip(label: Text(note.category)),
+              Text(
+                'Diubah ${formatTanggal(note.updatedAt)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+          const Divider(height: 32),
+          SelectableText(
+            note.content,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li><strong>Menerima <code>noteId</code>, bukan objek <code>Note</code></strong>. Dengan <code>context.select</code>, halaman detail selalu menampilkan versi <em>terbaru</em> dari provider. Setelah diedit dan form ditutup, detail langsung berubah tanpa refresh.</li>
+  <li><strong><code>context.select&lt;NotesProvider, Note?&gt;</code></strong> hanya me-rebuild halaman ini jika catatan dengan id tersebut berubah, bukan setiap kali provider berubah (misalnya saat mengetik pencarian).</li>
+  <li><strong>Hapus dari detail</strong>: halaman ditutup dulu (<code>pop</code>), baru optimistic delete berjalan, lalu SnackBar muncul di HomeScreen. Messenger dan provider diambil sebelum <code>pop</code>.</li>
+  <li><strong><code>SelectableText</code></strong> membuat isi catatan bisa disalin, berguna untuk catatan kuliah.</li>
+</ul>
+
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/14-proyek-crud/form-validasi.jpg" alt="Form kosong divalidasi" loading="lazy">
+    <div class="screenshot-caption">Mode tambah: tombol Simpan ditekan saat form kosong</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/14-proyek-crud/detail.jpg" alt="Detail catatan" loading="lazy">
+    <div class="screenshot-caption">NoteDetailScreen dengan tombol Edit dan Hapus</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/14-proyek-crud/form-edit.jpg" alt="Form edit" loading="lazy">
+    <div class="screenshot-caption">Mode edit: form terisi data lama</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/14-proyek-crud/hapus-konfirmasi.jpg" alt="Konfirmasi hapus" loading="lazy">
+    <div class="screenshot-caption">Dialog konfirmasi sebelum menghapus</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/14-proyek-crud/form-baru.jpg" alt="Form catatan baru terisi" loading="lazy">
+    <div class="screenshot-caption">Mode tambah: judul, kategori, dan isi siap disimpan</div>
+  </div>
+</div>

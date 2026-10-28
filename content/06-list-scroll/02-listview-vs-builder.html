@@ -1,0 +1,223 @@
+<p class="lead"><code>ListView</code> adalah widget daftar yang bisa digulir. Ada tiga cara membuatnya, dan memilih yang tepat sangat berpengaruh pada kelancaran aplikasi.</p>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
+  <div class="card p-4 border border-rose-300 dark:border-rose-800 bg-rose-50/30 dark:bg-rose-950/20 rounded-lg">
+    <div class="font-bold text-rose-600 mb-2">ListView (children)</div>
+    <p class="text-xs text-slate-600 dark:text-slate-300">Membuat <strong>seluruh item sekaligus</strong> saat layar dibuka. Jika ada 1.000 data mahasiswa, Flutter membuat 1.000 widget meskipun hanya 8 yang terlihat. Cocok hanya untuk daftar pendek yang tetap, misalnya menu pengaturan.</p>
+  </div>
+  <div class="card p-4 border border-emerald-300 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-950/20 rounded-lg">
+    <div class="font-bold text-emerald-600 mb-2">ListView.builder (lazy)</div>
+    <p class="text-xs text-slate-600 dark:text-slate-300">Hanya membuat item yang <strong>sedang terlihat di layar</strong> ditambah sedikit cadangan. Item yang keluar layar dibuang. 100.000 data pun tetap ringan. Gunakan untuk data dari database atau API.</p>
+  </div>
+</div>
+
+<h4>1. ListView biasa</h4>
+<pre><code class="language-dart">body: ListView(
+  children: const [
+    ListTile(title: Text('Senin - Algoritma')),
+    ListTile(title: Text('Selasa - Basis Data')),
+    ListTile(title: Text('Rabu - Pemrograman Mobile')),
+    ListTile(title: Text('Kamis - Jaringan Komputer')),
+  ],
+),
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/listview-dasar.jpg" alt="ListView biasa dengan empat ListTile" loading="lazy">
+    <div class="screenshot-caption">ListView biasa dengan empat ListTile</div>
+  </div>
+</div>
+
+<h4>2. ListView.builder</h4>
+<p>Dua parameter wajib: <code>itemCount</code> (jumlah item) dan <code>itemBuilder</code> (fungsi yang membuat widget untuk posisi <code>index</code>).</p>
+<pre><code class="language-dart">final mahasiswa = List.generate(1000, (i) =&gt; 'Mahasiswa ke-${i + 1}');
+
+return Scaffold(
+  body: ListView.builder(
+    itemCount: mahasiswa.length, // jumlah item
+    itemBuilder: (context, index) {
+      // Dipanggil HANYA untuk item yang akan tampil di layar
+      return ListTile(
+        leading: CircleAvatar(child: Text('${index + 1}')),
+        title: Text(mahasiswa[index]),
+      );
+    },
+  ),
+);
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/listview-builder.jpg" alt="ListView.builder dengan 1000 item, hanya yang terlihat yang dibuat" loading="lazy">
+    <div class="screenshot-caption">ListView.builder dengan 1000 item, hanya yang terlihat yang dibuat</div>
+  </div>
+</div>
+
+<h4>3. ListView.separated</h4>
+<p>Sama seperti builder, ditambah <code>separatorBuilder</code> untuk membuat pemisah di antara item.</p>
+<pre><code class="language-dart">body: ListView.separated(
+  itemCount: hari.length,
+  itemBuilder: (context, index) =&gt; ListTile(title: Text(hari[index])),
+  // Pemisah dibuat DI ANTARA item (jumlahnya itemCount - 1)
+  separatorBuilder: (context, index) =&gt; const Divider(height: 1),
+),
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/listview-separated.jpg" alt="Garis pemisah di antara item" loading="lazy">
+    <div class="screenshot-caption">Garis pemisah di antara item</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: tiga jenis ListView dalam tab</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const PerbandinganListScreen(),
+    );
+  }
+}
+
+class PerbandinganListScreen extends StatelessWidget {
+  const PerbandinganListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // DefaultTabController: tiga tab untuk tiga jenis ListView
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Tiga Jenis ListView'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'ListView'),
+              Tab(text: '.builder'),
+              Tab(text: '.separated'),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [ListBiasa(), ListBuilder(), ListSeparated()],
+        ),
+      ),
+    );
+  }
+}
+
+// 1. ListView biasa: cocok untuk item SEDIKIT dan TETAP
+class ListBiasa extends StatelessWidget {
+  const ListBiasa({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(8),
+      children: const [
+        ListTile(leading: Icon(Icons.person), title: Text('Profil')),
+        ListTile(leading: Icon(Icons.lock), title: Text('Ganti Password')),
+        ListTile(leading: Icon(Icons.language), title: Text('Bahasa')),
+        ListTile(leading: Icon(Icons.info), title: Text('Tentang Aplikasi')),
+        ListTile(leading: Icon(Icons.logout), title: Text('Keluar')),
+      ],
+    );
+  }
+}
+
+// 2. ListView.builder: cocok untuk data BANYAK / dinamis
+class ListBuilder extends StatelessWidget {
+  const ListBuilder({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      itemCount: 10000,
+      itemBuilder: (context, index) {
+        final nim = 'H1D0240${(index + 1).toString().padLeft(5, '0')}';
+        return ListTile(
+          leading: CircleAvatar(child: Text('${(index % 99) + 1}')),
+          title: Text('Mahasiswa #${index + 1}'),
+          subtitle: Text(nim),
+        );
+      },
+    );
+  }
+}
+
+// 3. ListView.separated: builder + pemisah otomatis
+class ListSeparated extends StatelessWidget {
+  const ListSeparated({super.key});
+
+  static const _pengumuman = [
+    'Batas pengisian KRS: 30 Agustus',
+    'UTS dimulai minggu ke-8',
+    'Libur nasional 17 Agustus',
+    'Seminar karier di Aula Fakultas',
+    'Pendaftaran asisten praktikum dibuka',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      itemCount: _pengumuman.length,
+      itemBuilder: (context, index) =&gt; ListTile(
+        leading: const Icon(Icons.campaign_outlined),
+        title: Text(_pengumuman[index]),
+      ),
+      separatorBuilder: (context, index) =&gt; const Divider(height: 1, indent: 56),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/tiga-list-biasa.jpg" alt="Tab ListView: menu pengaturan" loading="lazy">
+    <div class="screenshot-caption">Tab ListView: menu pengaturan</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/tiga-list-builder.jpg" alt="Tab .builder: 10.000 mahasiswa tetap lancar" loading="lazy">
+    <div class="screenshot-caption">Tab .builder: 10.000 mahasiswa tetap lancar</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/tiga-list-separated.jpg" alt="Tab .separated: pengumuman dengan pemisah" loading="lazy">
+    <div class="screenshot-caption">Tab .separated: pengumuman dengan pemisah</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><code>DefaultTabController</code> + <code>TabBar</code> + <code>TabBarView</code> membuat tiga tab. (Tab dibahas lebih lanjut di Modul 07.)</li>
+  <li>Tab <strong>ListView</strong> berisi menu yang tetap dan pendek, jadi <code>children</code> biasa sudah tepat.</li>
+  <li>Tab <strong>.builder</strong> berisi 10.000 item. Coba gulir cepat: tetap lancar karena hanya sekitar 10-15 ListTile yang benar-benar ada di memori.</li>
+  <li>Tab <strong>.separated</strong> memakai <code>Divider(indent: 56)</code> agar garis dimulai sejajar teks, bukan ikon.</li>
+</ul>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Situasi</th><th>Pilihan</th></tr></thead>
+    <tbody>
+      <tr><td>Kurang dari ~20 item tetap (menu, pengaturan)</td><td><code>ListView(children: ...)</code></td></tr>
+      <tr><td>Data dari list/database/API, jumlah tidak pasti</td><td><code>ListView.builder</code></td></tr>
+      <tr><td>Seperti builder, perlu garis/jarak di antara item</td><td><code>ListView.separated</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Error "Vertical viewport was given unbounded height".</strong> Terjadi saat ListView diletakkan langsung di dalam <code>Column</code>. Bungkus ListView dengan <code>Expanded</code>.</li>
+  <li><strong>Lupa <code>itemCount</code>.</strong> Builder akan meminta item tanpa batas dan terjadi <code>RangeError</code> saat index melebihi panjang list.</li>
+  <li><strong>Melakukan pekerjaan berat di <code>itemBuilder</code></strong> (misalnya mengurutkan seluruh list). itemBuilder dipanggil sangat sering saat menggulir; siapkan data di luar.</li>
+</ul></div>

@@ -1,0 +1,141 @@
+<p class="lead">Program yang baik tidak langsung "mati" ketika terjadi masalah, seperti input yang salah, data rusak, atau server tidak merespons. Dart menyediakan <code>try</code>, <code>catch</code>, <code>on</code>, <code>finally</code>, dan <code>throw</code> untuk menangani situasi tersebut dengan rapi.</p>
+
+<h4>try dan catch</h4>
+<pre><code class="language-dart">void main() {
+  try {
+    int angka = int.parse('12a'); // melempar FormatException
+    print('Angka: $angka'); // baris ini dilewati
+  } catch (e) {
+    print('Terjadi error: ${e.runtimeType}');
+  }
+  print('Program tetap berjalan');
+  // Output:
+  // Terjadi error: FormatException
+  // Program tetap berjalan
+}
+</code></pre>
+<p>Begitu terjadi error di dalam <code>try</code>, sisa baris di blok itu dilewati dan eksekusi melompat ke <code>catch</code>. Setelah itu, program berlanjut normal. Tanpa <code>try/catch</code>, program akan berhenti dengan pesan <em>Unhandled exception</em>.</p>
+
+<h4>on, catch, finally, dan throw</h4>
+<pre><code class="language-dart">double bagi(int a, int b) {
+  if (b == 0) {
+    throw ArgumentError('Pembagi tidak boleh nol');
+  }
+  return a / b;
+}
+
+void main() {
+  for (final input in ['10', 'x', '0']) {
+    try {
+      final b = int.parse(input);
+      print('100 / $b = ${bagi(100, b)}');
+    } on FormatException {
+      print('"$input" bukan angka');
+    } on ArgumentError catch (e) {
+      print('Argumen salah: ${e.message}');
+    } finally {
+      print('-- selesai memproses "$input"');
+    }
+  }
+  // Output:
+  // 100 / 10 = 10.0
+  // -- selesai memproses "10"
+  // "x" bukan angka
+  // -- selesai memproses "x"
+  // Argumen salah: Pembagi tidak boleh nol
+  // -- selesai memproses "0"
+}
+</code></pre>
+<ul>
+  <li><code>on TipeError</code> menangkap jenis error tertentu saja. Tambahkan <code>catch (e)</code> jika butuh objek error-nya.</li>
+  <li><code>finally</code> <strong>selalu</strong> dijalankan, baik terjadi error maupun tidak. Cocok untuk menutup koneksi atau mematikan indikator loading.</li>
+  <li><code>throw</code> melempar error secara sengaja ketika kondisi tidak valid.</li>
+  <li><code>catch (e, stackTrace)</code> memberikan parameter kedua berisi jejak pemanggilan, berguna untuk debugging.</li>
+</ul>
+
+<h4>Membuat Exception sendiri</h4>
+<p>Exception kustom membuat jenis error lebih jelas dan bisa membawa data tambahan. Cukup buat class yang meng-<code>implements Exception</code>.</p>
+<pre><code class="language-dart">class SaldoTidakCukupException implements Exception {
+  final double saldo;
+  final double diminta;
+
+  SaldoTidakCukupException(this.saldo, this.diminta);
+
+  @override
+  String toString() =&gt; 'SaldoTidakCukupException: saldo $saldo, diminta $diminta';
+}
+
+class Dompet {
+  double saldo;
+  Dompet(this.saldo);
+
+  void bayar(double jumlah) {
+    if (jumlah &lt;= 0) {
+      throw ArgumentError.value(jumlah, 'jumlah', 'harus lebih dari 0');
+    }
+    if (jumlah &gt; saldo) {
+      throw SaldoTidakCukupException(saldo, jumlah);
+    }
+    saldo -= jumlah;
+  }
+}
+
+void main() {
+  final dompet = Dompet(50000);
+  try {
+    dompet.bayar(20000);
+    print('Bayar 20000 berhasil, sisa ${dompet.saldo}');
+    dompet.bayar(40000);
+    print('Baris ini tidak dijalankan');
+  } on SaldoTidakCukupException catch (e) {
+    print(e);
+    print('Kurang: ${e.diminta - e.saldo}');
+  }
+  // Output:
+  // Bayar 20000 berhasil, sisa 30000.0
+  // SaldoTidakCukupException: saldo 30000.0, diminta 40000.0
+  // Kurang: 10000.0
+}
+</code></pre>
+
+<h4>rethrow: mencatat lalu meneruskan error</h4>
+<pre><code class="language-dart">int bacaNilai(String input) {
+  try {
+    return int.parse(input);
+  } on FormatException {
+    print('[log] input tidak valid: $input');
+    rethrow; // lempar ulang ke pemanggil
+  }
+}
+
+void main() {
+  try {
+    bacaNilai('sembilan');
+  } catch (e) {
+    print('Ditangani di main: ${e.runtimeType}');
+  }
+  // Output:
+  // [log] input tidak valid: sembilan
+  // Ditangani di main: FormatException
+}
+</code></pre>
+<p><code>rethrow</code> berguna ketika sebuah fungsi ingin mencatat error (logging) tetapi keputusan penanganannya, misalnya menampilkan pesan ke pengguna, tetap diserahkan ke pemanggil.</p>
+
+<h4>Exception vs Error</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th></th><th><code>Exception</code></th><th><code>Error</code></th></tr></thead>
+    <tbody>
+      <tr><td>Arti</td><td>Kondisi tidak normal yang <strong>bisa diantisipasi</strong></td><td><strong>Bug</strong> di dalam kode</td></tr>
+      <tr><td>Contoh</td><td><code>FormatException</code>, <code>TimeoutException</code>, gagal koneksi</td><td><code>RangeError</code>, <code>TypeError</code>, <code>LateInitializationError</code></td></tr>
+      <tr><td>Sikap</td><td>Tangkap dan tangani (tampilkan pesan, coba lagi)</td><td>Perbaiki kodenya, jangan ditangkap diam-diam</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><code>catch (e) {}</code> kosong: error "ditelan" sehingga bug sulit dilacak. Minimal cetak atau catat error-nya.</li>
+  <li>Menangkap semua error dengan <code>catch</code> padahal yang diharapkan hanya satu jenis. Gunakan <code>on TipeException</code> agar lebih spesifik.</li>
+  <li>Melempar String (<code>throw 'gagal'</code>). Hal ini memang diizinkan, tetapi lebih baik melempar objek <code>Exception</code> agar bisa ditangkap berdasarkan tipenya.</li>
+</ul></div>

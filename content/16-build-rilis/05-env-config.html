@@ -1,0 +1,160 @@
+<p class="lead">Contoh singkat sering menulis URL dan key Supabase langsung di <code>main.dart</code>. Proyek Modul 13-14 sudah memakai cara yang dibahas di sini, jadi bagian ini merangkum dan memperdalamnya. Begitu kode di-push ke GitHub publik, kunci itu ikut terbaca semua orang. Bagian ini memindahkan konfigurasi ke file terpisah yang tidak masuk git, lalu menyuntikkannya saat build dengan <code>--dart-define-from-file</code>.</p>
+
+<h4>Konsep: konstanta saat kompilasi</h4>
+<p>Flag <code>--dart-define</code> mengirim pasangan kunci-nilai ke compiler. Kode Dart membacanya dengan <code>String.fromEnvironment</code>:</p>
+<pre><code class="language-bash">flutter run --dart-define=APP_ENV=dev --dart-define=SUPABASE_URL=https://abcdefghijkl.supabase.co</code></pre>
+<p>Menulis banyak <code>--dart-define</code> tentu merepotkan. Flutter menyediakan <code>--dart-define-from-file</code> yang membaca semua nilai dari satu file JSON (atau <code>.env</code>).</p>
+
+<h4>Langkah 1: file konfigurasi per lingkungan</h4>
+<p class="code-file-label">📄 <code>config/dev.json</code> (TIDAK di-commit)</p>
+<pre><code class="language-json">{
+  "SUPABASE_URL": "https://abcdefghijkl.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_xxxxxxxxxxxxxxxx",
+  "APP_ENV": "dev",
+  "ENABLE_LOG": true
+}</code></pre>
+<p class="code-file-label">📄 <code>config/prod.json</code> (TIDAK di-commit)</p>
+<pre><code class="language-json">{
+  "SUPABASE_URL": "https://abcdefghijkl.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_xxxxxxxxxxxxxxxx",
+  "APP_ENV": "prod",
+  "ENABLE_LOG": false
+}</code></pre>
+<p>Agar anggota kelompok tahu kunci apa saja yang dibutuhkan, commit file <strong>contoh</strong> tanpa nilai asli:</p>
+<p class="code-file-label">📄 <code>config/example.json</code> (di-commit)</p>
+<pre><code class="language-json">{
+  "SUPABASE_URL": "https://ISI_PROJECT_ID.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "ISI_PUBLISHABLE_KEY_DARI_DASHBOARD",
+  "APP_ENV": "dev",
+  "ENABLE_LOG": true
+}</code></pre>
+<p>Lalu tambahkan ke <code>.gitignore</code> di root proyek:</p>
+<p class="code-file-label">📄 <code>.gitignore</code> (tambahkan di bagian bawah)</p>
+<pre><code class="language-text"># Konfigurasi rahasia
+/config/*.json
+!/config/example.json</code></pre>
+<p>Baris <code>!</code> berarti pengecualian: semua file JSON di <code>config/</code> diabaikan kecuali <code>example.json</code>.</p>
+
+<h4>Langkah 2: class Env</h4>
+<p class="code-file-label">📄 <code>lib/config/env.dart</code></p>
+<pre><code class="language-dart">// lib/config/env.dart
+class Env {
+  // Nilai diisi saat build lewat --dart-define atau --dart-define-from-file.
+  // WAJIB const, karena nilainya ditanam ke aplikasi saat kompilasi.
+  static const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  static const supabaseKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+  static const appEnv = String.fromEnvironment('APP_ENV', defaultValue: 'dev');
+  static const enableLog = bool.fromEnvironment('ENABLE_LOG');
+
+  static bool get isProduction =&gt; appEnv == 'prod';
+
+  /// false jika aplikasi dijalankan tanpa --dart-define-from-file.
+  static bool get isConfigured =&gt; supabaseUrl.isNotEmpty &amp;&amp; supabaseKey.isNotEmpty;
+}</code></pre>
+<ul>
+  <li><code>String.fromEnvironment</code> dan <code>bool.fromEnvironment</code> <strong>harus</strong> dipanggil sebagai <code>const</code>. Dokumentasi Dart hanya menjamin nilainya terbaca dalam konteks <code>const</code>; tanpa <code>const</code>, nilainya bisa kosong, terutama di build release.</li>
+  <li>Nilai JSON <code>true</code>/<code>false</code> dibaca dengan <code>bool.fromEnvironment</code>; angka dengan <code>int.fromEnvironment</code>.</li>
+  <li><code>defaultValue</code> dipakai jika kunci tidak ada di file.</li>
+</ul>
+
+<h4>Langkah 3: memakai Env di main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'config/env.dart';
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Lupa --dart-define-from-file? Tampilkan pesan yang jelas, jangan crash.
+  if (!Env.isConfigured) {
+    runApp(const ConfigErrorApp());
+    return;
+  }
+
+  await Supabase.initialize(
+    url: Env.supabaseUrl,
+    publishableKey: Env.supabaseKey,
+  );
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Catatan Kuliah',
+      // Pita "DEBUG" hanya muncul jika bukan build produksi
+      debugShowCheckedModeBanner: !Env.isProduction,
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Catatan Kuliah')),
+        body: Center(child: Text('Lingkungan: ${Env.appEnv}')),
+      ),
+    );
+  }
+}
+
+class ConfigErrorApp extends StatelessWidget {
+  const ConfigErrorApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.settings_suggest, size: 64, color: Colors.orange),
+                SizedBox(height: 16),
+                Text(
+                  'Konfigurasi Supabase belum diisi',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Jalankan dengan:\n'
+                  'flutter run --dart-define-from-file=config/dev.json',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}</code></pre>
+<p>Jika aplikasi dijalankan tanpa file konfigurasi (misalnya menekan tombol Run tanpa <code>launch.json</code>), pengguna melihat pesan jelas, bukan crash misterius dari Supabase:</p>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/16-build-rilis/config-belum-diisi.jpg" alt="Pesan konfigurasi Supabase belum diisi" loading="lazy">
+    <div class="screenshot-caption">Dijalankan tanpa <code>--dart-define-from-file</code>: ConfigErrorApp tampil</div>
+  </div>
+</div>
+
+<h4>Langkah 4: menjalankan dan mem-build</h4>
+<pre><code class="language-bash"># Pengembangan
+flutter run --dart-define-from-file=config/dev.json
+
+# Build rilis dengan konfigurasi produksi
+flutter build apk --split-per-abi --dart-define-from-file=config/prod.json
+
+# Juga bisa memakai file .env (format KUNCI=nilai)
+flutter run --dart-define-from-file=.env</code></pre>
+<p>Agar tombol Run/Debug di VS Code otomatis memakai file konfigurasi, isi <code>.vscode/launch.json</code> seperti di Modul 15 bagian 2 (<code>"args": ["--dart-define-from-file=config/dev.json"]</code>).</p>
+
+<div class="callout callout-info"><h4>ℹ️ Apakah key Supabase jadi rahasia?</h4><p>Tidak sepenuhnya. Nilai <code>--dart-define</code> ditanam ke dalam APK, sehingga orang yang membongkar APK masih bisa menemukannya. Tujuan langkah ini adalah <strong>tidak menyebarkan kunci lewat GitHub</strong> dan memudahkan berganti project dev/prod. Keamanan data Supabase tetap bergantung pada <strong>Row Level Security</strong> (Modul 12). Publishable/anon key memang dirancang boleh berada di aplikasi klien; yang <strong>tidak boleh sama sekali</strong> masuk ke aplikasi adalah <code>service_role</code>/secret key.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Menulis <code>final url = String.fromEnvironment('SUPABASE_URL');</code> tanpa <code>const</code>. Di build release, nilainya bisa kosong.</li>
+  <li>Lupa menambahkan flag saat <code>flutter build</code>. APK jadi tidak bisa login. Simpan perintah build di README agar tidak lupa.</li>
+  <li>Sudah terlanjur commit key ke GitHub, lalu hanya menghapus file di commit berikutnya. Key tetap ada di riwayat git. Buat ulang (rotate) key di dashboard Supabase.</li>
+  <li>Memasukkan <code>service_role</code> key ke aplikasi agar “RLS tidak mengganggu”. Siapa pun yang membongkar APK bisa membaca dan menghapus seluruh database.</li>
+</ul></div>

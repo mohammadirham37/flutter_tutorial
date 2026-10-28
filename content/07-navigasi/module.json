@@ -1,0 +1,199 @@
+{
+  "id": "modul-07",
+  "badge": "Routing & Navigasi",
+  "category": "Arsitektur",
+  "title": "Navigasi & Routing Multi-Halaman",
+  "duration": "Pertemuan 7 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 06: Scrollable Views"
+  ],
+  "summary": "Menguasai prinsip tumpukan navigasi (Navigation Stack), berpindah halaman dengan Navigator.push/pop, mengirim data lewat constructor dan menerima hasil balik, pushReplacement & pushAndRemoveUntil untuk alur login/logout, Named Routes dengan onGenerateRoute, NavigationBar + IndexedStack, Drawer, TabBar, dialog sebagai route, go_router dengan redirect, dan PopScope untuk konfirmasi keluar.",
+  "learningOutcomes": [
+    "Memahami konsep tumpukan layar (LIFO: Last-In First-Out) pada Navigator.",
+    "Menggunakan MaterialPageRoute beserta opsi fullscreenDialog dan transisi kustom.",
+    "Mengirim data argumen ke halaman baru dan menerima data balik (return result).",
+    "Memilih push, pushReplacement, pushAndRemoveUntil, dan popUntil sesuai alur login/logout.",
+    "Menerapkan Named Routes dengan onGenerateRoute yang aman dari crash.",
+    "Membangun navigasi multi-tab dengan NavigationBar + IndexedStack, Drawer, dan TabBar.",
+    "Memperlakukan dialog dan bottom sheet sebagai route yang mengembalikan nilai.",
+    "Memahami declarative routing dengan go_router (path parameter, go vs push, redirect).",
+    "Mencegat tombol back dengan PopScope untuk konfirmasi keluar."
+  ],
+  "sections": [
+    {
+      "id": "konsep-navigation-stack",
+      "title": "1. Konsep Tumpukan Navigasi: push & pop",
+      "file": "01-konsep-navigation-stack.html"
+    },
+    {
+      "id": "nav-materialpageroute",
+      "title": "2. MaterialPageRoute & Transisi Halaman",
+      "file": "02-materialpageroute.html"
+    },
+    {
+      "id": "nav-kirim-data-constructor",
+      "title": "3. Mengirim Data lewat Constructor",
+      "file": "03-kirim-data-constructor.html"
+    },
+    {
+      "id": "passing-data-code",
+      "title": "4. Menerima Hasil Balik dengan await push & pop",
+      "file": "04-passing-data-code.html"
+    },
+    {
+      "id": "nav-replace-remove",
+      "title": "5. pushReplacement & pushAndRemoveUntil (Login/Logout)",
+      "file": "05-replace-remove.html"
+    },
+    {
+      "id": "nav-named-routes",
+      "title": "6. Named Routes & onGenerateRoute",
+      "file": "06-named-routes.html"
+    },
+    {
+      "id": "bottom-nav-bar",
+      "title": "7. NavigationBar Material 3 & IndexedStack",
+      "file": "07-bottom-nav-bar.html"
+    },
+    {
+      "id": "nav-drawer",
+      "title": "8. Menu Samping dengan Drawer",
+      "file": "08-drawer.html"
+    },
+    {
+      "id": "nav-tabbar",
+      "title": "9. TabBar & TabBarView",
+      "file": "09-tabbar.html"
+    },
+    {
+      "id": "nav-dialog-route",
+      "title": "10. Dialog & Bottom Sheet sebagai Route",
+      "file": "10-dialog-route.html"
+    },
+    {
+      "id": "nav-go-router",
+      "title": "11. Pengenalan go_router",
+      "file": "11-go-router.html"
+    },
+    {
+      "id": "nav-pop-scope",
+      "title": "12. PopScope: Konfirmasi Sebelum Kembali",
+      "file": "12-pop-scope.html"
+    },
+    {
+      "id": "nav-studi-kasus",
+      "title": "13. Studi Kasus: Portal Akademik Multi-Halaman",
+      "file": "13-studi-kasus.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 7: Portal Akademik dengan Navigasi Tab & Halaman Detail",
+    "objective": "Merancang alur navigasi aplikasi kampus yang lengkap mulai dari Splash, Login, Main Tabs, hingga Halaman Detail Berargumen, dialog konfirmasi, dan pencegatan tombol back.",
+    "instructions": [
+      "Buat proyek baru dan susun folder <code>lib/models</code>, <code>lib/data</code>, dan <code>lib/screens</code> seperti studi kasus section 13.",
+      "Buat <code>SplashScreen</code> yang setelah 2 detik berpindah ke <code>LoginScreen</code> dengan <code>Navigator.pushReplacement</code> (jangan lupa cek <code>mounted</code>).",
+      "Buat alur layar: <code>LoginScreen</code> -> <code>MainNavigationScreen</code>.",
+      "Gunakan <code>Navigator.pushReplacement</code> dari Login agar mahasiswa tidak bisa menekan tombol back kembali ke layar login setelah login sukses.",
+      "Di dalam <code>MainNavigationScreen</code>, pasang <code>NavigationBar</code> Material 3 dengan 3 tab: (1) Beranda Informasi, (2) Daftar Mata Kuliah, (3) Profil Pengguna. Gunakan <code>IndexedStack</code> agar posisi scroll tab tidak hilang.",
+      "Pada tab Daftar Mata Kuliah, ketika salah satu item ditekan, pindah ke <code>DetailMataKuliahScreen</code> dengan membawa objek mata kuliah (nama dosen dan deskripsi silabus) lewat constructor.",
+      "Sediakan tombol 'Daftar Matkul Ini' pada Halaman Detail yang mengembalikan data hasil konfirmasi ke halaman sebelumnya (<code>await Navigator.push&lt;bool&gt;</code>) dan menampilkan notifikasi SnackBar hijau.",
+      "Tambahkan <code>Drawer</code> berisi menu Jadwal dan Tentang Aplikasi. Tutup drawer sebelum membuka halaman baru.",
+      "Halaman Jadwal memakai <code>TabBar</code> + <code>TabBarView</code> untuk hari Senin sampai Jumat.",
+      "Tambahkan tombol 'Logout' di tab Profil yang menampilkan <code>AlertDialog</code> konfirmasi, lalu mengarahkan kembali ke Login menggunakan <code>pushAndRemoveUntil</code>.",
+      "Pasang <code>PopScope</code> di MainNavigationScreen: jika tab aktif bukan Beranda, tombol back memindahkan ke tab Beranda terlebih dahulu.",
+      "Bonus: implementasikan ulang rute utama dengan <code>go_router</code> (rute <code>/login</code>, <code>/</code>, <code>/matkul/:kode</code>) dan <code>redirect</code> sebagai auth guard."
+    ],
+    "expectedOutput": "Alur navigasi aplikasi yang rapi: splash tidak bisa dikembalikan, login tidak tersisa di stack, state tab terjaga, data timbal-balik berfungsi, logout membersihkan seluruh stack, dan tombol back berperilaku sesuai PopScope.",
+    "rubric": "Penggunaan push, pop, pushReplacement, dan pushAndRemoveUntil yang tepat (30%), Passing data via constructor dan return result (25%), NavigationBar + IndexedStack, Drawer, dan TabBar yang bersih (25%), Dialog konfirmasi dan PopScope (10%), Struktur folder dan kerapian kode (10%). Bonus go_router +10%."
+  },
+  "quiz": [
+    {
+      "question": "Mengapa setelah pengguna berhasil login, kita sebaiknya menggunakan 'Navigator.pushReplacement' alih-alih 'Navigator.push' biasa?",
+      "options": [
+        "Agar layar Login terhapus dari navigation stack, sehingga jika pengguna menekan tombol back di perangkat, aplikasi keluar dan tidak kembali lagi ke layar formulir login",
+        "Karena push biasa hanya boleh digunakan untuk membuka website di browser",
+        "Agar warna AppBar otomatis berubah menjadi biru",
+        "Karena pushReplacement mengompres file gambar lebih cepat"
+      ],
+      "correctIndex": 0,
+      "explanation": "pushReplacement mengganti rute saat ini di stack dengan rute baru. Dengan begitu, rute login tidak tersisa di stack riwayat dan pengguna tidak akan kembali ke login saat menekan tombol back."
+    },
+    {
+      "question": "Bagaimana cara menerima data balik (return value) yang dikirim oleh sebuah halaman saat halaman tersebut ditutup dengan 'Navigator.pop(context, data)'?",
+      "options": [
+        "Menambahkan keyword 'await' di depan pemanggilan 'Navigator.push'",
+        "Menyimpan data di dalam file pubspec.yaml",
+        "Menggunakan fungsi setState() di dalam initState()",
+        "Mematikan emulator ponsel"
+      ],
+      "correctIndex": 0,
+      "explanation": "Karena Navigator.push mengembalikan Future&lt;T&gt;, kita dapat menaruh keyword 'await' di depannya: final result = await Navigator.push(...). Ketika layar tujuan ditutup dengan Navigator.pop(context, data), variabel result akan berisi nilai tersebut."
+    },
+    {
+      "question": "Apa perbedaan utama context.go() dan context.push() pada go_router?",
+      "options": [
+        "go menyusun ulang tumpukan sesuai struktur rute tujuan, sedangkan push menumpuk halaman baru di atas halaman saat ini",
+        "go hanya untuk Flutter Web, push hanya untuk Android",
+        "push menghapus semua halaman, go tidak",
+        "Keduanya identik, hanya beda nama"
+      ],
+      "correctIndex": 0,
+      "explanation": "context.go berpindah ke sebuah lokasi URL dan membangun tumpukan berdasarkan hierarki rute (sub-rute di atas induknya). context.push menumpuk rute di atas halaman saat ini, mirip Navigator.push, sehingga tombol back kembali ke halaman sebelumnya."
+    },
+    {
+      "question": "Pada Navigator.pushAndRemoveUntil(context, route, (route) =&gt; false), apa arti predicate '(route) =&gt; false'?",
+      "options": [
+        "Hapus semua rute lama sehingga hanya rute baru yang tersisa di tumpukan",
+        "Jangan hapus rute apa pun",
+        "Hapus hanya rute paling atas",
+        "Batalkan navigasi"
+      ],
+      "correctIndex": 0,
+      "explanation": "Predicate dipanggil untuk tiap rute lama. Rute dibuang selama predicate mengembalikan false. Karena selalu false, semua rute lama dibuang. Ini pola standar untuk logout."
+    },
+    {
+      "question": "Mengapa body: IndexedStack(index: i, children: pages) dipakai alih-alih body: pages[i] pada NavigationBar?",
+      "options": [
+        "Agar state setiap tab (isian, posisi scroll, nilai State) tetap terjaga saat berpindah tab",
+        "Agar aplikasi lebih hemat memori",
+        "Karena NavigationBar mewajibkan IndexedStack",
+        "Agar animasi pindah tab lebih cepat"
+      ],
+      "correctIndex": 0,
+      "explanation": "IndexedStack membangun semua anak dan hanya menampilkan satu. Anak yang tersembunyi tidak dibuang, sehingga State-nya tetap hidup. Konsekuensinya semua tab dibangun di awal."
+    },
+    {
+      "question": "Di dalam onGenerateRoute, bagaimana cara aman membaca settings.arguments yang seharusnya bertipe Mahasiswa?",
+      "options": [
+        "Memeriksa dengan if (args is Mahasiswa) lalu mengembalikan halaman error jika tidak cocok",
+        "Langsung menulis settings.arguments as Mahasiswa",
+        "Mengubah arguments menjadi String dengan toString()",
+        "Menyimpan argumen di variabel global"
+      ],
+      "correctIndex": 0,
+      "explanation": "settings.arguments bertipe Object?. Pemeriksaan 'is' mencegah crash ketika argumen lupa dikirim atau tipenya salah, sekaligus melakukan type promotion."
+    },
+    {
+      "question": "Widget apa yang dipakai di Flutter terbaru untuk mencegat tombol back dan menampilkan konfirmasi keluar?",
+      "options": [
+        "PopScope dengan canPop dan onPopInvokedWithResult",
+        "WillPopScope dengan onWillPop",
+        "BackButtonListener di main()",
+        "GestureDetector dengan onBack"
+      ],
+      "correctIndex": 0,
+      "explanation": "WillPopScope sudah dihapus. PopScope memakai canPop untuk memblokir back, dan onPopInvokedWithResult(didPop, result) untuk bereaksi, misalnya menampilkan dialog lalu memanggil Navigator.pop sendiri."
+    },
+    {
+      "question": "showDialog&lt;bool&gt;(...) dipanggil dan pengguna menutup dialog dengan tap di luar kotak dialog. Nilai apa yang diterima?",
+      "options": [
+        "null",
+        "false",
+        "true",
+        "Aplikasi crash"
+      ],
+      "correctIndex": 0,
+      "explanation": "Dialog adalah route. Jika ditutup tanpa Navigator.pop(context, nilai), Future selesai dengan null. Karena itu kondisi ditulis if (yakin == true), bukan if (yakin)."
+    }
+  ]
+}

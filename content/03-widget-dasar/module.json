@@ -1,0 +1,199 @@
+{
+  "id": "modul-03",
+  "badge": "Widget & UI",
+  "category": "UI/UX",
+  "title": "Arsitektur Widget & Lifecycle Antarmuka",
+  "duration": "Pertemuan 3 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 02: Fondasi Dart 3"
+  ],
+  "summary": "Membedah filosofi 'Everything is a Widget', anatomi MaterialApp/Scaffold/AppBar, widget dasar (Text, Icon, Image, Container, Padding, SizedBox, Align, Card, ListTile), StatelessWidget vs StatefulWidget beserta setState dan lifecycle, cara memecah UI menjadi widget kecil dengan parameter dan callback, const & key, serta tema Material 3 dengan mode gelap.",
+  "learningOutcomes": [
+    "Menjelaskan relasi Widget Tree, Element Tree, dan RenderObject Tree.",
+    "Menyusun kerangka aplikasi dengan MaterialApp, Scaffold, dan AppBar.",
+    "Menggunakan widget dasar Text, Icon, Image (asset & network), Container, Padding, SizedBox, Center, Align, Card, dan ListTile.",
+    "Memilih dengan tepat kapan menggunakan StatelessWidget vs StatefulWidget, serta memakai setState dengan benar.",
+    "Menganalisis siklus hidup State (initState, didChangeDependencies, build, didUpdateWidget, dispose) dan membersihkan resource di dispose.",
+    "Memecah UI menjadi widget kecil yang menerima parameter dan callback.",
+    "Menerapkan const, Key, dan ThemeData Material 3 (ColorScheme.fromSeed, textTheme, mode gelap)."
+  ],
+  "sections": [
+    {
+      "id": "filosofi-widget",
+      "title": "1. Filosofi 'Everything is a Widget' & Tiga Pohon Flutter",
+      "file": "01-filosofi-widget.html"
+    },
+    {
+      "id": "widget-anatomi-aplikasi",
+      "title": "2. Anatomi Aplikasi: MaterialApp, Scaffold, & AppBar",
+      "file": "02-anatomi-aplikasi.html"
+    },
+    {
+      "id": "widget-text-textstyle",
+      "title": "3. Text & TextStyle",
+      "file": "03-text-textstyle.html"
+    },
+    {
+      "id": "widget-icon",
+      "title": "4. Icon & IconButton",
+      "file": "04-icon.html"
+    },
+    {
+      "id": "widget-image",
+      "title": "5. Image: Asset & Network",
+      "file": "05-image.html"
+    },
+    {
+      "id": "basic-widgets-code",
+      "title": "6. Container & BoxDecoration (Studi Kasus Kartu Mahasiswa)",
+      "file": "06-container-boxdecoration.html"
+    },
+    {
+      "id": "widget-padding-sizedbox-align",
+      "title": "7. Padding, SizedBox, Center, & Align",
+      "file": "07-padding-sizedbox-center-align.html"
+    },
+    {
+      "id": "widget-card-listtile",
+      "title": "8. Card & ListTile",
+      "file": "08-card-listtile.html"
+    },
+    {
+      "id": "stateless-vs-stateful",
+      "title": "9. StatelessWidget vs StatefulWidget",
+      "file": "09-stateless-vs-stateful.html"
+    },
+    {
+      "id": "widget-stateful-setstate",
+      "title": "10. StatefulWidget & setState: Counter Lengkap",
+      "file": "10-stateful-setstate.html"
+    },
+    {
+      "id": "widget-lifecycle",
+      "title": "11. Lifecycle State dengan Demo Log",
+      "file": "11-lifecycle.html"
+    },
+    {
+      "id": "widget-memecah-widget",
+      "title": "12. Memecah Widget: Parameter & Callback",
+      "file": "12-memecah-widget.html"
+    },
+    {
+      "id": "widget-const-key",
+      "title": "13. const & Key",
+      "file": "13-const-dan-key.html"
+    },
+    {
+      "id": "widget-theme-material3",
+      "title": "14. ThemeData Material 3 & Mode Gelap",
+      "file": "14-theme-material3.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 3: Kartu Mahasiswa Interaktif dengan Toggle Status Cuti",
+    "objective": "Membuat aplikasi kecil berisi kartu identitas mahasiswa yang dipecah menjadi beberapa widget, memakai StatefulWidget untuk status keaktifan, dan mendukung tema terang/gelap Material 3.",
+    "instructions": [
+      "Buat project baru <code>flutter create praktikum_03</code>, lalu hapus seluruh isi <code>lib/main.dart</code>.",
+      "Atur <code>MaterialApp</code> dengan <code>theme</code> dan <code>darkTheme</code> dari <code>ColorScheme.fromSeed</code> memakai satu warna benih pilihanmu, serta <code>themeMode</code> yang bisa diganti dari tombol di <code>AppBar.actions</code>.",
+      "Buat <code>StatefulWidget</code> bernama <code>KtmViewerScreen</code> yang menyimpan <code>bool _isStatusAktif = true;</code>.",
+      "Pecah tampilan menjadi minimal tiga widget kecil: <code>KartuKtm</code> (menerima nama, NIM, prodi, status), <code>BarisInfo</code> (ikon + label + nilai), dan <code>TombolStatus</code> (menerima <code>VoidCallback onTekan</code>).",
+      "Di <code>KartuKtm</code>, gunakan <code>Container</code> + <code>BoxDecoration</code> bergradasi, sudut membulat, dan bayangan (<code>withValues(alpha: ...)</code>). Tampilkan foto memakai <code>CircleAvatar</code> dengan <code>NetworkImage</code> dan ikon cadangan.",
+      "Tombol status memanggil <code>setState()</code> di induk untuk mengubah status (Aktif &lt;-&gt; Cuti Akademik). Jika Cuti, ubah gradasi kartu menjadi abu-abu dan ikon menjadi peringatan oranye.",
+      "Di bawah kartu, tampilkan daftar 3 mata kuliah semester ini memakai <code>Card</code> + <code>ListTile</code> (leading, title, subtitle, trailing).",
+      "Tambahkan <code>initState</code> dan <code>dispose</code> pada <code>KtmViewerScreen</code> yang mencetak log dengan <code>debugPrint</code>, lalu screenshot Debug Console sebagai bukti.",
+      "Pastikan <code>flutter analyze</code> tidak menampilkan error/warning dan gunakan <code>const</code> di semua tempat yang memungkinkan."
+    ],
+    "expectedOutput": "Aplikasi kartu mahasiswa yang rapi, berganti warna dan status saat tombol ditekan, mendukung mode terang/gelap, dan kodenya terpecah menjadi beberapa widget kecil dengan parameter dan callback.",
+    "rubric": "Penggunaan StatefulWidget, setState, dan lifecycle yang tepat (30%), Pemecahan widget dengan parameter & callback (25%), Desain kartu dengan Container/BoxDecoration/Card/ListTile (20%), Tema Material 3 & mode gelap (15%), Kerapian kode, const, dan bebas warning analyzer (10%)."
+  },
+  "quiz": [
+    {
+      "question": "Metode lifecycle manakah pada State yang HANYA dipanggil satu kali saat widget pertama kali diinisialisasi?",
+      "options": [
+        "build()",
+        "setState()",
+        "initState()",
+        "dispose()"
+      ],
+      "correctIndex": 2,
+      "explanation": "initState() dipanggil tepat satu kali oleh framework ketika objek State dimasukkan ke pohon elemen untuk inisialisasi awal."
+    },
+    {
+      "question": "Mengapa kita tidak boleh memanggil 'setState()' di dalam method 'dispose()'?",
+      "options": [
+        "Karena method dispose() dipanggil saat widget sedang dihancurkan/dihapus dari tree sehingga tidak mungkin me-render ulang lagi",
+        "Karena compiler Dart akan menghapus seluruh file project",
+        "Karena dispose() hanya boleh memuat kode styling CSS",
+        "Karena setState() hanya boleh dipanggil di StatelessWidget"
+      ],
+      "correctIndex": 0,
+      "explanation": "dispose() adalah tahap akhir penghancuran widget dari memori. Memanggil setState() di fase ini akan memicu runtime error karena elemen sudah tidak terpasang di tree."
+    },
+    {
+      "question": "Setelah menambahkan folder assets/images/ berisi logo.png, aplikasi menampilkan error 'Unable to load asset'. Penyebab yang paling mungkin adalah...",
+      "options": [
+        "Image.asset hanya mendukung format JPG",
+        "Folder belum didaftarkan di bagian flutter: assets: pada pubspec.yaml",
+        "Gambar harus disimpan di dalam folder lib/",
+        "Perlu menambahkan izin INTERNET di AndroidManifest"
+      ],
+      "correctIndex": 1,
+      "explanation": "Asset harus didaftarkan di pubspec.yaml (di bawah flutter: -> assets:), lalu jalankan flutter pub get dan jalankan ulang aplikasi."
+    },
+    {
+      "question": "Apa yang terjadi jika sebuah variabel state diubah TANPA dibungkus setState()?",
+      "options": [
+        "Aplikasi langsung crash",
+        "Nilai di memori berubah tetapi layar tidak digambar ulang",
+        "Flutter otomatis memanggil build()",
+        "Variabel kembali ke nilai awal"
+      ],
+      "correctIndex": 1,
+      "explanation": "setState() yang memberi tahu framework bahwa widget perlu dibangun ulang. Tanpanya, perubahan nilai tidak terlihat di layar."
+    },
+    {
+      "question": "Menulis Container(color: Colors.red, decoration: BoxDecoration(borderRadius: BorderRadius.circular(8))) menghasilkan error. Bagaimana perbaikannya?",
+      "options": [
+        "Hapus borderRadius",
+        "Pindahkan color ke dalam BoxDecoration(color: Colors.red, ...)",
+        "Ganti Container dengan SizedBox",
+        "Tambahkan const di depan Container"
+      ],
+      "correctIndex": 1,
+      "explanation": "Container tidak boleh menerima color dan decoration sekaligus. Jika memakai decoration, warna ditulis di BoxDecoration."
+    },
+    {
+      "question": "Sebuah widget anak perlu memberi tahu induknya bahwa tombol hapus ditekan. Tipe parameter yang paling tepat adalah...",
+      "options": [
+        "String",
+        "VoidCallback",
+        "BuildContext",
+        "Key"
+      ],
+      "correctIndex": 1,
+      "explanation": "VoidCallback adalah fungsi tanpa parameter dan tanpa nilai kembali. Induk mengirim fungsi tersebut, anak memanggilnya saat tombol ditekan (data turun, kejadian naik)."
+    },
+    {
+      "question": "Daftar StatefulWidget bertipe sama ditukar urutannya, tetapi state (angka hitungan) tertinggal di posisi lama. Solusinya adalah...",
+      "options": [
+        "Memberi setiap item ValueKey berdasarkan id unik datanya",
+        "Menambahkan const pada setiap item",
+        "Mengganti semua item menjadi StatelessWidget",
+        "Memanggil setState dua kali"
+      ],
+      "correctIndex": 0,
+      "explanation": "Tanpa key, Flutter mencocokkan State berdasarkan tipe dan posisi. ValueKey(id) membuat State ikut berpindah bersama datanya."
+    },
+    {
+      "question": "Kode MaterialApp(theme: ..., darkTheme: ..., themeMode: ThemeMode.system). Kapan darkTheme dipakai?",
+      "options": [
+        "Selalu dipakai",
+        "Tidak pernah dipakai",
+        "Saat pengaturan perangkat sedang dalam mode gelap",
+        "Hanya saat aplikasi dijalankan di web"
+      ],
+      "correctIndex": 2,
+      "explanation": "ThemeMode.system mengikuti pengaturan sistem. Untuk memaksa, gunakan ThemeMode.dark atau ThemeMode.light."
+    }
+  ]
+}

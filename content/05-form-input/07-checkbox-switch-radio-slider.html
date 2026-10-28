@@ -1,0 +1,305 @@
+<p class="lead">Tidak semua input berupa ketikan. Untuk pilihan ya/tidak, satu dari beberapa opsi, atau nilai dalam rentang, Flutter menyediakan Checkbox, Switch, Radio, dan Slider. Semuanya bekerja dengan pola yang sama: <strong>nilai disimpan di State, ditampilkan lewat <code>value</code>, dan diubah lewat <code>onChanged</code> + <code>setState</code></strong>.</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Widget</th><th>Tipe nilai</th><th>Kapan dipakai</th></tr></thead>
+    <tbody>
+      <tr><td><code>Checkbox</code> / <code>CheckboxListTile</code></td><td><code>bool</code></td><td>Persetujuan, boleh memilih banyak opsi</td></tr>
+      <tr><td><code>Switch</code> / <code>SwitchListTile</code></td><td><code>bool</code></td><td>Pengaturan on/off yang langsung berlaku</td></tr>
+      <tr><td><code>RadioGroup</code> + <code>RadioListTile</code></td><td>Satu nilai (sering <code>enum</code>)</td><td>Pilih tepat satu dari beberapa opsi</td></tr>
+      <tr><td><code>Slider</code> / <code>RangeSlider</code></td><td><code>double</code> / <code>RangeValues</code></td><td>Nilai atau rentang angka</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>1. Checkbox dan Switch</h4>
+<p>Versi <code>...ListTile</code> sudah termasuk judul, dan seluruh barisnya bisa diketuk. Hampir selalu lebih nyaman dipakai daripada versi polos.</p>
+<pre><code class="language-dart">bool _setuju = false;
+bool _notifikasi = true;
+
+@override
+Widget build(BuildContext context) {
+  return Column(
+    children: [
+      // Checkbox polos: hanya kotaknya saja
+      Checkbox(
+        value: _setuju,
+        onChanged: (baru) =&gt; setState(() =&gt; _setuju = baru ?? false),
+      ),
+
+      // CheckboxListTile: kotak + judul, seluruh baris bisa diketuk
+      CheckboxListTile(
+        title: const Text('Saya menyetujui tata tertib'),
+        value: _setuju,
+        onChanged: (baru) =&gt; setState(() =&gt; _setuju = baru ?? false),
+      ),
+
+      // SwitchListTile: saklar on/off + judul
+      SwitchListTile(
+        title: const Text('Notifikasi jadwal kuliah'),
+        subtitle: const Text('Ingatkan 15 menit sebelum kelas'),
+        value: _notifikasi,
+        onChanged: (baru) =&gt; setState(() =&gt; _notifikasi = baru),
+      ),
+    ],
+  );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/checkbox-switch.jpg" alt="Checkbox polos, CheckboxListTile, dan SwitchListTile" loading="lazy">
+    <div class="screenshot-caption">Checkbox polos, CheckboxListTile, dan SwitchListTile</div>
+  </div>
+</div>
+<p>Parameter <code>onChanged</code> Checkbox menerima <code>bool?</code> (bisa null untuk mode tiga keadaan), sehingga kita menulis <code>baru ?? false</code>. Switch menerima <code>bool</code> biasa.</p>
+
+<h4>2. Radio dengan RadioGroup</h4>
+<p>Sejak Flutter 3.35, nilai terpilih <strong>tidak lagi</strong> ditulis di setiap Radio (<code>groupValue</code> dan <code>onChanged</code> di Radio sudah <em>deprecated</em>). Sekarang semua radio dibungkus satu <code>RadioGroup</code> yang memegang <code>groupValue</code> dan <code>onChanged</code>, dan setiap radio cukup diberi <code>value</code>.</p>
+<pre><code class="language-dart">enum Kelas { pagi, siang, malam }
+
+class _ContohState extends State&lt;Contoh&gt; {
+  Kelas? _kelas = Kelas.pagi;
+
+  @override
+  Widget build(BuildContext context) {
+    // RadioGroup menyimpan nilai terpilih untuk SEMUA radio di dalamnya
+    return RadioGroup&lt;Kelas&gt;(
+      groupValue: _kelas,
+      onChanged: (baru) =&gt; setState(() =&gt; _kelas = baru),
+      child: const Column(
+        children: [
+          // Tiap radio cukup diberi value-nya masing-masing
+          RadioListTile&lt;Kelas&gt;(value: Kelas.pagi, title: Text('Kelas Pagi')),
+          RadioListTile&lt;Kelas&gt;(value: Kelas.siang, title: Text('Kelas Siang')),
+          RadioListTile&lt;Kelas&gt;(value: Kelas.malam, title: Text('Kelas Malam')),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/radio-group.jpg" alt="RadioGroup dengan tiga pilihan kelas" loading="lazy">
+    <div class="screenshot-caption">RadioGroup dengan tiga pilihan kelas</div>
+  </div>
+</div>
+<div class="callout callout-info"><h4>ℹ️ Kenapa memakai enum?</h4><p>Dengan <code>enum Kelas { pagi, siang, malam }</code>, salah ketik seperti <code>'Pagi'</code> vs <code>'pagi'</code> tidak mungkin terjadi, karena compiler langsung memberi tahu jika nilai tidak dikenal. Nama enum bisa ditampilkan dengan <code>kelas.name</code>.</p></div>
+
+<h4>3. Slider</h4>
+<pre><code class="language-dart">double _sks = 20;
+
+@override
+Widget build(BuildContext context) {
+  return Column(
+    children: [
+      Text('Rencana SKS: ${_sks.round()}'),
+      Slider(
+        value: _sks,
+        min: 12,
+        max: 24,
+        divisions: 12, // 12 langkah -&gt; nilainya bulat 12, 13, ..., 24
+        label: '${_sks.round()} SKS', // gelembung saat digeser
+        onChanged: (baru) =&gt; setState(() =&gt; _sks = baru),
+      ),
+    ],
+  );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/slider.jpg" alt="Slider rencana SKS" loading="lazy">
+    <div class="screenshot-caption">Slider rencana SKS</div>
+  </div>
+</div>
+<p>Tanpa <code>divisions</code>, nilai Slider berupa pecahan (misalnya 17.3826). Dengan <code>divisions</code>, nilai melompat per langkah, dan <code>label</code> menampilkan gelembung nilai saat digeser.</p>
+
+<h4>Contoh lengkap: halaman preferensi belajar</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.deepPurple),
+      home: const PreferensiScreen(),
+    );
+  }
+}
+
+enum ModeBelajar { luring, daring, hybrid }
+
+class PreferensiScreen extends StatefulWidget {
+  const PreferensiScreen({super.key});
+
+  @override
+  State&lt;PreferensiScreen&gt; createState() =&gt; _PreferensiScreenState();
+}
+
+class _PreferensiScreenState extends State&lt;PreferensiScreen&gt; {
+  // Checkbox: boleh memilih lebih dari satu
+  final Map&lt;String, bool&gt; _minat = {
+    'Mobile Development': true,
+    'Web Development': false,
+    'Data Science': false,
+    'Jaringan Komputer': false,
+  };
+
+  // Switch: on/off
+  bool _notifikasi = true;
+  bool _modeGelap = false;
+
+  // Radio: hanya satu pilihan
+  ModeBelajar _mode = ModeBelajar.luring;
+
+  // Slider: nilai dalam rentang
+  double _targetIpk = 3.5;
+  RangeValues _jamBelajar = const RangeValues(19, 22);
+
+  String get _ringkasan {
+    final minatDipilih =
+        _minat.entries.where((e) =&gt; e.value).map((e) =&gt; e.key).join(', ');
+    return 'Minat: ${minatDipilih.isEmpty ? '-' : minatDipilih}\n'
+        'Notifikasi: ${_notifikasi ? 'aktif' : 'mati'}, '
+        'Mode gelap: ${_modeGelap ? 'ya' : 'tidak'}\n'
+        'Mode belajar: ${_mode.name}\n'
+        'Target IPK: ${_targetIpk.toStringAsFixed(2)}\n'
+        'Jam belajar: ${_jamBelajar.start.round()}.00 - ${_jamBelajar.end.round()}.00';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final judul = Theme.of(context).textTheme.titleMedium;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Preferensi Belajar')),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text('Bidang minat (boleh lebih dari satu)', style: judul),
+          ),
+          for (final nama in _minat.keys)
+            CheckboxListTile(
+              title: Text(nama),
+              value: _minat[nama],
+              onChanged: (baru) =&gt; setState(() =&gt; _minat[nama] = baru ?? false),
+            ),
+          const Divider(),
+
+          SwitchListTile(
+            secondary: const Icon(Icons.notifications_active_outlined),
+            title: const Text('Notifikasi tugas'),
+            value: _notifikasi,
+            onChanged: (baru) =&gt; setState(() =&gt; _notifikasi = baru),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.dark_mode_outlined),
+            title: const Text('Mode gelap'),
+            value: _modeGelap,
+            onChanged: (baru) =&gt; setState(() =&gt; _modeGelap = baru),
+          ),
+          const Divider(),
+
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text('Mode belajar (pilih satu)', style: judul),
+          ),
+          RadioGroup&lt;ModeBelajar&gt;(
+            groupValue: _mode,
+            onChanged: (baru) {
+              if (baru != null) setState(() =&gt; _mode = baru);
+            },
+            child: const Column(
+              children: [
+                RadioListTile(value: ModeBelajar.luring, title: Text('Luring (tatap muka)')),
+                RadioListTile(value: ModeBelajar.daring, title: Text('Daring (online)')),
+                RadioListTile(value: ModeBelajar.hybrid, title: Text('Hybrid')),
+              ],
+            ),
+          ),
+          const Divider(),
+
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text('Target IPK: ${_targetIpk.toStringAsFixed(2)}', style: judul),
+          ),
+          Slider(
+            value: _targetIpk,
+            min: 2.0,
+            max: 4.0,
+            divisions: 40, // langkah 0.05
+            label: _targetIpk.toStringAsFixed(2),
+            onChanged: (baru) =&gt; setState(() =&gt; _targetIpk = baru),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text(
+              'Jam belajar: ${_jamBelajar.start.round()}.00 - ${_jamBelajar.end.round()}.00',
+              style: judul,
+            ),
+          ),
+          // RangeSlider: memilih rentang (dua titik)
+          RangeSlider(
+            values: _jamBelajar,
+            min: 0,
+            max: 24,
+            divisions: 24,
+            labels: RangeLabels(
+              '${_jamBelajar.start.round()}.00',
+              '${_jamBelajar.end.round()}.00',
+            ),
+            onChanged: (baru) =&gt; setState(() =&gt; _jamBelajar = baru),
+          ),
+          const Divider(),
+
+          Card(
+            margin: const EdgeInsets.all(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(_ringkasan),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/preferensi-atas.jpg" alt="Bagian atas: daftar Checkbox dan Switch" loading="lazy">
+    <div class="screenshot-caption">Bagian atas: daftar Checkbox dan Switch</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/preferensi-bawah.jpg" alt="Setelah digulir: Radio, Slider, RangeSlider, dan ringkasan" loading="lazy">
+    <div class="screenshot-caption">Setelah digulir: Radio, Slider, RangeSlider, dan ringkasan</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><code>Map&lt;String, bool&gt; _minat</code> menyimpan status setiap checkbox. <code>for (final nama in _minat.keys)</code> di dalam <code>children</code> membuat satu CheckboxListTile per minat.</li>
+  <li><code>RadioGroup&lt;ModeBelajar&gt;</code> membungkus <code>Column</code> berisi tiga <code>RadioListTile</code>. Karena RadioListTile di dalamnya tidak berubah, Column bisa <code>const</code>.</li>
+  <li><code>divisions: 40</code> pada rentang 2.0-4.0 menghasilkan langkah 0.05.</li>
+  <li><code>RangeSlider</code> memakai <code>RangeValues(start, end)</code> untuk dua titik sekaligus.</li>
+  <li>Getter <code>_ringkasan</code> menyusun semua nilai menjadi teks. Karena dihitung ulang setiap build, ringkasan selalu sesuai pilihan terbaru.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Lupa <code>setState</code> di <code>onChanged</code>.</strong> Nilai variabel berubah tetapi tampilan tidak; checkbox terlihat "macet".</li>
+  <li><strong>Menulis <code>Radio(groupValue: ..., onChanged: ...)</code>.</strong> Cara lama ini menghasilkan peringatan deprecated. Gunakan <code>RadioGroup</code>.</li>
+  <li><strong>Nilai awal Slider di luar <code>min</code>-<code>max</code>.</strong> Menyebabkan error assertion. Pastikan <code>min &lt;= value &lt;= max</code>.</li>
+  <li><strong>Menyimpan nilai di variabel lokal dalam <code>build</code>.</strong> Nilai akan kembali ke awal di setiap build. Simpan sebagai field State.</li>
+</ul></div>

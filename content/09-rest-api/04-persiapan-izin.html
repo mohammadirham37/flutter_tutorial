@@ -1,0 +1,124 @@
+<p class="lead">Sebelum request pertama, ada dua hal yang perlu disiapkan: memasang package <code>http</code> dan memastikan aplikasi <strong>diizinkan</strong> mengakses internet di setiap platform. Banyak mahasiswa mengira kodenya salah, padahal penyebabnya izin yang belum ditambahkan.</p>
+
+<h4>1. Memasang Package <code>http</code></h4>
+<pre><code class="language-bash">flutter pub add http
+</code></pre>
+<p>Lalu impor dengan awalan <code>as http</code> agar fungsi-fungsinya jelas berasal dari package ini (<code>http.get</code>, <code>http.post</code>, dan seterusnya):</p>
+<pre><code class="language-dart">import 'package:http/http.dart' as http;
+
+Future&lt;void&gt; cobaKoneksi() async {
+  final response = await http.get(
+    Uri.parse('https://jsonplaceholder.typicode.com/posts/1'),
+  );
+  print('Status: ${response.statusCode}');
+  print('Body: ${response.body}');
+}
+</code></pre>
+
+<h4>2. Android: Izin INTERNET</h4>
+<p>Mode debug otomatis punya izin internet, tetapi <strong>build release (APK yang dibagikan) tidak</strong>. Tambahkan baris berikut di <code>android/app/src/main/AndroidManifest.xml</code>, tepat di atas tag <code>&lt;application&gt;</code>:</p>
+<p class="code-file-label">📄 <code>android/app/src/main/AndroidManifest.xml</code></p>
+<pre><code class="language-text">&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+    &lt;uses-permission android:name="android.permission.INTERNET"/&gt;
+
+    &lt;application
+        android:label="aplikasi_saya"
+        ...&gt;
+</code></pre>
+
+<h4>3. Android: Server Lokal Tanpa HTTPS</h4>
+<p>Saat backend dijalankan di laptop sendiri (Laravel, Express, dsb.) alamatnya biasanya <code>http://</code> tanpa "s". Android 9 ke atas memblokir HTTP biasa (<em>cleartext</em>). Untuk keperluan belajar, izinkan lewat atribut di tag <code>&lt;application&gt;</code>:</p>
+<pre><code class="language-text">&lt;application
+    android:usesCleartextTraffic="true"
+    ...&gt;
+</code></pre>
+<div class="callout callout-info"><h4>ℹ️ localhost di Emulator Android</h4><p>Di dalam emulator Android, <code>localhost</code> berarti emulator itu sendiri, bukan laptop. Gunakan <code>http://10.0.2.2:8000</code> untuk mengakses server di laptop. Jika memakai HP fisik, gunakan IP laptop di jaringan Wi-Fi yang sama, misalnya <code>http://192.168.1.10:8000</code>.</p></div>
+
+<h4>4. iOS</h4>
+<p>iOS tidak membutuhkan izin khusus untuk internet. Namun iOS memblokir <code>http://</code> (App Transport Security). Untuk server lokal saat belajar, tambahkan di <code>ios/Runner/Info.plist</code> di dalam tag <code>&lt;dict&gt;</code> utama:</p>
+<p class="code-file-label">📄 <code>ios/Runner/Info.plist</code></p>
+<pre><code class="language-text">&lt;key&gt;NSAppTransportSecurity&lt;/key&gt;
+&lt;dict&gt;
+    &lt;key&gt;NSAllowsLocalNetworking&lt;/key&gt;
+    &lt;true/&gt;
+&lt;/dict&gt;
+</code></pre>
+<p>Untuk server produksi, selalu gunakan <code>https://</code> sehingga pengaturan ini tidak diperlukan.</p>
+
+<h4>5. macOS Desktop dan Web</h4>
+<ul>
+  <li><strong>macOS</strong>: tambahkan <code>&lt;key&gt;com.apple.security.network.client&lt;/key&gt;&lt;true/&gt;</code> di <code>macos/Runner/DebugProfile.entitlements</code> dan <code>Release.entitlements</code>.</li>
+  <li><strong>Web (Chrome)</strong>: tidak butuh izin, tetapi server harus mengizinkan <strong>CORS</strong>. JSONPlaceholder sudah mengizinkan. Jika API kampus menolak, error yang muncul adalah <code>ClientException: XMLHttpRequest error</code>.</li>
+</ul>
+
+<h4>Contoh Lengkap: Tes Koneksi</h4>
+<p>Gunakan aplikasi kecil ini untuk memastikan semua izin sudah benar sebelum lanjut ke section berikutnya.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Pastikan sudah: flutter pub add http
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+void main() =&gt; runApp(const MaterialApp(home: TesKoneksiScreen()));
+
+class TesKoneksiScreen extends StatefulWidget {
+  const TesKoneksiScreen({super.key});
+
+  @override
+  State&lt;TesKoneksiScreen&gt; createState() =&gt; _TesKoneksiScreenState();
+}
+
+class _TesKoneksiScreenState extends State&lt;TesKoneksiScreen&gt; {
+  String _hasil = 'Tekan tombol untuk mengetes koneksi.';
+  bool _loading = false;
+
+  Future&lt;void&gt; _tes() async {
+    setState(() =&gt; _loading = true);
+    try {
+      final response = await http.get(
+        Uri.parse('https://jsonplaceholder.typicode.com/posts/1'),
+      );
+      _hasil = 'Status ${response.statusCode}\n\n${response.body}';
+    } catch (e) {
+      _hasil = 'Gagal terhubung: $e';
+    }
+    if (!mounted) return;
+    setState(() =&gt; _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Tes Koneksi Internet')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(child: Text(_hasil)),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _loading ? null : _tes,
+        icon: const Icon(Icons.wifi),
+        label: const Text('Tes'),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/tes-koneksi.jpg" alt="Hasil tes koneksi status 200" loading="lazy">
+    <div class="screenshot-caption">Setelah tombol Tes ditekan: status 200 dan JSON post #1</div>
+  </div>
+</div>
+
+
+<p>Jika muncul <code>Status 200</code> beserta JSON, koneksi sudah siap. Jika muncul <code>Failed host lookup</code>, cek internet emulator atau izin di atas.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Aplikasi jalan saat debug tetapi APK release tidak bisa memuat data: lupa izin INTERNET.</li>
+  <li>Memakai <code>http://localhost:8000</code> di emulator Android: gunakan <code>10.0.2.2</code>.</li>
+  <li>Menambah izin di <code>android/app/src/debug/AndroidManifest.xml</code>, padahal yang dipakai release adalah folder <code>main</code>.</li>
+  <li>Mengira hot reload sudah cukup setelah mengubah file native (Manifest/Info.plist). Aplikasi harus <strong>di-stop lalu dijalankan ulang</strong>.</li>
+</ul>
+</div>

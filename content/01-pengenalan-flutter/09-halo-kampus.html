@@ -1,0 +1,203 @@
+<p>Saatnya membuat aplikasi pertama Anda sendiri: <strong>Halo Kampus</strong>, halaman profil mahasiswa dengan tombol presensi. Aplikasi ini memakai konsep yang baru saja dibahas (StatelessWidget, StatefulWidget, <code>setState</code>, tema Material 3) ditambah beberapa widget yang akan dipelajari lebih dalam di Modul 03 dan 04.</p>
+
+<h4>Langkah 1: Buat proyek</h4>
+<pre><code class="language-bash">flutter create --org id.ac.unsoed halo_kampus
+cd halo_kampus
+code .            # buka di VS Code (opsional)</code></pre>
+
+<h4>Langkah 2: Ganti isi <code>lib/main.dart</code></h4>
+<p>Hapus seluruh isi <code>lib/main.dart</code>, lalu ketik (atau tempel) kode berikut:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const HaloKampusApp());
+}
+
+/// Akar aplikasi: mengatur tema dan halaman pertama.
+class HaloKampusApp extends StatelessWidget {
+  const HaloKampusApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Halo Kampus',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFF2B705)),
+      ),
+      home: const ProfilPage(),
+    );
+  }
+}
+
+/// Halaman profil mahasiswa. Stateful karena ada data yang berubah (jumlah hadir).
+class ProfilPage extends StatefulWidget {
+  const ProfilPage({super.key});
+
+  @override
+  State&lt;ProfilPage&gt; createState() =&gt; _ProfilPageState();
+}
+
+class _ProfilPageState extends State&lt;ProfilPage&gt; {
+  // Data mahasiswa: ganti dengan identitas Anda sendiri.
+  final String _nama = 'Budi Santoso';
+  final String _nim = 'H1D024001';
+  final String _prodi = 'S1 Informatika';
+
+  int _jumlahHadir = 0;
+
+  void _presensi() {
+    setState(() {
+      _jumlahHadir++;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Presensi ke-$_jumlahHadir tercatat. Semangat!')),
+    );
+  }
+
+  void _reset() {
+    setState(() {
+      _jumlahHadir = 0;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Halo Kampus'),
+        backgroundColor: warna.primaryContainer,
+        actions: [
+          IconButton(
+            tooltip: 'Reset presensi',
+            onPressed: _reset,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Bagian 1: foto dan nama
+          CircleAvatar(
+            radius: 48,
+            backgroundColor: warna.primary,
+            child: Text(
+              _nama[0],
+              style: TextStyle(fontSize: 40, color: warna.onPrimary),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _nama,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          Text(
+            '$_nim - $_prodi',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+
+          // Bagian 2: kartu informasi
+          Card(
+            child: Column(
+              children: const [
+                ListTile(
+                  leading: Icon(Icons.school),
+                  title: Text('Universitas Jenderal Soedirman'),
+                  subtitle: Text('Fakultas Teknik'),
+                ),
+                ListTile(
+                  leading: Icon(Icons.location_on),
+                  title: Text('Purwokerto, Jawa Tengah'),
+                ),
+                ListTile(
+                  leading: Icon(Icons.phone_android),
+                  title: Text('Mata kuliah: Pemrograman Mobile'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Bagian 3: penghitung presensi
+          Card(
+            color: warna.secondaryContainer,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  const Text('Jumlah presensi hari ini'),
+                  Text(
+                    '$_jumlahHadir',
+                    style: Theme.of(context).textTheme.displaySmall,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _presensi,
+        icon: const Icon(Icons.check),
+        label: const Text('Presensi'),
+      ),
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/01-pengenalan-flutter/halo-kampus-awal.jpg" alt="Halaman profil Halo Kampus" loading="lazy">
+    <div class="screenshot-caption">Tampilan awal Halo Kampus</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/01-pengenalan-flutter/halo-kampus-presensi.jpg" alt="SnackBar presensi muncul" loading="lazy">
+    <div class="screenshot-caption">Setelah tombol Presensi ditekan: angka naik menjadi 1 dan SnackBar muncul di bawah</div>
+  </div>
+</div>
+
+<h4>Langkah 3: Hapus test bawaan dan jalankan</h4>
+<pre><code class="language-bash"># test/widget_test.dart menguji aplikasi counter yang sudah tidak ada
+rm test/widget_test.dart        # Windows PowerShell: Remove-Item test\widget_test.dart
+
+flutter analyze                 # pastikan: No issues found!
+flutter run</code></pre>
+
+<h4>Penjelasan bagian penting</h4>
+<ul>
+  <li><strong><code>HaloKampusApp</code></strong> hanya mengatur tema dan halaman awal, sehingga cukup Stateless. <code>seedColor: Color(0xFFF2B705)</code> adalah kuning keemasan; Material 3 otomatis membuat palet lengkap dari satu warna ini. Format <code>0xFF</code> + kode hex RGB: <code>FF</code> berarti tidak transparan.</li>
+  <li><strong><code>_ProfilPageState</code></strong> menyimpan data mahasiswa sebagai <code>final</code> (tidak berubah) dan <code>_jumlahHadir</code> sebagai data yang berubah.</li>
+  <li><strong><code>_presensi()</code></strong> menaikkan angka dengan <code>setState</code>, lalu menampilkan <code>SnackBar</code> (pesan singkat di bawah layar) lewat <code>ScaffoldMessenger</code>.</li>
+  <li><strong><code>Theme.of(context).colorScheme</code></strong> mengambil warna dari tema, sehingga mengganti <code>seedColor</code> otomatis mengubah warna AppBar, avatar, dan kartu.</li>
+  <li><strong><code>ListView</code></strong> dipakai sebagai body agar halaman bisa di-scroll di layar kecil, tidak muncul error overflow garis kuning-hitam.</li>
+  <li><strong><code>_nama[0]</code></strong> mengambil huruf pertama nama untuk ditampilkan di avatar.</li>
+</ul>
+
+<h4>Langkah 4: Eksperimen</h4>
+<ol>
+  <li>Ganti <code>_nama</code>, <code>_nim</code>, dan <code>_prodi</code> dengan data Anda, lalu tekan <kbd>R</kbd> (field ini adalah nilai awal State, ingat percobaan di section sebelumnya).</li>
+  <li>Ganti <code>seedColor</code> menjadi <code>Colors.green</code> lalu tekan <kbd>r</kbd>. Tekan Presensi beberapa kali dulu agar terlihat bahwa angkanya tidak hilang.</li>
+  <li>Tambahkan satu <code>ListTile</code> baru berisi hobi Anda, misalnya dengan ikon <code>Icons.sports_soccer</code>.</li>
+  <li>Ubah tema menjadi gelap dengan menambahkan <code>brightness: Brightness.dark</code> di dalam <code>ColorScheme.fromSeed(...)</code>.</li>
+</ol>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/01-pengenalan-flutter/halo-kampus-gelap.jpg" alt="Halo Kampus dengan tema hijau gelap" loading="lazy">
+    <div class="screenshot-caption">Hasil eksperimen 2 dan 4: seedColor Colors.green dengan brightness: Brightness.dark</div>
+  </div>
+</div>
+
+<div class="callout callout-warning">
+  <h4>⚠️ Kesalahan umum</h4>
+  <ul>
+    <li><strong>Error <code>Undefined name '_nama'</code></strong>: field ditulis di kelas <code>ProfilPage</code>, bukan di <code>_ProfilPageState</code>.</li>
+    <li><strong>Menambah <code>ListTile</code> tidak muncul / error const</strong>: daftar <code>children: const [...]</code> hanya boleh berisi widget const. Pastikan widget baru juga const (semua argumennya nilai tetap).</li>
+    <li><strong>Kurung tutup kurang</strong>: aktifkan <em>Format on Save</em> di VS Code dan perhatikan koma di akhir argumen (<em>trailing comma</em>) agar formatter menyusun kode bertingkat dengan rapi.</li>
+  </ul>
+</div>

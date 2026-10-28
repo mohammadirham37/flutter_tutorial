@@ -1,0 +1,381 @@
+<p class="lead">Studi kasus ini menggabungkan materi Modul 05 dan 06 menjadi aplikasi <strong>Daftar Mata Kuliah</strong> dengan fitur: pencarian, hapus dengan geser + urungkan, tambah lewat form di bottom sheet (dengan validasi), ringkasan total SKS, dan empty state.</p>
+
+<h4>Rancangan</h4>
+<ul>
+  <li><strong>Model</strong> <code>MataKuliah</code> (kode, nama, sks, semester). <code>kode</code> dipakai sebagai id unik untuk <code>ValueKey</code> Dismissible.</li>
+  <li><strong>Data asli</strong> <code>_semua</code> dan <strong>data tampil</strong> <code>_tampil</code> (hasil filter + urut semester) dipisah.</li>
+  <li><strong>Form tambah</strong> dibuat sebagai StatefulWidget terpisah (<code>FormMatkulSheet</code>) agar controller-nya punya <code>dispose</code> sendiri. Form mengembalikan objek <code>MataKuliah</code> lewat <code>Navigator.pop</code>.</li>
+</ul>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Daftar Mata Kuliah',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const DaftarMatkulScreen(),
+    );
+  }
+}
+
+// ======================= MODEL =======================
+class MataKuliah {
+  final String kode;
+  final String nama;
+  final int sks;
+  final int semester;
+
+  const MataKuliah({
+    required this.kode,
+    required this.nama,
+    required this.sks,
+    required this.semester,
+  });
+}
+
+// ======================= LAYAR UTAMA =======================
+class DaftarMatkulScreen extends StatefulWidget {
+  const DaftarMatkulScreen({super.key});
+
+  @override
+  State&lt;DaftarMatkulScreen&gt; createState() =&gt; _DaftarMatkulScreenState();
+}
+
+class _DaftarMatkulScreenState extends State&lt;DaftarMatkulScreen&gt; {
+  final List&lt;MataKuliah&gt; _semua = [
+    const MataKuliah(kode: 'IF101', nama: 'Algoritma dan Pemrograman', sks: 3, semester: 1),
+    const MataKuliah(kode: 'IF102', nama: 'Matematika Diskrit', sks: 3, semester: 1),
+    const MataKuliah(kode: 'IF201', nama: 'Struktur Data', sks: 3, semester: 2),
+    const MataKuliah(kode: 'IF202', nama: 'Basis Data', sks: 3, semester: 3),
+    const MataKuliah(kode: 'IF305', nama: 'Pemrograman Mobile', sks: 4, semester: 5),
+    const MataKuliah(kode: 'IF306', nama: 'Jaringan Komputer', sks: 3, semester: 5),
+    const MataKuliah(kode: 'IF401', nama: 'Kecerdasan Buatan', sks: 3, semester: 6),
+  ];
+
+  final _cariController = TextEditingController();
+  String _kataKunci = '';
+
+  @override
+  void dispose() {
+    _cariController.dispose();
+    super.dispose();
+  }
+
+  List&lt;MataKuliah&gt; get _tampil {
+    final k = _kataKunci.toLowerCase().trim();
+    final hasil = _semua
+        .where((m) =&gt; m.nama.toLowerCase().contains(k) || m.kode.toLowerCase().contains(k))
+        .toList();
+    hasil.sort((a, b) =&gt; a.semester.compareTo(b.semester)); // urut per semester
+    return hasil;
+  }
+
+  int get _totalSks =&gt; _semua.fold(0, (total, m) =&gt; total + m.sks);
+
+  // ---------- HAPUS + URUNGKAN ----------
+  void _hapus(MataKuliah m) {
+    // Simpan posisi di list ASLI (bukan list hasil filter)
+    final posisi = _semua.indexOf(m);
+    setState(() =&gt; _semua.removeAt(posisi));
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('${m.nama} dihapus'),
+          action: SnackBarAction(
+            label: 'URUNGKAN',
+            onPressed: () =&gt; setState(() =&gt; _semua.insert(posisi, m)),
+          ),
+        ),
+      );
+  }
+
+  // ---------- TAMBAH lewat bottom sheet ----------
+  Future&lt;void&gt; _bukaFormTambah() async {
+    final baru = await showModalBottomSheet&lt;MataKuliah&gt;(
+      context: context,
+      isScrollControlled: true, // agar sheet bisa naik saat keyboard muncul
+      showDragHandle: true,
+      builder: (_) =&gt; FormMatkulSheet(kodeTerpakai: _semua.map((m) =&gt; m.kode).toSet()),
+    );
+    if (baru == null || !mounted) return;
+
+    setState(() =&gt; _semua.add(baru));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${baru.nama} ditambahkan')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tampil = _tampil;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mata Kuliah Saya'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(72),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: SearchBar(
+              controller: _cariController,
+              hintText: 'Cari nama atau kode...',
+              leading: const Icon(Icons.search),
+              trailing: [
+                if (_kataKunci.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _cariController.clear();
+                      setState(() =&gt; _kataKunci = '');
+                    },
+                  ),
+              ],
+              onChanged: (v) =&gt; setState(() =&gt; _kataKunci = v),
+            ),
+          ),
+        ),
+      ),
+      body: Column(
+        children: [
+          // Ringkasan
+          ListTile(
+            tileColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            leading: const Icon(Icons.summarize_outlined),
+            title: Text('${_semua.length} mata kuliah - $_totalSks SKS'),
+            subtitle: Text(_kataKunci.isEmpty
+                ? 'Geser ke kiri untuk menghapus'
+                : '${tampil.length} hasil untuk "$_kataKunci"'),
+          ),
+          Expanded(child: _buildDaftar(tampil)),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _bukaFormTambah,
+        icon: const Icon(Icons.add),
+        label: const Text('Tambah'),
+      ),
+    );
+  }
+
+  Widget _buildDaftar(List&lt;MataKuliah&gt; tampil) {
+    // Empty state: dua kemungkinan berbeda
+    if (_semua.isEmpty) {
+      return const _Kosong(ikon: Icons.inbox_outlined, pesan: 'Belum ada mata kuliah.\nTekan Tambah.');
+    }
+    if (tampil.isEmpty) {
+      return const _Kosong(ikon: Icons.search_off, pesan: 'Tidak ada yang cocok.');
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 88), // ruang untuk FAB
+      itemCount: tampil.length,
+      itemBuilder: (context, i) {
+        final m = tampil[i];
+        return Dismissible(
+          key: ValueKey(m.kode), // kode unik
+          direction: DismissDirection.endToStart,
+          background: Container(
+            color: Colors.red,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 24),
+            child: const Icon(Icons.delete, color: Colors.white),
+          ),
+          onDismissed: (_) =&gt; _hapus(m),
+          child: ListTile(
+            leading: CircleAvatar(child: Text('${m.sks}')),
+            title: Text(m.nama),
+            subtitle: Text('${m.kode} - Semester ${m.semester}'),
+            trailing: const Text('SKS'),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _Kosong extends StatelessWidget {
+  final IconData ikon;
+  final String pesan;
+
+  const _Kosong({required this.ikon, required this.pesan});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(ikon, size: 72, color: Colors.grey),
+          const SizedBox(height: 12),
+          Text(pesan, textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+}
+
+// ======================= FORM TAMBAH (di dalam bottom sheet) =======================
+class FormMatkulSheet extends StatefulWidget {
+  final Set&lt;String&gt; kodeTerpakai;
+
+  const FormMatkulSheet({super.key, required this.kodeTerpakai});
+
+  @override
+  State&lt;FormMatkulSheet&gt; createState() =&gt; _FormMatkulSheetState();
+}
+
+class _FormMatkulSheetState extends State&lt;FormMatkulSheet&gt; {
+  final _formKey = GlobalKey&lt;FormState&gt;();
+  final _kodeC = TextEditingController();
+  final _namaC = TextEditingController();
+  int? _sks;
+  double _semester = 1;
+
+  @override
+  void dispose() {
+    _kodeC.dispose();
+    _namaC.dispose();
+    super.dispose();
+  }
+
+  void _simpan() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.pop(
+      context,
+      MataKuliah(
+        kode: _kodeC.text.trim().toUpperCase(),
+        nama: _namaC.text.trim(),
+        sks: _sks!,
+        semester: _semester.round(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // viewInsets.bottom = tinggi keyboard; padding ini mendorong form ke atas
+    final tinggiKeyboard = MediaQuery.viewInsetsOf(context).bottom;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(24, 0, 24, 24 + tinggiKeyboard),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Tambah Mata Kuliah', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _kodeC,
+              autofocus: true,
+              textCapitalization: TextCapitalization.characters,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Kode (contoh: IF307)',
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) {
+                final kode = (v ?? '').trim().toUpperCase();
+                if (kode.isEmpty) return 'Kode wajib diisi';
+                if (!RegExp(r'^[A-Z]{2}\d{3}$').hasMatch(kode)) return 'Format: 2 huruf + 3 angka';
+                if (widget.kodeTerpakai.contains(kode)) return 'Kode sudah ada';
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _namaC,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Nama Mata Kuliah',
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =&gt;
+                  (v == null || v.trim().length &lt; 3) ? 'Nama minimal 3 karakter' : null,
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField&lt;int&gt;(
+              initialValue: _sks,
+              decoration: const InputDecoration(labelText: 'SKS', border: OutlineInputBorder()),
+              items: [for (final s in [1, 2, 3, 4, 6]) DropdownMenuItem(value: s, child: Text('$s SKS'))],
+              onChanged: (v) =&gt; setState(() =&gt; _sks = v),
+              validator: (v) =&gt; v == null ? 'Pilih jumlah SKS' : null,
+            ),
+            const SizedBox(height: 12),
+            Text('Semester: ${_semester.round()}'),
+            Slider(
+              value: _semester,
+              min: 1,
+              max: 8,
+              divisions: 7,
+              label: '${_semester.round()}',
+              onChanged: (v) =&gt; setState(() =&gt; _semester = v),
+            ),
+            FilledButton(onPressed: _simpan, child: const Text('Simpan')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/matkul-awal.jpg" alt="Daftar mata kuliah dengan ringkasan SKS" loading="lazy">
+    <div class="screenshot-caption">Daftar mata kuliah dengan ringkasan SKS</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/matkul-cari.jpg" alt="Mencari "data": dua hasil" loading="lazy">
+    <div class="screenshot-caption">Mencari "data": dua hasil</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/matkul-kosong.jpg" alt="Pencarian tanpa hasil" loading="lazy">
+    <div class="screenshot-caption">Pencarian tanpa hasil</div>
+  </div>
+</div>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/matkul-form-error.jpg" alt="Form tambah di bottom sheet: Simpan ditekan saat kosong" loading="lazy">
+    <div class="screenshot-caption">Form tambah di bottom sheet: Simpan ditekan saat kosong</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/matkul-form-isi.jpg" alt="Form tambah setelah diisi" loading="lazy">
+    <div class="screenshot-caption">Form tambah setelah diisi</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/matkul-ditambah.jpg" alt="Mata kuliah baru masuk ke daftar" loading="lazy">
+    <div class="screenshot-caption">Mata kuliah baru masuk ke daftar</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan bagian penting:</strong></p>
+<ul>
+  <li><strong>Hapus dari hasil filter:</strong> <code>_hapus(m)</code> menerima objek, lalu mencari posisinya di <code>_semua</code> dengan <code>indexOf</code>. Dengan begitu penghapusan tetap benar walaupun daftar sedang difilter atau diurutkan.</li>
+  <li><strong>SearchBar</strong> adalah kolom pencarian bergaya Material 3. Diletakkan di <code>AppBar.bottom</code> melalui <code>PreferredSize</code>.</li>
+  <li><strong>Dua jenis empty state:</strong> "belum ada mata kuliah" (data asli kosong) berbeda dengan "tidak ada yang cocok" (filter tanpa hasil).</li>
+  <li><strong>Bottom sheet berisi form:</strong> <code>isScrollControlled: true</code> membolehkan sheet lebih tinggi dari setengah layar, dan padding bawah sebesar <code>MediaQuery.viewInsetsOf(context).bottom</code> (tinggi keyboard) mendorong form ke atas keyboard.</li>
+  <li><strong>Validasi kode unik:</strong> daftar kode yang sudah dipakai dikirim ke form sebagai <code>Set&lt;String&gt;</code>, lalu diperiksa di validator.</li>
+  <li><strong>Total SKS</strong> dihitung dengan <code>fold</code>: mulai dari 0, tambahkan sks setiap mata kuliah.</li>
+  <li><code>padding: EdgeInsets.only(bottom: 88)</code> pada ListView memberi ruang agar item terakhir tidak tertutup FAB.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Pengembangan lanjutan</h4>
+<ul>
+  <li>Tambahkan fitur edit: ketuk item untuk membuka <code>FormMatkulSheet</code> berisi data lama.</li>
+  <li>Kelompokkan daftar per semester dengan judul bagian.</li>
+  <li>Data saat ini hilang saat aplikasi ditutup. Pada Modul 10-12 data akan disimpan ke penyimpanan lokal dan Supabase.</li>
+</ul></div>

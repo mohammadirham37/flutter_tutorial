@@ -1,0 +1,146 @@
+<p class="lead"><code>ChangeNotifier</code> adalah class bawaan Flutter (bukan dari package provider) yang bisa "mengabari" siapa saja yang mendengarkan ketika datanya berubah. Inilah pondasi Provider.</p>
+
+<h4>Empat langkah membuat ChangeNotifier</h4>
+<ol>
+  <li>Buat class yang <code>extends ChangeNotifier</code>.</li>
+  <li>Simpan state di field <strong>privat</strong> (diawali <code>_</code>).</li>
+  <li>Sediakan <strong>getter</strong> untuk membaca state.</li>
+  <li>Sediakan <strong>method</strong> untuk mengubah state, dan panggil <code>notifyListeners()</code> di akhir.</li>
+</ol>
+
+<h4>Contoh kecil: tanpa UI sama sekali</h4>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+
+class CounterModel extends ChangeNotifier {
+  int _nilai = 0; // 1. state disimpan privat
+
+  int get nilai =&gt; _nilai; // 2. dibaca lewat getter
+
+  void tambah() {
+    _nilai++; // 3. ubah state
+    notifyListeners(); // 4. kabari semua pendengar
+  }
+}
+
+void main() {
+  final counter = CounterModel();
+
+  // Daftarkan "pendengar": fungsi yang dipanggil setiap notifyListeners()
+  counter.addListener(() {
+    debugPrint('Nilai berubah menjadi ${counter.nilai}');
+  });
+
+  counter.tambah(); // Nilai berubah menjadi 1
+  counter.tambah(); // Nilai berubah menjadi 2
+}
+</code></pre>
+<ul>
+  <li><code>addListener</code> mendaftarkan fungsi yang akan dipanggil setiap <code>notifyListeners()</code>.</li>
+  <li>Dari luar class, <code>_nilai</code> tidak bisa diubah langsung. Satu-satunya jalan adalah lewat <code>tambah()</code>. Ini menjaga aturan bisnis tetap di satu tempat.</li>
+</ul>
+
+<h4>Contoh lengkap: menghubungkan ke UI dengan ListenableBuilder</h4>
+<p>Sebelum memakai package provider, mari lihat bahwa ChangeNotifier sudah bisa dipakai dengan widget bawaan <code>ListenableBuilder</code>.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// ChangeNotifier TANPA package provider, memakai ListenableBuilder bawaan Flutter
+import 'package:flutter/material.dart';
+
+class CounterModel extends ChangeNotifier {
+  int _nilai = 0;
+  int get nilai =&gt; _nilai;
+
+  void tambah() {
+    _nilai++;
+    notifyListeners();
+  }
+
+  void reset() {
+    _nilai = 0;
+    notifyListeners();
+  }
+}
+
+// Satu objek model untuk seluruh aplikasi (sementara, sebelum pakai Provider)
+final counter = CounterModel();
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const CounterPage(),
+    );
+  }
+}
+
+// Perhatikan: StatelessWidget, tidak ada setState sama sekali
+class CounterPage extends StatelessWidget {
+  const CounterPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('ChangeNotifier dari Nol')),
+      body: Center(
+        // ListenableBuilder = addListener + rebuild otomatis
+        child: ListenableBuilder(
+          listenable: counter,
+          builder: (context, child) {
+            return Text(
+              'Jumlah klik: ${counter.nilai}',
+              style: Theme.of(context).textTheme.headlineMedium,
+            );
+          },
+        ),
+      ),
+      floatingActionButton: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            heroTag: 'reset',
+            tooltip: 'Reset',
+            onPressed: counter.reset,
+            child: const Icon(Icons.refresh),
+          ),
+          const SizedBox(width: 12),
+          FloatingActionButton(
+            heroTag: 'tambah',
+            tooltip: 'Tambah',
+            onPressed: counter.tambah,
+            child: const Icon(Icons.add),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/cn-listenable.jpg" alt="Tiga kali Tambah tanpa setState" loading="lazy">
+    <div class="screenshot-caption">Tiga kali Tambah tanpa setState</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>CounterPage</code> adalah <code>StatelessWidget</code>, tetapi angkanya tetap berubah. Yang memicu rebuild adalah <code>ListenableBuilder</code>, bukan <code>setState</code>.</li>
+  <li>Hanya bagian di dalam <code>builder</code> yang di-build ulang. <code>AppBar</code> dan tombol tidak ikut.</li>
+  <li>Kelemahan contoh ini: <code>counter</code> adalah variabel global. Sulit diganti saat testing, dan tidak pernah di-<code>dispose</code>. Package provider menyelesaikan kedua masalah ini.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Lupa <code>notifyListeners()</code>.</strong> Data berubah di memori, tetapi layar tidak berubah sama sekali.</li>
+  <li>Memanggil <code>notifyListeners()</code> di dalam getter. Getter hanya membaca; memanggil notify di sana menyebabkan rebuild tanpa henti.</li>
+  <li>Membuat field publik (<code>int nilai = 0;</code>) lalu mengubahnya dari UI: <code>model.nilai++</code>. Tidak ada yang memanggil notify, dan aturan bisnis tersebar di UI.</li>
+</ul>
+</div>

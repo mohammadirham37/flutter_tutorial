@@ -1,0 +1,270 @@
+<p class="lead">Untuk pilihan yang banyak (program studi, dosen) dan untuk tanggal/jam, pengguna sebaiknya memilih, bukan mengetik. Bagian ini membahas <code>DropdownButtonFormField</code>, <code>showDatePicker</code>, dan <code>showTimePicker</code>.</p>
+
+<h4>1. DropdownButtonFormField</h4>
+<p>Versi <code>...FormField</code> dipilih karena bisa memakai <code>InputDecoration</code> dan <code>validator</code> seperti TextFormField.</p>
+<pre><code class="language-dart">final List&lt;String&gt; _daftarSemester = ['Ganjil 2025/2026', 'Genap 2025/2026'];
+String? _semester; // null = belum memilih
+
+@override
+Widget build(BuildContext context) {
+  return DropdownButtonFormField&lt;String&gt;(
+    initialValue: _semester, // nilai awal (Flutter &lt; 3.35: pakai `value:`)
+    hint: const Text('Pilih semester'),
+    decoration: const InputDecoration(
+      labelText: 'Semester',
+      border: OutlineInputBorder(),
+    ),
+    items: _daftarSemester
+        .map((s) =&gt; DropdownMenuItem(value: s, child: Text(s)))
+        .toList(),
+    onChanged: (baru) =&gt; setState(() =&gt; _semester = baru),
+    validator: (v) =&gt; v == null ? 'Semester wajib dipilih' : null,
+  );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/dropdown-tertutup.jpg" alt="Dropdown sebelum dipilih" loading="lazy">
+    <div class="screenshot-caption">Dropdown sebelum dipilih</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/dropdown-terbuka.jpg" alt="Daftar pilihan setelah dropdown diketuk" loading="lazy">
+    <div class="screenshot-caption">Daftar pilihan setelah dropdown diketuk</div>
+  </div>
+</div>
+<ul>
+  <li><code>items</code> adalah daftar <code>DropdownMenuItem</code>. Setiap item punya <code>value</code> (nilai yang disimpan) dan <code>child</code> (yang ditampilkan).</li>
+  <li><code>.map(...).toList()</code> mengubah <code>List&lt;String&gt;</code> menjadi <code>List&lt;DropdownMenuItem&gt;</code>.</li>
+  <li>Nilai awal ditulis di <code>initialValue</code>. Pada Flutter sebelum 3.35 namanya <code>value</code>.</li>
+</ul>
+
+<h4>2. showDatePicker dan showTimePicker</h4>
+<p>Keduanya adalah fungsi <code>async</code> yang membuka dialog dan <strong>mengembalikan nilai pilihan</strong> setelah dialog ditutup, atau <code>null</code> jika pengguna menekan Batal.</p>
+<pre><code class="language-dart">DateTime? _tanggal;
+TimeOfDay? _jam;
+
+Future&lt;void&gt; _pilihTanggal() async {
+  final hasil = await showDatePicker(
+    context: context,
+    initialDate: _tanggal ?? DateTime.now(),
+    firstDate: DateTime(2020),
+    lastDate: DateTime(2030),
+    helpText: 'Pilih tanggal seminar',
+  );
+  // hasil == null jika pengguna menekan Batal
+  if (hasil != null) setState(() =&gt; _tanggal = hasil);
+}
+
+Future&lt;void&gt; _pilihJam() async {
+  final hasil = await showTimePicker(
+    context: context,
+    initialTime: _jam ?? const TimeOfDay(hour: 9, minute: 0),
+  );
+  if (hasil != null) setState(() =&gt; _jam = hasil);
+}
+</code></pre>
+<p><code>TimeOfDay</code> hanya berisi jam dan menit (tanpa tanggal). <code>DateTime</code> berisi tanggal lengkap. <code>firstDate</code> dan <code>lastDate</code> membatasi tanggal yang bisa dipilih.</p>
+
+<h4>Contoh lengkap: form pengajuan jadwal bimbingan</h4>
+<p>Trik yang sering dipakai: tanggal dan jam ditampilkan di <code>TextFormField</code> dengan <code>readOnly: true</code>. Field tidak bisa diketik, tetapi tetap bisa memakai <code>validator</code>, dan <code>onTap</code> membuka picker.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const JadwalBimbinganScreen(),
+    );
+  }
+}
+
+class JadwalBimbinganScreen extends StatefulWidget {
+  const JadwalBimbinganScreen({super.key});
+
+  @override
+  State&lt;JadwalBimbinganScreen&gt; createState() =&gt; _JadwalBimbinganScreenState();
+}
+
+class _JadwalBimbinganScreenState extends State&lt;JadwalBimbinganScreen&gt; {
+  final _formKey = GlobalKey&lt;FormState&gt;();
+  final _tanggalController = TextEditingController();
+  final _jamController = TextEditingController();
+
+  final List&lt;String&gt; _daftarDosen = [
+    'Dr. Bambang Susilo, M.Kom.',
+    'Nadia Fitri, M.T.',
+    'Irham Akbar, M.Cs.',
+  ];
+  String? _dosen;
+  DateTime? _tanggal;
+  TimeOfDay? _jam;
+
+  static const _namaBulan = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+  ];
+
+  String _formatTanggal(DateTime t) =&gt; '${t.day} ${_namaBulan[t.month - 1]} ${t.year}';
+
+  String _formatJam(TimeOfDay j) =&gt;
+      '${j.hour.toString().padLeft(2, '0')}:${j.minute.toString().padLeft(2, '0')}';
+
+  @override
+  void dispose() {
+    _tanggalController.dispose();
+    _jamController.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _pilihTanggal() async {
+    final sekarang = DateTime.now();
+    final hasil = await showDatePicker(
+      context: context,
+      initialDate: _tanggal ?? sekarang,
+      firstDate: sekarang, // tidak boleh memilih tanggal yang sudah lewat
+      lastDate: sekarang.add(const Duration(days: 60)),
+      // Hari Sabtu dan Minggu tidak bisa dipilih
+      selectableDayPredicate: (hari) =&gt;
+          hari.weekday != DateTime.saturday &amp;&amp; hari.weekday != DateTime.sunday,
+    );
+    if (hasil == null) return;
+    setState(() {
+      _tanggal = hasil;
+      _tanggalController.text = _formatTanggal(hasil);
+    });
+  }
+
+  Future&lt;void&gt; _pilihJam() async {
+    final hasil = await showTimePicker(
+      context: context,
+      initialTime: _jam ?? const TimeOfDay(hour: 9, minute: 0),
+    );
+    if (hasil == null) return;
+    setState(() {
+      _jam = hasil;
+      _jamController.text = _formatJam(hasil);
+    });
+  }
+
+  void _simpan() {
+    if (!_formKey.currentState!.validate()) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Bimbingan dengan $_dosen pada ${_formatTanggal(_tanggal!)} '
+          'pukul ${_formatJam(_jam!)}',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Jadwal Bimbingan')),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            DropdownButtonFormField&lt;String&gt;(
+              initialValue: _dosen,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Dosen Pembimbing',
+                prefixIcon: Icon(Icons.person_search),
+                border: OutlineInputBorder(),
+              ),
+              items: _daftarDosen
+                  .map((d) =&gt; DropdownMenuItem(value: d, child: Text(d)))
+                  .toList(),
+              onChanged: (baru) =&gt; setState(() =&gt; _dosen = baru),
+              validator: (v) =&gt; v == null ? 'Pilih dosen pembimbing' : null,
+            ),
+            const SizedBox(height: 16),
+
+            // TextFormField readOnly: tidak bisa diketik, tapi bisa divalidasi
+            TextFormField(
+              controller: _tanggalController,
+              readOnly: true,
+              onTap: _pilihTanggal,
+              decoration: const InputDecoration(
+                labelText: 'Tanggal',
+                prefixIcon: Icon(Icons.calendar_month),
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =&gt; (v == null || v.isEmpty) ? 'Pilih tanggal' : null,
+            ),
+            const SizedBox(height: 16),
+
+            TextFormField(
+              controller: _jamController,
+              readOnly: true,
+              onTap: _pilihJam,
+              decoration: const InputDecoration(
+                labelText: 'Jam',
+                prefixIcon: Icon(Icons.access_time),
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) {
+                if (_jam == null) return 'Pilih jam';
+                if (_jam!.hour &lt; 8 || _jam!.hour &gt;= 16) {
+                  return 'Bimbingan hanya pukul 08:00 - 16:00';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _simpan,
+              icon: const Icon(Icons.event_available),
+              label: const Text('Ajukan Jadwal'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/jadwal-error.jpg" alt="Ajukan Jadwal ditekan saat form kosong" loading="lazy">
+    <div class="screenshot-caption">Ajukan Jadwal ditekan saat form kosong</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/jadwal-datepicker.jpg" alt="Dialog DatePicker terbuka saat field Tanggal diketuk" loading="lazy">
+    <div class="screenshot-caption">Dialog DatePicker terbuka saat field Tanggal diketuk</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/jadwal-timepicker.jpg" alt="Dialog TimePicker terbuka saat field Jam diketuk" loading="lazy">
+    <div class="screenshot-caption">Dialog TimePicker terbuka saat field Jam diketuk</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><code>firstDate: sekarang</code> membuat tanggal yang sudah lewat tidak bisa dipilih. <code>lastDate</code> dibatasi 60 hari ke depan.</li>
+  <li><code>selectableDayPredicate</code> menerima fungsi yang mengembalikan <code>false</code> untuk hari yang tidak boleh dipilih (Sabtu dan Minggu).</li>
+  <li>Setelah tanggal dipilih, teksnya ditulis ke <code>_tanggalController</code> sehingga tampil di field dan lolos validator.</li>
+  <li>Validator jam memeriksa jam kerja (08:00-16:00). Validator tidak harus membaca <code>v</code>, bisa juga membaca variabel State seperti <code>_jam</code>.</li>
+  <li><code>_formatTanggal</code> dan <code>_formatJam</code> memformat secara manual. Untuk format yang lebih lengkap (nama hari, bahasa lain), kelak bisa memakai package <code>intl</code>.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Error "There should be exactly one item with value ..."</strong> pada dropdown. Terjadi jika nilai terpilih tidak ada di <code>items</code> atau ada dua item dengan <code>value</code> sama.</li>
+  <li><strong>Teks dropdown panjang overflow.</strong> Tambahkan <code>isExpanded: true</code>.</li>
+  <li><strong><code>initialDate</code> di luar rentang <code>firstDate</code>-<code>lastDate</code>.</strong> Menyebabkan error. Pastikan nilai awal berada dalam rentang.</li>
+  <li><strong>Tidak memeriksa <code>null</code>.</strong> Hasil picker bernilai null jika pengguna membatalkan.</li>
+</ul></div>

@@ -1,0 +1,300 @@
+<p class="lead">Semakin besar aplikasi, semakin penting memisahkan kode berdasarkan tanggung jawabnya. Struktur berikut sederhana, cukup untuk proyek kuliah, dan dipakai lagi di proyek CRUD + Auth (Modul 13–14).</p>
+
+<pre><code class="language-text">lib/
+├── main.dart              # runApp + MultiProvider + MaterialApp
+├── models/                # class data murni (User, Mahasiswa, Todo)
+├── services/              # akses data: HTTP, database, Supabase
+├── providers/             # ChangeNotifier: state + logika bisnis
+├── screens/               # halaman penuh (Scaffold)
+└── widgets/               # komponen kecil yang dipakai ulang
+</code></pre>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Lapisan</th><th>Boleh mengimpor</th><th>Tidak boleh</th></tr></thead>
+    <tbody>
+      <tr><td>models</td><td>Dart murni</td><td>Flutter widget, provider, service</td></tr>
+      <tr><td>services</td><td>models, package http/database</td><td>widget, <code>BuildContext</code>, provider</td></tr>
+      <tr><td>providers</td><td>models, services, <code>foundation.dart</code></td><td>widget, <code>BuildContext</code>, <code>Navigator</code></td></tr>
+      <tr><td>screens / widgets</td><td>models, providers, widget lain</td><td>Memanggil service langsung</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Arah ketergantungan: <strong>UI → Provider → Service → Model</strong>. Provider tidak boleh tahu tentang UI; itulah sebabnya provider tidak menampilkan SnackBar atau melakukan navigasi sendiri.</p>
+
+<h4>Contoh lengkap: Auth gate dengan Provider</h4>
+<p>Auth gate adalah widget yang memilih menampilkan <code>LoginScreen</code> atau <code>HomeScreen</code> berdasarkan status sesi di provider. Login dan logout tidak memerlukan <code>Navigator.push</code> sama sekali.</p>
+<p class="code-file-label">📄 <code>lib/models/user.dart</code></p>
+<pre><code class="language-dart">// lib/models/user.dart
+class User {
+  final String email;
+  final String nama;
+
+  const User({required this.email, required this.nama});
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/services/auth_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/auth_service.dart
+// Service palsu. Di Modul 12 bagian ini diganti dengan Supabase Auth.
+import '../models/user.dart';
+
+class AuthService {
+  Future&lt;User&gt; login(String email, String password) async {
+    await Future.delayed(const Duration(seconds: 1));
+    if (password != '123456') {
+      throw Exception('Email atau password salah');
+    }
+    return User(email: email, nama: email.split('@').first);
+  }
+
+  Future&lt;void&gt; logout() async {
+    await Future.delayed(const Duration(milliseconds: 300));
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/providers/auth_provider.dart</code></p>
+<pre><code class="language-dart">// lib/providers/auth_provider.dart
+import 'package:flutter/foundation.dart';
+
+import '../models/user.dart';
+import '../services/auth_service.dart';
+
+class AuthProvider extends ChangeNotifier {
+  AuthProvider(this._service);
+
+  final AuthService _service;
+
+  User? _user;
+  bool _isLoading = false;
+  String? _error;
+
+  User? get user =&gt; _user;
+  bool get isLoggedIn =&gt; _user != null;
+  bool get isLoading =&gt; _isLoading;
+  String? get error =&gt; _error;
+
+  Future&lt;bool&gt; login(String email, String password) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      _user = await _service.login(email, password);
+      return true;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future&lt;void&gt; logout() async {
+    await _service.logout();
+    _user = null;
+    notifyListeners();
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/widgets/auth_gate.dart</code></p>
+<pre><code class="language-dart">// lib/widgets/auth_gate.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/auth_provider.dart';
+import '../screens/home_screen.dart';
+import '../screens/login_screen.dart';
+
+// Auth gate: memilih halaman berdasarkan status sesi.
+// Tidak ada Navigator.push sama sekali untuk login/logout!
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final sudahLogin = context.select((AuthProvider a) =&gt; a.isLoggedIn);
+    return sudahLogin ? const HomeScreen() : const LoginScreen();
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/screens/login_screen.dart</code></p>
+<pre><code class="language-dart">// lib/screens/login_screen.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/auth_provider.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State&lt;LoginScreen&gt; createState() =&gt; _LoginScreenState();
+}
+
+class _LoginScreenState extends State&lt;LoginScreen&gt; {
+  final _emailController = TextEditingController(text: 'andi@mhs.unsoed.ac.id');
+  final _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _login() async {
+    FocusScope.of(context).unfocus(); // tutup keyboard
+    final berhasil = await context.read&lt;AuthProvider&gt;().login(
+          _emailController.text.trim(),
+          _passwordController.text,
+        );
+    // Jika berhasil, AuthGate otomatis menampilkan HomeScreen.
+    if (!berhasil &amp;&amp; mounted) {
+      final pesan = context.read&lt;AuthProvider&gt;().error ?? 'Login gagal';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(pesan)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLoading = context.select((AuthProvider a) =&gt; a.isLoading);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            TextField(
+              controller: _emailController,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Password',
+                helperText: 'Petunjuk: 123456',
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: isLoading ? null : _login,
+                child: isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Masuk'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/screens/home_screen.dart</code></p>
+<pre><code class="language-dart">// lib/screens/home_screen.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/auth_provider.dart';
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = context.watch&lt;AuthProvider&gt;().user;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Beranda'),
+        actions: [
+          IconButton(
+            tooltip: 'Logout',
+            icon: const Icon(Icons.logout),
+            // Setelah logout, AuthGate otomatis kembali ke LoginScreen
+            onPressed: () =&gt; context.read&lt;AuthProvider&gt;().logout(),
+          ),
+        ],
+      ),
+      body: Center(
+        child: Text(
+          'Selamat datang, ${user?.nama}!',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'providers/auth_provider.dart';
+import 'services/auth_service.dart';
+import 'widgets/auth_gate.dart';
+
+void main() {
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) =&gt; AuthProvider(AuthService())),
+        // Provider lain (MatkulProvider, TodoProvider, ...) ditambahkan di sini
+      ],
+      child: const MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const AuthGate(),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/gate-login.jpg" alt="AuthGate menampilkan LoginScreen" loading="lazy">
+    <div class="screenshot-caption">AuthGate menampilkan LoginScreen</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/gate-error.jpg" alt="Password salah: pesan error dari provider" loading="lazy">
+    <div class="screenshot-caption">Password salah: pesan error dari provider</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/gate-home.jpg" alt="Login berhasil: AuthGate menampilkan HomeScreen" loading="lazy">
+    <div class="screenshot-caption">Login berhasil: AuthGate menampilkan HomeScreen</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>AuthGate</code> memakai <code>select</code> pada <code>isLoggedIn</code>. Ia hanya rebuild saat status login berubah, bukan saat <code>isLoading</code> berubah.</li>
+  <li><code>AuthProvider.login</code> mengembalikan <code>bool</code>. Layar login yang memutuskan cara menampilkan error (SnackBar), sedangkan provider hanya menyimpan pesannya.</li>
+  <li>Tombol Masuk dinonaktifkan dan diganti spinner selama <code>isLoading</code>, mencegah login ganda.</li>
+  <li>Logout cukup memanggil <code>logout()</code>. Begitu <code>_user</code> menjadi <code>null</code>, AuthGate menampilkan LoginScreen lagi.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Meng-import <code>material.dart</code> di provider untuk memanggil <code>ScaffoldMessenger</code> atau <code>Navigator</code>. Kembalikan hasil (<code>bool</code>/pesan) dan biarkan UI yang bereaksi.</li>
+  <li>Mencampur AuthGate dengan <code>pushReplacement</code> manual setelah login. Pilih satu cara; jika memakai AuthGate, biarkan ia yang menentukan halaman.</li>
+  <li>Menaruh semua class di <code>main.dart</code> sampai ratusan baris. Pecah sesuai struktur di atas sejak awal.</li>
+</ul>
+</div>

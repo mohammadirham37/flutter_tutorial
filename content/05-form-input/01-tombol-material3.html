@@ -1,0 +1,279 @@
+<p class="lead">Tombol adalah cara paling dasar pengguna "berbicara" dengan aplikasi. Material Design 3 (M3) menyediakan beberapa jenis tombol dengan <strong>hierarki</strong> yang jelas: aksi paling penting dibuat paling menonjol, aksi pendukung dibuat lebih kalem.</p>
+
+<h4>Konsep: memilih tombol sesuai tingkat kepentingan</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead>
+      <tr><th>Widget</th><th>Kapan dipakai</th><th>Contoh di aplikasi kampus</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>FilledButton</code></td><td>Aksi utama, paling menonjol. Idealnya satu per layar.</td><td>Simpan KRS, Kirim, Masuk</td></tr>
+      <tr><td><code>FilledButton.tonal</code></td><td>Aksi penting tapi bukan yang utama.</td><td>Simpan sebagai draft</td></tr>
+      <tr><td><code>ElevatedButton</code></td><td>Tombol berbayang, dipakai jika latar belakang ramai sehingga tombol perlu "terangkat".</td><td>Lihat KHS di atas gambar</td></tr>
+      <tr><td><code>OutlinedButton</code></td><td>Aksi sekunder, sering berpasangan dengan FilledButton.</td><td>Batal, Kembali</td></tr>
+      <tr><td><code>TextButton</code></td><td>Aksi prioritas rendah, tampil seperti tautan.</td><td>Lupa password?, Lihat semua</td></tr>
+      <tr><td><code>IconButton</code></td><td>Aksi berupa ikon saja, di AppBar, kartu, atau baris daftar.</td><td>Hapus, Favorit, Bagikan</td></tr>
+      <tr><td><code>FloatingActionButton</code> (FAB)</td><td>Aksi utama sebuah layar yang "melayang" di pojok kanan bawah.</td><td>Tambah catatan, Isi KRS</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh kecil: tombol aktif dan tombol nonaktif</h4>
+<p>Semua tombol di atas punya dua parameter utama: <code>onPressed</code> (fungsi yang dijalankan saat ditekan) dan <code>child</code> (isi tombol, biasanya <code>Text</code>). Aturan pentingnya: <strong>jika <code>onPressed</code> bernilai <code>null</code>, tombol otomatis menjadi nonaktif (disabled)</strong>, warnanya memudar dan tidak bisa ditekan.</p>
+<pre><code class="language-dart">// Tombol AKTIF: onPressed berisi fungsi
+FilledButton(
+  onPressed: () {
+    debugPrint('Tombol Simpan ditekan');
+  },
+  child: const Text('Simpan'),
+),
+
+// Tombol NONAKTIF (disabled): onPressed bernilai null
+const FilledButton(
+  onPressed: null,
+  child: Text('Simpan'),
+),
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/tombol-aktif-nonaktif.jpg" alt="Atas: tombol aktif. Bawah: tombol dengan onPressed null (disabled)" loading="lazy">
+    <div class="screenshot-caption">Atas: tombol aktif. Bawah: tombol dengan onPressed null (disabled)</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: galeri tombol Material 3</h4>
+<p>Program berikut menampilkan semua jenis tombol, menghitung jumlah klik, dan punya satu tombol untuk menonaktifkan semua tombol lain sekaligus. Salin ke <code>lib/main.dart</code> lalu jalankan.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const GaleriTombolScreen(),
+    );
+  }
+}
+
+class GaleriTombolScreen extends StatefulWidget {
+  const GaleriTombolScreen({super.key});
+
+  @override
+  State&lt;GaleriTombolScreen&gt; createState() =&gt; _GaleriTombolScreenState();
+}
+
+class _GaleriTombolScreenState extends State&lt;GaleriTombolScreen&gt; {
+  int _jumlahKlik = 0;
+  bool _tombolAktif = true;
+  String _aksiTerakhir = '-';
+
+  void _catat(String aksi) {
+    setState(() {
+      _jumlahKlik++;
+      _aksiTerakhir = aksi;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Jika _tombolAktif false, semua callback menjadi null -&gt; tombol disabled
+    final VoidCallback? aksiSimpan = _tombolAktif ? () =&gt; _catat('Simpan') : null;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Galeri Tombol M3'),
+        actions: [
+          IconButton(
+            tooltip: 'Reset',
+            icon: const Icon(Icons.refresh),
+            onPressed: () =&gt; setState(() {
+              _jumlahKlik = 0;
+              _aksiTerakhir = '-';
+            }),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Text('Jumlah klik: $_jumlahKlik', style: Theme.of(context).textTheme.headlineSmall),
+          Text('Aksi terakhir: $_aksiTerakhir'),
+          const Divider(height: 32),
+
+          // 1. Prioritas tertinggi
+          FilledButton(onPressed: aksiSimpan, child: const Text('FilledButton - Simpan')),
+          const SizedBox(height: 8),
+          FilledButton.tonal(
+            onPressed: _tombolAktif ? () =&gt; _catat('Tonal') : null,
+            child: const Text('FilledButton.tonal - Draft'),
+          ),
+          const SizedBox(height: 8),
+
+          // 2. Tombol dengan bayangan (elevasi)
+          ElevatedButton(
+            onPressed: _tombolAktif ? () =&gt; _catat('Elevated') : null,
+            child: const Text('ElevatedButton - Lihat KHS'),
+          ),
+          const SizedBox(height: 8),
+
+          // 3. Aksi sekunder
+          OutlinedButton(
+            onPressed: _tombolAktif ? () =&gt; _catat('Batal') : null,
+            child: const Text('OutlinedButton - Batal'),
+          ),
+          const SizedBox(height: 8),
+
+          // 4. Aksi prioritas rendah
+          TextButton(
+            onPressed: _tombolAktif ? () =&gt; _catat('Lupa Password') : null,
+            child: const Text('TextButton - Lupa Password?'),
+          ),
+          const SizedBox(height: 8),
+
+          // 5. Versi .icon: ikon + label
+          FilledButton.icon(
+            onPressed: _tombolAktif ? () =&gt; _catat('Unduh') : null,
+            icon: const Icon(Icons.download),
+            label: const Text('Unduh Transkrip'),
+          ),
+          const SizedBox(height: 16),
+
+          // 6. IconButton dan variannya
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              IconButton(
+                tooltip: 'Favorit',
+                onPressed: _tombolAktif ? () =&gt; _catat('Favorit') : null,
+                icon: const Icon(Icons.favorite_border),
+              ),
+              IconButton.filled(
+                tooltip: 'Tambah',
+                onPressed: _tombolAktif ? () =&gt; _catat('Tambah') : null,
+                icon: const Icon(Icons.add),
+              ),
+              IconButton.filledTonal(
+                tooltip: 'Bagikan',
+                onPressed: _tombolAktif ? () =&gt; _catat('Bagikan') : null,
+                icon: const Icon(Icons.share),
+              ),
+              IconButton.outlined(
+                tooltip: 'Hapus',
+                onPressed: _tombolAktif ? () =&gt; _catat('Hapus') : null,
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ],
+          ),
+          const Divider(height: 32),
+
+          // Saklar untuk mengaktifkan / menonaktifkan semua tombol
+          OutlinedButton.icon(
+            onPressed: () =&gt; setState(() =&gt; _tombolAktif = !_tombolAktif),
+            icon: Icon(_tombolAktif ? Icons.lock_open : Icons.lock),
+            label: Text(_tombolAktif ? 'Nonaktifkan semua tombol' : 'Aktifkan semua tombol'),
+          ),
+          const SizedBox(height: 80), // ruang agar FAB tidak menutupi tombol terakhir
+        ],
+      ),
+      // 7. FloatingActionButton: aksi utama layar
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () =&gt; _catat('FAB'),
+        icon: const Icon(Icons.edit),
+        label: const Text('Isi KRS'),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/galeri-tombol.jpg" alt="Galeri tombol saat semua tombol aktif" loading="lazy">
+    <div class="screenshot-caption">Galeri tombol saat semua tombol aktif</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/galeri-tombol-nonaktif.jpg" alt="Setelah menekan "Nonaktifkan semua tombol"" loading="lazy">
+    <div class="screenshot-caption">Setelah menekan "Nonaktifkan semua tombol"</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><code>final VoidCallback? aksiSimpan = _tombolAktif ? () =&gt; _catat('Simpan') : null;</code> adalah pola paling umum untuk mengaktifkan atau menonaktifkan tombol berdasarkan kondisi. <code>VoidCallback?</code> berarti "fungsi tanpa parameter, boleh null".</li>
+  <li><code>FilledButton.icon</code>, <code>OutlinedButton.icon</code>, dan sejenisnya menerima <code>icon</code> dan <code>label</code> sebagai pengganti <code>child</code>.</li>
+  <li><code>IconButton.filled</code>, <code>.filledTonal</code>, dan <code>.outlined</code> adalah varian IconButton khas M3. Selalu isi <code>tooltip</code> agar pembaca layar (aksesibilitas) tahu fungsi ikon tersebut.</li>
+  <li><code>FloatingActionButton.extended</code> adalah FAB dengan ikon dan teks. Karena FAB menutupi sebagian konten, kita beri <code>SizedBox(height: 80)</code> di akhir daftar.</li>
+</ul>
+
+<h4>Mengubah gaya tombol</h4>
+<p>Setiap jenis tombol punya fungsi statis <code>styleFrom()</code> untuk mengubah warna, ukuran, dan bentuk. Untuk tombol selebar layar, cara paling mudah adalah <code>minimumSize: Size.fromHeight(...)</code> atau membungkus tombol dengan <code>SizedBox(width: double.infinity)</code>.</p>
+<pre><code class="language-dart">// Mengubah gaya satu tombol dengan styleFrom
+FilledButton(
+  style: FilledButton.styleFrom(
+    backgroundColor: Colors.red,          // warna latar
+    foregroundColor: Colors.white,        // warna teks &amp; ikon
+    minimumSize: const Size.fromHeight(52), // tinggi 52, lebar penuh
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+  ),
+  onPressed: () {},
+  child: const Text('Hapus Akun'),
+),
+
+// Tombol selebar layar tanpa styleFrom: bungkus dengan SizedBox
+SizedBox(
+  width: double.infinity,
+  child: OutlinedButton(onPressed: () {}, child: const Text('Batal')),
+),
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/tombol-style.jpg" alt="Tombol merah selebar layar dengan styleFrom dan OutlinedButton selebar layar" loading="lazy">
+    <div class="screenshot-caption">Tombol merah selebar layar dengan styleFrom dan OutlinedButton selebar layar</div>
+  </div>
+</div>
+
+<h4>Ragam FloatingActionButton</h4>
+<pre><code class="language-dart">// FAB standar (ikon saja)
+FloatingActionButton(
+  onPressed: () {},
+  tooltip: 'Tambah catatan',
+  child: const Icon(Icons.add),
+),
+
+// FAB kecil dan besar
+FloatingActionButton.small(onPressed: () {}, child: const Icon(Icons.edit)),
+FloatingActionButton.large(onPressed: () {}, child: const Icon(Icons.camera_alt)),
+
+// FAB dengan label teks
+FloatingActionButton.extended(
+  onPressed: () {},
+  icon: const Icon(Icons.upload_file),
+  label: const Text('Unggah Tugas'),
+),
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/fab-ragam.jpg" alt="FAB standar, small, large, dan extended" loading="lazy">
+    <div class="screenshot-caption">FAB standar, small, large, dan extended</div>
+  </div>
+</div>
+<div class="callout callout-info"><h4>ℹ️ FAB biasanya hanya satu</h4><p>Contoh di atas sengaja menampilkan beberapa FAB untuk perbandingan. Dalam aplikasi nyata, satu layar sebaiknya hanya punya <strong>satu</strong> FAB yang dipasang di parameter <code>floatingActionButton</code> milik <code>Scaffold</code>. Jika terpaksa memakai beberapa FAB di satu layar, beri masing-masing <code>heroTag</code> yang berbeda agar tidak terjadi error saat pindah halaman.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Menulis <code>onPressed: _simpan()</code> (dengan tanda kurung).</strong> Ini MEMANGGIL fungsi saat build, bukan saat ditekan. Tulis <code>onPressed: _simpan</code> atau <code>onPressed: () =&gt; _simpan()</code>.</li>
+  <li><strong>Bingung kenapa tombol abu-abu dan tidak bisa ditekan.</strong> Periksa apakah <code>onPressed</code> bernilai <code>null</code>.</li>
+  <li><strong>Memakai banyak <code>FilledButton</code> dalam satu layar.</strong> Pengguna jadi bingung mana aksi utama. Pakai Outlined atau Text untuk aksi pendukung.</li>
+  <li><strong>Lupa <code>tooltip</code> pada <code>IconButton</code>.</strong> Ikon saja sering tidak jelas maknanya.</li>
+</ul></div>

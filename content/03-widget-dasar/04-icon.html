@@ -1,0 +1,152 @@
+<p class="lead">Widget <strong><code>Icon</code></strong> menampilkan simbol dari font ikon. Flutter sudah membawa ribuan ikon Material lewat class <code>Icons</code>, jadi kamu tidak perlu mengunduh gambar apa pun.</p>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">const Icon(
+  Icons.favorite,      // jenis ikon
+  size: 32,            // ukuran (default 24)
+  color: Colors.red,   // warna
+  semanticLabel: 'Favorit', // dibacakan oleh pembaca layar (aksesibilitas)
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/icon-1.jpg" alt="Icon favorit merah ukuran 32" loading="lazy">
+    <div class="screenshot-caption">Icon favorit merah ukuran 32</div>
+  </div>
+</div>
+
+<p>Nama ikon bisa dicari di <a href="https://fonts.google.com/icons" target="_blank" rel="noopener">fonts.google.com/icons</a>. Hampir setiap ikon punya beberapa varian: <code>Icons.home</code> (terisi), <code>Icons.home_outlined</code> (garis), <code>Icons.home_rounded</code>, dan <code>Icons.home_sharp</code>.</p>
+
+<h4>Icon vs IconButton</h4>
+<p><code>Icon</code> hanya gambar dan <strong>tidak bisa diklik</strong>. Jika ikon harus bisa ditekan, pakai <code>IconButton</code> yang memiliki <code>onPressed</code> dan efek sentuhan.</p>
+<pre><code class="language-dart">IconButton(
+  icon: const Icon(Icons.share),
+  tooltip: 'Bagikan',
+  onPressed: () {
+    debugPrint('Tombol bagikan ditekan');
+  },
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/icon-2.jpg" alt="IconButton berbentuk ikon bagikan" loading="lazy">
+    <div class="screenshot-caption">IconButton berbentuk ikon bagikan</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: menu ikon portal kampus</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const DemoIkon(),
+    );
+  }
+}
+
+class DemoIkon extends StatelessWidget {
+  const DemoIkon({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Demo Icon'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Pengaturan',
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Pengaturan ditekan')),
+              );
+            },
+          ),
+        ],
+      ),
+      body: const Padding(
+        padding: EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Ukuran berbeda:'),
+            SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.star, size: 16),
+                Icon(Icons.star, size: 24),
+                Icon(Icons.star, size: 36),
+                Icon(Icons.star, size: 48),
+              ],
+            ),
+            SizedBox(height: 24),
+            Text('Warna berbeda:'),
+            SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.circle, color: Colors.red),
+                Icon(Icons.circle, color: Colors.orange),
+                Icon(Icons.circle, color: Colors.green),
+                Icon(Icons.circle, color: Colors.blue),
+              ],
+            ),
+            SizedBox(height: 24),
+            Text('Varian ikon yang sama:'),
+            SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.home, size: 32),
+                Icon(Icons.home_outlined, size: 32),
+                Icon(Icons.home_rounded, size: 32),
+                Icon(Icons.home_sharp, size: 32),
+              ],
+            ),
+            SizedBox(height: 24),
+            Text('Ikon + teks (pola yang paling sering dipakai):'),
+            SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.location_on, color: Colors.redAccent),
+                SizedBox(width: 8),
+                Text('Kampus Karangwangkal, Purwokerto'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/icon-3.jpg" alt="Ukuran, warna, dan varian ikon" loading="lazy">
+    <div class="screenshot-caption">Ukuran, warna, dan varian ikon</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li>Seluruh isi <code>body</code> bisa <code>const</code> karena tidak ada nilai yang berubah. Satu <code>const</code> di depan <code>Padding</code> sudah berlaku untuk semua anak di dalamnya.</li>
+  <li><code>IconButton</code> di AppBar memakai <code>ScaffoldMessenger.of(context).showSnackBar(...)</code> untuk menampilkan pesan singkat di bawah layar.</li>
+  <li>Pola <strong>ikon + <code>SizedBox</code> + teks</strong> di dalam <code>Row</code> akan sangat sering kamu pakai.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Membungkus <code>Icon</code> dengan <code>GestureDetector</code> agar bisa diklik. Bisa, tetapi tidak ada efek sentuhan dan area sentuhnya kecil. Gunakan <code>IconButton</code>.</li>
+  <li>Salah nama ikon (misalnya <code>Icons.homes</code>) akan langsung error saat kompilasi. Cek ejaan di situs Google Fonts Icons.</li>
+  <li>Lupa <code>tooltip</code> pada <code>IconButton</code>. Tooltip membantu pengguna dan pembaca layar memahami fungsi tombol.</li>
+</ul></div>

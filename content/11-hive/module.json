@@ -1,0 +1,184 @@
+{
+  "id": "modul-hive",
+  "badge": "Hive NoSQL",
+  "category": "Penyimpanan",
+  "title": "Database NoSQL Lokal dengan Hive",
+  "duration": "Pertemuan 11 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 08: State Management dengan Provider",
+    "Modul 10: Penyimpanan Data Lokal (Storage & SQLite)"
+  ],
+  "summary": "Menyimpan data offline dengan Hive Community Edition (hive_ce): box key-value, Map dan List, objek sendiri dengan TypeAdapter manual maupun hasil generate, UI reaktif, pola Repository + Provider, dan enkripsi. Ditutup dengan mini project CRUD Catatan Kuliah Offline lengkap dengan pencarian dan pengurutan.",
+  "learningOutcomes": [
+    "Menjelaskan konsep box key-value pada Hive dan memilih antara SharedPreferences, Hive, dan SQLite sesuai kebutuhan.",
+    "Menginisialisasi Hive dan membuka box dengan benar di main() menggunakan hive_ce_flutter.",
+    "Melakukan operasi put, get, add, delete, keys, values, length, dan clear pada box.",
+    "Menyimpan Map dan List serta mengonversinya dengan aman menjadi objek model (toMap/fromMap).",
+    "Menulis TypeAdapter manual dan membuat adapter otomatis dengan @GenerateAdapters, termasuk aturan typeId dan migrasi field.",
+    "Membangun UI reaktif dengan ValueListenableBuilder serta pola Repository + Provider di atas Hive.",
+    "Mengenkripsi box dengan HiveAesCipher dan menyimpan kuncinya di flutter_secure_storage.",
+    "Membangun aplikasi CRUD offline lengkap (tambah, lihat, edit, hapus, cari, urutkan) dan mengujinya dengan unit test."
+  ],
+  "sections": [
+    {
+      "id": "hive-pengenalan",
+      "title": "1. Apa itu Hive? Box, NoSQL, dan Kapan Memakainya",
+      "file": "01-pengenalan-hive.html"
+    },
+    {
+      "id": "hive-instalasi",
+      "title": "2. Instalasi dan Inisialisasi",
+      "file": "02-instalasi-inisialisasi.html"
+    },
+    {
+      "id": "hive-operasi-dasar",
+      "title": "3. Operasi Dasar Box",
+      "file": "03-operasi-dasar-box.html"
+    },
+    {
+      "id": "hive-map-list",
+      "title": "4. Menyimpan Map dan List",
+      "file": "04-menyimpan-map-list.html"
+    },
+    {
+      "id": "hive-typeadapter",
+      "title": "5. Objek Sendiri dengan TypeAdapter Manual",
+      "file": "05-typeadapter-manual.html"
+    },
+    {
+      "id": "hive-codegen",
+      "title": "6. Generate Adapter Otomatis (Lanjutan)",
+      "file": "06-codegen-adapter.html"
+    },
+    {
+      "id": "hive-reaktif",
+      "title": "7. UI Reaktif dengan ValueListenableBuilder",
+      "file": "07-valuelistenablebuilder.html"
+    },
+    {
+      "id": "hive-provider",
+      "title": "8. Hive + Provider dengan Pola Repository",
+      "file": "08-hive-provider.html"
+    },
+    {
+      "id": "hive-enkripsi",
+      "title": "9. Enkripsi Box",
+      "file": "09-enkripsi-box.html"
+    },
+    {
+      "id": "hive-mini-project",
+      "title": "10. Mini Project: Catatan Kuliah Offline (CRUD Lengkap)",
+      "file": "10-mini-project-catatan.html"
+    },
+    {
+      "id": "hive-kesalahan-umum",
+      "title": "11. Kesalahan Umum dan Debugging",
+      "file": "11-kesalahan-umum.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 11: Aplikasi Catatan Kuliah Offline dengan Hive",
+    "objective": "Membangun aplikasi CRUD offline yang menyimpan objek buatan sendiri di Hive dengan arsitektur Repository + Provider, lalu mengembangkannya dengan fitur tambahan.",
+    "instructions": [
+      "<strong>Tugas 1 (Wajib, 20 poin):</strong> Bangun ulang mini project Catatan Kuliah Offline dari bagian 10 sampai berjalan di emulator. Buktikan data tetap ada setelah aplikasi ditutup paksa dan dibuka kembali (lampirkan 2 screenshot).",
+      "<strong>Tugas 2 (Wajib, 20 poin):</strong> Tambahkan field <code>bool disematkan</code> (pin) pada model <code>Catatan</code>. Naikkan versi <code>CatatanAdapter</code> menjadi 2 dan baca field baru hanya jika versi &gt;= 2, sehingga catatan lama dari Tugas 1 tetap terbaca tanpa uninstall.",
+      "<strong>Tugas 3 (Wajib, 15 poin):</strong> Tampilkan catatan yang disematkan selalu di urutan teratas (apa pun pilihan urutannya) dengan ikon pin, dan sediakan tombol untuk menyematkan atau melepas sematan.",
+      "<strong>Tugas 4 (Wajib, 15 poin):</strong> Tambahkan filter mata kuliah berupa deretan <code>FilterChip</code> di bawah kolom pencarian. Daftar mata kuliah diambil otomatis dari catatan yang ada.",
+      "<strong>Tugas 5 (Wajib, 15 poin):</strong> Simpan pilihan urutan terakhir pengguna ke box <code>pengaturan</code> (gunakan repository terpisah) sehingga urutan tidak kembali ke default saat aplikasi dibuka ulang.",
+      "<strong>Tugas 6 (Wajib, 15 poin):</strong> Tulis unit test untuk <code>CatatanRepository</code> memakai <code>Hive.init</code> di folder sementara, minimal mencakup tambah, edit, hapus, dan persistensi setelah <code>Hive.close()</code>. Semua test harus lulus dengan <code>flutter test</code>.",
+      "<strong>Bonus (+10 poin):</strong> Ganti tombol hapus dengan gestur geser <code>Dismissible</code> dan SnackBar berisi aksi \"Batalkan\" yang mengembalikan catatan yang terhapus."
+    ],
+    "expectedOutput": "Aplikasi Catatan Kuliah yang berjalan sepenuhnya offline: daftar catatan dengan pin, pencarian, filter mata kuliah, dan urutan yang diingat; form tambah/edit dengan validasi; konfirmasi hapus; data tetap ada setelah restart. Disertai output flutter test yang semua lulus dan flutter analyze tanpa issue.",
+    "rubric": "Tugas 1: fungsionalitas CRUD dan bukti persistensi (20%). Tugas 2: migrasi adapter tanpa kehilangan data lama (20%). Tugas 3: logika dan tampilan pin (15%). Tugas 4: filter mata kuliah (15%). Tugas 5: pengaturan urutan tersimpan dengan repository terpisah (15%). Tugas 6: kualitas dan kelulusan unit test (15%). Bonus Dismissible + Batalkan (+10%). Pengurangan nilai jika widget mengakses Hive secara langsung atau flutter analyze masih menampilkan issue."
+  },
+  "quiz": [
+    {
+      "question": "Kenapa modul ini memakai package hive_ce dan hive_ce_flutter, bukan hive?",
+      "options": [
+        "Package hive 2.x sudah tidak dirawat, sedangkan hive_ce adalah lanjutan versi komunitas yang API-nya hampir sama dan terus diperbarui",
+        "hive_ce adalah database SQL, sedangkan hive adalah NoSQL",
+        "hive tidak bisa dipakai di Android",
+        "hive_ce membutuhkan koneksi internet agar lebih cepat"
+      ],
+      "correctIndex": 0,
+      "explanation": "hive_ce (Community Edition) melanjutkan pengembangan hive yang sudah ditinggalkan pembuatnya. API inti seperti openBox, put, get, dan TypeAdapter tetap sama, sehingga yang berbeda hanya nama package dan import."
+    },
+    {
+      "question": "Apa urutan yang benar di dalam main() sebelum runApp?",
+      "options": [
+        "openBox, lalu Hive.initFlutter, lalu registerAdapter",
+        "WidgetsFlutterBinding.ensureInitialized, await Hive.initFlutter, Hive.registerAdapter, await Hive.openBox",
+        "registerAdapter, lalu runApp, lalu Hive.initFlutter di dalam build()",
+        "Hive.box, lalu Hive.openBox, lalu ensureInitialized"
+      ],
+      "correctIndex": 1,
+      "explanation": "Binding harus siap sebelum memakai plugin, Hive harus tahu folder penyimpanannya, adapter harus terdaftar sebelum box yang memakai tipe tersebut dibuka, dan box dibuka sebelum dipakai di UI."
+    },
+    {
+      "question": "Sebuah box sudah berisi data dengan key 'nama' = 'Budi'. Apa yang terjadi saat kode await box.put('nama', 'Siti') dijalankan?",
+      "options": [
+        "Muncul error karena key sudah ada",
+        "Box sekarang berisi dua data dengan key 'nama'",
+        "Nilai lama ditimpa sehingga box.get('nama') menghasilkan 'Siti'",
+        "Data baru disimpan dengan key angka otomatis"
+      ],
+      "correctIndex": 2,
+      "explanation": "put() berfungsi sebagai create sekaligus update. Key yang sama akan menimpa value lama. Key angka otomatis hanya dibuat oleh add()."
+    },
+    {
+      "question": "Sebuah Map disimpan ke box lalu aplikasi di-restart. Kode final m = box.get('profil') as Map<String, dynamic>; tiba-tiba error. Apa penyebab dan solusinya?",
+      "options": [
+        "Hive tidak bisa menyimpan Map, jadi harus memakai TypeAdapter",
+        "Map yang dibaca ulang dari file bertipe Map<dynamic, dynamic>, sehingga harus disalin dengan Map<String, dynamic>.from(...)",
+        "Box harus dibuka dengan enkripsi agar Map terbaca",
+        "Key Map harus berupa int"
+      ],
+      "correctIndex": 1,
+      "explanation": "Setelah dibaca dari disk, Hive mengembalikan Map<dynamic, dynamic>. Cast langsung ke Map<String, dynamic> gagal; gunakan Map<String, dynamic>.from() atau fromMap yang menerima Map."
+    },
+    {
+      "question": "Manakah aturan typeId yang BENAR pada TypeAdapter?",
+      "options": [
+        "Boleh sama untuk semua model asalkan nama kelasnya berbeda",
+        "Sebaiknya diganti setiap kali aplikasi di-update",
+        "Harus unik untuk setiap tipe dan tidak boleh diubah setelah ada data yang tersimpan",
+        "Harus sama dengan jumlah field pada model"
+      ],
+      "correctIndex": 2,
+      "explanation": "Hive menulis typeId di depan setiap objek untuk mencari adapter saat membaca. typeId ganda memicu HiveError, dan mengganti typeId membuat data lama tidak bisa dibaca."
+    },
+    {
+      "question": "Pada adapter manual, kamu menambah field baru 'email' dan langsung memanggil readString() keempat di read(). Aplikasi lama yang sudah berisi data menjadi crash. Cara aman untuk mencegahnya adalah...",
+      "options": [
+        "Menyisipkan field email di posisi pertama",
+        "Menulis byte versi format sejak awal, menambah field baru di akhir, dan membacanya hanya jika versi data mendukung",
+        "Mengganti typeId setiap kali menambah field",
+        "Menghapus await pada box.put"
+      ],
+      "correctIndex": 1,
+      "explanation": "Adapter manual membaca data berurutan tanpa nama field. Dengan byte versi, read() tahu apakah data lama memiliki field baru. Adapter hasil generate menyelesaikan masalah ini dengan menulis indeks setiap field."
+    },
+    {
+      "question": "Apa fungsi box.listenable() yang dipasangkan dengan ValueListenableBuilder?",
+      "options": [
+        "Mengenkripsi box secara otomatis",
+        "Membuka box secara async di dalam build()",
+        "Memberi kabar setiap isi box berubah sehingga builder dijalankan ulang dan UI ikut berubah tanpa setState",
+        "Mengirim data box ke server"
+      ],
+      "correctIndex": 2,
+      "explanation": "listenable() dari hive_ce_flutter menghasilkan ValueListenable yang memicu rebuild ValueListenableBuilder setiap ada put, add, delete, atau clear."
+    },
+    {
+      "question": "Di mana kunci enkripsi untuk HiveAesCipher sebaiknya disimpan?",
+      "options": [
+        "Ditulis langsung sebagai konstanta String di kode Dart",
+        "Disimpan di box Hive biasa bernama 'kunci'",
+        "Disimpan di flutter_secure_storage (Keystore/Keychain), dibuat sekali dengan Hive.generateSecureKey()",
+        "Dibuat ulang secara acak setiap aplikasi dibuka"
+      ],
+      "correctIndex": 2,
+      "explanation": "Kunci di kode atau di box biasa mudah dibaca orang lain. Kunci yang dibuat ulang setiap kali membuat data lama tidak bisa didekripsi. Secure storage menyimpan kunci di penyimpanan aman milik sistem operasi."
+    }
+  ]
+}

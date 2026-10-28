@@ -1,0 +1,69 @@
+<p class="lead">Di Modul 13 dan 14 kita membangun satu aplikasi utuh dari proyek kosong sampai siap dipakai: <strong>Catatan Kuliah</strong>. Mahasiswa bisa mendaftar, login, lalu menulis catatan per mata kuliah yang tersimpan di cloud (Supabase) dan tetap bisa dibaca saat offline (cache Hive).</p>
+
+<h4>Kebutuhan (requirements)</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kode</th><th>Kebutuhan</th><th>Dikerjakan di</th></tr></thead>
+    <tbody>
+      <tr><td>F-01</td><td>User bisa <strong>register</strong> dengan nama lengkap, email, dan password.</td><td>Modul 13</td></tr>
+      <tr><td>F-02</td><td>User bisa <strong>login</strong> dan <strong>logout</strong>. Sesi tetap tersimpan saat aplikasi ditutup.</td><td>Modul 13</td></tr>
+      <tr><td>F-03</td><td>Pesan error dalam Bahasa Indonesia (password salah, email belum dikonfirmasi, dan lain-lain).</td><td>Modul 13</td></tr>
+      <tr><td>F-04</td><td>User bisa <strong>menambah, melihat, mengubah, dan menghapus</strong> catatan (CRUD).</td><td>Modul 14</td></tr>
+      <tr><td>F-05</td><td>User <strong>hanya</strong> bisa melihat catatannya sendiri (RLS).</td><td>Modul 14</td></tr>
+      <tr><td>F-06</td><td>Pencarian judul/isi dan filter kategori (Kuliah, Tugas, Ujian, Lainnya).</td><td>Modul 14</td></tr>
+      <tr><td>F-07</td><td>Saat offline, catatan terakhir tetap tampil dari cache dengan banner "mode offline".</td><td>Modul 14</td></tr>
+      <tr><td>F-08</td><td>Logout menghapus cache lokal agar data tidak terbaca user berikutnya.</td><td>Modul 14</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Alur layar</h4>
+<pre><code class="language-text">                 ┌───────────────┐
+  buka aplikasi ─▶│   AuthGate    │── sesi ada? ──┐
+                 └──────┬────────┘               │ ya
+                        │ tidak                  ▼
+                        ▼                 ┌──────────────┐
+                 ┌──────────────┐  login  │  HomeScreen  │──▶ NoteDetailScreen
+                 │ LoginScreen  │────────▶│ (daftar      │          │
+                 └──────┬───────┘         │  catatan)    │◀─────────┘
+              "Daftar"  │  ▲ kembali      └──────┬───────┘
+                        ▼  │                     │ FAB / Edit
+                 ┌──────────────┐                ▼
+                 │RegisterScreen│         ┌──────────────┐
+                 └──────────────┘         │NoteFormScreen│
+                                          └──────────────┘
+</code></pre>
+<p>Modul 13 menyelesaikan bagian kiri (AuthGate, Login, Register) beserta <code>HomeScreen</code> sementara. Modul 14 mengganti <code>HomeScreen</code> dengan daftar catatan lengkap, lalu menambahkan form dan detail.</p>
+
+<h4>Hasil akhir yang ingin dicapai</h4>
+<p>Tangkapan layar aplikasi final (akhir Modul 14) yang terhubung ke project Supabase:</p>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/13-proyek-auth/login-awal.jpg" alt="Halaman login" loading="lazy">
+    <div class="screenshot-caption">Login</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/14-proyek-crud/home-daftar.jpg" alt="Daftar catatan" loading="lazy">
+    <div class="screenshot-caption">Daftar catatan milik user</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/14-proyek-crud/form-edit.jpg" alt="Form edit catatan" loading="lazy">
+    <div class="screenshot-caption">Form tambah/edit</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/14-proyek-crud/home-offline.jpg" alt="Mode offline" loading="lazy">
+    <div class="screenshot-caption">Mode offline dari cache Hive</div>
+  </div>
+</div>
+
+<h4>Apa yang akan Anda latih</h4>
+<ul>
+  <li><strong>Form &amp; validasi</strong> (Modul 05): TextFormField, GlobalKey&lt;FormState&gt;, validator.</li>
+  <li><strong>Navigasi</strong> (Modul 07): push/pop, ditambah navigasi otomatis berbasis status login.</li>
+  <li><strong>Provider</strong> (Modul 08): ChangeNotifier, MultiProvider, context.watch/read/select.</li>
+  <li><strong>JSON &amp; repository</strong> (Modul 09): model fromJson/toJson, pemisahan lapisan data.</li>
+  <li><strong>Hive</strong> (Modul 11): box sebagai cache offline.</li>
+  <li><strong>Supabase</strong> (Modul 12): Auth, SQL, RLS, query CRUD.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Cara mengikuti proyek ini</h4><p>Kerjakan <strong>berurutan</strong>. Setiap section menambah satu atau beberapa file, dan di akhir section yang membuat aplikasi bisa dijalankan, ada langkah "jalankan &amp; cek". Jika ada yang error, bandingkan file Anda dengan listing lengkap di akhir Modul 14.</p></div>

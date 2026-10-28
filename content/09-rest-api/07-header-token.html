@@ -1,0 +1,168 @@
+<p class="lead">Kebanyakan API sungguhan (SIA kampus, marketplace) hanya memberikan data kepada pengguna yang sudah login. Setelah login, server memberi <strong>token</strong>. Token itu kemudian dikirim di setiap request melalui <strong>header <code>Authorization</code></strong> dengan format <code>Bearer &lt;token&gt;</code>.</p>
+
+<h4>Alur Autentikasi Token</h4>
+<pre><code class="language-text">1. POST /login  {email, password}        ──&gt;  server cek akun
+                                          &lt;──  200 {"token": "abc.def.ghi"}
+2. Simpan token (memori / SharedPreferences, lihat Modul 10)
+3. GET /profil
+   Authorization: Bearer abc.def.ghi      ──&gt;  server cek token
+                                          &lt;──  200 {data profil}
+4. Token salah / kedaluwarsa              &lt;──  401 Unauthorized  -&gt; arahkan ke login
+</code></pre>
+
+<h4>Contoh Kecil: Menambahkan Header</h4>
+<p>Parameter <code>headers</code> menerima <code>Map&lt;String, String&gt;</code>. Perhatikan ada <strong>spasi</strong> setelah kata <code>Bearer</code>.</p>
+<pre><code class="language-dart">import 'package:http/http.dart' as http;
+
+Future&lt;void&gt; ambilProfil(String token) async {
+  final response = await http.get(
+    Uri.parse('https://httpbin.org/bearer'),
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': 'Bearer $token',
+    },
+  );
+  print(response.statusCode); // 200 jika ada token, 401 jika tidak
+}
+</code></pre>
+<p>Kita memakai <a href="https://httpbin.org" target="_blank">httpbin.org</a>, layanan uji gratis. Endpoint <code>/bearer</code> membalas 200 jika header Bearer ada dan 401 jika tidak, sedangkan <code>/headers</code> mengembalikan semua header yang kita kirim.</p>
+
+<h4>Fungsi Pembuat Header</h4>
+<p>Daripada menulis header berulang di setiap request, buat satu fungsi:</p>
+<pre><code class="language-dart">Map&lt;String, String&gt; buildHeaders({String? token, bool json = true}) {
+  return {
+    'Accept': 'application/json',
+    if (json) 'Content-Type': 'application/json; charset=UTF-8',
+    if (token != null) 'Authorization': 'Bearer $token',
+  };
+}
+</code></pre>
+
+<h4>Cara Lebih Rapi: <code>http.BaseClient</code> yang Menyisipkan Token Otomatis</h4>
+<p>Kita bisa membuat client sendiri yang otomatis menambahkan header ke <strong>setiap</strong> request. Ini mirip "interceptor" di library lain.</p>
+<p class="code-file-label">📄 <code>lib/services/auth_client.dart</code></p>
+<pre><code class="language-dart">import 'package:http/http.dart' as http;
+
+class AuthClient extends http.BaseClient {
+  final http.Client _inner;
+  String? token; // bisa diganti setelah login / logout
+
+  AuthClient({http.Client? inner, this.token}) : _inner = inner ?? http.Client();
+
+  @override
+  Future&lt;http.StreamedResponse&gt; send(http.BaseRequest request) {
+    request.headers['Accept'] = 'application/json';
+    final t = token;
+    if (t != null) {
+      request.headers['Authorization'] = 'Bearer $t';
+    }
+    return _inner.send(request);
+  }
+
+  @override
+  void close() {
+    _inner.close();
+    super.close();
+  }
+}
+</code></pre>
+<p><code>AuthClient</code> bisa dipakai persis seperti package <code>http</code>: <code>client.get(...)</code>, <code>client.post(...)</code>, dan seterusnya. Semua method itu pada akhirnya memanggil <code>send()</code>, sehingga header pasti ikut.</p>
+
+<h4>Contoh Lengkap: Simulasi Login dengan Token</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Pastikan sudah: flutter pub add http, dan membuat lib/services/auth_client.dart
+import 'package:flutter/material.dart';
+
+import 'services/auth_client.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: TokenDemoScreen()));
+
+class TokenDemoScreen extends StatefulWidget {
+  const TokenDemoScreen({super.key});
+
+  @override
+  State&lt;TokenDemoScreen&gt; createState() =&gt; _TokenDemoScreenState();
+}
+
+class _TokenDemoScreenState extends State&lt;TokenDemoScreen&gt; {
+  final _client = AuthClient();
+  String _hasil = '-';
+
+  @override
+  void dispose() {
+    _client.close(); // tutup koneksi saat layar dibuang
+    super.dispose();
+  }
+
+  void _login() {
+    // Pada aplikasi nyata token didapat dari response POST /login
+    setState(() =&gt; _client.token = 'token-rahasia-mahasiswa-123');
+  }
+
+  void _logout() {
+    setState(() =&gt; _client.token = null);
+  }
+
+  Future&lt;void&gt; _panggilApi() async {
+    setState(() =&gt; _hasil = 'Memanggil /bearer ...');
+    try {
+      final res = await _client.get(Uri.parse('https://httpbin.org/bearer'));
+      final pesan = switch (res.statusCode) {
+        200 =&gt; 'Diizinkan (200)\n${res.body}',
+        401 =&gt; 'Ditolak (401 Unauthorized): silakan login dulu',
+        _ =&gt; 'Status tak terduga: ${res.statusCode}',
+      };
+      if (mounted) setState(() =&gt; _hasil = pesan);
+    } catch (e) {
+      if (mounted) setState(() =&gt; _hasil = 'Error jaringan: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sudahLogin = _client.token != null;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Demo Bearer Token')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(sudahLogin ? 'Token: ${_client.token}' : 'Belum login (tanpa token)'),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: sudahLogin ? _logout : _login,
+              child: Text(sudahLogin ? 'Logout' : 'Login (dapat token)'),
+            ),
+            FilledButton(onPressed: _panggilApi, child: const Text('Panggil API terlindungi')),
+            const SizedBox(height: 16),
+            Expanded(child: SingleChildScrollView(child: Text(_hasil))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/token-401.jpg" alt="Ditolak 401 tanpa token" loading="lazy">
+    <div class="screenshot-caption">Memanggil API sebelum login: 401</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/token-200.jpg" alt="Diizinkan 200 dengan token" loading="lazy">
+    <div class="screenshot-caption">Setelah login: token terkirim, status 200</div>
+  </div>
+</div>
+
+
+<p><strong>Penjelasan:</strong> panggil API sebelum login, hasilnya 401. Tekan Login lalu panggil lagi, hasilnya 200 dan httpbin menampilkan token yang diterimanya. Ekspresi <code>switch</code> (Dart 3) membuat penanganan setiap status code ringkas.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum &amp; Keamanan</h4>
+<ul>
+  <li>Menulis <code>'Bearer$token'</code> tanpa spasi, atau <code>'bearer'</code> huruf kecil pada server yang ketat.</li>
+  <li>Menyimpan <strong>API key rahasia</strong> (kunci admin, secret key) di kode Flutter. Aplikasi bisa dibongkar; kunci rahasia harus tetap di server.</li>
+  <li>Token login yang sensitif sebaiknya disimpan dengan <code>flutter_secure_storage</code>. SharedPreferences (Modul 10) cukup untuk latihan, tetapi tidak terenkripsi.</li>
+  <li>Tidak menangani 401. Saat token kedaluwarsa, hapus token dan arahkan pengguna ke halaman login.</li>
+</ul>
+</div>

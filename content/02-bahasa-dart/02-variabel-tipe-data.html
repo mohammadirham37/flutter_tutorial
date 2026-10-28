@@ -1,0 +1,263 @@
+<p class="lead">Variabel adalah "kotak bernama" untuk menyimpan data. Dart adalah bahasa yang <em>strongly typed</em> (setiap nilai punya tipe yang jelas), tetapi punya <em>type inference</em> sehingga kita sering tidak perlu menulis tipenya secara manual.</p>
+
+<h4>Tipe data dasar</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Tipe</th><th>Isi</th><th>Contoh</th></tr></thead>
+    <tbody>
+      <tr><td><code>int</code></td><td>Bilangan bulat</td><td><code>int sks = 3;</code></td></tr>
+      <tr><td><code>double</code></td><td>Bilangan desimal</td><td><code>double ipk = 3.75;</code></td></tr>
+      <tr><td><code>num</code></td><td>Bisa <code>int</code> atau <code>double</code></td><td><code>num nilai = 80;</code></td></tr>
+      <tr><td><code>String</code></td><td>Teks</td><td><code>String nama = 'Ayu';</code></td></tr>
+      <tr><td><code>bool</code></td><td><code>true</code> atau <code>false</code></td><td><code>bool aktif = true;</code></td></tr>
+      <tr><td><code>dynamic</code></td><td>Tipe bebas, pemeriksaan tipe dimatikan</td><td><code>dynamic data = 1;</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Deklarasi dengan tipe eksplisit dan <code>var</code></h4>
+<pre><code class="language-dart">void main() {
+  // Tipe ditulis eksplisit
+  String nama = 'Ahmad Fikri';
+  int semester = 5;
+  double ipk = 3.84;
+  bool aktif = true;
+
+  // Tipe ditebak otomatis dari nilai awal (type inference)
+  var jurusan = 'Informatika'; // dianggap String
+  var angkatan = 2023; // dianggap int
+
+  print(nama); // Output: Ahmad Fikri
+  print(semester); // Output: 5
+  print(ipk); // Output: 3.84
+  print(aktif); // Output: true
+  print(jurusan.runtimeType); // Output: String
+  print(angkatan.runtimeType); // Output: int
+
+  semester = 6; // variabel biasa boleh diubah nilainya
+  print(semester); // Output: 6
+
+  // jurusan = 123; // ERROR: jurusan sudah bertipe String
+}
+</code></pre>
+<p><code>var</code> <strong>bukan</strong> berarti "tipe bebas". Begitu diisi <code>'Informatika'</code>, tipe <code>jurusan</code> terkunci menjadi <code>String</code>. Properti <code>runtimeType</code> dipakai untuk melihat tipe sebuah nilai saat program berjalan.</p>
+
+<h4>Angka: <code>int</code>, <code>double</code>, dan <code>num</code></h4>
+<pre><code class="language-dart">void main() {
+  int sks = 3;
+  double nilai = 87.5;
+  num apaSaja = 10; // num bisa menampung int maupun double
+  apaSaja = 10.5;
+
+  print(sks + 1); // Output: 4
+  print(nilai / 2); // Output: 43.75
+  print(apaSaja); // Output: 10.5
+
+  double rata = 7; // literal int otomatis diubah menjadi double
+  print(rata); // Output: 7.0
+  print(1e3); // Output: 1000.0
+  print(0xFF); // Output: 255
+  print(1000000 == 1_000_000); // Output: true
+}
+</code></pre>
+<p>Garis bawah pada <code>1_000_000</code> hanya pemisah agar angka besar mudah dibaca (fitur Dart 3.6 ke atas). Nilainya sama persis dengan <code>1000000</code>.</p>
+
+<div class="callout callout-info"><h4>ℹ️ Perbedaan output di DartPad</h4><p>DartPad menjalankan kode sebagai JavaScript, sehingga <code>double</code> yang nilainya bulat dicetak tanpa <code>.0</code> (misalnya <code>7</code>, bukan <code>7.0</code>). Output di modul ini mengikuti <code>dart run</code> di terminal.</p></div>
+
+<h4>String: kutip, escape, multi-baris, raw</h4>
+<pre><code class="language-dart">void main() {
+  String a = 'kutip satu';
+  String b = "kutip dua";
+  String c = "Jum'at"; // kutip satu di dalam kutip dua
+  String d = 'Jum\'at'; // atau di-escape dengan backslash
+
+  String multi = '''
+Baris pertama
+Baris kedua''';
+
+  String raw = r'C:\folder\baru'; // raw string: backslash tidak diproses
+
+  print(a); // Output: kutip satu
+  print(b); // Output: kutip dua
+  print(c); // Output: Jum'at
+  print(d); // Output: Jum'at
+  print(multi);
+  // Output:
+  // Baris pertama
+  // Baris kedua
+  print(raw); // Output: C:\folder\baru
+  print('Baris 1\nBaris 2');
+  // Output:
+  // Baris 1
+  // Baris 2
+}
+</code></pre>
+<p><code>\n</code> adalah karakter baris baru dan <code>\t</code> adalah tab. Awalan <code>r</code> membuat <em>raw string</em> sehingga backslash dicetak apa adanya, berguna untuk path Windows dan pola <code>RegExp</code>.</p>
+
+<h4>String interpolation</h4>
+<p>Untuk menyisipkan nilai ke dalam teks, gunakan <code>$nama</code> untuk variabel sederhana dan <code>${ekspresi}</code> untuk ekspresi (perhitungan, pemanggilan method, akses properti).</p>
+<pre><code class="language-dart">void main() {
+  String nama = 'Nadia';
+  int sks = 21;
+  double ipk = 3.756;
+
+  print('Nama: $nama'); // Output: Nama: Nadia
+  print('SKS semester depan: ${sks + 3}'); // Output: SKS semester depan: 24
+  print('Panjang nama: ${nama.length} huruf'); // Output: Panjang nama: 5 huruf
+  print('IPK: ${ipk.toStringAsFixed(2)}'); // Output: IPK: 3.76
+  print('Huruf besar: ${nama.toUpperCase()}'); // Output: Huruf besar: NADIA
+
+  // Menyambung dengan + juga bisa, tetapi interpolasi lebih disarankan
+  print('Halo, ' + nama + '!'); // Output: Halo, Nadia!
+}
+</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Lupa kurung kurawal</h4><p><code>'$nama.length'</code> akan mencetak <code>Nadia.length</code>, bukan <code>5</code>, karena tanpa <code>{ }</code> Dart hanya mengambil nama variabelnya. Tulis <code>'${nama.length}'</code>.</p></div>
+
+<h4>Method String yang sering dipakai</h4>
+<pre><code class="language-dart">void main() {
+  String nim = '  H1D023001  ';
+  String bersih = nim.trim(); // buang spasi di awal dan akhir
+
+  print(bersih); // Output: H1D023001
+  print(bersih.length); // Output: 9
+  print(bersih.toLowerCase()); // Output: h1d023001
+  print(bersih.startsWith('H1D')); // Output: true
+  print(bersih.contains('023')); // Output: true
+  print(bersih.substring(3, 5)); // Output: 02
+  print(bersih[0]); // Output: H
+  print(bersih.replaceAll('0', 'o')); // Output: H1Do23oo1
+  print('Flutter,Dart,Supabase'.split(',')); // Output: [Flutter, Dart, Supabase]
+  print('7'.padLeft(3, '0')); // Output: 007
+  print('ab' * 3); // Output: ababab
+  print(''.isEmpty); // Output: true
+}
+</code></pre>
+<p><code>substring(3, 5)</code> mengambil karakter dari indeks 3 sampai <strong>sebelum</strong> indeks 5. Indeks String selalu dimulai dari 0.</p>
+
+<h4><code>final</code>, <code>const</code>, dan <code>late</code></h4>
+<pre><code class="language-dart">void main() {
+  final String namaKampus = 'UNSOED';
+  final waktuMulai = DateTime.now(); // nilainya baru diketahui saat program berjalan
+  const double nilaiMaksimal = 4.0;
+  const jumlahJamSeminggu = 7 * 24; // ekspresi konstan, dihitung saat kompilasi
+
+  // namaKampus = 'UGM'; // ERROR: final hanya bisa diisi sekali
+  // nilaiMaksimal = 5.0; // ERROR: const tidak bisa diubah
+  // const sekarang = DateTime.now(); // ERROR: DateTime.now() bukan nilai compile-time
+
+  print(namaKampus); // Output: UNSOED
+  print(nilaiMaksimal); // Output: 4.0
+  print(jumlahJamSeminggu); // Output: 168
+  print(waktuMulai.year &gt; 2000); // Output: true
+}
+</code></pre>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kata kunci</th><th>Bisa diubah?</th><th>Kapan nilainya ditentukan?</th><th>Contoh pemakaian</th></tr></thead>
+    <tbody>
+      <tr><td><code>var</code> / tipe</td><td>Ya</td><td>Kapan saja</td><td>Penghitung, input pengguna</td></tr>
+      <tr><td><code>final</code></td><td>Tidak (sekali isi)</td><td>Saat program berjalan (runtime)</td><td>Data dari API, waktu login</td></tr>
+      <tr><td><code>const</code></td><td>Tidak</td><td>Saat kompilasi (compile-time)</td><td>Angka tetap, widget statis Flutter</td></tr>
+      <tr><td><code>late</code></td><td>Tergantung</td><td>Ditunda, diisi sebelum dipakai</td><td>Controller di <code>initState</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p><code>final</code> mengunci <em>variabelnya</em>, bukan isi objeknya. List yang <code>final</code> masih bisa ditambah isinya, sedangkan list <code>const</code> benar-benar beku:</p>
+<pre><code class="language-dart">void main() {
+  final daftarFinal = ['Dart', 'Flutter'];
+  daftarFinal.add('Supabase'); // boleh: isi list bisa berubah
+  print(daftarFinal); // Output: [Dart, Flutter, Supabase]
+  // daftarFinal = []; // ERROR: variabelnya tidak bisa diganti
+
+  const daftarConst = ['Dart', 'Flutter'];
+  print(daftarConst.length); // Output: 2
+  // daftarConst.add('Hive'); // ERROR saat runtime: Unsupported operation
+}
+</code></pre>
+
+<p><code>late</code> menandai variabel yang <strong>pasti</strong> diisi nanti sebelum dibaca. <code>late final</code> juga bisa dipakai untuk inisialisasi malas (<em>lazy</em>): nilai baru dihitung saat pertama kali dipakai.</p>
+<pre><code class="language-dart">late String token; // akan diisi oleh fungsi login()
+
+void login() {
+  token = 'abc123';
+}
+
+int hitungBerat() {
+  print('Menghitung...');
+  return 42;
+}
+
+void main() {
+  login();
+  print('Token: $token'); // Output: Token: abc123
+
+  late final int hasil = hitungBerat(); // belum dihitung di baris ini
+  print('Sebelum memakai hasil');
+  print(hasil); // baru dihitung di sini
+
+  // Output:
+  // Sebelum memakai hasil
+  // Menghitung...
+  // 42
+}
+</code></pre>
+
+<h4><code>var</code> vs <code>dynamic</code> vs <code>Object</code></h4>
+<pre><code class="language-dart">void main() {
+  var a = 10; // tipe terkunci: int
+  dynamic b = 10; // tipe boleh berganti, tanpa pemeriksaan compiler
+  Object c = 10; // menampung apa saja, tetapi tetap diperiksa compiler
+
+  b = 'sekarang String';
+  c = true;
+  // a = 'teks'; // ERROR: a bertipe int
+
+  print(a); // Output: 10
+  print(b); // Output: sekarang String
+  print(c); // Output: true
+
+  // print(c.length); // ERROR compile: Object tidak punya length
+  // print(b.panjangSekali); // lolos compile, tetapi CRASH saat runtime
+}
+</code></pre>
+<p>Hindari <code>dynamic</code> kecuali benar-benar perlu (misalnya data JSON mentah). Dengan <code>dynamic</code>, salah ketik nama properti baru ketahuan ketika aplikasi sudah berjalan.</p>
+
+<h4>Konversi tipe</h4>
+<pre><code class="language-dart">void main() {
+  // String -&gt; angka
+  int umur = int.parse('20');
+  double ipk = double.parse('3.75');
+  print(umur + 1); // Output: 21
+  print(ipk); // Output: 3.75
+
+  // tryParse mengembalikan null jika gagal (tidak crash)
+  int? gagal = int.tryParse('dua puluh');
+  print(gagal); // Output: null
+
+  // angka -&gt; String
+  String teks = 42.toString();
+  print(teks + '!'); // Output: 42!
+  print(3.14159.toStringAsFixed(2)); // Output: 3.14
+
+  // double -&gt; int (toInt memotong, round membulatkan)
+  print(9.7.toInt()); // Output: 9
+  print(9.7.round()); // Output: 10
+  print(9.2.ceil()); // Output: 10
+  print(9.7.floor()); // Output: 9
+
+  // int -&gt; double
+  print(5.toDouble()); // Output: 5.0
+}
+</code></pre>
+<p>Gunakan <code>int.tryParse()</code> untuk input dari pengguna (misalnya dari <code>TextField</code> di Modul 05), karena pengguna bisa saja mengetik huruf. <code>int.parse()</code> akan melempar <code>FormatException</code> jika teksnya bukan angka.</p>
+
+<div class="callout callout-tip"><h4>💡 Ringkasan</h4>
+<ul>
+  <li>Pakai <code>final</code> secara default. Ganti ke <code>var</code> hanya jika nilainya memang perlu berubah.</li>
+  <li>Pakai <code>const</code> untuk nilai yang sudah pasti sejak kode ditulis.</li>
+  <li>Gunakan interpolasi <code>'$x'</code> / <code>'${ekspresi}'</code> untuk menyusun teks.</li>
+  <li>Selalu pakai <code>tryParse</code> untuk input yang belum tentu valid.</li>
+</ul></div>

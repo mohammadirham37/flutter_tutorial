@@ -1,0 +1,176 @@
+{
+  "id": "modul-proyek-auth",
+  "badge": "Proyek Bagian 1",
+  "category": "Proyek",
+  "title": "Proyek Catatan Kuliah (1): Arsitektur & Autentikasi Supabase",
+  "duration": "Pertemuan 13 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 05: Form & Validasi Input",
+    "Modul 07: Navigasi",
+    "Modul 08: State Management Provider",
+    "Modul 12: Supabase"
+  ],
+  "summary": "Memulai proyek utuh 'Catatan Kuliah': menyusun kebutuhan, arsitektur berlapis (UI, Provider, Service/Repository, Supabase/Hive), struktur folder, tabel profiles dengan trigger, lalu membangun fitur register, login, logout, dan sesi tersimpan menggunakan Supabase Auth, Provider, dan AuthGate.",
+  "learningOutcomes": [
+    "Menyusun kebutuhan fungsional dan alur layar sebuah aplikasi mobile sebelum menulis kode.",
+    "Menerapkan arsitektur berlapis UI, Provider, Service/Repository dengan dependency injection.",
+    "Membuat tabel profiles beserta trigger handle_new_user dan policy RLS di Supabase.",
+    "Mengimplementasikan AuthService dan AuthProvider dengan status loading dan pesan error berbahasa Indonesia.",
+    "Membangun AuthGate berbasis onAuthStateChange untuk navigasi login/logout otomatis.",
+    "Membuat LoginScreen dan RegisterScreen dengan validasi form, show/hide password, tombol loading, dan SnackBar.",
+    "Menguji alur autentikasi secara sistematis, termasuk mode konfirmasi email dan sesi tersimpan."
+  ],
+  "sections": [
+    {
+      "id": "proyek-auth-gambaran",
+      "title": "1. Gambaran Proyek & Kebutuhan",
+      "file": "01-gambaran-proyek.html"
+    },
+    {
+      "id": "proyek-auth-arsitektur",
+      "title": "2. Arsitektur, Struktur Folder & Package",
+      "file": "02-arsitektur.html"
+    },
+    {
+      "id": "proyek-auth-setup-supabase",
+      "title": "3. Setup Supabase: Tabel profiles & Trigger",
+      "file": "03-setup-supabase.html"
+    },
+    {
+      "id": "proyek-auth-service",
+      "title": "4. Env, Validator & AuthService",
+      "file": "04-auth-service.html"
+    },
+    {
+      "id": "proyek-auth-provider",
+      "title": "5. AuthProvider & Pesan Error Ramah",
+      "file": "05-auth-provider.html"
+    },
+    {
+      "id": "proyek-auth-gate",
+      "title": "6. AuthGate, Home Sementara & main.dart",
+      "file": "06-auth-gate-main.html"
+    },
+    {
+      "id": "proyek-auth-login",
+      "title": "7. LoginScreen",
+      "file": "07-login-screen.html"
+    },
+    {
+      "id": "proyek-auth-register",
+      "title": "8. RegisterScreen & Menjalankan Aplikasi",
+      "file": "08-register-screen.html"
+    },
+    {
+      "id": "proyek-auth-pengujian",
+      "title": "9. Pengujian & Troubleshooting",
+      "file": "09-pengujian.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 13: Autentikasi Aplikasi Catatan Kuliah",
+    "objective": "Membangun fitur register, login, logout, dan sesi tersimpan yang aman dengan Supabase Auth, mengikuti arsitektur berlapis.",
+    "instructions": [
+      "Buat proyek <code>catatan_kuliah</code>, pasang package dengan <code>flutter pub add supabase_flutter provider hive_ce hive_ce_flutter</code>, dan siapkan <code>env.json</code> + <code>.gitignore</code>.",
+      "Jalankan SQL tabel <code>profiles</code>, fungsi <code>handle_new_user</code>, trigger, dan policy RLS di SQL Editor. Simpan SQL di <code>supabase/setup.sql</code>.",
+      "Implementasikan <code>env.dart</code>, <code>validators.dart</code>, <code>auth_service.dart</code>, dan <code>auth_provider.dart</code> sesuai section 4–5.",
+      "Implementasikan <code>auth_gate.dart</code>, HomeScreen sementara, dan <code>main.dart</code> (section 6).",
+      "Implementasikan LoginScreen dan RegisterScreen lengkap dengan validasi, show/hide password, tombol loading, dan SnackBar error (section 7–8).",
+      "Pastikan <code>flutter analyze</code> tidak menemukan masalah.",
+      "Jalankan 12 skenario pada checklist section 9. Lampirkan screenshot minimal untuk skenario 4, 5, 7, 10, dan 11.",
+      "Tambahan: tampilkan nama dari tabel <code>profiles</code> (bukan metadata) di HomeScreen memakai <code>select().eq('id', userId).maybeSingle()</code>."
+    ],
+    "expectedOutput": "Aplikasi dapat register (dengan nama tersimpan di tabel profiles), login, logout, mengingat sesi setelah aplikasi ditutup, dan menampilkan pesan error berbahasa Indonesia untuk password salah, email terdaftar, email belum dikonfirmasi, dan tidak ada koneksi.",
+    "rubric": "Setup Supabase: tabel profiles, trigger & RLS benar (20%), Arsitektur berlapis: AuthService & AuthProvider terpisah dari UI (20%), AuthGate & navigasi otomatis (15%), Form login/register: validasi, show/hide, loading, SnackBar (25%), Laporan pengujian 12 skenario (15%), Kerapian kode & flutter analyze bersih (5%)."
+  },
+  "quiz": [
+    {
+      "question": "Dalam arsitektur proyek ini, class mana yang boleh memanggil supabase.auth secara langsung?",
+      "options": [
+        "LoginScreen",
+        "AuthProvider",
+        "AuthService",
+        "Semua class boleh"
+      ],
+      "correctIndex": 2,
+      "explanation": "AuthService adalah satu-satunya lapisan yang berbicara dengan Supabase Auth. Provider memanggil service, sedangkan UI memanggil provider. Pemisahan ini memudahkan pengujian dan penggantian backend."
+    },
+    {
+      "question": "Mengapa fungsi handle_new_user diberi atribut 'security definer'?",
+      "options": [
+        "Agar fungsi berjalan lebih cepat",
+        "Agar fungsi berjalan dengan hak pembuatnya sehingga bisa insert ke profiles walaupun RLS aktif dan user belum login",
+        "Agar password user dienkripsi",
+        "Agar trigger hanya berjalan sekali seumur hidup"
+      ],
+      "correctIndex": 1,
+      "explanation": "Saat register, request belum membawa sesi login sehingga RLS menolak insert. security definer membuat fungsi berjalan dengan hak pemiliknya (admin)."
+    },
+    {
+      "question": "Nilai apa yang menandakan bahwa signUp berhasil tetapi user harus mengonfirmasi email terlebih dahulu?",
+      "options": [
+        "response.user == null",
+        "response.session == null",
+        "AuthException dengan code invalid_credentials",
+        "response.session != null"
+      ],
+      "correctIndex": 1,
+      "explanation": "Jika Confirm email aktif, akun dibuat (user terisi) tetapi session bernilai null sampai link konfirmasi diklik."
+    },
+    {
+      "question": "Setelah login sukses, bagaimana aplikasi berpindah dari LoginScreen ke HomeScreen?",
+      "options": [
+        "LoginScreen memanggil Navigator.pushReplacement",
+        "AuthGate menerima event signedIn dari onAuthStateChange lalu membangun HomeScreen",
+        "AuthProvider memanggil runApp ulang",
+        "User harus menekan tombol refresh"
+      ],
+      "correctIndex": 1,
+      "explanation": "AuthGate mendengarkan stream status login. Begitu ada session, ia mengembalikan HomeScreen secara otomatis tanpa Navigator manual."
+    },
+    {
+      "question": "Mengapa stream auth disimpan di initState AuthGate, bukan dipanggil langsung di dalam build()?",
+      "options": [
+        "Karena initState lebih cepat dari build",
+        "Agar StreamBuilder tidak berlangganan ulang setiap kali widget di-rebuild",
+        "Karena build() tidak boleh memakai Stream",
+        "Karena Supabase melarangnya"
+      ],
+      "correctIndex": 1,
+      "explanation": "Jika objek stream berbeda di setiap build, StreamBuilder akan berhenti berlangganan dan berlangganan ulang. Menyimpannya sekali di State membuat langganan stabil."
+    },
+    {
+      "question": "Apa fungsi blok 'finally' pada method signIn di AuthProvider?",
+      "options": [
+        "Menampilkan SnackBar",
+        "Memastikan isLoading kembali false baik login berhasil maupun gagal",
+        "Mengulang login jika gagal",
+        "Menghapus sesi"
+      ],
+      "correctIndex": 1,
+      "explanation": "finally selalu dieksekusi setelah try/catch, sehingga spinner pasti berhenti dan tombol aktif kembali dalam semua kondisi."
+    },
+    {
+      "question": "Pada LoginScreen, mengapa onPressed tombol Masuk diisi null ketika isLoading bernilai true?",
+      "options": [
+        "Agar warna tombol berubah saja",
+        "Untuk menonaktifkan tombol sehingga mencegah request login ganda akibat klik berulang",
+        "Agar keyboard tertutup",
+        "Karena Flutter mewajibkannya"
+      ],
+      "correctIndex": 1,
+      "explanation": "Tombol dengan onPressed null otomatis nonaktif. Ini mencegah user mengirim beberapa request login bersamaan."
+    },
+    {
+      "question": "Mengapa pesan error untuk kode invalid_credentials dibuat 'Email atau password salah' dan bukan 'Email tidak terdaftar'?",
+      "options": [
+        "Agar pesan lebih pendek",
+        "Supaya penyerang tidak bisa menebak email mana yang terdaftar (user enumeration)",
+        "Karena Supabase tidak tahu emailnya",
+        "Karena Bahasa Indonesia tidak punya kata yang tepat"
+      ],
+      "correctIndex": 1,
+      "explanation": "Pesan gabungan adalah praktik keamanan standar. Membedakan keduanya membocorkan informasi tentang akun yang ada."
+    }
+  ]
+}

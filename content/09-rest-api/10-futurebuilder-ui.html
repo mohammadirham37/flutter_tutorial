@@ -1,0 +1,194 @@
+<p class="lead">Di section GET kita menulis tiga variabel state (<code>_loading</code>, <code>_error</code>, <code>_posts</code>) secara manual. Widget <strong><code>FutureBuilder</code></strong> melakukan pekerjaan itu untuk kita: ia mengamati sebuah <code>Future</code> dan otomatis membangun ulang UI sesuai statusnya.</p>
+
+<h4>Konsep: <code>AsyncSnapshot</code></h4>
+<p>Fungsi <code>builder</code> menerima <code>snapshot</code> yang berisi keadaan Future saat ini:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Properti</th><th>Arti</th><th>Tampilkan</th></tr></thead>
+    <tbody>
+      <tr><td><code>snapshot.connectionState == ConnectionState.waiting</code></td><td>Future sedang berjalan</td><td>Loading (spinner)</td></tr>
+      <tr><td><code>snapshot.hasError</code> / <code>snapshot.error</code></td><td>Future selesai dengan exception</td><td>Pesan error + tombol coba lagi</td></tr>
+      <tr><td><code>snapshot.hasData</code> / <code>snapshot.data</code></td><td>Future selesai dengan nilai</td><td>Data (list, detail)</td></tr>
+      <tr><td><code>ConnectionState.done</code></td><td>Future sudah selesai (sukses atau error)</td><td>-</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh Kecil</h4>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+class JamServer extends StatefulWidget {
+  const JamServer({super.key});
+
+  @override
+  State&lt;JamServer&gt; createState() =&gt; _JamServerState();
+}
+
+class _JamServerState extends State&lt;JamServer&gt; {
+  // Future disimpan di field, dibuat sekali di initState
+  late final Future&lt;String&gt; _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = Future.delayed(const Duration(seconds: 2), () =&gt; 'Data siap!');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder&lt;String&gt;(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const CircularProgressIndicator(); // 1. loading
+        }
+        if (snapshot.hasError) {
+          return Text('Error: ${snapshot.error}'); // 2. error
+        }
+        return Text(snapshot.data ?? '-'); // 3. data
+      },
+    );
+  }
+}
+</code></pre>
+<p>Urutan pengecekan selalu sama: <strong>loading → error → data</strong>. Jika urutannya terbalik, layar bisa menampilkan data lama ketika sedang memuat ulang.</p>
+
+<h4>Contoh Lengkap: Daftar Mahasiswa dari API</h4>
+<p>Contoh ini memakai <code>MahasiswaModel</code> (section 3) dan <code>MahasiswaApiService</code> (section 5). Tombol <em>Coba Lagi</em> bekerja dengan <strong>mengganti Future</strong> di dalam <code>setState</code>, sehingga FutureBuilder kembali ke status waiting lalu memuat ulang.</p>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Pastikan sudah: flutter pub add http, serta membuat file model &amp; service di atas.
+import 'package:flutter/material.dart';
+
+import 'models/mahasiswa_model.dart';
+import 'services/mahasiswa_api_service.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: DaftarMahasiswaApiScreen(),
+    );
+  }
+}
+
+class DaftarMahasiswaApiScreen extends StatefulWidget {
+  const DaftarMahasiswaApiScreen({super.key});
+
+  @override
+  State&lt;DaftarMahasiswaApiScreen&gt; createState() =&gt; _DaftarMahasiswaApiScreenState();
+}
+
+class _DaftarMahasiswaApiScreenState extends State&lt;DaftarMahasiswaApiScreen&gt; {
+  late Future&lt;List&lt;MahasiswaModel&gt;&gt; _futureData;
+  final MahasiswaApiService _apiService = MahasiswaApiService();
+
+  @override
+  void initState() {
+    super.initState();
+    // Simpan Future di initState agar tidak terpanggil berulang saat rebuild!
+    _futureData = _apiService.fetchMahasiswa();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Data Mahasiswa dari Cloud")),
+      body: FutureBuilder&lt;List&lt;MahasiswaModel&gt;&gt;(
+        future: _futureData,
+        builder: (context, snapshot) {
+          // KONDISI 1: Sedang Menunggu Respon Jaringan (Loading)
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 12),
+                  Text("Mengunduh data dari server kampus..."),
+                ],
+              ),
+            );
+          }
+
+          // KONDISI 2: Terjadi Kesalahan Jaringan / Server Error
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.cloud_off, size: 64, color: Colors.red),
+                    const SizedBox(height: 12),
+                    Text("Terjadi Error: ${snapshot.error}"),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () =&gt; setState(() =&gt; _futureData = _apiService.fetchMahasiswa()),
+                      child: const Text("Coba Lagi"),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          // KONDISI 3: Data Berhasil Diterima
+          final listMhs = snapshot.data ?? [];
+          if (listMhs.isEmpty) {
+            return const Center(child: Text("Tidak ada data mahasiswa ditemukan."));
+          }
+
+          return ListView.builder(
+            itemCount: listMhs.length,
+            itemBuilder: (context, index) {
+              final mhs = listMhs[index];
+              return ListTile(
+                leading: CircleAvatar(
+                  // foregroundImage + child: jika foto gagal dimuat, huruf awal nama tetap tampil
+                  foregroundImage: NetworkImage(mhs.avatarUrl),
+                  onForegroundImageError: (error, stackTrace) {},
+                  child: Text(mhs.nama.isNotEmpty ? mhs.nama[0] : '?'),
+                ),
+                title: Text(mhs.nama, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text("NIM: ${mhs.nim} • ${mhs.email}"),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/futurebuilder.jpg" alt="Daftar mahasiswa dari API" loading="lazy">
+    <div class="screenshot-caption">Kondisi 3 FutureBuilder: data berhasil dimuat</div>
+  </div>
+</div>
+
+
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>late Future&lt;...&gt; _futureData</code> diisi di <code>initState</code>. Jika fungsi API dipanggil langsung di parameter <code>future:</code>, setiap rebuild (mis. keyboard muncul) akan mengirim request baru.</li>
+  <li>Kondisi 3 juga menangani list kosong. Data kosong bukan error, tetapi tetap perlu pesan agar layar tidak tampak "rusak".</li>
+  <li><code>foregroundImage</code> + <code>child</code> pada <code>CircleAvatar</code> membuat huruf awal tetap tampil jika foto gagal dimuat.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li><code>future: _apiService.fetchMahasiswa()</code> langsung di <code>build()</code>: request berulang tanpa henti.</li>
+  <li>Hanya memeriksa <code>snapshot.hasData</code> tanpa <code>hasError</code>, sehingga saat error spinner berputar selamanya.</li>
+  <li>Memakai <code>snapshot.data!</code> sebelum memastikan statusnya, menyebabkan <em>Null check operator used on a null value</em>.</li>
+  <li>Data tidak muncul sama sekali di APK release: cek izin INTERNET (section 4).</li>
+</ul>
+</div>

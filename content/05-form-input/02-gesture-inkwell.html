@@ -1,0 +1,227 @@
+<p class="lead">Tidak semua yang bisa ditekan harus berbentuk tombol. Kartu mata kuliah, foto profil, atau kotak menu juga bisa dibuat responsif terhadap sentuhan menggunakan <code>GestureDetector</code> atau <code>InkWell</code>.</p>
+
+<h4>Konsep</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th></th><th><code>GestureDetector</code></th><th><code>InkWell</code></th></tr></thead>
+    <tbody>
+      <tr><td>Efek visual saat ditekan</td><td>Tidak ada</td><td>Riak air (<em>ripple</em>) khas Material</td></tr>
+      <tr><td>Jenis gestur</td><td>Sangat lengkap: tap, double tap, long press, drag, pan, scale</td><td>Tap, double tap, long press, hover</td></tr>
+      <tr><td>Syarat</td><td>Tidak ada</td><td>Harus ada widget <code>Material</code> (atau <code>Card</code>, <code>Scaffold</code>) di atasnya</td></tr>
+      <tr><td>Cocok untuk</td><td>Gestur khusus (geser, cubit), area tanpa efek</td><td>Kartu atau baris yang bisa diklik</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh kecil: GestureDetector</h4>
+<p>Bungkus widget apa pun dengan <code>GestureDetector</code> lalu isi callback gestur yang ingin ditangkap.</p>
+<pre><code class="language-dart">GestureDetector(
+  onTap: () =&gt; debugPrint('Tap sekali'),
+  onDoubleTap: () =&gt; debugPrint('Tap dua kali'),
+  onLongPress: () =&gt; debugPrint('Tekan lama'),
+  child: Container(
+    padding: const EdgeInsets.all(24),
+    color: Colors.amber,
+    child: const Text('Sentuh saya'),
+  ),
+),
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/gesture-kotak.jpg" alt="Kotak kuning yang bisa disentuh. Tidak ada efek visual apa pun saat ditekan" loading="lazy">
+    <div class="screenshot-caption">Kotak kuning yang bisa disentuh. Tidak ada efek visual apa pun saat ditekan</div>
+  </div>
+</div>
+
+<h4>Contoh kecil: InkWell</h4>
+<p>InkWell menggambar efek riak di atas widget <code>Material</code> terdekat. Karena itu warna latar sebaiknya diberikan ke <code>Material</code>, <strong>bukan</strong> ke <code>Container</code> di dalam InkWell (Container berwarna akan menutupi riaknya).</p>
+<pre><code class="language-dart">// Material memberi "kanvas" tempat efek riak digambar
+Material(
+  color: Colors.indigo.shade50,
+  borderRadius: BorderRadius.circular(12),
+  child: InkWell(
+    borderRadius: BorderRadius.circular(12), // riak ikut melengkung
+    onTap: () =&gt; debugPrint('Kartu ditekan'),
+    child: const Padding(
+      padding: EdgeInsets.all(24),
+      child: Text('Kartu dengan efek riak'),
+    ),
+  ),
+),
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/inkwell-kartu.jpg" alt="Kartu dengan efek riak saat ditekan" loading="lazy">
+    <div class="screenshot-caption">Kartu dengan efek riak saat ditekan</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: berbagai gestur dalam satu layar</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const GestureDemoScreen(),
+    );
+  }
+}
+
+class GestureDemoScreen extends StatefulWidget {
+  const GestureDemoScreen({super.key});
+
+  @override
+  State&lt;GestureDemoScreen&gt; createState() =&gt; _GestureDemoScreenState();
+}
+
+class _GestureDemoScreenState extends State&lt;GestureDemoScreen&gt; {
+  String _log = 'Belum ada gestur';
+  bool _disukai = false;
+  double _geserX = 0;
+
+  void _tulisLog(String pesan) =&gt; setState(() =&gt; _log = pesan);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('GestureDetector &amp; InkWell')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Log: $_log', style: const TextStyle(fontSize: 16)),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 1. GestureDetector: banyak jenis gestur, TANPA efek visual
+          GestureDetector(
+            onTap: () =&gt; _tulisLog('GestureDetector: tap'),
+            onDoubleTap: () {
+              setState(() =&gt; _disukai = !_disukai);
+              _tulisLog('GestureDetector: double tap -&gt; suka = $_disukai');
+            },
+            onLongPress: () =&gt; _tulisLog('GestureDetector: long press'),
+            child: Container(
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.amber.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _disukai ? Icons.favorite : Icons.favorite_border,
+                    color: Colors.red,
+                    size: 40,
+                  ),
+                  const Text('Tap, double tap, atau tekan lama'),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 2. GestureDetector untuk drag horizontal
+          GestureDetector(
+            onHorizontalDragUpdate: (details) {
+              setState(() =&gt; _geserX = (_geserX + details.delta.dx).clamp(0, 200));
+            },
+            onHorizontalDragEnd: (_) =&gt; _tulisLog('Geser selesai di x = ${_geserX.toStringAsFixed(0)}'),
+            child: Container(
+              height: 60,
+              color: Colors.grey.shade200,
+              alignment: Alignment.centerLeft,
+              child: Transform.translate(
+                offset: Offset(_geserX, 0),
+                child: const Chip(label: Text('Geser saya')),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 3. InkWell: efek riak Material saat ditekan
+          Material(
+            color: Colors.teal.shade50,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () =&gt; _tulisLog('InkWell: kartu Pemrograman Mobile ditekan'),
+              onLongPress: () =&gt; _tulisLog('InkWell: long press'),
+              child: const Padding(
+                padding: EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Icon(Icons.phone_android, size: 36),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: Text('Pemrograman Mobile\n4 SKS - Kelas A'),
+                    ),
+                    Icon(Icons.chevron_right),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 4. Cara paling ringkas: Card + InkWell (Card sudah berupa Material)
+          Card(
+            clipBehavior: Clip.antiAlias, // agar riak tidak keluar dari sudut kartu
+            child: InkWell(
+              onTap: () =&gt; _tulisLog('InkWell di dalam Card ditekan'),
+              child: const ListTile(
+                leading: Icon(Icons.menu_book),
+                title: Text('Basis Data'),
+                subtitle: Text('3 SKS - Kelas B'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/gesture-awal.jpg" alt="Tampilan awal" loading="lazy">
+    <div class="screenshot-caption">Tampilan awal</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/gesture-tap.jpg" alt="Setelah kotak kuning diketuk: log berubah" loading="lazy">
+    <div class="screenshot-caption">Setelah kotak kuning diketuk: log berubah</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><strong>Kotak kuning</strong> memakai <code>GestureDetector</code> dengan tiga callback. Double tap membalik nilai <code>_disukai</code> sehingga ikon hati berganti.</li>
+  <li><strong>Chip "Geser saya"</strong> memakai <code>onHorizontalDragUpdate</code>. <code>details.delta.dx</code> adalah jarak geser jari sejak frame sebelumnya; nilainya dijumlahkan lalu dibatasi dengan <code>clamp(0, 200)</code>.</li>
+  <li><strong>Kartu Pemrograman Mobile</strong> memakai pola <code>Material</code> + <code>InkWell</code>. Nilai <code>borderRadius</code> diberikan ke keduanya agar riak ikut melengkung.</li>
+  <li><strong>Kartu Basis Data</strong> memakai <code>Card</code>, yang sudah berupa Material. <code>clipBehavior: Clip.antiAlias</code> memotong riak agar tidak keluar dari sudut kartu.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Tips</h4><p>Untuk baris daftar, <code>ListTile</code> sudah punya <code>onTap</code> dan efek riak sendiri, jadi tidak perlu dibungkus InkWell. Untuk tombol, gunakan widget tombol bawaan. InkWell paling berguna untuk kartu atau tata letak kustom.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Riak InkWell tidak terlihat.</strong> Biasanya karena tidak ada <code>Material</code> di atasnya, atau anak InkWell adalah <code>Container</code> berwarna yang menutupi riak.</li>
+  <li><strong>Area kosong di GestureDetector tidak bisa ditekan.</strong> Secara bawaan hanya bagian yang "terlihat" yang menerima sentuhan. Tambahkan <code>behavior: HitTestBehavior.opaque</code> jika seluruh area harus responsif.</li>
+  <li><strong>Memasang GestureDetector di atas tombol.</strong> Tombol sudah menangani sentuhannya sendiri, sehingga kedua penangan bisa saling berebut.</li>
+</ul></div>

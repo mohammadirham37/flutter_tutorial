@@ -1,0 +1,176 @@
+<p class="lead"><code>Row</code> tidak pernah pindah baris: jika anaknya terlalu banyak, terjadi overflow. <strong><code>Wrap</code></strong> menyusun anak berderet seperti Row, tetapi otomatis <strong>turun ke baris baru</strong> saat ruangnya habis, seperti kata-kata dalam paragraf.</p>
+
+<h4>Row vs Wrap</h4>
+<pre><code class="language-text">Row  (overflow):  [Flutter] [Dart] [Firebase] [Supabase] [Hi▓▓▓▓
+Wrap (rapi)    :  [Flutter] [Dart] [Firebase]
+                  [Supabase] [Hive] [REST API]
+</code></pre>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">Wrap(
+  spacing: 8,      // jarak horizontal antar anak
+  runSpacing: 8,   // jarak vertikal antar baris
+  children: const [
+    Chip(label: Text('Flutter')),
+    Chip(label: Text('Dart')),
+    Chip(label: Text('Firebase')),
+    Chip(label: Text('Supabase')),
+    Chip(label: Text('Hive')),
+  ],
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/wrap-1.jpg" alt="Chip di dalam Wrap turun baris otomatis" loading="lazy">
+    <div class="screenshot-caption">Chip di dalam Wrap turun baris otomatis</div>
+  </div>
+</div>
+
+<h4>Properti penting</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Properti</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>direction</code></td><td><code>Axis.horizontal</code> (default) atau <code>Axis.vertical</code>.</td></tr>
+      <tr><td><code>spacing</code></td><td>Jarak antar anak dalam satu baris.</td></tr>
+      <tr><td><code>runSpacing</code></td><td>Jarak antar baris.</td></tr>
+      <tr><td><code>alignment</code></td><td>Perataan anak di setiap baris: <code>WrapAlignment.start</code>, <code>center</code>, <code>spaceBetween</code>, dll.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh lengkap: pilih minat dan menu ikon</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: ThemeData(colorSchemeSeed: Colors.indigo),
+    home: const DemoWrap(),
+  ));
+}
+
+class DemoWrap extends StatefulWidget {
+  const DemoWrap({super.key});
+
+  @override
+  State&lt;DemoWrap&gt; createState() =&gt; _DemoWrapState();
+}
+
+class _DemoWrapState extends State&lt;DemoWrap&gt; {
+  final List&lt;String&gt; _topik = [
+    'Mobile', 'Web', 'AI', 'Data Science', 'Keamanan Siber',
+    'IoT', 'Game', 'UI/UX', 'Cloud', 'Jaringan',
+  ];
+  final Set&lt;String&gt; _dipilih = {'Mobile'};
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Demo Wrap')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text('Pilih minat peminatan (${_dipilih.length} dipilih):'),
+          const SizedBox(height: 8),
+          // 1. Chip yang bisa dipilih, otomatis turun baris
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final t in _topik)
+                FilterChip(
+                  label: Text(t),
+                  selected: _dipilih.contains(t),
+                  onSelected: (pilih) {
+                    setState(() {
+                      if (pilih) {
+                        _dipilih.add(t);
+                      } else {
+                        _dipilih.remove(t);
+                      }
+                    });
+                  },
+                ),
+            ],
+          ),
+          const Divider(height: 32),
+          const Text('Menu cepat (rata tengah):'),
+          const SizedBox(height: 8),
+          // 2. Menu ikon dengan lebar tetap, rata tengah
+          const Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 16,
+            runSpacing: 16,
+            children: [
+              MenuIkon(ikon: Icons.edit_note, label: 'KRS'),
+              MenuIkon(ikon: Icons.calendar_month, label: 'Jadwal'),
+              MenuIkon(ikon: Icons.grade, label: 'Nilai'),
+              MenuIkon(ikon: Icons.payments, label: 'UKT'),
+              MenuIkon(ikon: Icons.local_library, label: 'Perpus'),
+              MenuIkon(ikon: Icons.campaign, label: 'Info'),
+              MenuIkon(ikon: Icons.event_available, label: 'Presensi'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MenuIkon extends StatelessWidget {
+  final IconData ikon;
+  final String label;
+
+  const MenuIkon({super.key, required this.ikon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 72,
+      child: Column(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: warna.primaryContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(ikon, color: warna.onPrimaryContainer),
+          ),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/wrap-2.jpg" alt="FilterChip dan menu ikon di dalam Wrap" loading="lazy">
+    <div class="screenshot-caption">FilterChip dan menu ikon di dalam Wrap</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/wrap-dipilih.jpg" alt="Setelah memilih beberapa minat" loading="lazy">
+    <div class="screenshot-caption">Setelah memilih beberapa minat</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><code>FilterChip</code> adalah chip yang bisa dipilih. Pilihan disimpan di <code>Set</code> agar tidak ada nama ganda.</li>
+  <li>Setiap <code>MenuIkon</code> lebarnya tetap 72 px. Di HP sempit menjadi 4 per baris, di HP lebar atau landscape lebih banyak per baris, tanpa kode tambahan.</li>
+  <li><code>WrapAlignment.center</code> membuat baris terakhir yang tidak penuh tetap di tengah.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Memakai Expanded di dalam Wrap.</strong> Wrap bukan Flex, jadi Expanded tidak bekerja dan memicu error.</li>
+  <li><strong>Memakai Wrap untuk ratusan item.</strong> Wrap membangun semua anak sekaligus. Untuk daftar panjang, gunakan <code>GridView.builder</code> (Modul 06).</li>
+  <li><strong>Lupa <code>runSpacing</code></strong> sehingga baris-baris saling menempel.</li>
+</ul></div>

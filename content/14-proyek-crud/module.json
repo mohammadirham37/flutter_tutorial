@@ -1,0 +1,192 @@
+{
+  "id": "modul-proyek-crud",
+  "badge": "Proyek Bagian 2",
+  "category": "Proyek",
+  "title": "Proyek Catatan Kuliah (2): CRUD Supabase & Cache Offline Hive",
+  "duration": "Pertemuan 14 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 11: Hive",
+    "Modul 12: Supabase",
+    "Modul 13: Proyek Catatan Kuliah (1)"
+  ],
+  "summary": "Melanjutkan proyek Catatan Kuliah: membuat tabel notes dengan RLS dan trigger updated_at, model Note, data source remote (Supabase) dan lokal (Hive), repository dengan fallback offline, NotesProvider dengan pencarian dan optimistic delete, halaman daftar/form/detail, logout yang membersihkan cache, unit test, listing lengkap seluruh file, serta troubleshooting.",
+  "learningOutcomes": [
+    "Merancang tabel milik user dengan default auth.uid(), constraint, index, empat policy RLS, dan trigger updated_at.",
+    "Membuat model dengan fromJson, toJson (cache), dan toMap (payload insert/update).",
+    "Memisahkan NoteRemoteDataSource (Supabase) dan NoteLocalDataSource (Hive Map) lalu menggabungkannya di NoteRepository.",
+    "Menerapkan strategi network first, cache fallback beserta penanda mode offline.",
+    "Mengelola state daftar, pencarian, filter, dan optimistic delete dengan rollback di NotesProvider.",
+    "Membangun UI daftar dengan RefreshIndicator, empty/loading/error state, Dismissible, serta satu form untuk tambah dan edit.",
+    "Menulis unit test repository dan Hive memakai fake data source dan folder sementara.",
+    "Mendiagnosis error umum seperti 42501 RLS, tabel belum dibuat, dan initialize yang terlewat."
+  ],
+  "sections": [
+    {
+      "id": "proyek-crud-tabel-notes",
+      "title": "1. Tabel notes, RLS & Trigger updated_at",
+      "file": "01-tabel-notes.html"
+    },
+    {
+      "id": "proyek-crud-model",
+      "title": "2. Model Note (fromJson, toJson, toMap)",
+      "file": "02-model-note.html"
+    },
+    {
+      "id": "proyek-crud-remote",
+      "title": "3. NoteRemoteDataSource: CRUD Supabase",
+      "file": "03-remote-data-source.html"
+    },
+    {
+      "id": "proyek-crud-local",
+      "title": "4. NoteLocalDataSource: Cache Hive",
+      "file": "04-local-data-source.html"
+    },
+    {
+      "id": "proyek-crud-repository",
+      "title": "5. NoteRepository & Mode Offline",
+      "file": "05-repository.html"
+    },
+    {
+      "id": "proyek-crud-provider",
+      "title": "6. NotesProvider & Optimistic Delete",
+      "file": "06-notes-provider.html"
+    },
+    {
+      "id": "proyek-crud-home",
+      "title": "7. HomeScreen: Daftar, Cari, Filter, Hapus",
+      "file": "07-home-screen.html"
+    },
+    {
+      "id": "proyek-crud-form",
+      "title": "8. Form Tambah/Edit & Detail Catatan",
+      "file": "08-form-detail.html"
+    },
+    {
+      "id": "proyek-crud-main",
+      "title": "9. main.dart Final & Logout yang Aman",
+      "file": "09-main-logout.html"
+    },
+    {
+      "id": "proyek-crud-test",
+      "title": "10. Unit Test Repository & Hive",
+      "file": "10-unit-test.html"
+    },
+    {
+      "id": "proyek-crud-listing",
+      "title": "11. Listing Lengkap Seluruh File",
+      "file": "11-listing-lengkap.html"
+    },
+    {
+      "id": "proyek-crud-troubleshooting",
+      "title": "12. Troubleshooting & Ide Pengembangan",
+      "file": "12-troubleshooting.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 14: CRUD Catatan Kuliah dengan Supabase + Cache Offline",
+    "objective": "Menyelesaikan aplikasi Catatan Kuliah dengan CRUD penuh ke Supabase, keamanan RLS per user, dan kemampuan membaca data saat offline dari cache Hive.",
+    "instructions": [
+      "Jalankan SQL tabel <code>notes</code> + 4 policy RLS + trigger <code>updated_at</code>. Simpan di <code>supabase/setup.sql</code>.",
+      "Implementasikan <code>Note</code>, <code>NoteRemoteDataSource</code>, <code>NoteLocalDataSource</code>, dan <code>NoteRepository</code> (section 2–5).",
+      "Implementasikan <code>NotesProvider</code> dengan pencarian, filter kategori, dan optimistic delete + rollback (section 6).",
+      "Ganti HomeScreen sementara dengan HomeScreen final, lalu buat NoteFormScreen (tambah & edit) dan NoteDetailScreen (section 7–8).",
+      "Perbarui <code>main.dart</code> dan pastikan logout membersihkan cache Hive (section 9).",
+      "Tambahkan dua file unit test, lalu jalankan <code>flutter test</code> hingga semua lulus (section 10).",
+      "Uji RLS dengan dua akun berbeda: catatan akun A tidak boleh terlihat oleh akun B.",
+      "Uji mode offline: banner muncul, data cache tampil, tambah catatan gagal dengan pesan jelas, hapus catatan di-rollback.",
+      "Kerjakan minimal satu ide pengembangan dari section 12 (misalnya pin catatan atau realtime)."
+    ],
+    "expectedOutput": "Aplikasi lengkap: login/register, daftar catatan milik sendiri dengan pencarian dan filter, tambah/edit/hapus tersimpan di Supabase, banner mode offline dengan data dari Hive, logout membersihkan cache, flutter analyze bersih, dan flutter test lulus.",
+    "rubric": "SQL notes + RLS + trigger benar dan teruji 2 akun (20%), Lapisan data remote/local/repository + fallback offline (25%), NotesProvider: search, filter, optimistic delete + rollback (15%), UI: list, refresh, empty/error/loading, Dismissible, form tambah/edit (20%), Unit test lulus (10%), Fitur pengembangan + laporan (10%)."
+  },
+  "quiz": [
+    {
+      "question": "Mengapa kolom user_id pada tabel notes diberi 'default auth.uid()'?",
+      "options": [
+        "Agar setiap catatan memiliki id unik",
+        "Agar database otomatis mengisi pemilik catatan dari token login, sehingga aplikasi tidak perlu mengirim user_id",
+        "Agar catatan bisa dibaca semua user",
+        "Agar RLS tidak diperlukan lagi"
+      ],
+      "correctIndex": 1,
+      "explanation": "auth.uid() mengembalikan id user dari token request. Dengan default ini, insert cukup mengirim title/content/category, dan policy with check memastikan nilainya cocok."
+    },
+    {
+      "question": "Dalam NoteRepository.getNotes(), apa yang terjadi jika remote melempar PostgrestException?",
+      "options": [
+        "Data diambil dari cache Hive",
+        "Exception diteruskan (rethrow) karena itu error dari server, bukan masalah koneksi",
+        "Aplikasi otomatis logout",
+        "Exception diabaikan dan mengembalikan list kosong"
+      ],
+      "correctIndex": 1,
+      "explanation": "PostgrestException berarti server menjawab tetapi menolak (misalnya RLS atau tabel tidak ada). Menyembunyikannya dengan data cache akan menutupi bug yang harus diperbaiki."
+    },
+    {
+      "question": "Mengapa NoteLocalDataSource menyimpan catatan dengan key berupa id catatan?",
+      "options": [
+        "Karena Hive hanya menerima key String",
+        "Agar update dan delete satu catatan bisa langsung dengan put(id)/delete(id) tanpa mencari indeks",
+        "Agar data terenkripsi",
+        "Agar urutan otomatis berdasarkan tanggal"
+      ],
+      "correctIndex": 1,
+      "explanation": "Key yang sama dengan primary key server membuat sinkronisasi cache sederhana: put menimpa versi lama dan delete menghapus tepat satu catatan."
+    },
+    {
+      "question": "Apa yang dimaksud dengan optimistic delete pada NotesProvider?",
+      "options": [
+        "Menghapus data di server tanpa konfirmasi",
+        "Menghapus item dari UI lebih dulu, lalu mengirim ke server, dan mengembalikannya (rollback) jika server gagal",
+        "Menghapus seluruh catatan sekaligus",
+        "Menunda penghapusan sampai aplikasi ditutup"
+      ],
+      "correctIndex": 1,
+      "explanation": "UI diperbarui seolah-olah server pasti berhasil sehingga terasa instan. Jika gagal, item disisipkan kembali di index semula dan user diberi tahu."
+    },
+    {
+      "question": "Mengapa loadNotes() dipanggil di dalam WidgetsBinding.instance.addPostFrameCallback pada initState HomeScreen?",
+      "options": [
+        "Agar data dimuat dua kali",
+        "Karena loadNotes langsung memanggil notifyListeners, dan memanggilnya saat build pertama memicu error 'called during build'",
+        "Karena Supabase hanya bisa dipanggil setelah frame pertama",
+        "Agar animasi lebih halus"
+      ],
+      "correctIndex": 1,
+      "explanation": "Menunda sampai frame pertama selesai mencegah perubahan state provider ketika widget tree masih dibangun."
+    },
+    {
+      "question": "Saat logout, mengapa NotesProvider.clear() dipanggil sebelum AuthProvider.signOut()?",
+      "options": [
+        "Agar logout lebih cepat",
+        "Agar state dan cache Hive milik user lama sudah bersih sebelum AuthGate berpindah ke LoginScreen, sehingga tidak bocor ke user berikutnya",
+        "Karena signOut menghapus Hive secara otomatis",
+        "Urutannya tidak berpengaruh"
+      ],
+      "correctIndex": 1,
+      "explanation": "Begitu signOut selesai, AuthGate langsung membuang HomeScreen. Membersihkan lebih dulu menjamin tidak ada catatan user lama yang tertinggal di memori maupun di disk."
+    },
+    {
+      "question": "Mengapa NoteDetailScreen menerima noteId lalu memakai context.select, alih-alih menerima objek Note langsung?",
+      "options": [
+        "Karena objek Note tidak bisa dikirim lewat Navigator",
+        "Agar halaman selalu menampilkan versi terbaru dari provider (misalnya setelah diedit) dan hanya rebuild bila catatan itu berubah",
+        "Agar memakai lebih sedikit memori",
+        "Karena context.watch dilarang"
+      ],
+      "correctIndex": 1,
+      "explanation": "Objek yang dikirim lewat constructor tidak ikut berubah setelah diedit. Dengan select berdasarkan id, detail reaktif terhadap perubahan catatan tersebut saja."
+    },
+    {
+      "question": "Di unit test, mengapa dipakai Hive.init(tempDir.path) dan bukan Hive.initFlutter()?",
+      "options": [
+        "Karena Hive.init lebih cepat",
+        "Karena unit test berjalan tanpa plugin platform (path_provider), jadi folder penyimpanan harus ditentukan manual",
+        "Karena initFlutter sudah deprecated",
+        "Karena test tidak boleh menyimpan file"
+      ],
+      "correctIndex": 1,
+      "explanation": "initFlutter memakai path_provider untuk mencari folder aplikasi di HP. Di lingkungan test, kita memberi folder sementara secara eksplisit lalu menghapusnya di tearDown."
+    }
+  ]
+}

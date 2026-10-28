@@ -1,0 +1,175 @@
+<p class="lead">Setiap widget buatan sendiri adalah turunan dari salah satu dari dua class: <strong><code>StatelessWidget</code></strong> (tampilan tidak berubah sendiri) atau <strong><code>StatefulWidget</code></strong> (punya data yang bisa berubah dan membuat tampilan digambar ulang).</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead>
+      <tr>
+        <th>Aspek</th>
+        <th>StatelessWidget</th>
+        <th>StatefulWidget</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Karakteristik</strong></td>
+        <td>Statis, tidak berubah sepanjang waktu</td>
+        <td>Dinamis, dapat berubah berdasarkan interaksi atau data</td>
+      </tr>
+      <tr>
+        <td><strong>State</strong></td>
+        <td>Tidak memiliki objek State internal</td>
+        <td>Memiliki objek <code>State&lt;T&gt;</code> yang persisten</td>
+      </tr>
+      <tr>
+        <td><strong>Jumlah class</strong></td>
+        <td>1 class</td>
+        <td>2 class: widget + State-nya</td>
+      </tr>
+      <tr>
+        <td><strong>Kapan Digunakan?</strong></td>
+        <td>Label teks statis, icon, layout struktur, kartu profil statis</td>
+        <td>Formulir input, checkbox toggle, animasi, data hasil request API</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Pertanyaan penentu</h4>
+<p>Tanyakan: <em>"Apakah widget ini perlu mengingat sesuatu yang bisa berubah saat aplikasi berjalan?"</em> Jika <strong>tidak</strong>, pakai StatelessWidget. Jika <strong>ya</strong> (angka penghitung, status centang, teks yang diketik), pakai StatefulWidget.</p>
+
+<h4>Kerangka StatelessWidget</h4>
+<pre><code class="language-dart">class SapaanMahasiswa extends StatelessWidget {
+  // Data masuk lewat konstruktor dan bersifat final (tidak bisa diubah)
+  final String nama;
+
+  const SapaanMahasiswa({super.key, required this.nama});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text('Halo, $nama!');
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/stateless-vs-stateful-1.jpg" alt="Widget SapaanMahasiswa dengan nama Nadia" loading="lazy">
+    <div class="screenshot-caption">Widget SapaanMahasiswa dengan nama Nadia</div>
+  </div>
+</div>
+<p>Tiga bagian wajib: <strong>field <code>final</code></strong> untuk data, <strong>konstruktor <code>const</code></strong> dengan <code>super.key</code>, dan <strong>method <code>build</code></strong> yang mengembalikan widget.</p>
+
+<h4>Contoh lengkap StatelessWidget: kartu profil dosen</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Dosen Pengampu')),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: const [
+            // Satu class dipakai berulang dengan data berbeda
+            KartuDosen(
+              nama: 'Dr. Ratna Dewi, S.Kom., M.Kom.',
+              bidang: 'Rekayasa Perangkat Lunak',
+              ruang: 'Gedung E, Lt. 2',
+            ),
+            KartuDosen(
+              nama: 'Andi Wijaya, S.T., M.Eng.',
+              bidang: 'Jaringan Komputer',
+              ruang: 'Gedung E, Lt. 3',
+            ),
+            KartuDosen(
+              nama: 'Siti Rahma, S.Kom., M.Cs.',
+              bidang: 'Kecerdasan Buatan',
+              ruang: 'Gedung F, Lt. 1',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class KartuDosen extends StatelessWidget {
+  final String nama;
+  final String bidang;
+  final String ruang;
+
+  const KartuDosen({
+    super.key,
+    required this.nama,
+    required this.bidang,
+    required this.ruang,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 28,
+              // Ambil huruf pertama nama sebagai inisial
+              child: Text(nama.substring(0, 1), style: const TextStyle(fontSize: 22)),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(nama, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(bidang),
+                  Row(
+                    children: [
+                      const Icon(Icons.room, size: 16),
+                      const SizedBox(width: 4),
+                      Text(ruang, style: const TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/stateless-vs-stateful-2.jpg" alt="Satu class KartuDosen dipakai untuk tiga dosen" loading="lazy">
+    <div class="screenshot-caption">Satu class KartuDosen dipakai untuk tiga dosen</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><code>KartuDosen</code> tidak menyimpan data yang berubah. Semua datanya datang dari luar (parameter konstruktor), jadi cocok sebagai StatelessWidget.</li>
+  <li>Karena konstruktornya <code>const</code> dan datanya berupa string literal, daftar <code>children</code> di <code>ListView</code> bisa diberi <code>const</code>.</li>
+  <li><code>Expanded</code> mencegah teks nama yang panjang menabrak tepi layar (dibahas di Modul 04).</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ "Stateless" bukan berarti tidak pernah digambar ulang</h4><p>StatelessWidget tetap bisa tampil berbeda jika <strong>induknya</strong> membangunnya ulang dengan data baru. Yang tidak bisa adalah mengubah tampilannya <strong>sendiri</strong>. Untuk itu kita perlu StatefulWidget di section berikutnya.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Mencoba mengubah field di StatelessWidget (<code>nama = 'baru'</code>). Field-nya <code>final</code>, jadi akan error.</li>
+  <li>Langsung memakai StatefulWidget untuk semua hal "berjaga-jaga". Mulailah dari StatelessWidget, ubah ke Stateful hanya jika memang butuh state.</li>
+</ul></div>

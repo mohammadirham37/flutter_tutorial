@@ -1,0 +1,73 @@
+<p>Hampir semua mahasiswa menemui setidaknya satu error saat setup. Jangan panik: baca pesan <code>flutter doctor</code>, cari pesan yang sama di tabel ini, lalu jalankan perbaikannya. Setelah memperbaiki, selalu jalankan ulang <code>flutter doctor</code>.</p>
+
+<h4>1. Android license status unknown</h4>
+<pre><code class="language-text">[!] Android toolchain - develop for Android devices
+    ! Some Android licenses not accepted. To resolve this, run: flutter doctor --android-licenses</code></pre>
+<p><strong>Penyebab:</strong> lisensi Android SDK belum disetujui. <strong>Perbaikan:</strong></p>
+<pre><code class="language-bash">flutter doctor --android-licenses
+# Ketik y lalu Enter untuk setiap lisensi yang ditanyakan</code></pre>
+
+<h4>2. cmdline-tools component is missing</h4>
+<pre><code class="language-text">[✗] Android toolchain - develop for Android devices
+    ✗ cmdline-tools component is missing</code></pre>
+<p><strong>Penyebab:</strong> Android SDK Command-line Tools belum dipasang (dan perintah lisensi di atas juga akan gagal karenanya). <strong>Perbaikan:</strong> buka Android Studio &gt; <em>Settings</em> &gt; <em>Languages &amp; Frameworks</em> &gt; <em>Android SDK</em> &gt; tab <em>SDK Tools</em> &gt; centang <strong>Android SDK Command-line Tools (latest)</strong> &gt; <em>Apply</em>. Jika Flutter tidak menemukan lokasi SDK, beri tahu secara manual:</p>
+<pre><code class="language-bash"># macOS (lokasi default)
+flutter config --android-sdk "$HOME/Library/Android/sdk"
+
+# Windows (lokasi default, ganti NamaUser)
+flutter config --android-sdk "C:\Users\NamaUser\AppData\Local\Android\Sdk"</code></pre>
+
+<h4>3. JAVA_HOME / versi Java tidak cocok</h4>
+<pre><code class="language-text">ERROR: JAVA_HOME is set to an invalid directory
+# atau saat build:
+Unsupported class file major version 65</code></pre>
+<p><strong>Penyebab:</strong> Gradle memakai Java yang salah, biasanya JDK lama yang terpasang terpisah. Cara paling aman adalah memakai JDK bawaan Android Studio (folder <code>jbr</code>):</p>
+<pre><code class="language-bash"># Arahkan Flutter ke JDK bawaan Android Studio (macOS)
+flutter config --jdk-dir "/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+
+# Atau set JAVA_HOME di ~/.zshrc (macOS), lalu: source ~/.zshrc
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+
+# Windows (PowerShell), lalu tutup dan buka ulang terminal
+setx JAVA_HOME "C:\Program Files\Android\Android Studio\jbr"
+
+# Cek hasilnya
+flutter doctor -v</code></pre>
+
+<h4>4. CocoaPods not installed (khusus macOS untuk iOS)</h4>
+<pre><code class="language-text">[!] Xcode - develop for iOS and macOS
+    ✗ CocoaPods not installed.</code></pre>
+<p><strong>Penyebab:</strong> plugin iOS dikelola oleh CocoaPods. <strong>Perbaikan</strong> (pilih salah satu):</p>
+<pre><code class="language-bash"># Lewat Homebrew (disarankan di Apple Silicon)
+brew install cocoapods
+
+# Atau lewat RubyGems
+sudo gem install cocoapods
+
+# Jika build iOS gagal setelah menambah package
+cd ios
+pod repo update
+pod install
+cd ..</code></pre>
+<p>Sekalian pastikan Xcode sudah dikonfigurasi:</p>
+<pre><code class="language-bash">sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -runFirstLaunch</code></pre>
+
+<h4>5. Error lain yang sering muncul</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Gejala</th><th>Penyebab</th><th>Perbaikan</th></tr></thead>
+    <tbody>
+      <tr><td><code>'flutter' is not recognized</code> / <code>command not found: flutter</code></td><td>PATH belum berisi <code>flutter/bin</code></td><td>Ulangi Langkah 2, lalu <strong>buka terminal baru</strong></td></tr>
+      <tr><td><code>No devices found</code></td><td>Emulator belum jalan atau USB debugging belum diizinkan</td><td><code>flutter emulators --launch &lt;id&gt;</code> atau cabut-colok kabel dan izinkan dialog di HP</td></tr>
+      <tr><td>Build pertama sangat lama / <code>Timeout waiting to lock</code></td><td>Gradle sedang mengunduh dependensi pertama kali</td><td>Tunggu dengan internet stabil. Jika macet, jalankan <code>flutter clean</code> lalu <code>flutter run</code> lagi</td></tr>
+      <tr><td><code>Waiting for another flutter command to release the startup lock</code></td><td>Ada proses flutter lain yang masih jalan</td><td>Tutup terminal/IDE lain. Jika tetap macet, hapus file <code>flutter/bin/cache/lockfile</code></td></tr>
+      <tr><td>Emulator hitam / sangat lambat</td><td>Akselerasi hardware mati atau RAM kurang</td><td>Aktifkan virtualisasi (VT-x/AMD-V) di BIOS, atau gunakan HP fisik</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-tip">
+  <h4>💡 Cara bertanya yang baik saat error</h4>
+  <p>Saat bertanya ke asisten praktikum atau forum, sertakan: (1) hasil lengkap <code>flutter doctor -v</code>, (2) perintah yang Anda jalankan, (3) potongan pesan error <strong>paling atas</strong> (bukan hanya baris terakhir). Pesan error yang lengkap biasanya sudah menyebutkan solusinya.</p>
+</div>

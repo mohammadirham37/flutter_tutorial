@@ -1,0 +1,156 @@
+<p class="lead">Kalau data di box berubah, bagaimana UI ikut berubah? Kamu bisa saja memanggil <code>setState</code> setelah setiap <code>put</code>, tetapi Hive menyediakan cara yang lebih rapi: <code>box.listenable()</code> yang dipasangkan dengan widget <code>ValueListenableBuilder</code>.</p>
+
+<h4>Konsep</h4>
+<ul>
+  <li><code>box.listenable()</code> (dari <code>hive_ce_flutter</code>) menghasilkan <code>ValueListenable&lt;Box&gt;</code> yang memberi kabar setiap ada <code>put</code>, <code>add</code>, <code>delete</code>, atau <code>clear</code>.</li>
+  <li><code>ValueListenableBuilder</code> menjalankan ulang fungsi <code>builder</code>-nya setiap kabar itu datang.</li>
+  <li>Hasilnya: cukup tulis ke box, dan UI akan menyesuaikan sendiri. Tidak perlu <code>setState</code>.</li>
+</ul>
+
+<pre><code class="language-dart">ValueListenableBuilder&lt;Box&lt;String&gt;&gt;(
+  valueListenable: Hive.box&lt;String&gt;('tugas_cepat').listenable(),
+  builder: (context, box, child) {
+    return Text('Jumlah tugas: ${box.length}');
+  },
+)
+</code></pre>
+
+<h4>Contoh lengkap: daftar Tugas Cepat</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  await Hive.openBox&lt;String&gt;('tugas_cepat');
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const TugasScreen(),
+    );
+  }
+}
+
+class TugasScreen extends StatefulWidget {
+  const TugasScreen({super.key});
+
+  @override
+  State&lt;TugasScreen&gt; createState() =&gt; _TugasScreenState();
+}
+
+class _TugasScreenState extends State&lt;TugasScreen&gt; {
+  // Box sudah dibuka di main(), di sini cukup diambil
+  final Box&lt;String&gt; _box = Hive.box&lt;String&gt;('tugas_cepat');
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _tambah() {
+    final teks = _controller.text.trim();
+    if (teks.isEmpty) return;
+    _box.add(teks); // TIDAK perlu setState: UI ikut berubah sendiri
+    _controller.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Tugas Cepat')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: const InputDecoration(
+                      hintText: 'Tulis tugas...',
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) =&gt; _tambah(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(onPressed: _tambah, child: const Text('Tambah')),
+              ],
+            ),
+          ),
+          Expanded(
+            // Builder ini dijalankan ulang setiap isi box berubah
+            child: ValueListenableBuilder&lt;Box&lt;String&gt;&gt;(
+              valueListenable: _box.listenable(),
+              builder: (context, box, _) {
+                if (box.isEmpty) {
+                  return const Center(child: Text('Belum ada tugas'));
+                }
+                final keys = box.keys.toList();
+                return ListView.builder(
+                  itemCount: keys.length,
+                  itemBuilder: (context, index) {
+                    final key = keys[index];
+                    return ListTile(
+                      leading: CircleAvatar(child: Text('${index + 1}')),
+                      title: Text(box.get(key) ?? ''),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () =&gt; box.delete(key),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/tugas-cepat-kosong.jpg" alt="Aplikasi Tugas Cepat saat box masih kosong" loading="lazy">
+    <div class="screenshot-caption">Box masih kosong</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/tugas-cepat-isi.jpg" alt="Aplikasi Tugas Cepat setelah tiga tugas ditambahkan" loading="lazy">
+    <div class="screenshot-caption">Setelah menambah tugas: list langsung diperbarui tanpa setState</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>_box.add(teks)</code> di <code>_tambah()</code> tidak diikuti <code>setState</code>. Builder tetap dijalankan ulang karena mendengarkan box.</li>
+  <li>Di dalam builder kita memakai <code>box.keys.toList()</code>, lalu menghapus berdasarkan <strong>key</strong> (<code>box.delete(key)</code>), bukan index. Ingat bagian 3: key dari <code>add()</code> terus naik dan tidak ikut bergeser saat ada yang dihapus.</li>
+  <li><code>setState</code> masih wajar dipakai untuk state UI lain yang bukan isi box, misalnya teks di <code>TextField</code>.</li>
+</ul>
+
+<h4>Hanya mendengarkan key tertentu</h4>
+<p>Jika widget hanya peduli pada satu atau dua key, berikan parameter <code>keys</code> agar widget tidak ikut di-rebuild saat key lain berubah:</p>
+<pre><code class="language-dart">ValueListenableBuilder&lt;Box&gt;(
+  valueListenable: Hive.box('pengaturan').listenable(keys: ['tema_gelap']),
+  builder: (context, box, _) {
+    final gelap = box.get('tema_gelap', defaultValue: false) as bool;
+    return Icon(gelap ? Icons.dark_mode : Icons.light_mode);
+  },
+)
+</code></pre>
+
+<div class="callout callout-tip"><h4>💡 Kapan cukup ValueListenableBuilder, kapan butuh Provider?</h4><p><code>ValueListenableBuilder</code> sangat praktis untuk layar sederhana yang langsung menampilkan isi box. Ketika ada logika tambahan (validasi, pencarian, pengurutan, gabungan beberapa sumber data), lebih rapi jika logika itu dipindah ke repository dan Provider. Itu topik bagian berikutnya.</p></div>

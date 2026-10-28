@@ -1,0 +1,206 @@
+<p class="lead">Menggeser baris ke kiri untuk menghapus (<em>swipe to delete</em>) adalah gestur yang sudah akrab bagi pengguna HP. Di Flutter, gestur ini dibuat dengan membungkus item daftar memakai <code>Dismissible</code>.</p>
+
+<h4>Konsep</h4>
+<ul>
+  <li><code>key</code>: <strong>wajib</strong> dan harus unik untuk setiap item, biasanya dari id data: <code>ValueKey(item.id)</code>.</li>
+  <li><code>background</code>: tampilan di balik item saat digeser ke kanan (atau ke dua arah jika <code>secondaryBackground</code> tidak diisi). <code>secondaryBackground</code>: tampilan saat digeser ke kiri.</li>
+  <li><code>direction</code>: membatasi arah geser.</li>
+  <li><code>confirmDismiss</code>: fungsi <code>async</code> yang dipanggil <em>sebelum</em> item hilang. Kembalikan <code>false</code> untuk membatalkan.</li>
+  <li><code>onDismissed</code>: dipanggil setelah item hilang dari layar. Di sini data <strong>wajib</strong> dihapus dari list.</li>
+</ul>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">itemBuilder: (context, index) {
+  final item = _items[index];
+  return Dismissible(
+    key: ValueKey(item), // WAJIB unik dan stabil untuk tiap item
+    direction: DismissDirection.endToStart, // hanya geser ke kiri
+    background: Container(
+      color: Colors.red,
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 20),
+      child: const Icon(Icons.delete, color: Colors.white),
+    ),
+    onDismissed: (direction) {
+      // WAJIB hapus data dari list, kalau tidak akan error
+      setState(() =&gt; _items.removeAt(index));
+    },
+    child: ListTile(title: Text(item)),
+  );
+},
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/dismiss-kecil.jpg" alt="Daftar sederhana; setiap baris bisa digeser ke kiri untuk dihapus" loading="lazy">
+    <div class="screenshot-caption">Daftar sederhana; setiap baris bisa digeser ke kiri untuk dihapus</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: kotak masuk dengan hapus, urungkan, dan arsip</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const KotakMasukScreen(),
+    );
+  }
+}
+
+class Pesan {
+  final int id;
+  final String pengirim;
+  final String isi;
+  bool diarsipkan;
+
+  Pesan(this.id, this.pengirim, this.isi, {this.diarsipkan = false});
+}
+
+class KotakMasukScreen extends StatefulWidget {
+  const KotakMasukScreen({super.key});
+
+  @override
+  State&lt;KotakMasukScreen&gt; createState() =&gt; _KotakMasukScreenState();
+}
+
+class _KotakMasukScreenState extends State&lt;KotakMasukScreen&gt; {
+  final List&lt;Pesan&gt; _pesan = [
+    Pesan(1, 'Akademik', 'Jadwal UTS sudah terbit'),
+    Pesan(2, 'Dosen Wali', 'Silakan konsultasi KRS minggu ini'),
+    Pesan(3, 'Himpunan', 'Rapat anggota hari Jumat'),
+    Pesan(4, 'Perpustakaan', 'Buku yang dipinjam jatuh tempo besok'),
+    Pesan(5, 'BEM', 'Open recruitment panitia dies natalis'),
+    Pesan(6, 'Lab Komputer', 'Praktikum minggu ini diganti online'),
+  ];
+
+  void _hapus(int index) {
+    final terhapus = _pesan[index];
+    setState(() =&gt; _pesan.removeAt(index));
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Pesan dari ${terhapus.pengirim} dihapus'),
+          action: SnackBarAction(
+            label: 'URUNGKAN',
+            // Kembalikan ke posisi semula
+            onPressed: () =&gt; setState(() =&gt; _pesan.insert(index, terhapus)),
+          ),
+        ),
+      );
+  }
+
+  Future&lt;bool&gt; _konfirmasiHapus(Pesan p) async {
+    final yakin = await showDialog&lt;bool&gt;(
+      context: context,
+      builder: (dialogContext) =&gt; AlertDialog(
+        title: const Text('Hapus pesan?'),
+        content: Text('Pesan dari ${p.pengirim} akan dihapus.'),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    return yakin ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Kotak Masuk (${_pesan.length})')),
+      body: _pesan.isEmpty
+          ? const Center(child: Text('Kotak masuk kosong'))
+          : ListView.builder(
+              itemCount: _pesan.length,
+              itemBuilder: (context, index) {
+                final p = _pesan[index];
+                return Dismissible(
+                  // Pakai id unik dari data, BUKAN index
+                  key: ValueKey(p.id),
+                  // Geser ke kanan -&gt; arsip (latar hijau)
+                  background: Container(
+                    color: Colors.green,
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 24),
+                    child: const Icon(Icons.archive, color: Colors.white),
+                  ),
+                  // Geser ke kiri -&gt; hapus (latar merah)
+                  secondaryBackground: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 24),
+                    child: const Icon(Icons.delete, color: Colors.white),
+                  ),
+                  // Dipanggil SEBELUM item hilang. Return false = batal.
+                  confirmDismiss: (direction) async {
+                    if (direction == DismissDirection.startToEnd) {
+                      // Arsip: ubah status saja, item tidak dihapus dari list
+                      setState(() =&gt; p.diarsipkan = !p.diarsipkan);
+                      return false;
+                    }
+                    return _konfirmasiHapus(p);
+                  },
+                  onDismissed: (_) =&gt; _hapus(index),
+                  child: ListTile(
+                    leading: CircleAvatar(child: Text(p.pengirim[0])),
+                    title: Text(p.pengirim),
+                    subtitle: Text(p.isi),
+                    trailing: p.diarsipkan
+                        ? const Icon(Icons.archive, color: Colors.green)
+                        : null,
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/dismiss-awal.jpg" alt="Daftar pesan awal" loading="lazy">
+    <div class="screenshot-caption">Daftar pesan awal</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/dismiss-konfirmasi.jpg" alt="Pesan digeser ke kiri: dialog konfirmasi muncul" loading="lazy">
+    <div class="screenshot-caption">Pesan digeser ke kiri: dialog konfirmasi muncul</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/dismiss-undo.jpg" alt="Setelah dihapus: SnackBar dengan tombol URUNGKAN" loading="lazy">
+    <div class="screenshot-caption">Setelah dihapus: SnackBar dengan tombol URUNGKAN</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><code>key: ValueKey(p.id)</code> memakai id unik dari data. Jika memakai <code>index</code>, setelah satu item dihapus semua index bergeser dan Flutter bisa salah mengenali item.</li>
+  <li>Geser ke <strong>kanan</strong> (<code>startToEnd</code>) hanya mengubah status arsip lalu <code>return false</code>, sehingga item kembali ke tempatnya.</li>
+  <li>Geser ke <strong>kiri</strong> memanggil <code>_konfirmasiHapus</code> yang menampilkan dialog. Hasil dialog (true/false) langsung menjadi hasil <code>confirmDismiss</code>.</li>
+  <li><code>_hapus</code> menyimpan item dan posisinya sebelum menghapus, lalu tombol URUNGKAN memasukkannya kembali dengan <code>insert</code>.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Error "A dismissed Dismissible widget is still part of the tree".</strong> Terjadi jika <code>onDismissed</code> tidak menghapus data dari list. Selalu <code>removeAt</code>/<code>remove</code> lalu <code>setState</code>.</li>
+  <li><strong>Key memakai index atau nama yang bisa kembar.</strong> Gunakan id unik.</li>
+  <li><strong>Menghapus permanen ke database langsung di <code>onDismissed</code> padahal ada tombol Urungkan.</strong> Pada aplikasi nyata, tunda penghapusan permanen sampai SnackBar hilang, atau kembalikan data ke database saat diurungkan.</li>
+</ul></div>

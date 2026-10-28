@@ -1,0 +1,490 @@
+<p class="lead">Memeriksa setiap field satu per satu dengan <code>if</code> cepat menjadi berantakan. Flutter menyediakan <code>Form</code>, <code>TextFormField</code>, dan <code>GlobalKey&lt;FormState&gt;</code> untuk memvalidasi semua field sekaligus. Pola di section ini akan kita pakai lagi untuk layar login dan register pada Modul 13-14.</p>
+
+<h4>Konsep: empat bagian</h4>
+<ol>
+  <li><code>GlobalKey&lt;FormState&gt;</code>: "kunci" untuk mengakses form dari luar, misalnya dari tombol Kirim.</li>
+  <li><code>Form</code>: pembungkus semua field.</li>
+  <li><code>TextFormField</code>: seperti TextField tetapi punya parameter <code>validator</code>.</li>
+  <li><code>_formKey.currentState!.validate()</code>: menjalankan semua validator. Hasilnya <code>true</code> jika semua valid.</li>
+</ol>
+<p>Aturan validator: <strong>kembalikan <code>null</code> jika valid</strong>, atau kembalikan <code>String</code> berisi pesan error jika tidak valid. Pesan itu otomatis tampil merah di bawah field.</p>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">// 1. Kunci untuk mengakses FormState
+final _formKey = GlobalKey&lt;FormState&gt;();
+
+@override
+Widget build(BuildContext context) {
+  // 2. Bungkus semua field dengan Form
+  return Form(
+    key: _formKey,
+    child: Column(
+      children: [
+        // 3. Pakai TextFormField (bukan TextField) agar punya validator
+        TextFormField(
+          decoration: const InputDecoration(labelText: 'Nama'),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Nama wajib diisi'; // String = pesan error
+            }
+            return null; // null = valid
+          },
+        ),
+        FilledButton(
+          onPressed: () {
+            // 4. Jalankan SEMUA validator sekaligus
+            if (_formKey.currentState!.validate()) {
+              debugPrint('Form valid, data boleh diproses');
+            }
+          },
+          child: const Text('Kirim'),
+        ),
+      ],
+    ),
+  );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/validasi-kecil-error.jpg" alt="Setelah Kirim ditekan dengan field kosong" loading="lazy">
+    <div class="screenshot-caption">Setelah Kirim ditekan dengan field kosong</div>
+  </div>
+</div>
+
+<h4>Mengumpulkan aturan dalam kelas Validators</h4>
+<p>Aturan yang sama (email, password) akan dipakai di banyak layar. Lebih rapi jika dikumpulkan dalam satu kelas berisi fungsi <code>static</code>. Pada proyek nyata, kelas ini bisa disimpan di <code>lib/utils/validators.dart</code>.</p>
+<pre><code class="language-dart">class Validators {
+  // Pola email sederhana: teks@teks.domain
+  static final _emailRegex = RegExp(r'^[\w.+-]+@[\w-]+(\.[\w-]+)+$');
+
+  static String? wajib(String? value, String namaField) {
+    if (value == null || value.trim().isEmpty) {
+      return '$namaField wajib diisi';
+    }
+    return null;
+  }
+
+  static String? email(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Email wajib diisi';
+    if (!_emailRegex.hasMatch(value.trim())) return 'Format email tidak valid';
+    return null;
+  }
+
+  static String? password(String? value, {int minPanjang = 8}) {
+    if (value == null || value.isEmpty) return 'Password wajib diisi';
+    if (value.length &lt; minPanjang) return 'Password minimal $minPanjang karakter';
+    if (!RegExp(r'[0-9]').hasMatch(value)) return 'Password harus mengandung angka';
+    return null;
+  }
+
+  static String? konfirmasi(String? value, String passwordAsli) {
+    if (value == null || value.isEmpty) return 'Ulangi password';
+    if (value != passwordAsli) return 'Konfirmasi password tidak sama';
+    return null;
+  }
+}
+</code></pre>
+<ul>
+  <li><code>RegExp(r'^[\w.+-]+@[\w-]+(\.[\w-]+)+$')</code> berarti: satu atau lebih huruf/angka/titik/plus/strip, lalu <code>@</code>, lalu nama domain, lalu minimal satu bagian <code>.xxx</code>. Awalan <code>r</code> membuat string "mentah" sehingga <code>\</code> tidak perlu ditulis dua kali.</li>
+  <li><code>konfirmasi</code> menerima dua nilai: isian konfirmasi dan password asli. Keduanya dibandingkan dengan <code>!=</code>.</li>
+</ul>
+
+<h4>Contoh lengkap: form registrasi akun</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const RegisterScreen(),
+    );
+  }
+}
+
+// ===== Kumpulan validator (nanti bisa dipindah ke lib/utils/validators.dart) =====
+class Validators {
+  static final _emailRegex = RegExp(r'^[\w.+-]+@[\w-]+(\.[\w-]+)+$');
+
+  static String? wajib(String? value, String namaField) {
+    if (value == null || value.trim().isEmpty) return '$namaField wajib diisi';
+    return null;
+  }
+
+  static String? email(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Email wajib diisi';
+    if (!_emailRegex.hasMatch(value.trim())) return 'Format email tidak valid';
+    return null;
+  }
+
+  static String? password(String? value, {int minPanjang = 8}) {
+    if (value == null || value.isEmpty) return 'Password wajib diisi';
+    if (value.length &lt; minPanjang) return 'Password minimal $minPanjang karakter';
+    if (!RegExp(r'[0-9]').hasMatch(value)) return 'Password harus mengandung angka';
+    return null;
+  }
+
+  static String? konfirmasi(String? value, String passwordAsli) {
+    if (value == null || value.isEmpty) return 'Ulangi password';
+    if (value != passwordAsli) return 'Konfirmasi password tidak sama';
+    return null;
+  }
+}
+
+// ===== Layar registrasi =====
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
+
+  @override
+  State&lt;RegisterScreen&gt; createState() =&gt; _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State&lt;RegisterScreen&gt; {
+  final _formKey = GlobalKey&lt;FormState&gt;();
+  final _namaController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _konfirmasiController = TextEditingController();
+
+  bool _sembunyikanPassword = true;
+  bool _sedangMengirim = false;
+
+  @override
+  void dispose() {
+    _namaController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _konfirmasiController.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _daftar() async {
+    // Tutup keyboard lalu validasi semua field
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() =&gt; _sedangMengirim = true);
+    // Simulasi mengirim data ke server selama 2 detik
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return; // widget bisa saja sudah ditutup selama menunggu
+
+    setState(() =&gt; _sedangMengirim = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Akun ${_emailController.text.trim()} berhasil dibuat')),
+    );
+    _formKey.currentState!.reset(); // kosongkan error
+    _namaController.clear();
+    _emailController.clear();
+    _passwordController.clear();
+    _konfirmasiController.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Registrasi Akun')),
+      body: Form(
+        key: _formKey,
+        // Validasi ulang otomatis setelah pengguna mulai berinteraksi
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            TextFormField(
+              controller: _namaController,
+              textInputAction: TextInputAction.next,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Nama Lengkap',
+                prefixIcon: Icon(Icons.person_outline),
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =&gt; Validators.wajib(v, 'Nama'),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                hintText: 'nama@mhs.unsoed.ac.id',
+                prefixIcon: Icon(Icons.email_outlined),
+                border: OutlineInputBorder(),
+              ),
+              validator: Validators.email,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _passwordController,
+              obscureText: _sembunyikanPassword,
+              textInputAction: TextInputAction.next,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                helperText: 'Minimal 8 karakter dan mengandung angka',
+                prefixIcon: const Icon(Icons.lock_outline),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: Icon(_sembunyikanPassword ? Icons.visibility : Icons.visibility_off),
+                  onPressed: () =&gt;
+                      setState(() =&gt; _sembunyikanPassword = !_sembunyikanPassword),
+                ),
+              ),
+              validator: (v) =&gt; Validators.password(v),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _konfirmasiController,
+              obscureText: _sembunyikanPassword,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) =&gt; _daftar(),
+              decoration: const InputDecoration(
+                labelText: 'Konfirmasi Password',
+                prefixIcon: Icon(Icons.lock_reset),
+                border: OutlineInputBorder(),
+              ),
+              // Bandingkan dengan isi controller password
+              validator: (v) =&gt; Validators.konfirmasi(v, _passwordController.text),
+            ),
+            const SizedBox(height: 24),
+            FilledButton(
+              // null saat mengirim -&gt; tombol disabled, cegah klik ganda
+              onPressed: _sedangMengirim ? null : _daftar,
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+              child: _sedangMengirim
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Daftar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/register-kosong.jpg" alt="Form registrasi sebelum diisi" loading="lazy">
+    <div class="screenshot-caption">Form registrasi sebelum diisi</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/register-error.jpg" alt="Daftar ditekan saat form kosong: semua pesan error tampil" loading="lazy">
+    <div class="screenshot-caption">Daftar ditekan saat form kosong: semua pesan error tampil</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/register-tidak-sama.jpg" alt="Email salah format dan konfirmasi password tidak sama" loading="lazy">
+    <div class="screenshot-caption">Email salah format dan konfirmasi password tidak sama</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><code>validator: Validators.email</code> bisa ditulis tanpa lambda karena tipe fungsinya sama persis dengan yang diminta (<code>String? Function(String?)</code>). Untuk fungsi dengan parameter tambahan, pakai lambda: <code>(v) =&gt; Validators.wajib(v, 'Nama')</code>.</li>
+  <li>Validator konfirmasi membaca <code>_passwordController.text</code>, inilah alasan password perlu controller.</li>
+  <li><code>autovalidateMode: AutovalidateMode.onUserInteraction</code> membuat pesan error diperbarui sambil mengetik, tetapi hanya setelah field pernah disentuh. Pengguna tidak langsung "dimarahi" saat layar baru dibuka.</li>
+  <li>Selama <code>_sedangMengirim</code> bernilai <code>true</code>, <code>onPressed</code> menjadi <code>null</code> (tombol nonaktif) dan isi tombol diganti <code>CircularProgressIndicator</code>. Ini mencegah data terkirim dua kali.</li>
+  <li><code>if (!mounted) return;</code> setelah <code>await</code> memastikan layar masih ada sebelum memakai <code>context</code> atau <code>setState</code>.</li>
+  <li><code>_formKey.currentState!.reset()</code> menghapus pesan error; controller dikosongkan dengan <code>clear()</code>.</li>
+</ul>
+
+<h4>Contoh lengkap kedua: form KRS dengan Dropdown dan Checkbox</h4>
+<p>Contoh ini memperlihatkan bahwa <code>DropdownButtonFormField</code> juga punya <code>validator</code> dan ikut diperiksa oleh <code>validate()</code>. Checkbox tidak punya validator, sehingga diperiksa manual dengan <code>if</code>.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: Scaffold(
+        appBar: AppBar(title: const Text("Formulir KRS Mahasiswa")),
+        // PENTING: TextFormField, Checkbox &amp; SnackBar butuh Scaffold/Material sebagai induk.
+        // Jika FormKrsMahasiswa dipasang langsung sebagai home tanpa Scaffold, akan muncul
+        // error "No Material widget found" (layar merah / kosong).
+        body: const FormKrsMahasiswa(),
+      ),
+    );
+  }
+}
+
+
+class FormKrsMahasiswa extends StatefulWidget {
+  const FormKrsMahasiswa({super.key});
+
+  @override
+  State&lt;FormKrsMahasiswa&gt; createState() =&gt; _FormKrsMahasiswaState();
+}
+
+class _FormKrsMahasiswaState extends State&lt;FormKrsMahasiswa&gt; {
+  // 1. Kunci Global untuk mengontrol dan memvalidasi FormState
+  final _formKey = GlobalKey&lt;FormState&gt;();
+
+  // 2. Controller untuk membaca teks dari input field
+  final TextEditingController _nimController = TextEditingController();
+  final TextEditingController _namaController = TextEditingController();
+
+  String? _prodiTerpilih;
+  bool _setujuSyarat = false;
+
+  final List&lt;String&gt; _daftarProdi = [
+    'Teknik Informatika',
+    'Sistem Informasi',
+    'Teknologi Rekayasa Perangkat Lunak',
+    'Sains Data',
+  ];
+
+  // 3. WAJIB dispose controller agar tidak terjadi memory leak!
+  @override
+  void dispose() {
+    _nimController.dispose();
+    _namaController.dispose();
+    super.dispose();
+  }
+
+  void _submitForm() {
+    // Mengeksekusi seluruh fungsi validator pada setiap FormField di dalam Form
+    if (_formKey.currentState!.validate()) {
+      if (!_setujuSyarat) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Anda harus menyetujui syarat &amp; ketentuan KRS!"),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Jika lolos validasi, proses data
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Data Mahasiswa ${_namaController.text} (${_nimController.text}) Berhasil Diverifikasi!"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          // Input NIM dengan Validasi Regex
+          TextFormField(
+            controller: _nimController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: "Nomor Induk Mahasiswa (NIM)",
+              hintText: "Contoh: 21102001",
+              prefixIcon: Icon(Icons.badge),
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return "NIM wajib diisi!";
+              }
+              if (!RegExp(r'^[0-9]{8,}$').hasMatch(value.trim())) {
+                return "NIM harus berupa angka minimal 8 digit!";
+              }
+              return null; // Nilai null berarti VALID
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Input Nama Lengkap
+          TextFormField(
+            controller: _namaController,
+            decoration: const InputDecoration(
+              labelText: "Nama Lengkap Mahasiswa",
+              prefixIcon: Icon(Icons.person),
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return "Nama lengkap tidak boleh kosong!";
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Input Dropdown Pilihan Program Studi
+          DropdownButtonFormField&lt;String&gt;(
+            initialValue: _prodiTerpilih, // Flutter &lt; 3.35: gunakan `value:`
+            isExpanded: true, // Wajib agar nama prodi yang panjang tidak overflow di layar HP kecil
+            decoration: const InputDecoration(
+              labelText: "Program Studi",
+              prefixIcon: Icon(Icons.school),
+              border: OutlineInputBorder(),
+            ),
+            items: _daftarProdi.map((prodi) {
+              return DropdownMenuItem(value: prodi, child: Text(prodi));
+            }).toList(),
+            onChanged: (val) =&gt; setState(() =&gt; _prodiTerpilih = val),
+            validator: (val) =&gt; val == null ? "Silakan pilih program studi!" : null,
+          ),
+          const SizedBox(height: 16),
+
+          // Checkbox Persetujuan
+          CheckboxListTile(
+            title: const Text("Saya menyatakan data rencana studi ini sudah benar."),
+            value: _setujuSyarat,
+            onChanged: (val) =&gt; setState(() =&gt; _setujuSyarat = val ?? false),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+          const SizedBox(height: 24),
+
+          // Tombol Submit
+          FilledButton.icon(
+            onPressed: _submitForm,
+            icon: const Icon(Icons.check_circle),
+            label: const Text("Simpan Data KRS", style: TextStyle(fontSize: 16)),
+            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/krs-error.jpg" alt="Form KRS setelah tombol Simpan ditekan tanpa isian" loading="lazy">
+    <div class="screenshot-caption">Form KRS setelah tombol Simpan ditekan tanpa isian</div>
+  </div>
+</div>
+
+<div class="callout callout-info"><h4>ℹ️ onSaved dan save()</h4><p>Selain <code>validator</code>, TextFormField punya <code>onSaved</code> yang dipanggil oleh <code>_formKey.currentState!.save()</code>. Ini alternatif dari controller: setiap field menyimpan nilainya ke variabel saat <code>save()</code> dipanggil. Pada modul ini kita memakai controller karena lebih mudah dibaca dan bisa dipakai untuk mengosongkan field.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Validator mengembalikan <code>""</code> (string kosong) untuk input valid.</strong> String kosong tetap dianggap error. Yang benar <code>return null;</code>.</li>
+  <li><strong>Memakai <code>TextField</code> di dalam Form.</strong> TextField tidak punya validator. Gunakan <code>TextFormField</code>.</li>
+  <li><strong>Membuat <code>GlobalKey</code> di dalam <code>build</code>.</strong> Key baru di setiap build membuat form kehilangan state. Jadikan field di State.</li>
+  <li><strong>Lupa <code>trim()</code>.</strong> Isian berupa spasi saja akan lolos pemeriksaan <code>isEmpty</code>.</li>
+  <li><strong>Error "No Material widget found".</strong> Form harus berada di dalam <code>Scaffold</code>.</li>
+</ul></div>

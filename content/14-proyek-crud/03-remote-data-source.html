@@ -1,0 +1,70 @@
+<p class="lead"><code>NoteRemoteDataSource</code> berisi semua query Supabase untuk tabel <code>notes</code>. Isinya hanyalah penerapan query dasar dari Modul 12 section 7, yang kini dibungkus dalam satu class.</p>
+
+<h4>File: <code>lib/data/note_remote_data_source.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/data/note_remote_data_source.dart</code></p>
+<pre><code class="language-dart">import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../models/note.dart';
+
+/// Semua operasi CRUD ke tabel `notes` di Supabase.
+/// RLS di database memastikan setiap user hanya melihat barisnya sendiri.
+class NoteRemoteDataSource {
+  NoteRemoteDataSource(this._client);
+
+  final SupabaseClient _client;
+
+  static const String _table = 'notes';
+
+  Future&lt;List&lt;Note&gt;&gt; fetchNotes() async {
+    final rows = await _client
+        .from(_table)
+        .select()
+        .order('updated_at', ascending: false);
+    return rows.map(Note.fromJson).toList();
+  }
+
+  Future&lt;Note&gt; createNote({
+    required String title,
+    required String content,
+    required String category,
+  }) async {
+    final row = await _client
+        .from(_table)
+        .insert({'title': title, 'content': content, 'category': category})
+        .select()
+        .single();
+    return Note.fromJson(row);
+  }
+
+  Future&lt;Note&gt; updateNote(Note note) async {
+    final row = await _client
+        .from(_table)
+        .update(note.toMap())
+        .eq('id', note.id)
+        .select()
+        .single();
+    return Note.fromJson(row);
+  }
+
+  Future&lt;void&gt; deleteNote(String id) async {
+    await _client.from(_table).delete().eq('id', id);
+  }
+}
+</code></pre>
+
+<h4>Penjelasan per method</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Method</th><th>SQL setara</th><th>Catatan</th></tr></thead>
+    <tbody>
+      <tr><td><code>fetchNotes()</code></td><td><code>SELECT * FROM notes ORDER BY updated_at DESC</code></td><td>Tidak ada <code>.eq('user_id', ...)</code> karena RLS sudah memfilter</td></tr>
+      <tr><td><code>createNote()</code></td><td><code>INSERT ... RETURNING *</code></td><td><code>.select().single()</code> mengembalikan baris baru lengkap dengan id dan tanggal dari database</td></tr>
+      <tr><td><code>updateNote()</code></td><td><code>UPDATE ... WHERE id = ? RETURNING *</code></td><td>Mengembalikan <code>updated_at</code> terbaru dari trigger</td></tr>
+      <tr><td><code>deleteNote()</code></td><td><code>DELETE FROM notes WHERE id = ?</code></td><td>Filter <code>id</code> wajib</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-info"><h4>ℹ️ Kenapa insert tidak mengirim <code>user_id</code>?</h4><p>Kolom <code>user_id</code> memiliki <code>default auth.uid()</code>. Jika Anda tetap ingin mengirimnya secara eksplisit, ambil dari <code>Supabase.instance.client.auth.currentUser!.id</code>. Namun mengandalkan default database lebih sederhana dan tidak mungkin salah.</p></div>
+
+<div class="callout callout-tip"><h4>💡 Update jika RLS menolak</h4><p>Jika user mencoba mengubah catatan yang bukan miliknya, policy <code>using</code> membuat 0 baris cocok. Karena kita memanggil <code>.single()</code>, hasil 0 baris berubah menjadi <code>PostgrestException</code> (code <code>PGRST116</code>), sehingga kegagalan tidak lolos diam-diam.</p></div>

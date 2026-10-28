@@ -1,0 +1,58 @@
+<p class="lead">Sebelum menulis kode Flutter, kita siapkan dulu "server"-nya, yaitu sebuah <em>project</em> di Supabase. Semua langkah di bawah gratis dan tidak memerlukan kartu kredit.</p>
+
+<h4>Langkah 1: Membuat akun</h4>
+<ol>
+  <li>Buka <a href="https://supabase.com" target="_blank" rel="noopener">supabase.com</a>, klik <strong>Start your project</strong>.</li>
+  <li>Pilih <strong>Continue with GitHub</strong> (paling cepat) atau daftar dengan email.</li>
+  <li>Saat pertama kali masuk, Anda diminta membuat <strong>Organization</strong>. Isi nama (misalnya <code>praktikum-mobile</code>), pilih tipe <em>Personal</em> dan plan <em>Free</em>.</li>
+</ol>
+
+<h4>Langkah 2: Membuat project baru</h4>
+<ol>
+  <li>Di dashboard klik <strong>New project</strong>.</li>
+  <li><strong>Project name</strong>: <code>catatan-kuliah</code>.</li>
+  <li><strong>Database Password</strong>: klik <em>Generate a password</em>, lalu <strong>simpan</strong> di tempat aman. Password ini adalah password database Postgres (dipakai untuk koneksi langsung ke database), <em>bukan</em> password login aplikasi.</li>
+  <li><strong>Region</strong>: pilih yang paling dekat dengan pengguna, yaitu <strong>Southeast Asia (Singapore)</strong>, agar latensi kecil.</li>
+  <li>Klik <strong>Create new project</strong> dan tunggu 1–2 menit sampai status project siap.</li>
+</ol>
+
+<h4>Langkah 3: Menemukan Project URL dan API key</h4>
+<p>Aplikasi Flutter hanya butuh <strong>dua nilai</strong> untuk terhubung:</p>
+<ol>
+  <li>Klik tombol <strong>Connect</strong> di bagian atas dashboard project, atau buka <strong>Project Settings</strong> (ikon roda gigi) &rarr; <strong>API Keys</strong>.</li>
+  <li><strong>Project URL</strong> berbentuk <code>https://&lt;project-ref&gt;.supabase.co</code>. <code>project-ref</code> adalah 20 huruf acak, sama dengan yang terlihat di address bar dashboard.</li>
+  <li><strong>Publishable key</strong> berbentuk <code>sb_publishable_...</code>. Inilah kunci yang dipasang di aplikasi.</li>
+</ol>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Jenis kunci</th><th>Bentuk</th><th>Boleh di aplikasi Flutter?</th><th>Keterangan</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Publishable key</strong></td><td><code>sb_publishable_...</code></td><td>✅ Ya</td><td>Kunci "publik". Aman ada di aplikasi <em>asalkan RLS aktif</em>. Pengganti anon key.</td></tr>
+      <tr><td>Anon key (legacy)</td><td>JWT panjang <code>eyJhbGciOi...</code></td><td>✅ Ya (cara lama)</td><td>Ada di tab <em>Legacy API Keys</em>. Fungsinya sama dengan publishable key.</td></tr>
+      <tr><td><strong>Secret key</strong></td><td><code>sb_secret_...</code></td><td>❌ TIDAK PERNAH</td><td>Melewati semua RLS (akses penuh). Hanya untuk server/backend.</td></tr>
+      <tr><td>service_role (legacy)</td><td>JWT panjang</td><td>❌ TIDAK PERNAH</td><td>Versi lama dari secret key, sama berbahayanya.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-info"><h4>ℹ️ Publishable key vs anon key</h4><p>Supabase memperkenalkan format kunci baru <code>sb_publishable_...</code> dan <code>sb_secret_...</code>. Package <code>supabase_flutter</code> versi terbaru memakai parameter <code>publishableKey</code> di <code>Supabase.initialize()</code>. Parameter lama <code>anonKey</code> masih ada tetapi sudah <em>deprecated</em>. Jika Anda menemukan tutorial lama yang menulis <code>anonKey: 'eyJ...'</code>, cara itu masih berjalan, tetapi untuk project baru gunakan <code>publishableKey</code>.</p></div>
+
+<div class="callout callout-tip"><h4>💡 Tampilan dashboard berubah?</h4><p>Supabase cukup sering memperbarui tampilan dashboard. Jika menu di atas tidak persis sama, cari kata kunci <strong>API Keys</strong> atau tombol <strong>Connect</strong>. Nilai yang dicari tetap sama, yaitu Project URL dan publishable key.</p></div>
+
+<h4>Langkah 4: Mengenal menu dashboard yang akan sering dipakai</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Menu</th><th>Kegunaan</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Table Editor</strong></td><td>Melihat dan mengedit isi tabel seperti spreadsheet.</td></tr>
+      <tr><td><strong>SQL Editor</strong></td><td>Menjalankan perintah SQL: membuat tabel, policy, trigger. Kita akan banyak memakai menu ini.</td></tr>
+      <tr><td><strong>Authentication</strong></td><td>Daftar user yang sudah register, pengaturan provider login (Email), dan template email.</td></tr>
+      <tr><td><strong>Storage</strong></td><td>Membuat <em>bucket</em> untuk file.</td></tr>
+      <tr><td><strong>Database &rarr; Policies</strong></td><td>Melihat policy RLS setiap tabel (juga tersedia lewat Authentication &rarr; Policies).</td></tr>
+      <tr><td><strong>Logs</strong></td><td>Melihat request yang masuk dan error, berguna saat debugging.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Project gratis bisa di-pause</h4><p>Project pada plan Free akan di-<em>pause</em> otomatis bila tidak ada aktivitas selama beberapa waktu. Jika aplikasi tiba-tiba tidak bisa terhubung menjelang praktikum, buka dashboard lalu klik <strong>Restore project</strong>.</p></div>

@@ -1,0 +1,59 @@
+<p class="lead">Sampai Modul 11, semua data aplikasi kita tersimpan di HP (SharedPreferences, SQLite, Hive). Data itu hilang kalau aplikasi di-uninstall dan tidak bisa dibuka dari HP lain. Untuk aplikasi sungguhan kita butuh <strong>backend</strong>: server yang menyimpan data di cloud dan mengatur siapa boleh mengakses apa.</p>
+
+<h4>Apa itu Backend as a Service (BaaS)?</h4>
+<p>Membuat backend sendiri berarti menyewa server, memasang database, menulis REST API (seperti yang kita konsumsi di Modul 09), membuat sistem login, mengurus keamanan, dan seterusnya. <strong>BaaS</strong> menyediakan semua itu dalam bentuk siap pakai. Kita cukup membuat tabel lewat dashboard, lalu memanggilnya dari Flutter dengan library resmi.</p>
+
+<p><strong>Supabase</strong> adalah BaaS open source yang dibangun di atas database <strong>PostgreSQL</strong>. Karena memakai PostgreSQL, semua yang Anda pelajari di mata kuliah Basis Data (tabel, relasi, <em>primary key</em>, <em>foreign key</em>, SQL) langsung terpakai.</p>
+
+<h4>Fitur utama Supabase</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Fitur</th><th>Fungsi</th><th>Dipakai di modul</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Database (Postgres)</strong></td><td>Tabel relasional sungguhan. Bisa diakses dari Flutter tanpa menulis REST API sendiri, karena Supabase membuat API-nya otomatis (PostgREST).</td><td>12, 14</td></tr>
+      <tr><td><strong>Auth</strong></td><td>Register, login email/password, magic link, Google, dan lain-lain. Sesi login disimpan dan diperbarui otomatis.</td><td>12, 13</td></tr>
+      <tr><td><strong>Row Level Security (RLS)</strong></td><td>Aturan keamanan per baris di database, misalnya "user hanya boleh melihat catatannya sendiri".</td><td>12, 13, 14</td></tr>
+      <tr><td><strong>Realtime</strong></td><td>Aplikasi menerima perubahan data secara langsung (seperti chat) tanpa perlu refresh.</td><td>12</td></tr>
+      <tr><td><strong>Storage</strong></td><td>Menyimpan file: foto profil, PDF tugas, dan sejenisnya.</td><td>12 (singkat)</td></tr>
+      <tr><td>Edge Functions</td><td>Menjalankan kode server (TypeScript) untuk logika khusus.</td><td>Di luar cakupan</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Bagaimana Flutter berbicara dengan Supabase?</h4>
+<pre><code class="language-text">┌──────────────────┐   HTTPS (REST)   ┌──────────────────────────────┐
+│  Aplikasi Flutter│ ───────────────▶ │          Supabase            │
+│                  │                  │  ┌────────┐   ┌───────────┐  │
+│ supabase_flutter │ ◀─────────────── │  │  Auth  │   │ PostgREST │  │
+│  (client library)│   JSON + token   │  └────────┘   └─────┬─────┘  │
+│                  │                  │                     ▼        │
+│                  │ ◀── WebSocket ── │  Realtime     PostgreSQL+RLS │
+└──────────────────┘                  └──────────────────────────────┘
+</code></pre>
+<p>Kita tidak menulis URL endpoint satu per satu seperti di Modul 09. Cukup panggil <code>supabase.from('tabel').select()</code>. Library-lah yang mengubahnya menjadi request HTTP, menyertakan token login, lalu mengembalikan JSON yang sudah di-decode.</p>
+
+<h4>Supabase vs Firebase</h4>
+<p>Firebase (Google) adalah BaaS paling populer di dunia Flutter. Keduanya bagus. Perbedaan utamanya:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Aspek</th><th>Supabase</th><th>Firebase</th></tr></thead>
+    <tbody>
+      <tr><td>Jenis database</td><td>Relasional (PostgreSQL), memakai SQL</td><td>NoSQL dokumen (Cloud Firestore)</td></tr>
+      <tr><td>Relasi antar data</td><td>Foreign key dan JOIN bawaan</td><td>Denormalisasi manual</td></tr>
+      <tr><td>Aturan keamanan</td><td>Row Level Security (policy SQL)</td><td>Security Rules (bahasa khusus)</td></tr>
+      <tr><td>Open source / self-host</td><td>Ya, bisa dipasang di server sendiri</td><td>Tidak</td></tr>
+      <tr><td>Setup di Flutter</td><td>Cukup URL + key, tanpa file konfigurasi native</td><td>Perlu FlutterFire CLI dan file konfigurasi per platform</td></tr>
+      <tr><td>Paket gratis</td><td>Ada (project bisa di-<em>pause</em> otomatis bila lama tidak aktif)</td><td>Ada (Spark plan)</td></tr>
+      <tr><td>Cocok untuk</td><td>Data terstruktur, mahasiswa yang sudah belajar SQL</td><td>Data fleksibel, ekosistem Google</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-info"><h4>ℹ️ Kenapa kita memilih Supabase?</h4><p>Kurikulum Informatika sudah membekali Anda dengan SQL dan desain basis data relasional. Dengan Supabase, ilmu itu langsung terpakai, dan konsep keamanan per baris (RLS) adalah praktik yang juga dipakai di dunia industri.</p></div>
+
+<h4>Peta modul berikutnya</h4>
+<ul>
+  <li><strong>Modul 12 (ini):</strong> dasar Supabase, yaitu membuat project, tabel, RLS, query CRUD, Auth, dan sekilas Realtime &amp; Storage.</li>
+  <li><strong>Modul 13:</strong> Proyek "Catatan Kuliah" bagian 1, berisi arsitektur aplikasi serta login &amp; register lengkap.</li>
+  <li><strong>Modul 14:</strong> Proyek bagian 2, yaitu CRUD catatan dengan Supabase plus cache offline memakai Hive.</li>
+</ul>

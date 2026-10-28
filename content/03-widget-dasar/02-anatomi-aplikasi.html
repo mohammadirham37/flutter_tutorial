@@ -1,0 +1,155 @@
+<p class="lead">Hampir semua aplikasi Flutter yang kamu buat akan memakai tiga widget kerangka: <strong><code>MaterialApp</code></strong> (aplikasi), <strong><code>Scaffold</code></strong> (halaman), dan <strong><code>AppBar</code></strong> (bilah judul). Memahami peran ketiganya membuat kode lain jauh lebih mudah dibaca.</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Widget</th><th>Analogi</th><th>Tugas utama</th></tr></thead>
+    <tbody>
+      <tr><td><code>MaterialApp</code></td><td>Gedung kampus</td><td>Menyediakan tema, judul aplikasi, navigasi, bahasa, dan arah teks untuk seluruh halaman.</td></tr>
+      <tr><td><code>Scaffold</code></td><td>Satu ruang kelas</td><td>Kerangka satu halaman: tempat untuk <code>appBar</code>, <code>body</code>, <code>floatingActionButton</code>, <code>drawer</code>, dan <code>bottomNavigationBar</code>.</td></tr>
+      <tr><td><code>AppBar</code></td><td>Papan nama di pintu kelas</td><td>Bilah di bagian atas berisi judul, tombol kembali, dan tombol aksi.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh kecil: kerangka paling minimal</h4>
+<pre><code class="language-dart">MaterialApp(
+  home: Scaffold(
+    appBar: AppBar(title: const Text('Beranda')),
+    body: const Center(child: Text('Isi halaman')),
+  ),
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/anatomi-aplikasi-1.jpg" alt="Kerangka minimal: MaterialApp + Scaffold + AppBar" loading="lazy">
+    <div class="screenshot-caption">Kerangka minimal: MaterialApp + Scaffold + AppBar</div>
+  </div>
+</div>
+<p>Dari luar ke dalam: <code>MaterialApp</code> membungkus <code>Scaffold</code> lewat parameter <code>home</code>. <code>Scaffold</code> punya slot <code>appBar</code> dan <code>body</code>. Slot <code>body</code> adalah area utama di bawah AppBar.</p>
+
+<h4>Contoh lengkap: semua slot Scaffold</h4>
+<p>Kode berikut memperlihatkan slot-slot penting <code>Scaffold</code> sekaligus. Jalankan, lalu coba tekan ikon menu (garis tiga) dan tombol bulat di kanan bawah.</p>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const AplikasiKampus());
+}
+
+class AplikasiKampus extends StatelessWidget {
+  const AplikasiKampus({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Portal UNSOED', // nama aplikasi di task manager / tab browser
+      debugShowCheckedModeBanner: false, // sembunyikan pita "DEBUG"
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const HalamanBeranda(),
+    );
+  }
+}
+
+class HalamanBeranda extends StatelessWidget {
+  const HalamanBeranda({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // 1. AppBar: bilah judul di atas
+      appBar: AppBar(
+        title: const Text('Portal Mahasiswa'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            tooltip: 'Notifikasi',
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Cari',
+            onPressed: () {},
+          ),
+        ],
+      ),
+      // 2. Drawer: menu samping. Ikon menu muncul otomatis di AppBar.
+      drawer: Drawer(
+        child: ListView(
+          children: const [
+            DrawerHeader(child: Text('Menu Utama', style: TextStyle(fontSize: 22))),
+            ListTile(leading: Icon(Icons.home), title: Text('Beranda')),
+            ListTile(leading: Icon(Icons.calendar_month), title: Text('Jadwal Kuliah')),
+            ListTile(leading: Icon(Icons.logout), title: Text('Keluar')),
+          ],
+        ),
+      ),
+      // 3. Body: area utama halaman
+      body: const Center(
+        child: Text(
+          'Selamat datang di Portal Mahasiswa',
+          style: TextStyle(fontSize: 18),
+        ),
+      ),
+      // 4. Tombol aksi melayang di kanan bawah
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {},
+        tooltip: 'Tambah',
+        child: const Icon(Icons.add),
+      ),
+      // 5. Navigasi bawah (Material 3)
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: 0,
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home), label: 'Beranda'),
+          NavigationDestination(icon: Icon(Icons.book), label: 'KRS'),
+          NavigationDestination(icon: Icon(Icons.person), label: 'Profil'),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/anatomi-aplikasi-2.jpg" alt="Semua slot Scaffold: AppBar, body, FAB, NavigationBar" loading="lazy">
+    <div class="screenshot-caption">Semua slot Scaffold: AppBar, body, FAB, NavigationBar</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/anatomi-aplikasi-drawer.jpg" alt="Setelah ikon menu ditekan: Drawer terbuka" loading="lazy">
+    <div class="screenshot-caption">Setelah ikon menu ditekan: Drawer terbuka</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><code>runApp(const AplikasiKampus())</code> menjadikan <code>AplikasiKampus</code> sebagai akar aplikasi.</li>
+  <li><code>MaterialApp</code> mengatur <code>title</code>, <code>theme</code>, dan halaman pertama lewat <code>home</code>. Kita memisahkan halaman ke class <code>HalamanBeranda</code> supaya rapi.</li>
+  <li><code>AppBar.actions</code> menerima daftar widget (biasanya <code>IconButton</code>) yang tampil di sisi kanan.</li>
+  <li>Begitu <code>drawer</code> diisi, <code>Scaffold</code> otomatis menambahkan ikon menu di kiri AppBar.</li>
+  <li><code>NavigationBar</code> adalah navigasi bawah gaya Material 3. Di sini indeksnya masih tetap 0; cara mengubahnya dengan <code>setState</code> dibahas di section StatefulWidget dan Modul 07.</li>
+</ul>
+
+<h4>Properti AppBar yang sering dipakai</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Properti</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>title</code></td><td>Widget judul, biasanya <code>Text</code>.</td></tr>
+      <tr><td><code>centerTitle</code></td><td><code>true</code> agar judul di tengah (default Android: kiri, iOS: tengah).</td></tr>
+      <tr><td><code>leading</code></td><td>Widget di kiri judul (misalnya tombol kembali kustom).</td></tr>
+      <tr><td><code>actions</code></td><td>Daftar tombol di kanan.</td></tr>
+      <tr><td><code>backgroundColor</code> / <code>foregroundColor</code></td><td>Warna latar dan warna teks/ikon AppBar.</td></tr>
+      <tr><td><code>bottom</code></td><td>Widget di bawah AppBar, misalnya <code>TabBar</code>.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Membuat <code>MaterialApp</code> di setiap halaman.</strong> Cukup satu <code>MaterialApp</code> di akar aplikasi. Setiap halaman cukup memakai <code>Scaffold</code>.</li>
+  <li><strong>Lupa <code>Scaffold</code>.</strong> Jika <code>Text</code> langsung ditaruh di <code>home</code> tanpa <code>Scaffold</code>, teks tampil dengan garis bawah kuning dan latar hitam karena tidak ada <code>Material</code> di atasnya.</li>
+  <li><strong>Menaruh widget besar langsung di <code>appBar</code>.</strong> Slot <code>appBar</code> mengharapkan <code>PreferredSizeWidget</code> seperti <code>AppBar</code>, bukan <code>Container</code> biasa.</li>
+</ul></div>

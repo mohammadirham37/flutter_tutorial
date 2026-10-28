@@ -1,0 +1,170 @@
+<p class="lead">Untuk menguasai layouting Flutter tanpa frustrasi menghadapi galat <em>overflow</em>, setiap mahasiswa wajib menghafal prinsip dasar yang dirumuskan oleh tim inti Flutter:</p>
+
+<div class="callout callout-info">
+  <h4>📜 Tiga Aturan Emas Layout Flutter:</h4>
+  <ol class="space-y-2 mt-2">
+    <li><strong>Constraints go down:</strong> Widget induk (Parent) memberikan batasan (minimum &amp; maksimum lebar serta tinggi) kepada widget anak (Child).</li>
+    <li><strong>Sizes go up:</strong> Widget anak memutuskan ukurannya sendiri berdasarkan batasan yang diberikan induknya, lalu melaporkan ukurannya kembali ke Parent.</li>
+    <li><strong>Parent sets position:</strong> Widget induk menentukan posisi letak (koordinat x, y) widget anak di layar.</li>
+  </ol>
+</div>
+
+<h4>Analogi: pembagian kamar kos</h4>
+<p>Pemilik kos (induk) berkata: "Lemarimu boleh lebarnya 50 sampai 120 cm." Kamu (anak) memilih lemari 100 cm dan melapor ke pemilik. Pemilik yang menentukan lemari itu ditaruh di pojok mana. Kamu <strong>tidak bisa</strong> memilih lemari 200 cm, dan kamu <strong>tidak bisa</strong> menentukan sendiri posisinya.</p>
+
+<h4>Apa itu constraints?</h4>
+<p>Constraints (<code>BoxConstraints</code>) adalah empat angka: <code>minWidth</code>, <code>maxWidth</code>, <code>minHeight</code>, <code>maxHeight</code>.</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Jenis</th><th>Artinya</th><th>Contoh pemberi</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Tight</strong> (ketat)</td><td>min = max. Anak <em>harus</em> berukuran tepat segitu.</td><td>Layar penuh dari <code>runApp</code>, <code>SizedBox(width: 100, height: 100)</code>, <code>Expanded</code></td></tr>
+      <tr><td><strong>Loose</strong> (longgar)</td><td>min = 0, max = sekian. Anak bebas sekecil apa pun asal tidak melebihi max.</td><td><code>Center</code>, <code>Align</code>, <code>Scaffold.body</code></td></tr>
+      <tr><td><strong>Unbounded</strong> (tak terbatas)</td><td>max = tak hingga (<code>double.infinity</code>) di satu arah.</td><td>Arah utama <code>Row</code>/<code>Column</code>, <code>ListView</code>, <code>SingleChildScrollView</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh 1: Container yang "tidak patuh"</h4>
+<p>Pemula sering heran kenapa kode di bawah menghasilkan kotak merah sepenuh layar, padahal ukurannya sudah ditulis 100 x 100:</p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+// Langsung di runApp: layar memberi constraint TIGHT seukuran layar.
+// Container dipaksa sebesar layar, width/height 100 diabaikan.
+void main() {
+  runApp(Container(width: 100, height: 100, color: Colors.red));
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/hukum-constraints-1.jpg" alt="Container 100 x 100 dipaksa memenuhi layar" loading="lazy">
+    <div class="screenshot-caption">Container 100 x 100 dipaksa memenuhi layar</div>
+  </div>
+</div>
+<p>Solusinya: beri induk yang memberikan constraint <strong>longgar</strong>, misalnya <code>Center</code>. Center berkata "kamu boleh sekecil apa pun, maksimal selebar layar", sehingga Container bisa memilih 100 x 100.</p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+void main() {
+  runApp(
+    Center(
+      child: Container(width: 100, height: 100, color: Colors.red),
+    ),
+  );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/hukum-constraints-2.jpg" alt="Di dalam Center, Container bisa berukuran 100 x 100" loading="lazy">
+    <div class="screenshot-caption">Di dalam Center, Container bisa berukuran 100 x 100</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: melihat constraints dengan LayoutBuilder</h4>
+<p><code>LayoutBuilder</code> memberi kita akses ke constraints yang diterima dari induk. Contoh ini menampilkan constraints di beberapa situasi agar aturan di atas terlihat nyata.</p>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Melihat Constraints')),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('1. Di dalam SizedBox 200 x 80 (tight):'),
+              // Center mencegah stretch dari Column memaksa lebar penuh
+              const Center(
+                child: SizedBox(width: 200, height: 80, child: InfoConstraints()),
+              ),
+              const SizedBox(height: 16),
+              const Text('2. Di dalam Center di kotak 120 px (loose):'),
+              const SizedBox(
+                height: 120,
+                child: Center(child: InfoConstraints()),
+              ),
+              const SizedBox(height: 16),
+              const Text('3. Di dalam ConstrainedBox (min 100, max 250):'),
+              Center(
+                // ConstrainedBox tidak punya konstruktor const
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minWidth: 100,
+                    maxWidth: 250,
+                    minHeight: 50,
+                    maxHeight: 100,
+                  ),
+                  child: const InfoConstraints(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('4. Di dalam Row (lebar tak terbatas):'),
+              const Row(children: [InfoConstraints(lebar: 220)]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Menampilkan constraints yang diterima dari induknya.
+class InfoConstraints extends StatelessWidget {
+  final double? lebar;
+
+  const InfoConstraints({super.key, this.lebar});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        String fmt(double v) =&gt; v == double.infinity ? '∞' : v.toStringAsFixed(0);
+        return Container(
+          width: lebar,
+          padding: const EdgeInsets.all(8),
+          color: Colors.amber.shade200,
+          child: Text(
+            'lebar: ${fmt(constraints.minWidth)} - ${fmt(constraints.maxWidth)}\n'
+            'tinggi: ${fmt(constraints.minHeight)} - ${fmt(constraints.maxHeight)}',
+            style: const TextStyle(fontSize: 12),
+          ),
+        );
+      },
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/hukum-constraints-3.jpg" alt="Constraints yang diterima widget di empat situasi" loading="lazy">
+    <div class="screenshot-caption">Constraints yang diterima widget di empat situasi</div>
+  </div>
+</div>
+
+<h4>Penjelasan hasil</h4>
+<ul>
+  <li><strong>Kotak 1:</strong> lebar 200 - 200, tinggi 80 - 80. Constraint ketat, anak tidak punya pilihan. Kenapa SizedBox perlu dibungkus <code>Center</code>? Column memakai <code>CrossAxisAlignment.stretch</code> yang memberi constraint ketat selebar layar. Tanpa Center, <code>width: 200</code> diabaikan dan kotak menjadi selebar layar (coba hapus Center-nya).</li>
+  <li><strong>Kotak 2:</strong> lebar 0 - (lebar layar), tinggi 0 - 120. <code>Center</code> melonggarkan constraint sehingga kotak kuning hanya seukuran teksnya.</li>
+  <li><strong>Kotak 3:</strong> <code>ConstrainedBox</code> menambahkan batas minimum dan maksimum sendiri.</li>
+  <li><strong>Kotak 4:</strong> lebar 0 - ∞. Di dalam <code>Row</code>, anak menerima lebar tak terbatas. Karena itu kita wajib memberi <code>lebar: 220</code>; tanpa batas, widget yang ingin "selebar mungkin" akan error. Ini akar dari banyak error layout yang dibahas di section Overflow.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Mengira <code>width</code>/<code>height</code> selalu dipatuhi.</strong> Ukuran hanya permintaan; jika constraint induk ketat, permintaan itu diabaikan.</li>
+  <li><strong>Menaruh widget "serakah" di ruang tak terbatas</strong>, misalnya <code>ListView</code> di dalam <code>Column</code> tanpa <code>Expanded</code>, atau <code>TextField</code> di dalam <code>Row</code> tanpa <code>Expanded</code>. Hasilnya error <em>"unbounded height/width"</em>.</li>
+  <li><strong>Mengharapkan anak menentukan posisinya sendiri.</strong> Posisi diatur oleh induk (lewat <code>alignment</code>, <code>mainAxisAlignment</code>, <code>Positioned</code>, dan lain-lain).</li>
+</ul></div>

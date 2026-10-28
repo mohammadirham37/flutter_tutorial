@@ -1,0 +1,589 @@
+/* ==========================================================================
+   FLUTTER TUTORIAL KAMPUS - CUSTOM STYLESHEET
+   ========================================================================== */
+
+:root {
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-light: #e0e7ff;
+  --accent: #0284c7;
+  --text-main: #1e293b;
+  --text-muted: #64748b;
+  --bg-main: #f8fafc;
+  --card-bg: #ffffff;
+  --border-color: #e2e8f0;
+  --sidebar-w: 320px;
+}
+
+.dark {
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --primary-light: #1e1b4b;
+  --accent: #38bdf8;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --bg-main: #0f172a;
+  --card-bg: #1e293b;
+  --border-color: #334155;
+}
+
+/* Base resets & typography */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text-main);
+  background-color: var(--bg-main);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+#top-navbar {
+  height: 4rem;
+  overflow: visible;
+}
+
+@media (max-width: 639px) {
+  #brand-home-btn .truncate {
+    max-width: 165px;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Callout Blocks */
+.callout {
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.75rem;
+  margin: 1.5rem 0;
+  border-left-width: 4px;
+}
+
+.callout h4 {
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+}
+
+.callout p {
+  margin: 0;
+  font-size: 0.925rem;
+  line-height: 1.6;
+}
+
+.callout-info {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+  color: #1e40af;
+}
+
+.dark .callout-info {
+  background-color: rgba(30, 58, 138, 0.25);
+  border-color: #60a5fa;
+  color: #bfdbfe;
+}
+
+.callout-warning {
+  background-color: #fffbeb;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.dark .callout-warning {
+  background-color: rgba(180, 83, 9, 0.25);
+  border-color: #fbbf24;
+  color: #fde68a;
+}
+
+.callout-tip {
+  background-color: #f0fdf4;
+  border-color: #10b981;
+  color: #065f46;
+}
+
+.dark .callout-tip {
+  background-color: rgba(6, 95, 70, 0.25);
+  border-color: #34d399;
+  color: #a7f3d0;
+}
+
+/* Table styles */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  margin: 1.25rem 0;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-color);
+}
+
+.table-custom {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.table-custom th {
+  background-color: #f1f5f9;
+  color: #475569;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dark .table-custom th {
+  background-color: #1e293b;
+  color: #cbd5e1;
+}
+
+.table-custom td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+
+.table-custom tr:last-child td {
+  border-bottom: none;
+}
+
+/* Label nama file di atas blok kode (contoh: lib/main.dart) */
+.code-file-label {
+  margin: 1.5rem 0 -1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Screenshot hasil kode (diambil dari Android Emulator) */
+.screenshot-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  justify-content: center;
+  margin: 1.25rem 0 1.75rem;
+}
+
+.screenshot {
+  width: 240px;
+  margin: 0;
+  text-align: center;
+}
+
+.screenshot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 6px solid #1e293b;
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 25px -10px rgba(15, 23, 42, 0.45);
+  background: #fff;
+}
+
+.screenshot-caption {
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: #64748b;
+}
+
+.dark .screenshot img {
+  border-color: #475569;
+}
+
+.lecture-mode .screenshot {
+  width: 300px;
+}
+
+/* Code block wrapper, Themes (Light / Dark) & Copy button */
+.code-container {
+  position: relative;
+  margin: 1.5rem 0;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border-width: 1px;
+  border-style: solid;
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
+}
+
+.code-copy-btn,
+.code-theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  user-select: none;
+}
+
+.code-container pre {
+  margin: 0 !important;
+  padding: 1.25rem !important;
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 0.875rem !important;
+  line-height: 1.6 !important;
+  overflow-x: auto;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* --- THEME 1: DARK MODE (VS Code Dark / GitHub Dark) --- */
+.code-container.code-theme-dark {
+  background-color: #0d1117;
+  border-color: #30363d;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25), 0 2px 4px -1px rgba(0, 0, 0, 0.15);
+}
+
+.code-container.code-theme-dark .code-header {
+  background-color: #161b22;
+  border-bottom: 1px solid #30363d;
+  color: #8b949e;
+}
+
+.code-container.code-theme-dark .code-lang-badge {
+  color: #58a6ff;
+  font-weight: 700;
+}
+
+.code-container.code-theme-dark pre,
+.code-container.code-theme-dark pre[class*="language-"] {
+  background-color: #0d1117 !important;
+  color: #e6edf3 !important;
+}
+
+.code-container.code-theme-dark .code-copy-btn,
+.code-container.code-theme-dark .code-theme-toggle-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #e6edf3;
+}
+
+.code-container.code-theme-dark .code-copy-btn:hover,
+.code-container.code-theme-dark .code-theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* --- THEME 2: LIGHT MODE (Classroom / Projector / GitHub Light) --- */
+.code-container.code-theme-light {
+  background-color: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+.code-container.code-theme-light .code-header {
+  background-color: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+}
+
+.code-container.code-theme-light .code-lang-badge {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.code-container.code-theme-light pre,
+.code-container.code-theme-light pre[class*="language-"],
+.code-container.code-theme-light code,
+.code-container.code-theme-light code[class*="language-"] {
+  background-color: #f8fafc !important;
+  color: #1e293b !important;
+  text-shadow: none !important;
+}
+
+.code-container.code-theme-light .code-copy-btn,
+.code-container.code-theme-light .code-theme-toggle-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.code-container.code-theme-light .code-copy-btn:hover,
+.code-container.code-theme-light .code-theme-toggle-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+/* Light Syntax Token Overrides for Crystal-Clear Readability */
+.code-container.code-theme-light .token.comment,
+.code-container.code-theme-light .token.block-comment,
+.code-container.code-theme-light .token.prolog,
+.code-container.code-theme-light .token.doctype,
+.code-container.code-theme-light .token.cdata {
+  color: #64748b !important;
+  font-style: italic;
+}
+
+.code-container.code-theme-light .token.punctuation {
+  color: #334155 !important;
+}
+
+.code-container.code-theme-light .token.property,
+.code-container.code-theme-light .token.tag,
+.code-container.code-theme-light .token.boolean,
+.code-container.code-theme-light .token.number,
+.code-container.code-theme-light .token.constant,
+.code-container.code-theme-light .token.symbol {
+  color: #0284c7 !important;
+  font-weight: 600;
+}
+
+.code-container.code-theme-light .token.selector,
+.code-container.code-theme-light .token.attr-name,
+.code-container.code-theme-light .token.string,
+.code-container.code-theme-light .token.char,
+.code-container.code-theme-light .token.builtin {
+  color: #0d9488 !important;
+}
+
+.code-container.code-theme-light .token.operator,
+.code-container.code-theme-light .token.entity,
+.code-container.code-theme-light .token.url {
+  color: #d97706 !important;
+}
+
+.code-container.code-theme-light .token.atrule,
+.code-container.code-theme-light .token.attr-value,
+.code-container.code-theme-light .token.keyword {
+  color: #4f46e5 !important;
+  font-weight: 700;
+}
+
+.code-container.code-theme-light .token.function,
+.code-container.code-theme-light .token.class-name {
+  color: #7c3aed !important;
+  font-weight: 600;
+}
+
+.code-container.code-theme-light .token.regex,
+.code-container.code-theme-light .token.important,
+.code-container.code-theme-light .token.variable {
+  color: #e11d48 !important;
+}
+
+/* Quiz Option Card */
+.quiz-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem;
+  border-radius: 0.625rem;
+  border: 1.5px solid var(--border-color);
+  background-color: var(--card-bg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quiz-option:hover {
+  border-color: var(--primary);
+  background-color: rgba(99, 102, 241, 0.05);
+}
+
+.quiz-option.selected {
+  border-color: var(--primary);
+  background-color: rgba(99, 102, 241, 0.1);
+}
+
+.quiz-option.correct {
+  border-color: #10b981 !important;
+  background-color: rgba(16, 185, 129, 0.12) !important;
+  color: #047857;
+}
+
+.dark .quiz-option.correct {
+  color: #6ee7b7;
+}
+
+.quiz-option.incorrect {
+  border-color: #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.12) !important;
+  color: #b91c1c;
+}
+
+.dark .quiz-option.incorrect {
+  color: #fca5a5;
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.badge-primary { background: #e0e7ff; color: #4338ca; }
+.badge-success { background: #dcfce7; color: #15803d; }
+.badge-warning { background: #fef3c7; color: #b45309; }
+.badge-danger  { background: #fee2e2; color: #b91c1c; }
+.badge-purple  { background: #f3e8ff; color: #7e22ce; }
+
+.dark .badge-primary { background: rgba(67, 56, 202, 0.3); color: #a5b4fc; }
+.dark .badge-success { background: rgba(21, 128, 61, 0.3); color: #86efac; }
+.dark .badge-warning { background: rgba(180, 83, 9, 0.3); color: #fde047; }
+.dark .badge-danger  { background: rgba(185, 28, 28, 0.3); color: #fca5a5; }
+.dark .badge-purple  { background: rgba(126, 34, 206, 0.3); color: #d8b4fe; }
+
+/* Stat Cards */
+.stat-card {
+  padding: 1rem 1.25rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Lecture Presentation Mode */
+body.lecture-mode {
+  font-size: 1.15rem;
+}
+
+body.lecture-mode #sidebar {
+  display: none !important;
+}
+
+body.lecture-mode #main-content {
+  margin-left: auto !important;
+  margin-right: auto !important;
+  max-width: 1000px !important;
+}
+
+/* Print Friendly Styles */
+@media print {
+  #sidebar, #top-navbar, #footer-navigation, #mobile-bottom-nav, .no-print, .code-copy-btn, #quiz-section {
+    display: none !important;
+  }
+  
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+  }
+
+  #main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .code-container {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+
+  .callout {
+    page-break-inside: avoid;
+    border-left: 3px solid #666 !important;
+    background: #f8f8f8 !important;
+    color: #000 !important;
+  }
+}
+
+/* Category Filter Pills */
+.category-pill {
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.category-pill.active {
+  background-color: #4f46e5;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(79, 70, 229, 0.3);
+}
+
+.dark .category-pill.active {
+  background-color: #6366f1;
+  color: #ffffff;
+}
+
+.category-pill:not(.active) {
+  background-color: #f1f5f9;
+  color: #64748b;
+}
+
+.dark .category-pill:not(.active) {
+  background-color: #1e293b;
+  color: #94a3b8;
+}
+
+.category-pill:not(.active):hover {
+  background-color: #e2e8f0;
+  color: #334155;
+}
+
+.dark .category-pill:not(.active):hover {
+  background-color: #334155;
+  color: #f1f5f9;
+}
+
+/* Hide scrollbar for category container */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

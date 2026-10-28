@@ -1,0 +1,240 @@
+<p class="lead">Data dari internet atau database tidak datang seketika. Selama menunggu, UI harus menampilkan <strong>loading</strong>; jika gagal, menampilkan <strong>error</strong> dengan tombol coba lagi; jika berhasil, menampilkan <strong>data</strong>. Pola tiga serangkai <code>isLoading</code> / <code>error</code> / <code>data</code> ini akan dipakai ulang di Modul 09 (REST API) dan proyek CRUD Modul 13–14.</p>
+
+<h4>Pola di sisi UI</h4>
+<pre><code class="language-dart">// Urutan pengecekan di UI: loading -&gt; error -&gt; kosong -&gt; data
+if (prov.isLoading) return const CircularProgressIndicator();
+if (prov.error != null) return Text(prov.error!);
+if (prov.data.isEmpty) return const Text('Belum ada data');
+return ListView(children: [for (final d in prov.data) Text(d)]);
+</code></pre>
+
+<h4>Pola di sisi provider</h4>
+<ol>
+  <li>Set <code>_isLoading = true</code>, kosongkan <code>_error</code>, lalu <code>notifyListeners()</code>.</li>
+  <li><code>try</code>: panggil service dan simpan hasilnya.</li>
+  <li><code>catch</code>: simpan pesan error.</li>
+  <li><code>finally</code>: set <code>_isLoading = false</code>, lalu <code>notifyListeners()</code>. Bagian <code>finally</code> selalu dijalankan, sehingga loading tidak "macet".</li>
+</ol>
+
+<h4>Contoh lengkap (multi-file)</h4>
+<pre><code class="language-text">lib/
+├── main.dart
+├── models/mahasiswa.dart
+├── services/mahasiswa_service.dart
+└── providers/mahasiswa_provider.dart
+</code></pre>
+<p class="code-file-label">📄 <code>lib/models/mahasiswa.dart</code></p>
+<pre><code class="language-dart">// lib/models/mahasiswa.dart
+class Mahasiswa {
+  final String nim;
+  final String nama;
+  final double ipk;
+
+  const Mahasiswa({required this.nim, required this.nama, required this.ipk});
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/services/mahasiswa_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/mahasiswa_service.dart
+// Service = satu-satunya tempat yang tahu cara MENGAMBIL data.
+// Saat ini datanya palsu; di Modul 09 isi fungsi ini diganti dengan HTTP request.
+import '../models/mahasiswa.dart';
+
+class MahasiswaService {
+  Future&lt;List&lt;Mahasiswa&gt;&gt; ambilSemua({bool simulasiGagal = false}) async {
+    await Future.delayed(const Duration(seconds: 3)); // pura-pura menunggu server
+
+    if (simulasiGagal) {
+      throw Exception('Server tidak dapat dihubungi');
+    }
+
+    return const [
+      Mahasiswa(nim: 'H1D023001', nama: 'Andi Pratama', ipk: 3.45),
+      Mahasiswa(nim: 'H1D023002', nama: 'Bunga Lestari', ipk: 3.81),
+      Mahasiswa(nim: 'H1D023003', nama: 'Citra Ayu', ipk: 3.12),
+      Mahasiswa(nim: 'H1D023004', nama: 'Dimas Saputra', ipk: 3.67),
+    ];
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/providers/mahasiswa_provider.dart</code></p>
+<pre><code class="language-dart">// lib/providers/mahasiswa_provider.dart
+import 'package:flutter/foundation.dart';
+
+import '../models/mahasiswa.dart';
+import '../services/mahasiswa_service.dart';
+
+class MahasiswaProvider extends ChangeNotifier {
+  MahasiswaProvider(this._service);
+
+  final MahasiswaService _service;
+
+  // Tiga serangkai state async
+  bool _isLoading = false;
+  String? _error;
+  List&lt;Mahasiswa&gt; _data = [];
+
+  bool get isLoading =&gt; _isLoading;
+  String? get error =&gt; _error;
+  List&lt;Mahasiswa&gt; get data =&gt; List.unmodifiable(_data);
+
+  Future&lt;void&gt; muatData({bool simulasiGagal = false}) async {
+    if (_isLoading) return; // cegah request ganda saat tombol ditekan berkali-kali
+
+    _isLoading = true;
+    _error = null;
+    notifyListeners(); // UI menampilkan loading
+
+    try {
+      _data = await _service.ambilSemua(simulasiGagal: simulasiGagal);
+    } catch (e) {
+      _error = 'Gagal memuat data: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners(); // UI menampilkan data ATAU error
+    }
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'providers/mahasiswa_provider.dart';
+import 'services/mahasiswa_service.dart';
+
+void main() {
+  runApp(
+    ChangeNotifierProvider(
+      // ..muatData() langsung memulai pemuatan saat provider dibuat
+      create: (_) =&gt; MahasiswaProvider(MahasiswaService())..muatData(),
+      child: const MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const DaftarMahasiswaPage(),
+    );
+  }
+}
+
+class DaftarMahasiswaPage extends StatelessWidget {
+  const DaftarMahasiswaPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Data Mahasiswa'),
+        actions: [
+          IconButton(
+            tooltip: 'Simulasi gagal',
+            icon: const Icon(Icons.wifi_off),
+            onPressed: () =&gt;
+                context.read&lt;MahasiswaProvider&gt;().muatData(simulasiGagal: true),
+          ),
+        ],
+      ),
+      body: const _IsiHalaman(),
+    );
+  }
+}
+
+class _IsiHalaman extends StatelessWidget {
+  const _IsiHalaman();
+
+  @override
+  Widget build(BuildContext context) {
+    final prov = context.watch&lt;MahasiswaProvider&gt;();
+
+    // 1. Loading pertama kali (belum ada data sama sekali)
+    if (prov.isLoading &amp;&amp; prov.data.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // 2. Error
+    if (prov.error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 12),
+              Text(prov.error!, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                icon: const Icon(Icons.refresh),
+                label: const Text('Coba Lagi'),
+                onPressed: () =&gt; context.read&lt;MahasiswaProvider&gt;().muatData(),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 3. Data kosong
+    if (prov.data.isEmpty) {
+      return const Center(child: Text('Belum ada data'));
+    }
+
+    // 4. Data tersedia (+ tarik ke bawah untuk memuat ulang)
+    return RefreshIndicator(
+      onRefresh: () =&gt; context.read&lt;MahasiswaProvider&gt;().muatData(),
+      child: ListView.builder(
+        itemCount: prov.data.length,
+        itemBuilder: (context, i) {
+          final m = prov.data[i];
+          return ListTile(
+            leading: CircleAvatar(child: Text(m.nama[0])),
+            title: Text(m.nama),
+            subtitle: Text(m.nim),
+            trailing: Text('IPK ${m.ipk.toStringAsFixed(2)}'),
+          );
+        },
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/async-data.jpg" alt="State data" loading="lazy">
+    <div class="screenshot-caption">State data</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/async-error.jpg" alt="State error dengan tombol Coba Lagi" loading="lazy">
+    <div class="screenshot-caption">State error dengan tombol Coba Lagi</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>MahasiswaService</code> hanya tahu cara mengambil data. Ia tidak tahu apa pun soal UI atau <code>notifyListeners</code>.</li>
+  <li><code>MahasiswaProvider</code> menerima service lewat constructor (<em>dependency injection</em>). Saat testing (Modul 15), service ini bisa diganti dengan versi palsu.</li>
+  <li><code>create: (_) =&gt; MahasiswaProvider(MahasiswaService())..muatData()</code>: operator <em>cascade</em> <code>..</code> memanggil <code>muatData()</code> lalu tetap mengembalikan objek provider.</li>
+  <li><code>if (_isLoading) return;</code> mencegah request ganda saat tombol ditekan berkali-kali.</li>
+  <li>Tombol ikon wifi mensimulasikan kegagalan sehingga tampilan error bisa dicoba tanpa mematikan internet.</li>
+  <li>Kondisi loading ditulis <code>prov.isLoading &amp;&amp; prov.data.isEmpty</code>: saat refresh (data lama masih ada), list tetap tampil dan indikator <code>RefreshIndicator</code> yang berputar.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Variasi: enum status</h4><p>Sebagian tim memakai <code>enum Status { awal, loading, sukses, gagal }</code> sebagai pengganti beberapa boolean. Keduanya sah; yang penting UI selalu menangani semua kemungkinan.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Lupa <code>notifyListeners()</code> sebelum <code>await</code>, sehingga loading tidak pernah terlihat.</li>
+  <li>Tidak memakai <code>finally</code>: jika terjadi error, <code>isLoading</code> tetap <code>true</code> selamanya.</li>
+  <li>Tidak mengosongkan <code>_error</code> saat mencoba lagi, sehingga pesan error lama tetap tampil walaupun request kedua berhasil.</li>
+  <li>Memanggil service langsung dari widget (di <code>build</code>). Setiap rebuild akan memicu request baru.</li>
+</ul>
+</div>

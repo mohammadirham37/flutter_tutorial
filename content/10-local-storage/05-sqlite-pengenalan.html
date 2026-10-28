@@ -1,0 +1,211 @@
+<p class="lead">Untuk data yang banyak dan terstruktur (daftar catatan, nilai mahasiswa, transaksi), kita memakai <strong>SQLite</strong>: database relasional kecil yang tersimpan sebagai <strong>satu file</strong> di HP. Package <code>sqflite</code> menghubungkan Flutter dengan SQLite bawaan Android dan iOS.</p>
+
+<pre><code class="language-bash">flutter pub add sqflite path
+</code></pre>
+<p>Package <code>path</code> dipakai untuk menggabungkan folder dan nama file database dengan benar (<code>join</code>).</p>
+
+<div class="callout callout-warning">
+  <h4>⚠️ sqflite Tidak Berjalan di Chrome (Web)</h4>
+  <p><code>sqflite</code> hanya mendukung Android, iOS, dan macOS. Jika dijalankan dengan <code>flutter run -d chrome</code>, muncul <code>MissingPluginException</code> dan layar kosong. Gunakan emulator Android atau HP fisik.</p>
+</div>
+
+<h4>Kilat SQL: 5 Perintah Dasar</h4>
+<p>Jika sudah mengambil mata kuliah Basis Data, ini hanya pengingat:</p>
+<pre><code class="language-sql">-- Membuat tabel
+CREATE TABLE mahasiswa (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nim TEXT NOT NULL UNIQUE,
+  nama TEXT NOT NULL,
+  ipk REAL DEFAULT 0
+);
+
+-- Menambah data
+INSERT INTO mahasiswa (nim, nama, ipk) VALUES ('H1D022001', 'Budi', 3.5);
+
+-- Membaca data
+SELECT * FROM mahasiswa WHERE ipk &gt;= 3.0 ORDER BY nama ASC;
+
+-- Mengubah data
+UPDATE mahasiswa SET ipk = 3.8 WHERE id = 1;
+
+-- Menghapus data
+DELETE FROM mahasiswa WHERE id = 1;
+</code></pre>
+
+<h4>Tipe Data SQLite dan Padanannya di Dart</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>SQLite</th><th>Dart</th><th>Catatan</th></tr></thead>
+    <tbody>
+      <tr><td><code>INTEGER</code></td><td><code>int</code></td><td>Juga dipakai untuk <code>bool</code> (0/1)</td></tr>
+      <tr><td><code>REAL</code></td><td><code>double</code></td><td>IPK, harga, koordinat</td></tr>
+      <tr><td><code>TEXT</code></td><td><code>String</code></td><td>Juga untuk <code>DateTime</code> (format ISO 8601)</td></tr>
+      <tr><td><code>BLOB</code></td><td><code>Uint8List</code></td><td>Data biner (jarang dipakai, simpan path file saja)</td></tr>
+      <tr><td><code>NULL</code></td><td><code>null</code></td><td>Kolom tanpa <code>NOT NULL</code> boleh kosong</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>SQLite <strong>tidak punya</strong> tipe <code>BOOLEAN</code> dan <code>DATETIME</code> asli. Konversinya kita lakukan sendiri di model (section berikutnya).</p>
+
+<h4>Contoh Kecil: Membuka Database</h4>
+<pre><code class="language-dart">import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+
+Future&lt;Database&gt; bukaDatabase() async {
+  final folder = await getDatabasesPath(); // folder khusus database milik aplikasi
+  final path = join(folder, 'kampus.db');   // .../databases/kampus.db
+
+  return openDatabase(
+    path,
+    version: 1,
+    // onCreate hanya dipanggil SEKALI: saat file database belum ada
+    onCreate: (db, version) async {
+      await db.execute('''
+        CREATE TABLE mahasiswa (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          nim TEXT NOT NULL UNIQUE,
+          nama TEXT NOT NULL,
+          ipk REAL DEFAULT 0
+        )
+      ''');
+    },
+  );
+}
+</code></pre>
+<ul>
+  <li><code>getDatabasesPath()</code> mengembalikan folder database aplikasi (di Android: <code>/data/data/&lt;package&gt;/databases</code>).</li>
+  <li><code>version</code> adalah versi <strong>skema</strong> (struktur tabel), bukan versi aplikasi. Dipakai untuk migrasi di section 8.</li>
+  <li><code>onCreate</code> berjalan hanya ketika file database belum ada. Mengubah isi <code>onCreate</code> tidak berpengaruh pada database yang sudah terbuat.</li>
+</ul>
+
+<h4>Pola Singleton: Satu Koneksi untuk Seluruh Aplikasi</h4>
+<p>Membuka database itu mahal. Simpan koneksinya dan gunakan ulang:</p>
+<p class="code-file-label">📄 <code>lib/data/app_database.dart</code></p>
+<pre><code class="language-dart">import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+
+class AppDatabase {
+  AppDatabase._(); // constructor privat: tidak bisa di-new dari luar
+  static final AppDatabase instance = AppDatabase._();
+
+  Database? _db;
+
+  Future&lt;Database&gt; get database async {
+    // ??= : buka hanya jika belum pernah dibuka
+    return _db ??= await _open();
+  }
+
+  Future&lt;Database&gt; _open() async {
+    final path = join(await getDatabasesPath(), 'intro_kampus.db');
+    return openDatabase(
+      path,
+      version: 1,
+      onCreate: (db, version) async {
+        await db.execute('''
+          CREATE TABLE mahasiswa (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nim TEXT NOT NULL UNIQUE,
+            nama TEXT NOT NULL,
+            ipk REAL DEFAULT 0
+          )
+        ''');
+      },
+    );
+  }
+
+  Future&lt;void&gt; close() async {
+    await _db?.close();
+    _db = null;
+  }
+}
+</code></pre>
+
+<h4>Contoh Lengkap: Insert dan Hitung Baris</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Pastikan sudah: flutter pub add sqflite path, dan membuat lib/data/app_database.dart
+import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
+
+import 'data/app_database.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: IntroSqliteScreen()));
+
+class IntroSqliteScreen extends StatefulWidget {
+  const IntroSqliteScreen({super.key});
+
+  @override
+  State&lt;IntroSqliteScreen&gt; createState() =&gt; _IntroSqliteScreenState();
+}
+
+class _IntroSqliteScreenState extends State&lt;IntroSqliteScreen&gt; {
+  int _jumlah = 0;
+  String _path = '';
+  List&lt;Map&lt;String, Object?&gt;&gt; _baris = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future&lt;void&gt; _refresh() async {
+    final db = await AppDatabase.instance.database;
+    final jumlah = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM mahasiswa')) ?? 0;
+    final baris = await db.query('mahasiswa', orderBy: 'id DESC', limit: 5);
+    if (!mounted) return;
+    setState(() {
+      _jumlah = jumlah;
+      _path = db.path;
+      _baris = baris;
+    });
+  }
+
+  Future&lt;void&gt; _tambah() async {
+    final db = await AppDatabase.instance.database;
+    final n = DateTime.now().millisecondsSinceEpoch % 100000;
+    await db.insert('mahasiswa', {'nim': 'H1D$n', 'nama': 'Mahasiswa $n', 'ipk': 3.25});
+    await _refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Halo SQLite')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text('Jumlah baris: $_jumlah', style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 8),
+          Text('Lokasi file: $_path', style: Theme.of(context).textTheme.bodySmall),
+          const Divider(height: 32),
+          const Text('5 data terbaru (Map mentah dari db.query):'),
+          for (final row in _baris) Text(row.toString()),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _tambah,
+        icon: const Icon(Icons.add),
+        label: const Text('Insert'),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/sqlite-intro.jpg" alt="Jumlah baris dan data mentah" loading="lazy">
+    <div class="screenshot-caption">Setelah dua kali Insert: jumlah baris dan Map hasil query</div>
+  </div>
+</div>
+
+
+<p><strong>Penjelasan:</strong> setiap baris hasil <code>db.query</code> berbentuk <code>Map&lt;String, Object?&gt;</code> dengan nama kolom sebagai kunci. <code>Sqflite.firstIntValue</code> mengambil angka pertama dari hasil query seperti <code>COUNT(*)</code>. Tutup lalu buka aplikasi: jumlah baris tetap.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Membuka database baru (<code>openDatabase</code>) di setiap fungsi. Gunakan singleton.</li>
+  <li>Salah ketik SQL di <code>onCreate</code> (misalnya koma di akhir kolom terakhir). Error baru muncul saat aplikasi dijalankan, jadi baca pesan <code>DatabaseException</code> dengan teliti.</li>
+  <li>Mengubah <code>CREATE TABLE</code> lalu heran kolom baru tidak ada. <code>onCreate</code> tidak dijalankan ulang; lihat section Migrasi.</li>
+  <li>Menjalankan di Chrome: sqflite tidak mendukung web.</li>
+</ul>
+</div>

@@ -1,0 +1,59 @@
+<p>Untuk membuat proyek baru, jalankan perintah CLI:</p>
+<pre><code class="language-bash">flutter create halo_kampus
+cd halo_kampus</code></pre>
+
+<p>Struktur folder yang dihasilkan memiliki fungsi spesifik:</p>
+<pre><code class="language-text">halo_kampus/
+├── android/          &lt;-- Konfigurasi proyek native Android (Gradle, Manifest, build.gradle)
+├── ios/              &lt;-- Konfigurasi proyek native iOS (Podfile, Info.plist, Xcode project)
+├── lib/              &lt;-- KODE UTAMA DART KITA (95% waktu coding di sini!)
+│   └── main.dart     &lt;-- Titik masuk utama aplikasi (entry point)
+├── test/             &lt;-- Berkas unit test dan widget test otomatis
+├── web/ &amp; linux/ &amp; windows/ &amp; macos/ &lt;-- Konfigurasi platform desktop &amp; browser
+├── pubspec.yaml      &lt;-- MANIFEST PROYEK: Dependensi package, asset gambar, font &amp; versi
+├── pubspec.lock      &lt;-- Berkas pengunci versi dependencies riil
+└── README.md         &lt;-- Dokumentasi proyek</code></pre>
+
+<h4>Memahami pubspec.yaml</h4>
+<p>File <code>pubspec.yaml</code> adalah file konfigurasi sentral dalam Flutter (mirip <code>package.json</code> di Node.js atau <code>composer.json</code> di PHP Laravel):</p>
+<pre><code class="language-yaml">name: halo_kampus
+description: "Aplikasi praktikum pertama mahasiswa"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0                 # Biarkan sesuai hasil 'flutter create' di laptop Anda
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8     # Ikon iOS style
+  # Package eksternal ditambahkan lewat perintah 'flutter pub add &lt;nama&gt;', contoh:
+  # flutter pub add http
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0       # Aturan coding standard resmi (versi mengikuti flutter create)
+
+flutter:
+  uses-material-design: true
+  # Hapus tanda '#' di dua baris berikut HANYA setelah folder assets/images/ benar-benar dibuat.
+  # Jika foldernya belum ada, build akan gagal: "unable to find directory entry in pubspec.yaml".
+  # assets:
+  #   - assets/images/</code></pre>
+<div class="callout callout-warning">
+  <h4>⚠️ Hati-Hati dengan Indentasi YAML!</h4>
+  <p>File <code>.yaml</code> <strong>sangat sensitif terhadap spasi</strong>. Gunakan 2 spasi (bukan tab). Salah 1 spasi saja dapat menyebabkan <code>flutter pub get</code> gagal membaca file konfigurasi.</p>
+</div>
+
+<div class="callout callout-info">
+  <h4>▶️ Cara Menjalankan Contoh Kode di Modul Ini</h4>
+  <ul>
+    <li>Contoh berlabel <code>lib/main.dart</code> adalah <strong>program lengkap</strong>. Hapus seluruh isi <code>lib/main.dart</code> bawaan, tempel kode contoh, lalu jalankan <code>flutter run</code>.</li>
+    <li>Jika aplikasi sudah berjalan lalu Anda mengganti seluruh isi <code>main.dart</code>, tekan <strong><code>R</code> (Hot Restart)</strong>, bukan <code>r</code> (Hot Reload). Hot Reload tidak menjalankan ulang <code>main()</code> dan <code>initState()</code>, sehingga tampilan bisa tetap lama atau kosong.</li>
+    <li>Contoh berlabel file lain (misal <code>lib/providers/krs_provider.dart</code>) dibuat sebagai file baru di folder yang sama persis, karena di-<code>import</code> oleh <code>main.dart</code>.</li>
+    <li>Contoh Dart murni (Modul 02) tidak butuh Flutter: jalankan di <a href="https://dartpad.dev" target="_blank" rel="noopener">dartpad.dev</a>.</li>
+    <li>Setelah mengganti <code>main.dart</code>, hapus <code>test/widget_test.dart</code> bawaan (berisi tes aplikasi counter) agar <code>flutter test</code> tidak gagal.</li>
+  </ul>
+</div>

@@ -1,0 +1,117 @@
+<p>Flutter punya tiga cara menerapkan perubahan kode ke aplikasi yang sedang berjalan. Memilih yang tepat menghemat banyak waktu, dan memilih yang salah membuat Anda mengira kode Anda tidak berfungsi.</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Aspek</th><th>Hot Reload</th><th>Hot Restart</th><th>Full Restart (stop + run)</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Cara</strong></td><td><kbd>r</kbd> di terminal, atau simpan file (<kbd>Ctrl/Cmd</kbd>+<kbd>S</kbd>) di VS Code</td><td><kbd>R</kbd> di terminal, atau ikon panah melingkar hijau di VS Code</td><td><kbd>q</kbd> lalu <code>flutter run</code> lagi, atau Stop lalu Run di IDE</td></tr>
+      <tr><td><strong>Waktu</strong></td><td>Kurang dari 1 detik</td><td>Beberapa detik</td><td>Puluhan detik sampai menit (kompilasi ulang native)</td></tr>
+      <tr><td><strong>State (data di layar)</strong></td><td>Dipertahankan</td><td>Direset</td><td>Direset</td></tr>
+      <tr><td><strong>Menjalankan ulang <code>main()</code> dan <code>initState()</code></strong></td><td>Tidak</td><td>Ya</td><td>Ya</td></tr>
+      <tr><td><strong>Kapan dipakai</strong></td><td>Mengubah isi <code>build()</code>: teks, warna, padding, widget baru</td><td>Mengubah <code>main()</code>, <code>initState()</code>, nilai awal field, variabel global, enum/class</td><td>Menambah package ber-kode native, mengubah file di <code>android/</code> atau <code>ios/</code>, menambah aset baru</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Lab mini: membuktikan perbedaannya</h4>
+<p>Jalankan kode berikut dengan <code>flutter run</code>, lalu tekan tombol di layar sampai angkanya 5. Huruf (A) sampai (E) adalah titik yang akan kita ubah.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+// Variabel global: nilai awalnya hanya dihitung SEKALI saat pertama dipakai.
+final String namaKampus = 'UNSOED';
+
+void main() {
+  runApp(const LabReloadApp());
+}
+
+class LabReloadApp extends StatelessWidget {
+  const LabReloadApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo), // (A)
+      ),
+      home: const HalamanLab(),
+    );
+  }
+}
+
+class HalamanLab extends StatefulWidget {
+  const HalamanLab({super.key});
+
+  @override
+  State&lt;HalamanLab&gt; createState() =&gt; _HalamanLabState();
+}
+
+class _HalamanLabState extends State&lt;HalamanLab&gt; {
+  int _klik = 0; // (B)
+
+  @override
+  void initState() {
+    super.initState();
+    debugPrint('initState dipanggil'); // (C)
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Lab Reload - $namaKampus')), // (D)
+      body: Center(
+        child: Text(
+          'Tombol ditekan $_klik kali',
+          style: const TextStyle(fontSize: 24, color: Colors.black87), // (E)
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () =&gt; setState(() =&gt; _klik++),
+        child: const Icon(Icons.touch_app),
+      ),
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/01-pengenalan-flutter/lab-reload-5-kali.jpg" alt="Lab Reload menampilkan tombol ditekan 5 kali" loading="lazy">
+    <div class="screenshot-caption">Kondisi awal percobaan: tombol sudah ditekan 5 kali</div>
+  </div>
+</div>
+
+<p>Lakukan percobaan berikut satu per satu dan amati hasilnya:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Percobaan</th><th>Ubah menjadi</th><th>Hot Reload (<kbd>r</kbd>)</th><th>Hot Restart (<kbd>R</kbd>)</th></tr></thead>
+    <tbody>
+      <tr><td>(E) warna teks</td><td><code>Colors.red</code></td><td>Teks langsung merah, angka tetap 5</td><td>Teks merah, angka kembali 0</td></tr>
+      <tr><td>(A) warna tema</td><td><code>Colors.teal</code></td><td>Tombol dan latar halaman berubah nuansa teal, angka tetap 5</td><td>Berubah, angka kembali 0</td></tr>
+      <tr><td>(B) nilai awal</td><td><code>int _klik = 100;</code></td><td><strong>Tidak berubah</strong>, angka tetap 5 karena objek State lama dipertahankan</td><td>Angka mulai dari 100</td></tr>
+      <tr><td>(C) isi <code>initState</code></td><td><code>debugPrint('initState versi 2');</code></td><td>Tidak tercetak, <code>initState</code> tidak dipanggil lagi</td><td>Tercetak di terminal</td></tr>
+      <tr><td>Variabel global</td><td><code>final String namaKampus = 'Universitas Jenderal Soedirman';</code></td><td>Judul AppBar <strong>tetap</strong> "UNSOED"</td><td>Judul berubah</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/01-pengenalan-flutter/lab-reload-setelah-restart.jpg" alt="Lab Reload setelah Hot Restart dengan angka 100 berwarna merah" loading="lazy">
+    <div class="screenshot-caption">Setelah mengubah (A) teal, (B) 100, dan (E) merah lalu menekan Hot Restart: semua perubahan tampil dan angka mulai dari 100</div>
+  </div>
+</div>
+
+<p>Percobaan (D) menunjukkan sisi sebaliknya: judul AppBar memakai <code>namaKampus</code>, tetapi variabel global hanya dihitung sekali. Hot Reload mengganti kode <code>build()</code>, bukan nilai yang sudah tersimpan di memori.</p>
+
+<h4>Kapan wajib Full Restart?</h4>
+<pre><code class="language-bash"># Contoh: menambah package yang punya kode native (Android/iOS)
+flutter pub add shared_preferences
+
+# Hot Reload / Hot Restart TIDAK cukup. Hentikan aplikasi (tekan q), lalu:
+flutter run</code></pre>
+<p>Jika Anda hanya menekan <kbd>R</kbd> setelah menambah package native, biasanya muncul error <code>MissingPluginException</code>. Ini bukan bug kode Anda; aplikasinya hanya perlu dikompilasi ulang.</p>
+
+<div class="callout callout-tip">
+  <h4>💡 Aturan praktis</h4>
+  <p>Ubah tampilan: <kbd>r</kbd>. Ubah data awal atau ganti seluruh <code>main.dart</code>: <kbd>R</kbd>. Ubah <code>pubspec.yaml</code> (package native, aset) atau folder <code>android/</code> / <code>ios/</code>: stop lalu <code>flutter run</code>. Jika ragu dan hasil tampak aneh, naikkan satu tingkat.</p>
+</div>

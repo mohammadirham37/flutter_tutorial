@@ -1,0 +1,197 @@
+<p class="lead">Dialog, bottom sheet, dan date picker ternyata juga <strong>route</strong>. <code>showDialog</code> melakukan <code>push</code> sebuah <code>DialogRoute</code> ke tumpukan Navigator. Karena itu dialog ditutup dengan <code>Navigator.pop</code>, dan bisa mengembalikan nilai persis seperti halaman biasa.</p>
+
+<h4>Contoh kecil: dialog konfirmasi yang mengembalikan bool</h4>
+<pre><code class="language-dart">// showDialog juga melakukan PUSH sebuah rute (DialogRoute)
+final bool? yakin = await showDialog&lt;bool&gt;(
+  context: context,
+  builder: (dialogContext) =&gt; AlertDialog(
+    title: const Text('Hapus data?'),
+    actions: [
+      TextButton(
+        onPressed: () =&gt; Navigator.pop(dialogContext, false),
+        child: const Text('Batal'),
+      ),
+      FilledButton(
+        onPressed: () =&gt; Navigator.pop(dialogContext, true),
+        child: const Text('Hapus'),
+      ),
+    ],
+  ),
+);
+// yakin bisa true, false, atau null (ditutup dengan tap di luar dialog)
+if (yakin == true) debugPrint('Data dihapus');
+</code></pre>
+
+<ul>
+  <li><code>showDialog&lt;bool&gt;</code> mengembalikan <code>Future&lt;bool?&gt;</code>.</li>
+  <li>Nilai <code>null</code> muncul ketika pengguna menutup dialog dengan tap di luar dialog atau tombol back.</li>
+  <li>Builder dialog memberi <code>dialogContext</code> sendiri. Gunakan context ini untuk <code>pop</code> agar yang tertutup pasti dialognya.</li>
+</ul>
+
+<h4>Contoh lengkap: AlertDialog, bottom sheet, dan date picker</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.cyan),
+      home: const DialogDemoScreen(),
+    );
+  }
+}
+
+class DialogDemoScreen extends StatefulWidget {
+  const DialogDemoScreen({super.key});
+
+  @override
+  State&lt;DialogDemoScreen&gt; createState() =&gt; _DialogDemoScreenState();
+}
+
+class _DialogDemoScreenState extends State&lt;DialogDemoScreen&gt; {
+  final List&lt;String&gt; _tugas = ['Laporan Praktikum 1', 'Kuis Basis Data', 'UTS Mobile'];
+  String _prioritas = 'Sedang';
+  DateTime? _deadline;
+
+  // 1) AlertDialog yang mengembalikan bool
+  Future&lt;void&gt; _hapus(int index) async {
+    final yakin = await showDialog&lt;bool&gt;(
+      context: context,
+      barrierDismissible: false, // wajib pilih tombol, tap di luar tidak menutup
+      builder: (dialogContext) =&gt; AlertDialog(
+        icon: const Icon(Icons.delete_forever),
+        title: const Text('Hapus tugas?'),
+        content: Text('"${_tugas[index]}" akan dihapus permanen.'),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (yakin != true || !mounted) return;
+    setState(() =&gt; _tugas.removeAt(index));
+  }
+
+  // 2) Bottom sheet yang mengembalikan String
+  Future&lt;void&gt; _pilihPrioritas() async {
+    final pilihan = await showModalBottomSheet&lt;String&gt;(
+      context: context,
+      builder: (sheetContext) =&gt; SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final p in ['Rendah', 'Sedang', 'Tinggi'])
+              ListTile(
+                title: Text(p),
+                trailing: p == _prioritas ? const Icon(Icons.check) : null,
+                onTap: () =&gt; Navigator.pop(sheetContext, p),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (pilihan == null || !mounted) return;
+    setState(() =&gt; _prioritas = pilihan);
+  }
+
+  // 3) Date picker bawaan yang mengembalikan DateTime?
+  Future&lt;void&gt; _pilihTanggal() async {
+    final sekarang = DateTime.now();
+    final tanggal = await showDatePicker(
+      context: context,
+      firstDate: sekarang,
+      lastDate: DateTime(sekarang.year + 1),
+      initialDate: _deadline ?? sekarang,
+    );
+    if (tanggal == null || !mounted) return;
+    setState(() =&gt; _deadline = tanggal);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final teksDeadline = _deadline == null
+        ? 'Belum diatur'
+        : '${_deadline!.day}/${_deadline!.month}/${_deadline!.year}';
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Dialog &amp; Bottom Sheet')),
+      body: ListView(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.flag),
+            title: const Text('Prioritas'),
+            subtitle: Text(_prioritas),
+            onTap: _pilihPrioritas,
+          ),
+          ListTile(
+            leading: const Icon(Icons.event),
+            title: const Text('Deadline'),
+            subtitle: Text(teksDeadline),
+            onTap: _pilihTanggal,
+          ),
+          const Divider(),
+          for (var i = 0; i &lt; _tugas.length; i++)
+            ListTile(
+              title: Text(_tugas[i]),
+              trailing: IconButton(
+                tooltip: 'Hapus tugas',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () =&gt; _hapus(i),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/dialog-hapus.jpg" alt="AlertDialog konfirmasi hapus" loading="lazy">
+    <div class="screenshot-caption">AlertDialog konfirmasi hapus</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/dialog-sheet.jpg" alt="Bottom sheet pilihan prioritas" loading="lazy">
+    <div class="screenshot-caption">Bottom sheet pilihan prioritas</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Fungsi</th><th>Tipe hasil</th><th>Ditutup dengan</th></tr></thead>
+    <tbody>
+      <tr><td><code>showDialog&lt;bool&gt;</code></td><td><code>bool?</code></td><td><code>Navigator.pop(dialogContext, true)</code></td></tr>
+      <tr><td><code>showModalBottomSheet&lt;String&gt;</code></td><td><code>String?</code></td><td><code>Navigator.pop(sheetContext, p)</code></td></tr>
+      <tr><td><code>showDatePicker</code></td><td><code>DateTime?</code></td><td>Otomatis oleh tombol OK/Cancel</td></tr>
+    </tbody>
+  </table>
+</div>
+<ul>
+  <li><code>barrierDismissible: false</code> memaksa pengguna memilih tombol.</li>
+  <li>Setiap fungsi memeriksa <code>!mounted</code> setelah <code>await</code> sebelum memanggil <code>setState</code>.</li>
+  <li><code>yakin != true</code> menangani dua kasus sekaligus: <code>false</code> dan <code>null</code>.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Menulis <code>if (yakin)</code> padahal tipenya <code>bool?</code>. Dart menolak karena bisa <code>null</code>. Tulis <code>if (yakin == true)</code>.</li>
+  <li>Memanggil <code>Navigator.pop(context)</code> dua kali (sekali untuk dialog, sekali "untuk jaga-jaga"), sehingga halaman di bawahnya ikut tertutup.</li>
+  <li>Menampilkan SnackBar dengan <code>dialogContext</code> setelah dialog tertutup. Gunakan context halaman.</li>
+</ul>
+</div>

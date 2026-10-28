@@ -1,0 +1,117 @@
+<p class="lead">Publishable key ada di dalam aplikasi, sehingga siapa pun yang membongkar APK bisa memakainya untuk memanggil API Supabase. Lalu apa yang mencegah orang iseng membaca catatan milik mahasiswa lain? Jawabannya adalah <strong>Row Level Security (RLS)</strong>.</p>
+
+<h4>Konsep: satpam di setiap baris</h4>
+<p>Bayangkan setiap tabel dijaga seorang satpam. Saat RLS <strong>aktif</strong>, satpam menolak <em>semua</em> akses, kecuali yang diizinkan secara eksplisit oleh <strong>policy</strong>. Policy adalah aturan berbentuk kondisi SQL yang dicek untuk <em>setiap baris</em>:</p>
+<pre><code class="language-text">Request: SELECT * FROM notes   (dikirim oleh user dengan id = A)
+
+ baris  | user_id | policy: auth.uid() = user_id | hasil
+ -------+---------+------------------------------+---------------
+ note 1 |    A    |  A = A  → true               | ✅ dikirim
+ note 2 |    B    |  A = B  → false              | ❌ disembunyikan
+ note 3 |    A    |  A = A  → true               | ✅ dikirim
+</code></pre>
+<p>Aplikasi tidak perlu menulis <code>.eq('user_id', ...)</code>. Database sendiri yang memfilter, sehingga tidak bisa diakali dari sisi aplikasi.</p>
+
+<h4>Peran (role) dalam request</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Role</th><th>Kapan</th><th>Nilai <code>auth.uid()</code></th></tr></thead>
+    <tbody>
+      <tr><td><code>anon</code></td><td>Request dengan publishable key, user <strong>belum login</strong></td><td><code>null</code></td></tr>
+      <tr><td><code>authenticated</code></td><td>User <strong>sudah login</strong> (token sesi otomatis dikirim oleh supabase_flutter)</td><td>id user tersebut (uuid)</td></tr>
+      <tr><td><code>service_role</code></td><td>Memakai secret key (khusus server)</td><td>Melewati RLS sepenuhnya</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh 1: data publik yang boleh dibaca siapa saja</h4>
+<pre><code class="language-sql">-- 1. Aktifkan RLS (setelah ini semua akses ditolak)
+alter table public.mata_kuliah enable row level security;
+
+-- 2. Izinkan SELECT untuk semua orang
+create policy "Semua orang boleh membaca mata kuliah"
+on public.mata_kuliah
+for select
+to anon, authenticated
+using (true);
+
+-- 3. Hanya user yang sudah login boleh menambah
+create policy "User login boleh menambah mata kuliah"
+on public.mata_kuliah
+for insert
+to authenticated
+with check (true);
+</code></pre>
+<p>Tanpa policy UPDATE dan DELETE, tidak ada seorang pun (dari aplikasi) yang bisa mengubah atau menghapus mata kuliah. Itulah yang kita mau untuk data master.</p>
+
+<h4>Contoh 2: data milik pribadi (pola yang paling sering dipakai)</h4>
+<pre><code class="language-sql">create policy "User melihat catatannya sendiri"
+on public.notes
+for select
+to authenticated
+using ( (select auth.uid()) = user_id );
+</code></pre>
+<p>Kita bedah baris per baris:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Baris</th><th>Arti</th></tr></thead>
+    <tbody>
+      <tr><td><code>create policy "User melihat ..."</code></td><td>Nama policy, bebas tetapi harus unik per tabel. Tulis nama yang mudah dipahami.</td></tr>
+      <tr><td><code>on public.notes</code></td><td>Tabel yang diatur.</td></tr>
+      <tr><td><code>for select</code></td><td>Operasi yang diatur: <code>select</code>, <code>insert</code>, <code>update</code>, <code>delete</code>, atau <code>all</code>.</td></tr>
+      <tr><td><code>to authenticated</code></td><td>Policy hanya berlaku untuk user yang sudah login. User anon langsung ditolak.</td></tr>
+      <tr><td><code>using ( ... )</code></td><td>Kondisi untuk baris yang <strong>sudah ada</strong>: baris mana yang boleh dilihat/diubah/dihapus.</td></tr>
+      <tr><td><code>auth.uid()</code></td><td>Fungsi bawaan Supabase yang mengembalikan id user dari token login pada request ini.</td></tr>
+      <tr><td><code>(select auth.uid())</code></td><td>Dibungkus <code>select</code> agar Postgres cukup menghitungnya sekali per query, bukan sekali per baris. Hasilnya sama tetapi lebih cepat.</td></tr>
+      <tr><td><code>= user_id</code></td><td>Baris lolos hanya jika kolom <code>user_id</code> sama dengan id user yang login.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4><code>using</code> vs <code>with check</code></h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Operasi</th><th><code>using</code> (baris lama)</th><th><code>with check</code> (baris baru)</th></tr></thead>
+    <tbody>
+      <tr><td>SELECT</td><td>✅ dipakai</td><td>–</td></tr>
+      <tr><td>INSERT</td><td>–</td><td>✅ dipakai: data yang akan masuk harus memenuhi syarat</td></tr>
+      <tr><td>UPDATE</td><td>✅ baris mana yang boleh diubah</td><td>✅ hasil perubahan harus tetap memenuhi syarat</td></tr>
+      <tr><td>DELETE</td><td>✅ dipakai</td><td>–</td></tr>
+    </tbody>
+  </table>
+</div>
+<pre><code class="language-sql">create policy "User menambah catatannya sendiri"
+on public.notes for insert to authenticated
+with check ( (select auth.uid()) = user_id );
+
+create policy "User mengubah catatannya sendiri"
+on public.notes for update to authenticated
+using ( (select auth.uid()) = user_id )        -- hanya baris miliknya
+with check ( (select auth.uid()) = user_id );  -- tidak boleh "memindahkan" ke user lain
+
+create policy "User menghapus catatannya sendiri"
+on public.notes for delete to authenticated
+using ( (select auth.uid()) = user_id );
+</code></pre>
+
+<h4>Apa yang terjadi jika ditolak RLS?</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Operasi</th><th>Gejala di Flutter</th></tr></thead>
+    <tbody>
+      <tr><td>SELECT</td><td><strong>Tidak error</strong>, hanya mengembalikan list kosong <code>[]</code>. Ini yang paling sering membingungkan!</td></tr>
+      <tr><td>INSERT</td><td><code>PostgrestException</code> dengan code <code>42501</code>: <em>new row violates row-level security policy</em></td></tr>
+      <tr><td>UPDATE / DELETE</td><td>Tidak error, tetapi tidak ada baris yang berubah (0 baris cocok). Jika memakai <code>.select().single()</code>, muncul error karena hasilnya 0 baris.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-tip"><h4>💡 Melihat dan menguji policy</h4><p>Buka <strong>Authentication &rarr; Policies</strong> (atau Database &rarr; Policies) untuk melihat semua policy per tabel. Di SQL Editor, query dijalankan sebagai admin (<code>postgres</code>) sehingga RLS <em>tidak</em> berlaku. Jadi data yang terlihat di SQL Editor belum tentu terlihat dari aplikasi.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum RLS</h4>
+<ul>
+  <li><strong>Lupa <code>enable row level security</code></strong>: tabel terbuka untuk publik. Dashboard menandainya <em>UNRESTRICTED</em>.</li>
+  <li><strong>RLS aktif tetapi lupa membuat policy SELECT</strong>: data "hilang", list selalu kosong.</li>
+  <li><strong>Policy <code>using (true)</code> untuk data pribadi</strong>: semua user bisa melihat data user lain.</li>
+  <li><strong>Insert tanpa <code>user_id</code> dan tanpa <code>default auth.uid()</code></strong>: <code>user_id</code> bernilai null sehingga <code>with check</code> gagal dan muncul error 42501.</li>
+</ul></div>

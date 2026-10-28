@@ -1,0 +1,41 @@
+<p>Urutan modul tidak dibuat asal. Setiap modul adalah "anak tangga" yang dipakai oleh modul sesudahnya. Jika satu anak tangga dilewati, modul berikutnya akan terasa sulit. Berikut alur belajarnya dan alasan di balik urutan tersebut.</p>
+
+<pre><code class="language-text">M00 Silabus
+  └─&gt; M01 Setup Flutter ──&gt; M02 Dart 3
+                               │
+        ┌──────────────────────┘
+        v
+  M03 Widget ──&gt; M04 Layout ──&gt; M05 Form ──&gt; M06 List
+                                               │
+        ┌──────────────────────────────────────┘
+        v
+  M07 Navigasi ──&gt; M08 Provider            [UTS]
+                      │
+        ┌─────────────┘
+        v
+  M09 REST API ──&gt; M10 SharedPreferences &amp; SQLite ──&gt; M11 Hive ──&gt; M12 Supabase
+                                                                       │
+        ┌──────────────────────────────────────────────────────────────┘
+        v
+  M13 Proyek: Auth ──&gt; M14 Proyek: CRUD + Offline ──&gt; M15 Testing ──&gt; M16 Rilis  [UAS]</code></pre>
+
+<h4>Mengapa urutannya seperti ini?</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Tahap</th><th>Alasan</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Setup dulu (M01)</strong></td><td>Tanpa SDK yang berjalan, tidak ada satu pun contoh kode yang bisa dicoba. <code>flutter doctor</code> harus bersih sebelum masuk materi.</td></tr>
+      <tr><td><strong>Dart sebelum widget (M02)</strong></td><td>Widget ditulis dengan Dart. Konsep class, constructor, named parameter, dan null safety muncul di setiap baris Flutter. Belajar Dart di DartPad lebih ringan daripada langsung di aplikasi.</td></tr>
+      <tr><td><strong>Widget, layout, form, list (M03 - M06)</strong></td><td>Dari yang paling kecil (satu widget) ke yang paling umum dipakai (daftar data). Setelah ini Anda bisa membuat hampir semua tampilan satu halaman.</td></tr>
+      <tr><td><strong>Navigasi lalu Provider (M07 - M08)</strong></td><td>Saat aplikasi punya banyak halaman, data harus bisa dibagi antar halaman. Itulah masalah yang diselesaikan Provider, sehingga Provider baru masuk akal setelah navigasi.</td></tr>
+      <tr><td><strong>Data: API, lokal, cloud (M09 - M12)</strong></td><td>Dimulai dari membaca data (REST API), lalu menyimpan di perangkat (SharedPreferences, SQLite, Hive), terakhir backend lengkap dengan login (Supabase). Hive dibahas sebelum Supabase karena nanti dipakai sebagai cache offline.</td></tr>
+      <tr><td><strong>Proyek terpadu (M13 - M14)</strong></td><td>Semua konsep sebelumnya digabung dalam satu aplikasi nyata: Auth, CRUD, Provider, Hive. Proyek ini menjadi pola dasar capstone Anda.</td></tr>
+      <tr><td><strong>Testing dan rilis (M15 - M16)</strong></td><td>Setelah aplikasinya ada, barulah kita memastikan kualitasnya (test) dan mengemasnya untuk pengguna (build rilis).</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning">
+  <h4>⚠️ Jangan lompat ke Supabase dulu</h4>
+  <p>Banyak mahasiswa ingin langsung membuat aplikasi login. Kode M13 memakai <code>async/await</code> (M02), <code>Form</code> dan validasi (M05), <code>Navigator</code> (M07), dan <code>ChangeNotifier</code> (M08) sekaligus. Jika belum paham keempatnya, error yang muncul akan sangat membingungkan.</p>
+</div>

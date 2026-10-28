@@ -1,0 +1,29 @@
+<p class="lead">Setelah mencoba SharedPreferences dan SQLite, mari bandingkan dengan dua teknologi yang akan dipelajari berikutnya: <strong>Hive</strong> (Modul 11, NoSQL key-value lokal) dan <strong>Supabase</strong> (Modul 12, database cloud).</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead>
+      <tr><th>Aspek</th><th>SharedPreferences</th><th>SQLite (sqflite)</th><th>Hive (Modul 11)</th><th>Supabase (Modul 12)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Lokasi data</strong></td><td>Lokal (HP)</td><td>Lokal (HP)</td><td>Lokal (HP)</td><td>Cloud (server PostgreSQL)</td></tr>
+      <tr><td><strong>Model data</strong></td><td>Key-value sederhana</td><td>Tabel relasional (SQL)</td><td>Key-value NoSQL berisi objek Dart</td><td>Tabel relasional (PostgreSQL) via API</td></tr>
+      <tr><td><strong>Tipe data</strong></td><td>bool, int, double, String, List&lt;String&gt;</td><td>INTEGER, REAL, TEXT, BLOB</td><td>Tipe Dart + objek kustom (adapter)</td><td>Semua tipe PostgreSQL, JSON</td></tr>
+      <tr><td><strong>Query / filter</strong></td><td>Tidak ada (ambil per kunci)</td><td>Sangat kuat: WHERE, JOIN, GROUP BY</td><td>Filter di Dart (<code>where</code>)</td><td>Kuat: filter, relasi, RPC</td></tr>
+      <tr><td><strong>Relasi antar data</strong></td><td>-</td><td>Ya (foreign key)</td><td>Manual</td><td>Ya (foreign key)</td></tr>
+      <tr><td><strong>Perlu internet</strong></td><td>Tidak</td><td>Tidak</td><td>Tidak</td><td>Ya (untuk sinkron)</td></tr>
+      <tr><td><strong>Berbagi antar perangkat/pengguna</strong></td><td>Tidak</td><td>Tidak</td><td>Tidak</td><td>Ya, plus autentikasi</td></tr>
+      <tr><td><strong>Dukungan Web</strong></td><td>Ya</td><td>Tidak (sqflite)</td><td>Ya</td><td>Ya</td></tr>
+      <tr><td><strong>Kurva belajar</strong></td><td>Sangat mudah</td><td>Sedang (perlu SQL &amp; migrasi)</td><td>Mudah</td><td>Sedang (perlu setup proyek)</td></tr>
+      <tr><td><strong>Contoh ideal</strong></td><td>Tema, onboarding, bahasa</td><td>Catatan, transaksi, KRS offline</td><td>Cache data, keranjang belanja, favorit</td><td>Aplikasi multi-user, login, data bersama</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Kombinasi yang Umum di Aplikasi Nyata</h4>
+<ul>
+  <li><strong>SharedPreferences</strong> untuk pengaturan + <strong>SQLite/Hive</strong> untuk data offline.</li>
+  <li><strong>Supabase</strong> sebagai sumber data utama + <strong>Hive/SQLite</strong> sebagai cache agar aplikasi tetap bisa dibuka tanpa internet (<em>offline-first</em>).</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Selanjutnya</h4><p><strong>Modul 11 (Hive)</strong> menunjukkan cara menyimpan objek Dart secara langsung tanpa menulis SQL, termasuk di Flutter Web. <strong>Modul 12 (Supabase)</strong> memindahkan data ke cloud sehingga bisa diakses banyak perangkat dan dilengkapi login. Pola Repository yang dipelajari di Modul 09 dan 10 membuat perpindahan ini mudah: cukup ganti implementasi lapisan data.</p></div>

@@ -1,0 +1,271 @@
+<p class="lead">Objek <code>State</code> punya <strong>siklus hidup</strong> (lifecycle): ia dibuat, dipasang ke pohon, digambar berkali-kali, diperbarui, lalu dibuang. Flutter memanggil method tertentu di setiap tahap. Memahami urutannya adalah kunci menghindari kebocoran memori (memory leak) dan error saat aplikasi berjalan.</p>
+
+<pre><code class="language-text">createState()
+     │
+     ▼
+initState()               ← sekali, saat State pertama kali dibuat
+     │
+     ▼
+didChangeDependencies()   ← setelah initState, dan tiap kali Theme/MediaQuery yang dipakai berubah
+     │
+     ▼
+build()  ◄───────────────┐  ← berkali-kali
+     │                   │
+     ├── setState() ─────┤
+     ├── didUpdateWidget()┤ ← induk membangun ulang dengan parameter baru
+     │                   │
+     ▼
+dispose()                 ← sekali, saat widget dibuang dari pohon selamanya
+</code></pre>
+
+<ol class="list-decimal pl-6 space-y-2 my-4">
+  <li><strong><code>createState()</code>:</strong> Dipanggil saat framework membuat elemen baru di pohon elemen. Isinya hanya membuat objek State.</li>
+  <li><strong><code>initState()</code>:</strong> Dipanggil tepat <strong>SATU KALI</strong> saat objek state pertama kali dimasukkan ke tree. Cocok untuk inisialisasi controller, controller animasi, timer, atau mengambil data awal.</li>
+  <li><strong><code>didChangeDependencies()</code>:</strong> Dipanggil setelah <code>initState()</code> dan setiap kali objek yang dibaca lewat <code>context</code> (seperti <code>Theme.of</code> atau <code>MediaQuery</code>) berubah.</li>
+  <li><strong><code>build()</code>:</strong> Mengembalikan struktur widget tree yang akan digambar. Dipanggil setiap kali ada <code>setState()</code>, <code>didUpdateWidget()</code>, atau perubahan dependensi.</li>
+  <li><strong><code>didUpdateWidget(oldWidget)</code>:</strong> Dipanggil saat induk membangun ulang widget ini dengan parameter baru. Kita bisa membandingkan <code>oldWidget</code> dengan <code>widget</code>.</li>
+  <li><strong><code>setState()</code>:</strong> Memberi sinyal ke framework bahwa ada data internal yang berubah, memicu pemanggilan ulang <code>build()</code>.</li>
+  <li><strong><code>dispose()</code>:</strong> Dipanggil saat widget dihapus secara permanen dari layar. <em>Wajib menutup stream, timer, AnimationController, dan TextEditingController di sini agar tidak bocor di memori!</em></li>
+</ol>
+
+<h4>Contoh kecil: pola initState dan dispose</h4>
+<pre><code class="language-dart">class KolomNama extends StatefulWidget {
+  const KolomNama({super.key});
+
+  @override
+  State&lt;KolomNama&gt; createState() =&gt; _KolomNamaState();
+}
+
+class _KolomNamaState extends State&lt;KolomNama&gt; {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState(); // selalu panggil super.initState() PALING AWAL
+    _controller = TextEditingController(text: 'Mahasiswa');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose(); // bersihkan resource milik kita dulu
+    super.dispose();       // super.dispose() PALING AKHIR
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(controller: _controller);
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/lifecycle-1.jpg" alt="TextField dengan controller yang dibuat di initState" loading="lazy">
+    <div class="screenshot-caption">TextField dengan controller yang dibuat di initState</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: demo log lifecycle</h4>
+<p>Jalankan kode berikut, buka <strong>Debug Console</strong> (VS Code) atau terminal tempat <code>flutter run</code> berjalan, lalu tekan tombol-tombolnya satu per satu sambil membaca log yang muncul.</p>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const DemoLifecycleApp());
+}
+
+/// Induk: menyimpan 3 state yang mempengaruhi anak.
+class DemoLifecycleApp extends StatefulWidget {
+  const DemoLifecycleApp({super.key});
+
+  @override
+  State&lt;DemoLifecycleApp&gt; createState() =&gt; _DemoLifecycleAppState();
+}
+
+class _DemoLifecycleAppState extends State&lt;DemoLifecycleApp&gt; {
+  bool _tampilkanAnak = true; // untuk memicu initState / dispose
+  int _nomorPertemuan = 1;    // untuk memicu didUpdateWidget
+  bool _modeGelap = false;    // untuk memicu didChangeDependencies
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      // Matikan animasi pergantian tema agar log tidak tercetak berkali-kali
+      themeAnimationDuration: Duration.zero,
+      theme: ThemeData(
+        colorSchemeSeed: Colors.indigo,
+        brightness: _modeGelap ? Brightness.dark : Brightness.light,
+      ),
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Demo Lifecycle')),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FilledButton(
+                onPressed: () =&gt; setState(() =&gt; _tampilkanAnak = !_tampilkanAnak),
+                child: Text(_tampilkanAnak ? 'Sembunyikan anak (dispose)' : 'Tampilkan anak (initState)'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () =&gt; setState(() =&gt; _nomorPertemuan++),
+                child: const Text('Ganti parameter (didUpdateWidget)'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () =&gt; setState(() =&gt; _modeGelap = !_modeGelap),
+                child: const Text('Ganti tema (didChangeDependencies)'),
+              ),
+              const SizedBox(height: 24),
+              if (_tampilkanAnak) KartuLifecycle(nomorPertemuan: _nomorPertemuan),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Anak: mencetak log di setiap tahap lifecycle.
+class KartuLifecycle extends StatefulWidget {
+  final int nomorPertemuan;
+
+  const KartuLifecycle({super.key, required this.nomorPertemuan});
+
+  @override
+  // ignore: no_logic_in_create_state
+  State&lt;KartuLifecycle&gt; createState() {
+    debugPrint('1. createState()');
+    return _KartuLifecycleState();
+  }
+}
+
+class _KartuLifecycleState extends State&lt;KartuLifecycle&gt; {
+  Timer? _timer;
+  int _detik = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    debugPrint('2. initState()  -&gt; timer dimulai');
+    // Timer berjalan tiap detik. WAJIB dibatalkan di dispose().
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      setState(() =&gt; _detik++);
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final gelap = Theme.of(context).brightness == Brightness.dark;
+    debugPrint('3. didChangeDependencies()  -&gt; tema gelap: $gelap');
+  }
+
+  @override
+  void didUpdateWidget(covariant KartuLifecycle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    debugPrint(
+      '5. didUpdateWidget()  -&gt; pertemuan ${oldWidget.nomorPertemuan} '
+      'menjadi ${widget.nomorPertemuan}',
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    debugPrint('6. dispose()  -&gt; timer dibatalkan setelah $_detik detik');
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Dicetak hanya pada build pertama agar log tidak penuh oleh timer
+    if (_detik == 0) debugPrint('4. build()');
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            // Akses parameter widget dari State lewat "widget."
+            Text(
+              'Pertemuan ke-${widget.nomorPertemuan}',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text('Sudah tampil selama $_detik detik'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/lifecycle-2.jpg" alt="Demo lifecycle: kartu anak dengan timer" loading="lazy">
+    <div class="screenshot-caption">Demo lifecycle: kartu anak dengan timer</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/lifecycle-update.jpg" alt="Setelah parameter diganti dua kali (didUpdateWidget)" loading="lazy">
+    <div class="screenshot-caption">Setelah parameter diganti dua kali (didUpdateWidget)</div>
+  </div>
+</div>
+
+<h4>Contoh log yang muncul</h4>
+<pre><code class="language-text">// Saat aplikasi dibuka
+1. createState()
+2. initState()  -&gt; timer dimulai
+3. didChangeDependencies()  -&gt; tema gelap: false
+4. build()
+
+// Tekan "Ganti parameter"
+5. didUpdateWidget()  -&gt; pertemuan 1 menjadi 2
+
+// Tekan "Ganti tema": induk membangun ulang (didUpdateWidget),
+// lalu Theme yang dibaca anak berubah (didChangeDependencies)
+5. didUpdateWidget()  -&gt; pertemuan 2 menjadi 2
+3. didChangeDependencies()  -&gt; tema gelap: true
+
+// Tekan "Sembunyikan anak"
+6. dispose()  -&gt; timer dibatalkan setelah 12 detik
+
+// Tekan "Tampilkan anak" lagi: State BARU dibuat, detik mulai dari 0
+1. createState()
+2. initState()  -&gt; timer dimulai
+3. didChangeDependencies()  -&gt; tema gelap: true
+4. build()
+</code></pre>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><code>widget.nomorPertemuan</code>: dari dalam class State, parameter milik widget diakses lewat properti <code>widget</code>.</li>
+  <li><code>initState</code> tidak boleh memakai <code>Theme.of(context)</code> atau <code>MediaQuery.of(context)</code>. Hal yang bergantung pada <code>context</code> diletakkan di <code>didChangeDependencies</code> atau <code>build</code>.</li>
+  <li>Jika baris <code>_timer?.cancel()</code> dihapus, timer tetap berjalan setelah widget hilang dan memanggil <code>setState</code> pada State yang sudah dibuang. Hasilnya error <em>"setState() called after dispose()"</em>.</li>
+  <li><code>didUpdateWidget</code> dipanggil setiap kali induk memanggil <code>setState</code>, walaupun nilainya sama (lihat "pertemuan 2 menjadi 2"). Karena itu, di dalamnya biasanya kita membandingkan dulu: <code>if (oldWidget.nomorPertemuan != widget.nomorPertemuan) { ... }</code>.</li>
+  <li>Saat anak ditampilkan lagi, <code>_detik</code> kembali ke 0. Ini membuktikan State lama sudah dibuang dan State baru dibuat.</li>
+</ul>
+
+<h4>Pengecekan <code>mounted</code> setelah <code>await</code></h4>
+<p>Jika kamu menunggu proses lama (misalnya request API) lalu memanggil <code>setState</code>, cek dulu apakah widget masih terpasang:</p>
+<pre><code class="language-dart">Future&lt;void&gt; _muatData() async {
+  await Future.delayed(const Duration(seconds: 2)); // pura-pura request API
+  if (!mounted) return; // widget sudah ditutup? jangan setState
+  setState(() {
+    // perbarui data di sini
+  });
+}
+</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Lupa memanggil <code>super.initState()</code> di awal atau <code>super.dispose()</code> di akhir.</li>
+  <li>Membuat controller (<code>TextEditingController</code>, <code>AnimationController</code>) di dalam <code>build()</code>. Controller akan dibuat ulang setiap build dan isinya hilang. Buat di <code>initState</code>.</li>
+  <li>Tidak membatalkan <code>Timer</code> atau <code>StreamSubscription</code> di <code>dispose()</code>.</li>
+  <li>Memanggil <code>setState</code> di <code>dispose()</code>, atau setelah <code>await</code> tanpa cek <code>mounted</code>.</li>
+</ul></div>

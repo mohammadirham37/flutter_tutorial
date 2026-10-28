@@ -1,0 +1,239 @@
+<p class="lead">Koleksi menyimpan banyak nilai dalam satu variabel. Dart punya tiga koleksi utama: <strong>List</strong> (berurutan, boleh duplikat), <strong>Set</strong> (unik), dan <strong>Map</strong> (pasangan kunci-nilai). Hampir semua data di aplikasi, mulai dari daftar produk sampai respon JSON dari API, disimpan dalam koleksi.</p>
+
+<h4>List: dasar-dasar</h4>
+<pre><code class="language-dart">void main() {
+  List&lt;String&gt; buah = ['apel', 'jeruk'];
+  buah.add('mangga'); // tambah di akhir
+  buah.addAll(['salak', 'durian']); // tambah banyak sekaligus
+  buah.insert(0, 'pisang'); // sisipkan di indeks 0
+
+  print(buah); // Output: [pisang, apel, jeruk, mangga, salak, durian]
+  print(buah.length); // Output: 6
+  print(buah[1]); // Output: apel
+  print(buah.first); // Output: pisang
+  print(buah.last); // Output: durian
+  print(buah.indexOf('mangga')); // Output: 3
+  print(buah.contains('nanas')); // Output: false
+
+  buah[1] = 'anggur'; // ubah elemen
+  buah.remove('jeruk'); // hapus berdasarkan nilai
+  buah.removeAt(0); // hapus berdasarkan indeks
+  print(buah); // Output: [anggur, mangga, salak, durian]
+  print(buah.sublist(1, 3)); // Output: [mangga, salak]
+  print(buah.reversed.toList()); // Output: [durian, salak, mangga, anggur]
+  print(buah.isEmpty); // Output: false
+}
+</code></pre>
+<p>Indeks List dimulai dari 0. Mengakses indeks di luar jangkauan (misalnya <code>buah[10]</code>) menyebabkan <code>RangeError</code>. Tipe di dalam <code>&lt; &gt;</code> disebut <em>generic</em>: <code>List&lt;String&gt;</code> berarti list yang isinya hanya boleh String.</p>
+
+<h4>Membuat List secara otomatis</h4>
+<pre><code class="language-dart">void main() {
+  var kuadrat = List.generate(5, (i) =&gt; i * i);
+  print(kuadrat); // Output: [0, 1, 4, 9, 16]
+
+  var kursi = List.filled(3, 'kosong');
+  print(kursi); // Output: [kosong, kosong, kosong]
+
+  var kosong = &lt;int&gt;[]; // list kosong bertipe int
+  print(kosong.length); // Output: 0
+}
+</code></pre>
+
+<h4>Set: koleksi tanpa duplikat</h4>
+<pre><code class="language-dart">void main() {
+  Set&lt;String&gt; hobi = {'coding', 'futsal', 'membaca'};
+  hobi.add('coding'); // diabaikan karena sudah ada
+  print(hobi); // Output: {coding, futsal, membaca}
+  print(hobi.length); // Output: 3
+  print(hobi.contains('membaca')); // Output: true
+
+  var kelasA = {'Ayu', 'Bima', 'Citra'};
+  var kelasB = {'Bima', 'Dodi', 'Citra'};
+  print(kelasA.union(kelasB)); // Output: {Ayu, Bima, Citra, Dodi}
+  print(kelasA.intersection(kelasB)); // Output: {Bima, Citra}
+  print(kelasA.difference(kelasB)); // Output: {Ayu}
+
+  // Trik populer: buang duplikat dari List
+  var presensi = ['01', '02', '01', '03', '02'];
+  print(presensi.toSet().toList()); // Output: [01, 02, 03]
+}
+</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ <code>{}</code> kosong adalah Map</h4><p><code>var x = {};</code> menghasilkan <code>Map</code>, bukan <code>Set</code>. Untuk Set kosong tulis <code>&lt;String&gt;{}</code> atau <code>Set&lt;String&gt; x = {};</code>.</p></div>
+
+<h4>Map: pasangan kunci-nilai</h4>
+<pre><code class="language-dart">void main() {
+  Map&lt;String, int&gt; stok = {
+    'pulpen': 20,
+    'buku': 15,
+  };
+
+  stok['penggaris'] = 8; // tambah pasangan baru
+  stok['buku'] = 12; // ubah nilai
+  print(stok); // Output: {pulpen: 20, buku: 12, penggaris: 8}
+  print(stok['pulpen']); // Output: 20
+  print(stok['penghapus']); // Output: null
+  print(stok.containsKey('buku')); // Output: true
+  print(stok.keys); // Output: (pulpen, buku, penggaris)
+  print(stok.values.toList()); // Output: [20, 12, 8]
+
+  stok.remove('pulpen');
+  stok.update('buku', (lama) =&gt; lama + 5);
+  stok.putIfAbsent('spidol', () =&gt; 10);
+  print(stok); // Output: {buku: 17, penggaris: 8, spidol: 10}
+
+  for (final entry in stok.entries) {
+    print('${entry.key} -&gt; ${entry.value}');
+  }
+  // Output:
+  // buku -&gt; 17
+  // penggaris -&gt; 8
+  // spidol -&gt; 10
+}
+</code></pre>
+<p>Mengakses kunci yang tidak ada menghasilkan <code>null</code>, bukan error. Karena itu tipe <code>stok['x']</code> adalah <code>int?</code> (nullable).</p>
+
+<h4>Map&lt;String, dynamic&gt;: bentuk data JSON</h4>
+<p>Data JSON dari API (Modul 09) akan berbentuk <code>Map&lt;String, dynamic&gt;</code> karena nilainya bisa bermacam-macam tipe.</p>
+<pre><code class="language-dart">void main() {
+  Map&lt;String, dynamic&gt; mahasiswa = {
+    'nama': 'Nadia',
+    'nim': 'H1D023005',
+    'ipk': 3.75,
+    'aktif': true,
+    'matkul': ['Mobile', 'Web'],
+  };
+
+  String nama = mahasiswa['nama'] as String;
+  double ipk = mahasiswa['ipk'] as double;
+  List matkul = mahasiswa['matkul'] as List;
+
+  print('$nama, IPK $ipk, ambil ${matkul.length} matkul'); // Output: Nadia, IPK 3.75, ambil 2 matkul
+}
+</code></pre>
+
+<h4>Method fungsional: map, where, fold, reduce, any, every</h4>
+<p>Method berikut menerima fungsi sebagai argumen (ingat higher-order function di section sebelumnya) dan membuat kode pengolahan data jauh lebih ringkas daripada perulangan manual.</p>
+<pre><code class="language-dart">void main() {
+  List&lt;int&gt; nilai = [78, 92, 55, 64, 88, 40];
+
+  var lulus = nilai.where((n) =&gt; n &gt;= 60).toList();
+  print(lulus); // Output: [78, 92, 64, 88]
+
+  var plusBonus = nilai.map((n) =&gt; n + 5).toList();
+  print(plusBonus); // Output: [83, 97, 60, 69, 93, 45]
+
+  int total = nilai.fold(0, (jumlah, n) =&gt; jumlah + n);
+  print(total); // Output: 417
+  print(total / nilai.length); // Output: 69.5
+
+  int tertinggi = nilai.reduce((a, b) =&gt; a &gt; b ? a : b);
+  print(tertinggi); // Output: 92
+
+  print(nilai.any((n) =&gt; n &lt; 50)); // Output: true
+  print(nilai.every((n) =&gt; n &gt;= 40)); // Output: true
+  print(nilai.firstWhere((n) =&gt; n &gt; 80)); // Output: 92
+  print(nilai.take(2).toList()); // Output: [78, 92]
+  print(nilai.skip(4).toList()); // Output: [88, 40]
+  print(nilai.join(' | ')); // Output: 78 | 92 | 55 | 64 | 88 | 40
+}
+</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Method</th><th>Fungsi</th><th>Hasil</th></tr></thead>
+    <tbody>
+      <tr><td><code>where</code></td><td>Menyaring elemen yang memenuhi syarat</td><td>Iterable</td></tr>
+      <tr><td><code>map</code></td><td>Mengubah setiap elemen</td><td>Iterable</td></tr>
+      <tr><td><code>fold</code></td><td>Mengakumulasi dengan nilai awal</td><td>Satu nilai</td></tr>
+      <tr><td><code>reduce</code></td><td>Mengakumulasi tanpa nilai awal (list tidak boleh kosong)</td><td>Satu nilai</td></tr>
+      <tr><td><code>any</code> / <code>every</code></td><td>Ada yang memenuhi / semua memenuhi</td><td><code>bool</code></td></tr>
+      <tr><td><code>firstWhere</code></td><td>Elemen pertama yang memenuhi syarat</td><td>Satu elemen</td></tr>
+    </tbody>
+  </table>
+</div>
+<p><code>where</code> dan <code>map</code> menghasilkan <code>Iterable</code> yang bersifat <em>lazy</em> (baru diproses ketika dibutuhkan). Tambahkan <code>.toList()</code> jika Anda butuh List sungguhan.</p>
+
+<h4>Mengurutkan dengan sort</h4>
+<pre><code class="language-dart">void main() {
+  var angka = [5, 2, 9, 1];
+  angka.sort(); // naik (ascending)
+  print(angka); // Output: [1, 2, 5, 9]
+  angka.sort((a, b) =&gt; b.compareTo(a)); // turun (descending)
+  print(angka); // Output: [9, 5, 2, 1]
+
+  var nama = ['Citra', 'ayu', 'Bima'];
+  nama.sort(); // huruf besar diurutkan lebih dulu
+  print(nama); // Output: [Bima, Citra, ayu]
+  nama.sort((a, b) =&gt; a.toLowerCase().compareTo(b.toLowerCase()));
+  print(nama); // Output: [ayu, Bima, Citra]
+
+  var mhs = [
+    {'nama': 'Ayu', 'ipk': 3.4},
+    {'nama': 'Bima', 'ipk': 3.9},
+    {'nama': 'Citra', 'ipk': 3.6},
+  ];
+  mhs.sort((a, b) =&gt; (b['ipk'] as double).compareTo(a['ipk'] as double));
+  print(mhs.map((m) =&gt; m['nama']).toList()); // Output: [Bima, Citra, Ayu]
+}
+</code></pre>
+<p>Fungsi pembanding mengembalikan angka negatif jika <code>a</code> harus di depan, positif jika <code>b</code> di depan, dan 0 jika setara. <code>compareTo</code> sudah melakukan itu untuk kita. Perhatikan bahwa <code>sort()</code> mengubah list aslinya dan tidak mengembalikan nilai.</p>
+
+<h4>Spread, collection-if, dan collection-for</h4>
+<pre><code class="language-dart">List&lt;String&gt;? ambilMatkulTambahan() =&gt; null; // anggap belum ada data
+
+void main() {
+  var wajib = ['Algoritma', 'Basis Data'];
+  var pilihan = ['Pemrograman Mobile'];
+  var tambahan = ambilMatkulTambahan();
+  bool ambilMagang = true;
+
+  var krs = [
+    ...wajib, // sebar isi list wajib
+    ...pilihan,
+    ...?tambahan, // sebar hanya jika tidak null
+    if (ambilMagang) 'Magang Industri',
+    for (var i = 1; i &lt;= 2; i++) 'Seminar $i',
+  ];
+  print(krs);
+  // Output:
+  // [Algoritma, Basis Data, Pemrograman Mobile, Magang Industri, Seminar 1, Seminar 2]
+
+  var nilai = {'Ayu': 90, 'Bima': 55};
+  var label = [
+    for (final e in nilai.entries) '${e.key}: ${e.value &gt;= 60 ? 'Lulus' : 'Gagal'}',
+  ];
+  print(label); // Output: [Ayu: Lulus, Bima: Gagal]
+}
+</code></pre>
+<p>Fitur ini sangat sering dipakai di Flutter untuk menyusun <code>children</code> sebuah <code>Column</code>, misalnya <code>children: [const Header(), if (isLogin) const Profil(), ...daftarMenu]</code>.</p>
+
+<h4>Merangkai method (chaining)</h4>
+<pre><code class="language-dart">void main() {
+  final belanja = [
+    {'nama': 'Kopi', 'harga': 15000, 'kategori': 'minuman'},
+    {'nama': 'Mendoan', 'harga': 10000, 'kategori': 'makanan'},
+    {'nama': 'Es Teh', 'harga': 5000, 'kategori': 'minuman'},
+    {'nama': 'Nasi Rames', 'harga': 18000, 'kategori': 'makanan'},
+  ];
+
+  final totalMinuman = belanja
+      .where((b) =&gt; b['kategori'] == 'minuman')
+      .map((b) =&gt; b['harga'] as int)
+      .fold(0, (a, b) =&gt; a + b);
+  print('Total minuman: Rp$totalMinuman'); // Output: Total minuman: Rp20000
+
+  final namaMahal = belanja
+      .where((b) =&gt; (b['harga'] as int) &gt;= 15000)
+      .map((b) =&gt; (b['nama'] as String).toUpperCase())
+      .toList();
+  print(namaMahal); // Output: [KOPI, NASI RAMES]
+}
+</code></pre>
+<p>Baca rantai dari atas ke bawah: saring yang kategori minuman, ambil harganya, lalu jumlahkan. Gaya ini lebih mudah dibaca daripada <code>for</code> dengan banyak variabel sementara.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Lupa <code>.toList()</code> setelah <code>map</code>/<code>where</code>, lalu bingung kenapa tercetak <code>(...)</code> bukan <code>[...]</code>.</li>
+  <li>Memanggil <code>reduce</code> atau <code>first</code> pada list kosong, sehingga muncul <code>StateError: No element</code>. Gunakan <code>fold</code> atau cek <code>isEmpty</code> dulu.</li>
+  <li>Menulis <code>var hasil = list.sort();</code>. <code>sort()</code> bertipe <code>void</code>, list aslinya yang terurut.</li>
+</ul></div>

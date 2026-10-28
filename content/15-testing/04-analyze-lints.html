@@ -1,0 +1,93 @@
+<p class="lead">Bug yang paling murah adalah bug yang tertangkap <em>sebelum</em> aplikasi dijalankan. Dart menyediakan <strong>analyzer</strong> yang membaca kode Anda dan melaporkan error, peringatan, dan saran gaya penulisan (lint). Biasakan menjalankan <code>flutter analyze</code> sebelum commit dan sebelum mengumpulkan tugas.</p>
+
+<h4>Menjalankan flutter analyze</h4>
+<pre><code class="language-bash"># Dari folder root proyek
+flutter analyze
+
+# Hanya folder tertentu
+flutter analyze lib/pages</code></pre>
+<p>Misalkan ada kode “gaya lama” seperti ini:</p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+class Contoh extends StatelessWidget {
+  Contoh({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    var judul = 'Catatan';
+    print(judul);
+    return Container(
+      child: Text(judul),
+    );
+  }
+}</code></pre>
+<p>Hasil <code>flutter analyze</code> (output asli):</p>
+<pre><code class="language-text">info • Constructors in '@immutable' classes should be declared as 'const' • lib/contoh.dart:4:3 • prefer_const_constructors_in_immutables
+info • Parameter 'key' could be a super parameter • lib/contoh.dart:4:3 • use_super_parameters
+info • Don't invoke 'print' in production code. Try using a logging framework • lib/contoh.dart:9:5 • avoid_print
+info • Unnecessary instance of 'Container' • lib/contoh.dart:10:12 • avoid_unnecessary_containers
+
+4 issues found.</code></pre>
+<p>Setiap baris berisi: <strong>tingkat</strong> (<code>error</code>, <code>warning</code>, <code>info</code>), <strong>pesan</strong>, <strong>lokasi</strong> (file:baris:kolom), dan <strong>nama aturan</strong>. Nama aturan bisa dicari di <a href="https://dart.dev/tools/linter-rules" target="_blank" rel="noopener">dart.dev/tools/linter-rules</a> untuk penjelasan lengkap dan contoh.</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Tingkat</th><th>Artinya</th><th>Wajib diperbaiki?</th></tr></thead>
+    <tbody>
+      <tr><td><code>error</code></td><td>Kode tidak bisa dikompilasi (salah tipe, nama tidak ada)</td><td>Ya, aplikasi tidak akan jalan</td></tr>
+      <tr><td><code>warning</code></td><td>Kode jalan tetapi hampir pasti salah (variabel tidak dipakai, import tidak terpakai)</td><td>Ya</td></tr>
+      <tr><td><code>info</code></td><td>Saran gaya dan praktik terbaik dari lint</td><td>Sangat disarankan; target tugas: 0 issue</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Memperbaiki otomatis dengan dart fix</h4>
+<p>Banyak lint bisa diperbaiki otomatis. Lihat dulu apa yang akan diubah, baru terapkan:</p>
+<pre><code class="language-bash"># Pratinjau perubahan
+dart fix --dry-run
+
+# Terapkan semua perbaikan
+dart fix --apply
+
+# Rapikan format (indentasi, spasi, koma)
+dart format lib test</code></pre>
+<p>Pada contoh di atas, <code>dart fix --apply</code> mengubah konstruktor menjadi <code>const Contoh({super.key});</code>. Lint <code>avoid_print</code> dan <code>avoid_unnecessary_containers</code> harus Anda perbaiki sendiri (ganti dengan <code>debugPrint</code> dan hapus <code>Container</code>).</p>
+
+<h4>Mengatur aturan di analysis_options.yaml</h4>
+<p>Proyek baru dari <code>flutter create</code> sudah memakai paket <code>flutter_lints</code>. Anda bisa menambah aturan yang lebih ketat atau menaikkan tingkat suatu aturan:</p>
+<p class="code-file-label">📄 <code>analysis_options.yaml</code></p>
+<pre><code class="language-yaml">include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    # Naikkan avoid_print dari info menjadi error
+    avoid_print: error
+  exclude:
+    - "**/*.g.dart" # file hasil generator (misalnya adapter Hive)
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+
+linter:
+  rules:
+    prefer_single_quotes: true      # pakai 'kutip satu'
+    prefer_final_locals: true       # variabel lokal yang tidak diubah wajib final
+    always_declare_return_types: true
+    unawaited_futures: true         # Future yang lupa di-await akan ditandai</code></pre>
+<p>Aturan <code>unawaited_futures</code> sangat berguna untuk aplikasi Supabase/Hive: ia menandai pemanggilan seperti <code>repository.addNote(...)</code> yang lupa diberi <code>await</code>, sehingga error-nya tidak tertangkap oleh <code>try/catch</code>.</p>
+
+<h4>Mengabaikan lint secara sengaja</h4>
+<p>Kadang ada alasan kuat untuk melanggar aturan. Abaikan hanya di baris itu dan tulis alasannya:</p>
+<pre><code class="language-dart">// Skrip seeding data hanya dijalankan developer dari terminal
+// ignore: avoid_print
+void cetakRingkasan(int jumlah) =&gt; print('Berhasil membuat $jumlah catatan');</code></pre>
+<p>Jangan menulis <code>// ignore_for_file:</code> di atas file hanya agar daftar issue terlihat bersih.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Mengabaikan semua <code>info</code> karena “cuma saran”. Lint seperti <code>use_build_context_synchronously</code> menandai bug sungguhan (memakai <code>context</code> setelah <code>await</code> tanpa cek <code>mounted</code>).</li>
+  <li>Menghapus baris <code>include: package:flutter_lints/flutter.yaml</code> agar warning hilang.</li>
+  <li>Menjalankan <code>dart fix --apply</code> tanpa commit terlebih dahulu. Jika hasilnya tidak sesuai, Anda tidak bisa kembali dengan mudah.</li>
+</ul></div>

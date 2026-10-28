@@ -1,0 +1,396 @@
+<p class="lead">Setelah tabel dan policy siap, saatnya mengakses data dari Flutter. Semua query dimulai dengan <code>supabase.from('nama_tabel')</code>, lalu disambung method lain seperti rantai (<em>method chaining</em>), mirip menyusun kalimat SQL.</p>
+
+<p>Semua contoh di section ini mengasumsikan bagian atas file berisi:</p>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart'; // untuk debugPrint
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+final supabase = Supabase.instance.client;
+</code></pre>
+
+<h4>Pemetaan SQL ke Dart</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>SQL</th><th>supabase_flutter</th></tr></thead>
+    <tbody>
+      <tr><td><code>SELECT * FROM t</code></td><td><code>.from('t').select()</code></td></tr>
+      <tr><td><code>WHERE a = 1</code></td><td><code>.eq('a', 1)</code></td></tr>
+      <tr><td><code>WHERE a &lt;&gt; 1</code></td><td><code>.neq('a', 1)</code></td></tr>
+      <tr><td><code>&gt;</code>, <code>&gt;=</code>, <code>&lt;</code>, <code>&lt;=</code></td><td><code>.gt()</code>, <code>.gte()</code>, <code>.lt()</code>, <code>.lte()</code></td></tr>
+      <tr><td><code>WHERE nama ILIKE '%x%'</code></td><td><code>.ilike('nama', '%x%')</code></td></tr>
+      <tr><td><code>WHERE a IN (1,2)</code></td><td><code>.inFilter('a', [1, 2])</code></td></tr>
+      <tr><td><code>ORDER BY a DESC</code></td><td><code>.order('a', ascending: false)</code></td></tr>
+      <tr><td><code>LIMIT 10</code></td><td><code>.limit(10)</code></td></tr>
+      <tr><td><code>LIMIT 10 OFFSET 20</code></td><td><code>.range(20, 29)</code></td></tr>
+      <tr><td><code>INSERT</code> / <code>UPDATE</code> / <code>DELETE</code></td><td><code>.insert({...})</code> / <code>.update({...})</code> / <code>.delete()</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>1. SELECT: membaca data</h4>
+<p>Pertama, siapkan model seperti di Modul 09 agar data aman dari salah tipe:</p>
+<pre><code class="language-dart">class MataKuliah {
+  const MataKuliah({
+    required this.id,
+    required this.kode,
+    required this.nama,
+    required this.sks,
+    required this.semester,
+  });
+
+  final int id;
+  final String kode;
+  final String nama;
+  final int sks;
+  final int semester;
+
+  // Satu baris hasil query Supabase = Map&lt;String, dynamic&gt;
+  factory MataKuliah.fromJson(Map&lt;String, dynamic&gt; json) {
+    return MataKuliah(
+      id: json['id'] as int,
+      kode: json['kode'] as String,
+      nama: json['nama'] as String,
+      sks: json['sks'] as int,
+      semester: json['semester'] as int,
+    );
+  }
+}
+</code></pre>
+<pre><code class="language-dart">Future&lt;List&lt;MataKuliah&gt;&gt; ambilSemua() async {
+  // SELECT * FROM mata_kuliah
+  final List&lt;Map&lt;String, dynamic&gt;&gt; rows = await supabase
+      .from('mata_kuliah')
+      .select();
+  return rows.map(MataKuliah.fromJson).toList();
+}
+</code></pre>
+<ul>
+  <li>Hasil <code>select()</code> berupa <code>List&lt;Map&lt;String, dynamic&gt;&gt;</code>. Satu Map adalah satu baris, dengan key berupa nama kolom.</li>
+  <li><code>rows.map(MataKuliah.fromJson).toList()</code> mengubah setiap Map menjadi objek. Polanya sama persis dengan Modul 09.</li>
+</ul>
+<p>Mengambil sebagian kolom saja (lebih hemat kuota dan lebih cepat):</p>
+<pre><code class="language-dart">Future&lt;void&gt; ambilKolomTertentu() async {
+  // SELECT kode, nama FROM mata_kuliah
+  final rows = await supabase.from('mata_kuliah').select('kode, nama');
+  for (final row in rows) {
+    debugPrint('${row['kode']} - ${row['nama']}');
+  }
+}
+</code></pre>
+
+<h4>2. Filter</h4>
+<pre><code class="language-dart">Future&lt;List&lt;Map&lt;String, dynamic&gt;&gt;&gt; contohFilter() async {
+  // WHERE semester = 5
+  final semester5 = await supabase
+      .from('mata_kuliah')
+      .select()
+      .eq('semester', 5);
+
+  // WHERE sks &gt;= 4
+  final sksBesar = await supabase.from('mata_kuliah').select().gte('sks', 4);
+
+  // WHERE nama ILIKE '%data%'  (cari teks, tidak peka huruf besar/kecil)
+  final cari = await supabase
+      .from('mata_kuliah')
+      .select()
+      .ilike('nama', '%data%');
+
+  // WHERE semester IN (1, 2)
+  final awal = await supabase.from('mata_kuliah').select().inFilter(
+    'semester',
+    [1, 2],
+  );
+
+  return [...semester5, ...sksBesar, ...cari, ...awal];
+}
+</code></pre>
+
+<h4>3. Urutan dan batas jumlah</h4>
+<pre><code class="language-dart">Future&lt;List&lt;Map&lt;String, dynamic&gt;&gt;&gt; urutDanBatasi() async {
+  // SELECT * FROM mata_kuliah WHERE semester &lt;= 4
+  // ORDER BY semester ASC, nama ASC LIMIT 5
+  return supabase
+      .from('mata_kuliah')
+      .select()
+      .lte('semester', 4) // filter dulu
+      .order('semester', ascending: true) // lalu urutkan
+      .order('nama', ascending: true)
+      .limit(5); // terakhir batasi jumlah
+}
+</code></pre>
+<div class="callout callout-info"><h4>ℹ️ Urutan method</h4><p>Tulis <strong>filter</strong> (<code>eq</code>, <code>gte</code>, ...) lebih dulu, baru <code>order</code>, <code>limit</code>/<code>range</code>, dan <code>single</code>. Setelah <code>.order()</code>, method filter sudah tidak tersedia, dan analyzer akan langsung memberi tahu jika urutannya salah.</p></div>
+
+<h4>4. Pagination dengan <code>range</code></h4>
+<pre><code class="language-dart">/// Pagination: halaman dimulai dari 0, setiap halaman berisi [perHalaman] baris.
+Future&lt;List&lt;Map&lt;String, dynamic&gt;&gt;&gt; ambilHalaman(
+  int halaman, {
+  int perHalaman = 3,
+}) {
+  final dari = halaman * perHalaman; // halaman 0 -&gt; 0, halaman 1 -&gt; 3
+  final sampai = dari + perHalaman - 1; // halaman 0 -&gt; 2, halaman 1 -&gt; 5
+  return supabase
+      .from('mata_kuliah')
+      .select()
+      .order('id')
+      .range(dari, sampai); // indeks inklusif di kedua sisi
+}
+</code></pre>
+<p><code>range(dari, sampai)</code> memakai indeks mulai 0 dan <strong>inklusif</strong> di kedua ujung. <code>range(0, 2)</code> berarti 3 baris pertama. Panggil <code>ambilHalaman(0)</code>, <code>ambilHalaman(1)</code>, dan seterusnya saat user menggulir ke bawah (<em>infinite scroll</em>, Modul 06).</p>
+
+<h4>5. Mengambil satu baris: <code>single()</code> dan <code>maybeSingle()</code></h4>
+<pre><code class="language-dart">Future&lt;void&gt; ambilSatu() async {
+  // single(): WAJIB tepat 1 baris. 0 atau &gt;1 baris -&gt; PostgrestException.
+  final Map&lt;String, dynamic&gt; row = await supabase
+      .from('mata_kuliah')
+      .select()
+      .eq('kode', 'INF301')
+      .single();
+  debugPrint(row['nama']);
+
+  // maybeSingle(): 0 baris -&gt; null (tidak error).
+  final Map&lt;String, dynamic&gt;? mungkin = await supabase
+      .from('mata_kuliah')
+      .select()
+      .eq('kode', 'TIDAK-ADA')
+      .maybeSingle();
+  if (mungkin == null) debugPrint('Mata kuliah tidak ditemukan');
+}
+</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Method</th><th>Tipe hasil</th><th>0 baris</th><th>1 baris</th><th>&gt;1 baris</th></tr></thead>
+    <tbody>
+      <tr><td>(tanpa)</td><td><code>List&lt;Map&gt;</code></td><td><code>[]</code></td><td><code>[{...}]</code></td><td><code>[{...}, ...]</code></td></tr>
+      <tr><td><code>.single()</code></td><td><code>Map</code></td><td>❌ error</td><td>✅ Map</td><td>❌ error</td></tr>
+      <tr><td><code>.maybeSingle()</code></td><td><code>Map?</code></td><td>✅ <code>null</code></td><td>✅ Map</td><td>❌ error</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>6. INSERT: menambah data</h4>
+<pre><code class="language-dart">Future&lt;void&gt; tambah() async {
+  // Insert tanpa meminta data balik
+  await supabase.from('mata_kuliah').insert({
+    'kode': 'INF401',
+    'nama': 'Komputasi Awan',
+    'sks': 3,
+    'semester': 7,
+  });
+
+  // Insert banyak baris sekaligus: kirim List&lt;Map&gt;
+  await supabase.from('mata_kuliah').insert([
+    {'kode': 'INF402', 'nama': 'Data Mining', 'semester': 7},
+    {'kode': 'INF403', 'nama': 'Etika Profesi', 'sks': 2, 'semester': 8},
+  ]);
+}
+
+Future&lt;MataKuliah&gt; tambahDanAmbil() async {
+  // .select().single() -&gt; baris yang baru dibuat dikembalikan,
+  // lengkap dengan id dan created_at yang diisi database.
+  final row = await supabase
+      .from('mata_kuliah')
+      .insert({'kode': 'INF404', 'nama': 'Keamanan Siber', 'semester': 7})
+      .select()
+      .single();
+  return MataKuliah.fromJson(row);
+}
+</code></pre>
+<ul>
+  <li>Kolom yang punya <code>default</code> (id, sks, created_at) boleh tidak dikirim.</li>
+  <li>Secara default insert <strong>tidak</strong> mengembalikan data. Tambahkan <code>.select()</code> (dan <code>.single()</code> untuk satu baris) jika butuh id yang dibuat database. Pola ini akan kita pakai di Modul 14.</li>
+</ul>
+
+<h4>7. UPDATE: mengubah data</h4>
+<pre><code class="language-dart">Future&lt;void&gt; ubah() async {
+  // UPDATE mata_kuliah SET sks = 4 WHERE kode = 'INF401'
+  await supabase
+      .from('mata_kuliah')
+      .update({'sks': 4})
+      .eq('kode', 'INF401'); // JANGAN lupa filter!
+}
+</code></pre>
+<div class="callout callout-warning"><h4>⚠️ Selalu pakai filter</h4><p><code>update()</code> dan <code>delete()</code> <strong>wajib</strong> diikuti filter seperti <code>.eq('id', ...)</code>. Di project Supabase, update/delete tanpa filter biasanya ditolak dengan pesan <em>UPDATE/DELETE requires a WHERE clause</em>. Filter yang salah lebih berbahaya lagi karena bisa mengubah baris yang tidak Anda maksud.</p></div>
+
+<h4>8. DELETE: menghapus data</h4>
+<pre><code class="language-dart">Future&lt;void&gt; hapus() async {
+  // DELETE FROM mata_kuliah WHERE kode = 'INF401'
+  await supabase.from('mata_kuliah').delete().eq('kode', 'INF401');
+}
+</code></pre>
+<p>Catatan: dengan policy dari section sebelumnya, tabel <code>mata_kuliah</code> tidak punya policy UPDATE/DELETE, sehingga dua contoh di atas tidak mengubah apa pun jika dijalankan dari aplikasi (0 baris). Ini contoh nyata RLS bekerja.</p>
+
+<h4>9. UPSERT: insert atau update</h4>
+<pre><code class="language-dart">Future&lt;void&gt; simpanAtauPerbarui() async {
+  // Jika kode 'INF301' sudah ada -&gt; UPDATE, jika belum -&gt; INSERT.
+  // onConflict menunjuk kolom UNIQUE yang dipakai untuk mencocokkan.
+  await supabase.from('mata_kuliah').upsert({
+    'kode': 'INF301',
+    'nama': 'Pemrograman Mobile',
+    'sks': 4,
+    'semester': 5,
+  }, onConflict: 'kode');
+}
+</code></pre>
+<p>Upsert berguna untuk sinkronisasi, misalnya "simpan profil": jika belum ada dibuat, jika sudah ada diperbarui. Ingat, upsert butuh policy <strong>INSERT dan UPDATE</strong> sekaligus.</p>
+
+<h4>10. Menghitung jumlah baris</h4>
+<pre><code class="language-dart">Future&lt;int&gt; hitung() async {
+  // Hanya menghitung jumlah baris tanpa mengambil datanya.
+  return supabase.from('mata_kuliah').count();
+}
+</code></pre>
+
+<h4>Contoh lengkap: daftar mata kuliah dari Supabase</h4>
+<p>Gabungkan semuanya menjadi aplikasi kecil yang bisa dijalankan. Pastikan SQL di section 5 dan 6 sudah dijalankan, dan <code>env.json</code> sudah dibuat (section 4).</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — contoh lengkap: membaca tabel mata_kuliah dari Supabase.
+// Jalankan: flutter run --dart-define-from-file=env.json
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+const supabaseKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+      ),
+      home: const MataKuliahPage(),
+    );
+  }
+}
+
+class MataKuliah {
+  const MataKuliah({
+    required this.kode,
+    required this.nama,
+    required this.sks,
+    required this.semester,
+  });
+
+  final String kode;
+  final String nama;
+  final int sks;
+  final int semester;
+
+  factory MataKuliah.fromJson(Map&lt;String, dynamic&gt; json) {
+    return MataKuliah(
+      kode: json['kode'] as String,
+      nama: json['nama'] as String,
+      sks: json['sks'] as int,
+      semester: json['semester'] as int,
+    );
+  }
+}
+
+class MataKuliahPage extends StatefulWidget {
+  const MataKuliahPage({super.key});
+
+  @override
+  State&lt;MataKuliahPage&gt; createState() =&gt; _MataKuliahPageState();
+}
+
+class _MataKuliahPageState extends State&lt;MataKuliahPage&gt; {
+  final _supabase = Supabase.instance.client;
+  late Future&lt;List&lt;MataKuliah&gt;&gt; _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _ambilData();
+  }
+
+  Future&lt;List&lt;MataKuliah&gt;&gt; _ambilData() async {
+    final rows = await _supabase
+        .from('mata_kuliah')
+        .select()
+        .order('semester')
+        .order('nama');
+    return rows.map(MataKuliah.fromJson).toList();
+  }
+
+  Future&lt;void&gt; _refresh() async {
+    final future = _ambilData();
+    setState(() =&gt; _future = future);
+    await future;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mata Kuliah Informatika')),
+      body: FutureBuilder&lt;List&lt;MataKuliah&gt;&gt;(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Gagal memuat data:\n${snapshot.error}',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: _refresh,
+                      child: const Text('Coba lagi'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          final data = snapshot.data!;
+          if (data.isEmpty) {
+            return const Center(child: Text('Tabel masih kosong.'));
+          }
+          return RefreshIndicator(
+            onRefresh: _refresh,
+            child: ListView.separated(
+              itemCount: data.length,
+              separatorBuilder: (_, _) =&gt; const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final mk = data[index];
+                return ListTile(
+                  leading: CircleAvatar(child: Text('${mk.semester}')),
+                  title: Text(mk.nama),
+                  subtitle: Text(mk.kode),
+                  trailing: Text('${mk.sks} SKS'),
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12-supabase/mata-kuliah-list.jpg" alt="Daftar mata kuliah dari Supabase" loading="lazy">
+    <div class="screenshot-caption">Data tabel mata_kuliah diambil dari project Supabase sungguhan</div>
+  </div>
+</div>
+<ul>
+  <li><code>_future</code> disimpan di State dan dibuat di <code>initState</code>, <strong>bukan</strong> di <code>build()</code>. Jika dibuat di build, setiap rebuild akan memicu query baru (pelajaran yang sama dengan FutureBuilder di Modul 09).</li>
+  <li><code>_refresh()</code> membuat Future baru dan memasangnya lewat <code>setState</code>, lalu menunggu sampai selesai agar animasi <code>RefreshIndicator</code> berhenti tepat waktu.</li>
+  <li><code>.order('semester').order('nama')</code> mengurutkan per semester, lalu per nama.</li>
+</ul>

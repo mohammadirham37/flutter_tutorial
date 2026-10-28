@@ -1,0 +1,73 @@
+<p>Berikut adalah langkah-langkah menyiapkan Flutter di komputer pengembangan. Ikuti berurutan dan jangan lanjut ke langkah berikutnya sebelum langkah sebelumnya berhasil.</p>
+
+<h4>Langkah 1: Mengunduh Flutter SDK</h4>
+<p>Unduh paket SDK resmi dari <a href="https://docs.flutter.dev/get-started/install" target="_blank" class="text-indigo-600 underline">docs.flutter.dev</a> sesuai sistem operasi Anda, lalu ekstrak ke direktori permanen (contoh: <code>~/development/flutter</code> di Mac/Linux atau <code>C:\src\flutter</code> di Windows).</p>
+
+<div class="callout callout-warning">
+  <h4>⚠️ Hindari folder bermasalah</h4>
+  <p>Jangan ekstrak Flutter ke folder yang butuh hak admin (misal <code>C:\Program Files\</code>) atau yang namanya mengandung spasi. Hindari juga folder yang disinkronkan OneDrive/iCloud karena bisa merusak file cache SDK.</p>
+</div>
+
+<h4>Langkah 2: Menambahkan Path ke Environment Variable</h4>
+<p><strong>macOS / Linux (zsh):</strong></p>
+<pre><code class="language-bash"># Contoh untuk Mac / Linux (zsh) pada ~/.zshrc:
+export PATH="$PATH:$HOME/development/flutter/bin"
+
+# Reload shell configuration
+source ~/.zshrc
+
+# Cek: harus menampilkan lokasi folder flutter/bin
+which flutter</code></pre>
+
+<p><strong>Windows:</strong> buka <em>Start</em> &gt; ketik "environment variables" &gt; <em>Edit environment variables for your account</em> &gt; pilih <code>Path</code> &gt; <em>Edit</em> &gt; <em>New</em> &gt; isi <code>C:\src\flutter\bin</code>. Tutup lalu buka ulang terminal, kemudian cek di PowerShell:</p>
+<pre><code class="language-bash">where.exe flutter
+flutter --version</code></pre>
+
+<h4>Langkah 3: Memasang Android Studio dan Android SDK</h4>
+<p>Pasang <a href="https://developer.android.com/studio" target="_blank" rel="noopener">Android Studio</a>, buka sekali agar wizard mengunduh Android SDK. Lalu buka <em>Settings</em> &gt; <em>Languages &amp; Frameworks</em> &gt; <em>Android SDK</em> &gt; tab <em>SDK Tools</em> dan pastikan tercentang:</p>
+<ul>
+  <li>Android SDK Build-Tools</li>
+  <li>Android SDK Command-line Tools (latest)</li>
+  <li>Android SDK Platform-Tools</li>
+  <li>Android Emulator</li>
+</ul>
+<p>Buat emulator lewat <em>Device Manager</em> &gt; <em>Create Virtual Device</em> (pilih Pixel dengan image Android terbaru).</p>
+
+<h4>Langkah 4: Menjalankan flutter doctor</h4>
+<p>Buka terminal lalu ketik perintah diagnostik utama:</p>
+<pre><code class="language-bash">flutter doctor
+
+# Versi detail (lokasi SDK, versi Java, dll). Pakai saat mencari penyebab error.
+flutter doctor -v</code></pre>
+<p>Perintah ini akan memindai sistem Anda dan memberi centang hijau jika dependensi sudah terpasang:</p>
+<pre><code class="language-text">[✓] Flutter (Channel stable, 3.x.x, on macOS / Windows)
+[✓] Android toolchain - develop for Android devices (Android SDK version 3x.x.x)
+[✓] Xcode - develop for iOS and macOS (Xcode 16.x)  &lt;-- Opsional untuk pengguna Mac
+[✓] Chrome - develop for the web
+[✓] Android Studio (version 202x.x)
+[✓] VS Code (version 1.9x.x)
+[✓] Connected device (2 available)</code></pre>
+<p>Tanda <code>[!]</code> berarti ada peringatan dan <code>[✗]</code> berarti komponen belum terpasang. Solusi untuk error yang paling sering muncul dibahas di section berikutnya.</p>
+
+<div class="callout callout-tip">
+  <h4>💡 Tips Mahasiswa: Ekstensi VS Code Wajib</h4>
+  <p>Jika menggunakan Visual Studio Code, buka menu Extensions (<code>Ctrl+Shift+X</code> atau <code>Cmd+Shift+X</code>) dan pasang:</p>
+  <ol>
+    <li><strong>Flutter</strong> (oleh Dart-Code) — otomatis memasang dependensi Dart.</li>
+    <li><strong>Awesome Flutter Snippets</strong> — shortcut pengetikan widget cepat (misal ketik <code>stless</code> untuk StatelessWidget).</li>
+    <li><strong>Error Lens</strong> — menampilkan error kompilasi langsung di baris kode tanpa perlu membuka tab terminal.</li>
+  </ol>
+</div>
+
+<h4>Langkah 5: Menyiapkan HP Android fisik (opsional, disarankan untuk RAM 8 GB)</h4>
+<ol>
+  <li>Buka <em>Setelan</em> &gt; <em>Tentang ponsel</em>, ketuk <em>Nomor versi / Build number</em> 7 kali sampai muncul "Anda sekarang developer".</li>
+  <li>Buka <em>Setelan</em> &gt; <em>Opsi pengembang</em>, aktifkan <strong>USB debugging</strong>.</li>
+  <li>Hubungkan kabel USB (kabel data, bukan kabel charger saja), lalu izinkan dialog "Allow USB debugging" di HP.</li>
+  <li>Cek dari terminal:</li>
+</ol>
+<pre><code class="language-bash">flutter devices</code></pre>
+<pre><code class="language-text">Found 3 connected devices:
+  SM A155F (mobile) • R58W1234ABC • android-arm64  • Android 14 (API 34)
+  macOS (desktop)   • macos       • darwin-arm64   • macOS 15
+  Chrome (web)      • chrome      • web-javascript • Google Chrome</code></pre>

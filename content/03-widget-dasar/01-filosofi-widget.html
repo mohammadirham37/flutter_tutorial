@@ -1,0 +1,90 @@
+<p class="lead">Di dalam Flutter, hampir segala sesuatu adalah <strong>Widget</strong>. Bukan hanya tombol atau gambar, tetapi struktur layout (Padding, Center), tema warna (Theme), hingga pendeteksi sentuhan (GestureDetector) semuanya adalah widget.</p>
+
+<p>Di balik layar, Flutter mengelola tiga pohon paralel untuk mencapai performa render 60-120 FPS yang mulus:</p>
+
+<div class="architecture-diagram p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl my-6">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+    <div class="p-4 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg">
+      <div class="font-bold text-blue-700 dark:text-blue-300">1. WIDGET TREE</div>
+      <p class="text-xs text-slate-600 dark:text-slate-400 mt-2"><strong>Konfigurasi Blueprint</strong> (Ringan & Cepat dihancurkan/dibuat ulang). Bersifat immutable.</p>
+    </div>
+    <div class="p-4 bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 rounded-lg">
+      <div class="font-bold text-purple-700 dark:text-purple-300">2. ELEMENT TREE</div>
+      <p class="text-xs text-slate-600 dark:text-slate-400 mt-2"><strong>Struktur Skeletal</strong> (Persisten di memori). Mengaitkan widget dengan objek render riil dan memegang State.</p>
+    </div>
+    <div class="p-4 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+      <div class="font-bold text-emerald-700 dark:text-emerald-300">3. RENDER TREE</div>
+      <p class="text-xs text-slate-600 dark:text-slate-400 mt-2"><strong>Penggambar Piksel</strong> (Komputasi berat). Menghitung kalkulasi ukuran (layouting) dan melukis (paint) piksel ke layar.</p>
+    </div>
+  </div>
+</div>
+
+<h4>Widget adalah "resep", bukan tampilan</h4>
+<p>Bayangkan widget seperti <strong>resep masakan</strong>. Resep hanya berisi keterangan: bahan apa, berapa banyak, dimasak bagaimana. Flutter yang "memasak" resep itu menjadi piksel di layar. Karena widget hanya resep, membuat ulang widget itu murah sekali. Flutter boleh membuat ulang ribuan widget setiap detik tanpa membuat aplikasi lambat.</p>
+
+<p>Widget disusun bersarang seperti pohon. Setiap widget punya <em>parent</em> (induk) dan bisa punya <em>child</em> (satu anak) atau <em>children</em> (banyak anak). Lihat contoh kecil berikut:</p>
+
+<pre><code class="language-dart">// Pohon widget sederhana: Center -&gt; Column -&gt; [Icon, Text]
+Center(
+  child: Column(
+    mainAxisSize: MainAxisSize.min,
+    children: const [
+      Icon(Icons.school, size: 48),
+      Text('Halo, Mahasiswa UNSOED!'),
+    ],
+  ),
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/filosofi-widget-1.jpg" alt="Pohon widget Center → Column → Icon + Text" loading="lazy">
+    <div class="screenshot-caption">Pohon widget Center → Column → Icon + Text</div>
+  </div>
+</div>
+
+<p>Jika digambar sebagai pohon, susunannya menjadi seperti ini:</p>
+
+<pre><code class="language-text">Center
+ └── Column
+      ├── Icon (school)
+      └── Text ("Halo, Mahasiswa UNSOED!")
+</code></pre>
+
+<h4>Program Flutter paling kecil</h4>
+<p>Program Flutter selalu dimulai dari fungsi <code>main()</code> yang memanggil <code>runApp()</code>. Widget yang diberikan ke <code>runApp()</code> menjadi akar (root) pohon widget. Coba jalankan kode ini untuk melihat bahwa satu widget <code>Text</code> pun sudah bisa menjadi aplikasi.</p>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  // runApp menerima satu widget sebagai akar pohon widget.
+  runApp(
+    const Center(
+      child: Text(
+        'Halo, Flutter!',
+        // Tanpa MaterialApp, arah teks wajib ditentukan sendiri.
+        textDirection: TextDirection.ltr,
+        style: TextStyle(fontSize: 32, color: Colors.white),
+      ),
+    ),
+  );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/filosofi-widget-2.jpg" alt="Program terkecil: satu Text tanpa MaterialApp, latar hitam" loading="lazy">
+    <div class="screenshot-caption">Program terkecil: satu Text tanpa MaterialApp, latar hitam</div>
+  </div>
+</div>
+
+<p>Hasilnya adalah layar hitam dengan tulisan putih di tengah. Perhatikan bahwa kita harus menulis <code>textDirection</code> sendiri karena belum ada <code>MaterialApp</code> yang menyediakan pengaturan bawaan (arah teks, tema, font). Di section berikutnya kita akan memakai <code>MaterialApp</code> supaya hal-hal seperti ini diurus otomatis.</p>
+
+<div class="callout callout-tip"><h4>💡 Cara membaca kode Flutter</h4><p>Baca kode widget dari luar ke dalam: widget paling luar adalah pembungkus, lalu turun ke <code>child</code> atau <code>children</code>. Biasakan memberi koma di akhir setiap argumen (<em>trailing comma</em>) agar format otomatis (<kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd> di VS Code) menyusun kode menjadi bertingkat rapi.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Lupa memanggil <code>runApp()</code> di <code>main()</code> sehingga layar tetap kosong.</li>
+  <li>Menganggap widget sebagai objek yang "diubah-ubah". Widget bersifat <em>immutable</em> (tidak bisa diubah). Untuk mengubah tampilan, Flutter membuat widget baru dengan data baru.</li>
+  <li>Salah menaruh kurung tutup <code>)</code> sehingga widget masuk ke induk yang salah. Gunakan trailing comma dan format otomatis.</li>
+</ul></div>

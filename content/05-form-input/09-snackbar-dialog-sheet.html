@@ -1,0 +1,329 @@
+<p class="lead">Setelah pengguna menekan tombol, aplikasi harus memberi tanggapan: "berhasil disimpan", "yakin ingin menghapus?", atau menampilkan pilihan tambahan. Tiga alat utamanya adalah <strong>SnackBar</strong>, <strong>AlertDialog</strong>, dan <strong>BottomSheet</strong>.</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Widget</th><th>Sifat</th><th>Kapan dipakai</th></tr></thead>
+    <tbody>
+      <tr><td><code>SnackBar</code></td><td>Pesan singkat di bawah layar, hilang sendiri, tidak menghalangi</td><td>Konfirmasi berhasil, tombol Urungkan</td></tr>
+      <tr><td><code>AlertDialog</code></td><td>Kotak di tengah layar, menghentikan interaksi sampai dijawab</td><td>Konfirmasi hapus, peringatan penting</td></tr>
+      <tr><td><code>showModalBottomSheet</code></td><td>Panel dari bawah layar</td><td>Daftar pilihan aksi, form singkat</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>1. SnackBar</h4>
+<p>SnackBar ditampilkan lewat <code>ScaffoldMessenger.of(context).showSnackBar(...)</code>. Tanda <code>..</code> (<em>cascade</em>) memanggil dua method berturut-turut pada objek yang sama.</p>
+<pre><code class="language-dart">void _tampilkanSnackBar(BuildContext context) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar() // tutup SnackBar lama agar tidak antre
+    ..showSnackBar(
+      SnackBar(
+        content: const Text('Tugas berhasil dikumpulkan'),
+        behavior: SnackBarBehavior.floating, // melayang, sudut membulat
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'LIHAT',
+          onPressed: () =&gt; debugPrint('Buka detail tugas'),
+        ),
+      ),
+    );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/snackbar.jpg" alt="SnackBar mengambang dengan tombol LIHAT" loading="lazy">
+    <div class="screenshot-caption">SnackBar mengambang dengan tombol LIHAT</div>
+  </div>
+</div>
+
+<h4>2. AlertDialog yang mengembalikan jawaban</h4>
+<p><code>showDialog&lt;bool&gt;</code> menunggu sampai dialog ditutup. Nilai yang dikirim lewat <code>Navigator.pop(dialogContext, nilai)</code> menjadi hasil <code>await</code>.</p>
+<pre><code class="language-dart">Future&lt;void&gt; _konfirmasiHapus(BuildContext context) async {
+  // showDialog mengembalikan nilai yang dikirim lewat Navigator.pop
+  final yakin = await showDialog&lt;bool&gt;(
+    context: context,
+    builder: (dialogContext) =&gt; AlertDialog(
+      icon: const Icon(Icons.warning_amber),
+      title: const Text('Hapus mata kuliah?'),
+      content: const Text('Data yang dihapus tidak dapat dikembalikan.'),
+      actions: [
+        TextButton(
+          onPressed: () =&gt; Navigator.pop(dialogContext, false),
+          child: const Text('Batal'),
+        ),
+        FilledButton(
+          onPressed: () =&gt; Navigator.pop(dialogContext, true),
+          child: const Text('Hapus'),
+        ),
+      ],
+    ),
+  );
+
+  // yakin bisa null jika dialog ditutup dengan mengetuk area luar
+  if (yakin == true &amp;&amp; context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Mata kuliah dihapus')),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/dialog-hapus.jpg" alt="AlertDialog konfirmasi hapus" loading="lazy">
+    <div class="screenshot-caption">AlertDialog konfirmasi hapus</div>
+  </div>
+</div>
+<p>Perhatikan <code>context.mounted</code>: setelah <code>await</code>, layar bisa saja sudah ditutup. Memakai <code>context</code> yang sudah tidak terpasang akan menimbulkan error, jadi selalu periksa dulu.</p>
+
+<h4>3. Modal BottomSheet</h4>
+<pre><code class="language-dart">Future&lt;void&gt; _pilihSumberFoto(BuildContext context) async {
+  final pilihan = await showModalBottomSheet&lt;String&gt;(
+    context: context,
+    showDragHandle: true, // garis kecil di atas sheet
+    builder: (sheetContext) =&gt; SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min, // tinggi sheet secukupnya
+        children: [
+          ListTile(
+            leading: const Icon(Icons.camera_alt),
+            title: const Text('Kamera'),
+            onTap: () =&gt; Navigator.pop(sheetContext, 'kamera'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_library),
+            title: const Text('Galeri'),
+            onTap: () =&gt; Navigator.pop(sheetContext, 'galeri'),
+          ),
+        ],
+      ),
+    ),
+  );
+  debugPrint('Dipilih: $pilihan'); // null jika sheet ditutup tanpa memilih
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/bottomsheet-foto.jpg" alt="BottomSheet berisi pilihan Kamera dan Galeri" loading="lazy">
+    <div class="screenshot-caption">BottomSheet berisi pilihan Kamera dan Galeri</div>
+  </div>
+</div>
+<p><code>mainAxisSize: MainAxisSize.min</code> membuat tinggi sheet mengikuti isinya. <code>SafeArea</code> mencegah isi tertutup bilah navigasi HP.</p>
+
+<h4>Contoh lengkap: catatan tugas dengan tiga jenis umpan balik</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.green),
+      home: const CatatanTugasScreen(),
+    );
+  }
+}
+
+class CatatanTugasScreen extends StatefulWidget {
+  const CatatanTugasScreen({super.key});
+
+  @override
+  State&lt;CatatanTugasScreen&gt; createState() =&gt; _CatatanTugasScreenState();
+}
+
+class _CatatanTugasScreenState extends State&lt;CatatanTugasScreen&gt; {
+  final List&lt;String&gt; _tugas = [
+    'Laporan Praktikum Basis Data',
+    'Kuis Pemrograman Mobile',
+    'Makalah Etika Profesi',
+  ];
+
+  // ---------- 1. SnackBar dengan tombol UNDO ----------
+  void _hapusDenganUndo(int index) {
+    final terhapus = _tugas[index];
+    setState(() =&gt; _tugas.removeAt(index));
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('"$terhapus" dihapus'),
+          action: SnackBarAction(
+            label: 'URUNGKAN',
+            onPressed: () =&gt; setState(() =&gt; _tugas.insert(index, terhapus)),
+          ),
+        ),
+      );
+  }
+
+  // ---------- 2. AlertDialog konfirmasi ----------
+  Future&lt;void&gt; _konfirmasiHapusSemua() async {
+    final yakin = await showDialog&lt;bool&gt;(
+      context: context,
+      builder: (dialogContext) =&gt; AlertDialog(
+        title: const Text('Hapus semua tugas?'),
+        content: Text('${_tugas.length} tugas akan dihapus.'),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, true),
+            child: const Text('Hapus Semua'),
+          ),
+        ],
+      ),
+    );
+    if (yakin != true || !mounted) return;
+    setState(() =&gt; _tugas.clear());
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Semua tugas dihapus')),
+    );
+  }
+
+  // ---------- 3. Dialog berisi TextField untuk menambah data ----------
+  Future&lt;void&gt; _dialogTambah() async {
+    // Cukup simpan teks di variabel lokal lewat onChanged.
+    // (Membuat TextEditingController di sini berisiko: controller harus
+    // di-dispose, padahal TextField masih hidup selama animasi dialog ditutup.)
+    var teks = '';
+    final judul = await showDialog&lt;String&gt;(
+      context: context,
+      builder: (dialogContext) =&gt; AlertDialog(
+        title: const Text('Tugas baru'),
+        content: TextField(
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Judul tugas'),
+          onChanged: (v) =&gt; teks = v,
+          onSubmitted: (v) =&gt; Navigator.pop(dialogContext, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, teks),
+            child: const Text('Tambah'),
+          ),
+        ],
+      ),
+    );
+
+    if (judul == null || judul.trim().isEmpty || !mounted) return;
+    setState(() =&gt; _tugas.add(judul.trim()));
+  }
+
+  // ---------- 4. BottomSheet berisi pilihan aksi ----------
+  Future&lt;void&gt; _menuTugas(int index) async {
+    final aksi = await showModalBottomSheet&lt;String&gt;(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) =&gt; SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Text(_tugas[index], style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.check_circle_outline),
+              title: const Text('Tandai selesai'),
+              onTap: () =&gt; Navigator.pop(sheetContext, 'selesai'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Hapus'),
+              onTap: () =&gt; Navigator.pop(sheetContext, 'hapus'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (aksi == 'hapus') _hapusDenganUndo(index);
+    if (aksi == 'selesai') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Mantap! "${_tugas[index]}" selesai'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Catatan Tugas'),
+        actions: [
+          IconButton(
+            tooltip: 'Hapus semua',
+            icon: const Icon(Icons.delete_sweep),
+            onPressed: _tugas.isEmpty ? null : _konfirmasiHapusSemua,
+          ),
+        ],
+      ),
+      body: _tugas.isEmpty
+          ? const Center(child: Text('Tidak ada tugas. Santai dulu!'))
+          : ListView(
+              children: [
+                for (var i = 0; i &lt; _tugas.length; i++)
+                  ListTile(
+                    leading: CircleAvatar(child: Text('${i + 1}')),
+                    title: Text(_tugas[i]),
+                    subtitle: const Text('Ketuk untuk opsi'),
+                    onTap: () =&gt; _menuTugas(i),
+                  ),
+              ],
+            ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Tambah tugas',
+        onPressed: _dialogTambah,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/feedback-sheet.jpg" alt="Menu bottom sheet saat tugas diketuk" loading="lazy">
+    <div class="screenshot-caption">Menu bottom sheet saat tugas diketuk</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/feedback-undo.jpg" alt="SnackBar dengan tombol URUNGKAN setelah tugas dihapus" loading="lazy">
+    <div class="screenshot-caption">SnackBar dengan tombol URUNGKAN setelah tugas dihapus</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/feedback-dialog-tambah.jpg" alt="Dialog berisi TextField untuk menambah tugas" loading="lazy">
+    <div class="screenshot-caption">Dialog berisi TextField untuk menambah tugas</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><strong>Urungkan:</strong> sebelum menghapus, item dan posisinya disimpan (<code>terhapus</code>, <code>index</code>). Tombol URUNGKAN memasukkannya kembali dengan <code>insert(index, terhapus)</code>.</li>
+  <li><strong>Hapus semua:</strong> dialog mengembalikan <code>bool?</code>. Ditulis <code>yakin != true</code> agar nilai <code>null</code> (dialog ditutup dengan mengetuk luar) dianggap batal.</li>
+  <li><strong>Tambah:</strong> dialog bisa berisi TextField. Teks disimpan ke variabel lokal lewat <code>onChanged</code> lalu dikirim lewat <code>Navigator.pop</code>.</li>
+  <li><strong>Menu tugas:</strong> bottom sheet mengembalikan <code>String</code> berisi aksi yang dipilih, lalu diproses setelah sheet tertutup.</li>
+  <li>Tombol hapus semua di AppBar diberi <code>onPressed: _tugas.isEmpty ? null : ...</code> sehingga nonaktif saat daftar kosong.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Memakai <code>context</code> milik layar untuk menutup dialog.</strong> Gunakan context dari <code>builder</code> dialog (<code>dialogContext</code>) di <code>Navigator.pop</code>.</li>
+  <li><strong>SnackBar menumpuk dan antre lama.</strong> Panggil <code>hideCurrentSnackBar()</code> sebelum menampilkan yang baru.</li>
+  <li><strong>Lupa memeriksa <code>mounted</code> setelah <code>await showDialog</code>.</strong> Muncul peringatan "use_build_context_synchronously".</li>
+  <li><strong>BottomSheet berisi form tertutup keyboard.</strong> Gunakan <code>isScrollControlled: true</code> dan padding sebesar <code>MediaQuery.viewInsetsOf(context).bottom</code> (lihat studi kasus Modul 06).</li>
+</ul></div>

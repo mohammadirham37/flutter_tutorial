@@ -1,0 +1,209 @@
+<p class="lead"><strong>Flutter DevTools</strong> adalah kumpulan alat diagnostik berbasis web yang terhubung ke aplikasi yang sedang berjalan. Jika <code>debugPrint</code> dan breakpoint adalah “kaca pembesar”, DevTools adalah “ruang kontrol” yang menampilkan widget tree, waktu render tiap frame, lalu lintas jaringan, dan pemakaian memori.</p>
+
+<h4>Membuka DevTools</h4>
+<pre><code class="language-bash"># Cara 1: dari VS Code
+# Jalankan aplikasi dengan F5, lalu Cmd/Ctrl+Shift+P
+# ketik "Flutter: Open DevTools" dan pilih tab yang diinginkan
+
+# Cara 2: dari terminal
+flutter run
+# setelah aplikasi berjalan, terminal menampilkan alamat DevTools, contoh:
+# The Flutter DevTools debugger and profiler on sdk gphone64 arm64 is available at:
+# http://127.0.0.1:9100?uri=http://127.0.0.1:52341/abc123=/
+# Klik/salin alamat tersebut ke browser
+
+# Cara 3: jalankan DevTools mandiri lalu tempel alamat VM service
+dart devtools</code></pre>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Tab</th><th>Dipakai untuk</th><th>Mode aplikasi</th></tr></thead>
+    <tbody>
+      <tr><td>Inspector</td><td>Melihat widget tree, ukuran, padding, constraints</td><td>debug</td></tr>
+      <tr><td>Performance</td><td>Mencari frame lambat (jank)</td><td><strong>profile</strong></td></tr>
+      <tr><td>CPU Profiler</td><td>Fungsi mana yang paling banyak makan waktu CPU</td><td>profile</td></tr>
+      <tr><td>Memory</td><td>Pemakaian RAM, mencari memory leak</td><td>debug/profile</td></tr>
+      <tr><td>Network</td><td>Request HTTP: URL, status, header, body, durasi</td><td>debug/profile</td></tr>
+      <tr><td>Logging</td><td>Output <code>debugPrint</code>, <code>developer.log</code>, event framework</td><td>debug</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>1. Inspector: memeriksa widget tree dan layout</h4>
+<p>Inspector menampilkan pohon widget yang <em>benar-benar</em> sedang dirender. Fitur yang paling sering dipakai:</p>
+<ul>
+  <li><strong>Select Widget Mode</strong>: klik ikon panah, lalu sentuh elemen di emulator. Inspector melompat ke widget tersebut dan VS Code membuka baris kodenya.</li>
+  <li><strong>Layout Explorer</strong>: untuk <code>Row</code>/<code>Column</code>, menampilkan ukuran setiap anak, <code>flex</code>, dan alignment. Sangat membantu saat memperbaiki RenderFlex overflow.</li>
+  <li><strong>Show Guidelines</strong> (debug paint): menggambar garis batas, padding, dan baseline semua widget di layar.</li>
+</ul>
+<p>Debug paint juga bisa diaktifkan lewat kode, berguna jika DevTools belum terbuka:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+
+void main() {
+  debugPaintSizeEnabled = true; // tampilkan garis batas semua widget
+  runApp(
+    const MaterialApp(
+      home: Scaffold(
+        body: Padding(
+          padding: EdgeInsets.all(24),
+          child: Row(
+            children: [
+              Icon(Icons.book),
+              SizedBox(width: 8),
+              Expanded(child: Text('Garis biru = batas widget')),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/debug-paint.jpg" alt="Garis batas widget dengan debugPaintSizeEnabled" loading="lazy">
+    <div class="screenshot-caption">debugPaintSizeEnabled: setiap widget digambar dengan garis batas, padding, dan arah layout</div>
+  </div>
+</div>
+<p>Jangan lupa menghapus baris <code>debugPaintSizeEnabled = true</code> setelah selesai.</p>
+
+<h4>2. Performance: mencari jank</h4>
+<p>Layar 60 Hz menggambar 60 frame per detik, artinya setiap frame punya jatah sekitar <strong>16 ms</strong>. Jika satu frame butuh lebih lama, animasi terlihat patah-patah (<em>jank</em>). Penyebab paling umum: pekerjaan berat di dalam <code>build()</code>.</p>
+<pre><code class="language-dart">// SALAH: perhitungan berat di dalam build() -&gt; frame macet (jank)
+int hitungPrimaSampai(int batas) {
+  var jumlah = 0;
+  for (var n = 2; n &lt;= batas; n++) {
+    var prima = true;
+    for (var d = 2; d * d &lt;= n; d++) {
+      if (n % d == 0) {
+        prima = false;
+        break;
+      }
+    }
+    if (prima) jumlah++;
+  }
+  return jumlah;
+}
+
+class StatistikSalah extends StatelessWidget {
+  const StatistikSalah({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final jumlah = hitungPrimaSampai(5000000); // dihitung ulang tiap rebuild!
+    return Text('Ada $jumlah bilangan prima');
+  }
+}</code></pre>
+<p>Di tab Performance, frame-frame yang lambat tampil sebagai batang merah. Klik batang tersebut untuk melihat bahwa <code>hitungPrimaSampai</code> menghabiskan ratusan milidetik di thread UI. Perbaikannya, pindahkan perhitungan ke isolate lain dengan <code>Isolate.run</code> dan simpan Future-nya di <code>initState</code>:</p>
+<pre><code class="language-dart">// BENAR: jalankan di isolate lain, hasilnya ditampilkan lewat FutureBuilder
+class StatistikBenar extends StatefulWidget {
+  const StatistikBenar({super.key});
+
+  @override
+  State&lt;StatistikBenar&gt; createState() =&gt; _StatistikBenarState();
+}
+
+class _StatistikBenarState extends State&lt;StatistikBenar&gt; {
+  // Future dibuat SEKALI di initState, bukan di build()
+  late final Future&lt;int&gt; _hasil;
+
+  @override
+  void initState() {
+    super.initState();
+    _hasil = Isolate.run(() =&gt; hitungPrimaSampai(5000000));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder&lt;int&gt;(
+      future: _hasil,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const CircularProgressIndicator();
+        return Text('Ada ${snapshot.data} bilangan prima');
+      },
+    );
+  }
+}</code></pre>
+<p>Ukur performa dengan mode <strong>profile</strong>, bukan debug. Mode debug sengaja lambat karena banyak pemeriksaan tambahan, sehingga hasilnya menyesatkan.</p>
+<pre><code class="language-bash"># Mode profile hanya berjalan di HP fisik atau emulator, tidak di web debug
+flutter run --profile</code></pre>
+<p>Sebagai alternatif cepat tanpa DevTools, aktifkan grafik performa langsung di atas aplikasi:</p>
+<pre><code class="language-dart">class AppDenganOverlay extends StatelessWidget {
+  const AppDenganOverlay({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      // Menampilkan grafik waktu frame (UI &amp; raster) di atas aplikasi
+      showPerformanceOverlay: true,
+      home: Scaffold(body: Center(child: Text('Cek grafik di atas'))),
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/performance-overlay.jpg" alt="Grafik performance overlay di atas aplikasi" loading="lazy">
+    <div class="screenshot-caption">Performance overlay: grafik atas = thread raster (GPU), grafik bawah = thread UI. Garis horizontal menandai kelipatan 16 ms; penanda frame terbaru hijau jika di bawah batas dan merah jika melewatinya.</div>
+  </div>
+</div>
+
+<h4>3. Network: memeriksa request HTTP</h4>
+<p>Tab Network mencatat setiap request yang dibuat dengan <code>package:http</code>, <code>dio</code>, maupun client Supabase. Untuk tiap request Anda bisa melihat:</p>
+<ul>
+  <li>Method dan URL lengkap (apakah query <code>?select=*</code> sudah benar?).</li>
+  <li>Status code: <code>200</code> sukses, <code>401</code> belum login / token kedaluwarsa, <code>404</code> URL salah, <code>500</code> error server.</li>
+  <li>Header request (apakah header <code>Authorization</code> terkirim?) dan body response (JSON yang benar-benar dikirim server).</li>
+  <li>Durasi: request yang butuh 3 detik akan terasa lambat bagi pengguna.</li>
+</ul>
+<p>Saat Catatan Kuliah gagal memuat data, buka tab ini <em>sebelum</em> menebak-nebak. Jika status <code>200</code> tetapi daftar tetap kosong, masalahnya ada di parsing JSON atau RLS, bukan koneksi.</p>
+
+<h4>4. Memory: mencari memory leak</h4>
+<p>Memory leak terjadi jika objek yang sudah tidak dipakai tetap tersimpan di RAM. Di Flutter, penyebab paling umum adalah controller yang tidak di-<code>dispose()</code>:</p>
+<pre><code class="language-dart">class HalamanCari extends StatefulWidget {
+  const HalamanCari({super.key});
+
+  @override
+  State&lt;HalamanCari&gt; createState() =&gt; _HalamanCariState();
+}
+
+class _HalamanCariState extends State&lt;HalamanCari&gt; {
+  final _controller = TextEditingController();
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    // Tanpa dua baris ini, controller tetap tinggal di memori
+    // setiap kali halaman dibuka-tutup (memory leak).
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: TextField(controller: _controller)),
+      body: ListView.builder(
+        controller: _scrollController,
+        itemCount: 100,
+        itemBuilder: (context, i) =&gt; ListTile(title: Text('Hasil $i')),
+      ),
+    );
+  }
+}</code></pre>
+<p>Cara memeriksanya di tab Memory:</p>
+<ol>
+  <li>Buka tab Memory, klik <em>Take heap snapshot</em> (snapshot A).</li>
+  <li>Buka lalu tutup <code>HalamanCari</code> sebanyak 10 kali.</li>
+  <li>Klik <em>GC</em> (paksa garbage collection), lalu ambil snapshot B.</li>
+  <li>Bandingkan (<em>Diff</em>) snapshot B dengan A dan cari <code>TextEditingController</code>. Jika jumlahnya bertambah 10, ada leak.</li>
+</ol>
+<p>Objek yang wajib di-dispose: <code>TextEditingController</code>, <code>ScrollController</code>, <code>AnimationController</code>, <code>FocusNode</code>, <code>TabController</code>, <code>StreamSubscription</code> (cancel), dan <code>Timer</code> (cancel).</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Mengukur performa di mode debug lalu menyimpulkan “Flutter lambat”. Selalu ukur dengan <code>flutter run --profile</code>.</li>
+  <li>Membuat <code>Future</code> langsung di parameter <code>FutureBuilder(future: ambilData())</code>. Setiap rebuild memicu request baru; simpan Future di <code>initState</code>.</li>
+  <li>Lupa memanggil <code>super.dispose()</code> di akhir method <code>dispose()</code>.</li>
+  <li>Membiarkan <code>showPerformanceOverlay: true</code> atau <code>debugPaintSizeEnabled = true</code> sampai build rilis.</li>
+</ul></div>

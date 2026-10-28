@@ -1,0 +1,108 @@
+<p class="lead">Kita melanjutkan proyek dari Modul 13. Login dan register sudah berjalan, dan sekarang saatnya membuat inti aplikasi: <strong>catatan</strong>. Seperti biasa, kita mulai dari database.</p>
+
+<h4>Rencana Modul 14 (urutan kerja)</h4>
+<ol>
+  <li>Tabel <code>notes</code> + RLS + trigger <code>updated_at</code> (section ini)</li>
+  <li>Model <code>Note</code></li>
+  <li><code>NoteRemoteDataSource</code>: CRUD ke Supabase</li>
+  <li><code>NoteLocalDataSource</code>: cache Hive</li>
+  <li><code>NoteRepository</code>: gabungan + fallback offline</li>
+  <li><code>NotesProvider</code>: state, pencarian, optimistic delete</li>
+  <li>HomeScreen final + widget pendukung</li>
+  <li>NoteFormScreen (tambah &amp; edit) + NoteDetailScreen</li>
+  <li><code>main.dart</code> final + logout membersihkan cache</li>
+  <li>Unit test repository &amp; Hive</li>
+</ol>
+
+<h4>Desain tabel <code>notes</code></h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kolom</th><th>Tipe</th><th>Keterangan</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid</td><td>Primary key, dibuat database (<code>gen_random_uuid()</code>)</td></tr>
+      <tr><td><code>user_id</code></td><td>uuid</td><td>Pemilik catatan, otomatis <code>auth.uid()</code>, FK ke <code>auth.users</code></td></tr>
+      <tr><td><code>title</code></td><td>text</td><td>Judul, wajib, 1–100 karakter</td></tr>
+      <tr><td><code>content</code></td><td>text</td><td>Isi catatan</td></tr>
+      <tr><td><code>category</code></td><td>text</td><td>Salah satu dari Kuliah, Tugas, Ujian, Lainnya</td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td>Waktu dibuat, otomatis</td></tr>
+      <tr><td><code>updated_at</code></td><td>timestamptz</td><td>Waktu terakhir diubah, diperbarui oleh trigger</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Jalankan SQL berikut di SQL Editor</h4>
+<p class="code-file-label">📄 <code>supabase/setup.sql</code></p>
+<pre><code class="language-sql">create table if not exists public.notes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  title text not null check (char_length(title) between 1 and 100),
+  content text not null default '',
+  category text not null default 'Kuliah'
+    check (category in ('Kuliah', 'Tugas', 'Ujian', 'Lainnya')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists notes_user_id_idx on public.notes (user_id);
+
+alter table public.notes enable row level security;
+
+drop policy if exists "User melihat catatannya sendiri" on public.notes;
+create policy "User melihat catatannya sendiri"
+on public.notes for select
+to authenticated
+using ((select auth.uid()) = user_id);
+
+drop policy if exists "User menambah catatannya sendiri" on public.notes;
+create policy "User menambah catatannya sendiri"
+on public.notes for insert
+to authenticated
+with check ((select auth.uid()) = user_id);
+
+drop policy if exists "User mengubah catatannya sendiri" on public.notes;
+create policy "User mengubah catatannya sendiri"
+on public.notes for update
+to authenticated
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
+
+drop policy if exists "User menghapus catatannya sendiri" on public.notes;
+create policy "User menghapus catatannya sendiri"
+on public.notes for delete
+to authenticated
+using ((select auth.uid()) = user_id);
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists notes_set_updated_at on public.notes;
+create trigger notes_set_updated_at
+  before update on public.notes
+  for each row execute procedure public.set_updated_at();
+</code></pre>
+
+<h4>Penjelasan</h4>
+<ul>
+  <li><strong><code>user_id ... default auth.uid()</code></strong>: aplikasi <em>tidak perlu</em> mengirim <code>user_id</code> saat insert. Database mengisinya dari token login. Ini juga lebih aman karena user tidak bisa "menitipkan" catatan atas nama orang lain, sebab policy <code>with check</code> akan menolaknya.</li>
+  <li><strong><code>check (category in (...))</code></strong>: database hanya menerima empat kategori, sama dengan daftar di model Dart.</li>
+  <li><strong><code>create index ... (user_id)</code></strong>: setiap query difilter RLS berdasarkan <code>user_id</code>. Index membuat filter itu tetap cepat walaupun tabel berisi ribuan catatan.</li>
+  <li><strong>Empat policy</strong> (select, insert, update, delete) semuanya memakai syarat yang sama: <code>(select auth.uid()) = user_id</code>.</li>
+  <li><strong>Trigger <code>set_updated_at</code></strong> dijalankan <code>before update</code>, sehingga nilai <code>new.updated_at</code> diganti <code>now()</code> sebelum baris disimpan. Aplikasi tidak perlu (dan tidak bisa salah) mengirim waktu.</li>
+</ul>
+
+<h4>Uji RLS dari dua akun</h4>
+<ol>
+  <li>Buka <strong>Table Editor &rarr; notes</strong> dan pastikan tabel ada dengan label RLS aktif (bukan UNRESTRICTED).</li>
+  <li>Setelah aplikasi selesai, buat dua akun berbeda dan masing-masing menulis catatan.</li>
+  <li>Login bergantian: setiap akun hanya boleh melihat catatannya sendiri. Di Table Editor (mode admin) semua catatan tetap terlihat.</li>
+</ol>
+
+<div class="callout callout-warning"><h4>⚠️ Jangan lewati RLS</h4><p>Jika lupa <code>enable row level security</code>, aplikasi tetap "berjalan normal", tetapi semua user bisa membaca catatan semua orang lewat API. Kesalahan ini tidak terlihat saat diuji dengan satu akun, jadi selalu uji dengan dua akun.</p></div>

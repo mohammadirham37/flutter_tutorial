@@ -1,0 +1,172 @@
+<p class="lead">Di Modul 08 kamu belajar Provider untuk mengelola state. Sekarang kita gabungkan dengan Hive memakai pola yang umum dipakai di industri: <strong>Repository</strong> untuk urusan penyimpanan dan <strong>Provider (ChangeNotifier)</strong> untuk state UI.</p>
+
+<h4>Pembagian tugas</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Lapisan</th><th>Tugas</th><th>Boleh tahu tentang</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Repository</strong></td><td>Membaca dan menulis box Hive</td><td>Hive, model</td></tr>
+      <tr><td><strong>Provider</strong></td><td>Logika aplikasi, memanggil repository, lalu <code>notifyListeners()</code></td><td>Repository, model</td></tr>
+      <tr><td><strong>Widget</strong></td><td>Menampilkan data, meneruskan aksi pengguna ke provider</td><td>Provider, model (tidak menyentuh Hive langsung)</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Keuntungannya: jika suatu saat penyimpanan diganti (misalnya ke Supabase di Modul 12), yang diubah cukup repository. Widget tidak perlu disentuh, dan repository mudah diuji tanpa UI.</p>
+
+<p>Contoh: pengaturan tema gelap dan nama pengguna yang tersimpan di Hive. Pasang package dulu: <code>flutter pub add hive_ce hive_ce_flutter provider</code>.</p>
+
+<h4>Langkah 1: Repository</h4>
+<p class="code-file-label">📄 <code>lib/repositories/pengaturan_repository.dart</code></p>
+<pre><code class="language-dart">// lib/repositories/pengaturan_repository.dart
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+class PengaturanRepository {
+  static const String namaBox = 'pengaturan';
+  static const String _kunciTemaGelap = 'tema_gelap';
+  static const String _kunciNama = 'nama_pengguna';
+
+  final Box _box;
+
+  PengaturanRepository(this._box);
+
+  static Future&lt;PengaturanRepository&gt; buka() async {
+    final box = await Hive.openBox(namaBox);
+    return PengaturanRepository(box);
+  }
+
+  bool get temaGelap =&gt; _box.get(_kunciTemaGelap, defaultValue: false) as bool;
+  Future&lt;void&gt; setTemaGelap(bool nilai) =&gt; _box.put(_kunciTemaGelap, nilai);
+
+  String get namaPengguna =&gt;
+      _box.get(_kunciNama, defaultValue: 'Mahasiswa') as String;
+  Future&lt;void&gt; setNamaPengguna(String nama) =&gt; _box.put(_kunciNama, nama);
+}
+</code></pre>
+
+<p>Nama box dan nama key disimpan sebagai konstanta privat. Seluruh aplikasi tidak perlu tahu bahwa tema disimpan dengan key <code>'tema_gelap'</code>, sehingga salah ketik key tidak tersebar di banyak file.</p>
+
+<h4>Langkah 2: Provider</h4>
+<p class="code-file-label">📄 <code>lib/providers/pengaturan_provider.dart</code></p>
+<pre><code class="language-dart">// lib/providers/pengaturan_provider.dart
+import 'package:flutter/foundation.dart';
+
+import '../repositories/pengaturan_repository.dart';
+
+class PengaturanProvider with ChangeNotifier {
+  final PengaturanRepository _repo;
+
+  PengaturanProvider(this._repo);
+
+  // Nilai awal langsung dibaca dari Hive (sinkron, tanpa await)
+  bool get temaGelap =&gt; _repo.temaGelap;
+  String get namaPengguna =&gt; _repo.namaPengguna;
+
+  Future&lt;void&gt; gantiTema(bool gelap) async {
+    await _repo.setTemaGelap(gelap);
+    notifyListeners();
+  }
+
+  Future&lt;void&gt; gantiNama(String nama) async {
+    await _repo.setNamaPengguna(nama);
+    notifyListeners();
+  }
+}
+</code></pre>
+
+<h4>Langkah 3: main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+import 'package:provider/provider.dart';
+
+import 'providers/pengaturan_provider.dart';
+import 'repositories/pengaturan_repository.dart';
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  final repo = await PengaturanRepository.buka();
+
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) =&gt; PengaturanProvider(repo),
+      child: const MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final temaGelap = context.watch&lt;PengaturanProvider&gt;().temaGelap;
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      darkTheme: ThemeData(
+        colorSchemeSeed: Colors.indigo,
+        brightness: Brightness.dark,
+      ),
+      themeMode: temaGelap ? ThemeMode.dark : ThemeMode.light,
+      home: const PengaturanScreen(),
+    );
+  }
+}
+
+class PengaturanScreen extends StatelessWidget {
+  const PengaturanScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final pengaturan = context.watch&lt;PengaturanProvider&gt;();
+    return Scaffold(
+      appBar: AppBar(title: Text('Halo, ${pengaturan.namaPengguna}')),
+      body: ListView(
+        children: [
+          SwitchListTile(
+            title: const Text('Tema gelap'),
+            subtitle: const Text('Tersimpan di Hive, tetap ada saat dibuka lagi'),
+            value: pengaturan.temaGelap,
+            onChanged: (nilai) =&gt;
+                context.read&lt;PengaturanProvider&gt;().gantiTema(nilai),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextFormField(
+              initialValue: pengaturan.namaPengguna,
+              decoration: const InputDecoration(
+                labelText: 'Nama panggilan',
+                border: OutlineInputBorder(),
+              ),
+              onFieldSubmitted: (nama) =&gt;
+                  context.read&lt;PengaturanProvider&gt;().gantiNama(nama.trim()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/pengaturan-terang.jpg" alt="Layar pengaturan dengan tema terang" loading="lazy">
+    <div class="screenshot-caption">Tema terang (nilai awal)</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/pengaturan-gelap.jpg" alt="Layar pengaturan setelah tema gelap diaktifkan" loading="lazy">
+    <div class="screenshot-caption">Setelah switch ditekan: tema gelap tersimpan dan tetap aktif saat aplikasi dibuka lagi</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li>Repository dibuka di <code>main()</code> (async), lalu dikirim ke provider lewat constructor. Dengan begitu provider tidak perlu berurusan dengan <code>await openBox</code>.</li>
+  <li>Getter <code>temaGelap</code> di provider langsung membaca Hive. Karena membaca box itu sinkron, tidak perlu menyalin data ke variabel lain atau menunggu <code>Future</code>.</li>
+  <li><code>context.watch</code> di <code>MyApp</code> membuat <code>MaterialApp</code> dibangun ulang saat tema berubah, sedangkan <code>context.read</code> dipakai di <code>onChanged</code> (aturan yang sama dengan Modul 08).</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Bandingkan dengan Modul 10</h4><p>Di SharedPreferences, membaca nilai butuh <code>await SharedPreferences.getInstance()</code>, sehingga tema awal harus dimuat secara async. Dengan Hive, setelah box dibuka di <code>main()</code>, nilai bisa langsung dibaca di <code>build()</code>.</p></div>

@@ -1,0 +1,139 @@
+<p class="lead">Dua fitur tambahan ini tidak wajib untuk proyek Modul 13–14, tetapi sering diminta di tugas besar: data yang berubah <em>live</em> (Realtime) dan unggah file (Storage).</p>
+
+<h4>Realtime: data yang otomatis ter-update</h4>
+<p>Langkah 1: aktifkan Realtime untuk tabel. Caranya bisa lewat <strong>Table Editor</strong> &rarr; pilih tabel &rarr; aktifkan <strong>Enable Realtime</strong>, atau lewat SQL:</p>
+<pre><code class="language-sql">alter publication supabase_realtime add table public.mata_kuliah;
+</code></pre>
+<p>Langkah 2: ganti <code>select()</code> dengan <code>stream(primaryKey: [...])</code>, dan <code>FutureBuilder</code> dengan <code>StreamBuilder</code>:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — contoh Realtime: daftar mata kuliah yang otomatis
+// berubah ketika tabel diubah dari dashboard atau perangkat lain.
+// Jalankan: flutter run --dart-define-from-file=env.json
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+const supabaseKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
+  runApp(
+    const MaterialApp(debugShowCheckedModeBanner: false, home: RealtimePage()),
+  );
+}
+
+class RealtimePage extends StatefulWidget {
+  const RealtimePage({super.key});
+
+  @override
+  State&lt;RealtimePage&gt; createState() =&gt; _RealtimePageState();
+}
+
+class _RealtimePageState extends State&lt;RealtimePage&gt; {
+  // Stream disimpan di State: JANGAN dibuat di dalam build().
+  final Stream&lt;List&lt;Map&lt;String, dynamic&gt;&gt;&gt; _stream = Supabase.instance.client
+      .from('mata_kuliah')
+      .stream(primaryKey: ['id'])
+      .order('kode');
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mata Kuliah (Realtime)')),
+      body: StreamBuilder&lt;List&lt;Map&lt;String, dynamic&gt;&gt;&gt;(
+        stream: _stream,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final rows = snapshot.data!;
+          return ListView.builder(
+            itemCount: rows.length,
+            itemBuilder: (context, index) {
+              final row = rows[index];
+              return ListTile(
+                leading: const Icon(Icons.bolt),
+                title: Text(row['nama'] as String),
+                subtitle: Text('${row['kode']} • semester ${row['semester']}'),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12-supabase/mata-kuliah-realtime.jpg" alt="Daftar mata kuliah realtime" loading="lazy">
+    <div class="screenshot-caption">StreamBuilder + stream(): data awal dari Supabase, lalu ikut berubah saat tabel diubah</div>
+  </div>
+</div>
+<ul>
+  <li><code>stream(primaryKey: ['id'])</code> mula-mula memancarkan seluruh data, lalu memancarkan list baru setiap kali ada INSERT/UPDATE/DELETE. <code>primaryKey</code> dipakai untuk mencocokkan baris yang berubah.</li>
+  <li>Stream disimpan sebagai field State. Membuatnya di dalam <code>build()</code> akan membuka koneksi baru di setiap rebuild.</li>
+  <li>RLS tetap berlaku: user hanya menerima perubahan baris yang boleh ia lihat.</li>
+  <li>Coba buka Table Editor, ubah nama satu mata kuliah, lalu lihat aplikasi berubah sendiri tanpa refresh.</li>
+</ul>
+<div class="callout callout-info"><h4>ℹ️ Kapan memakai realtime?</h4><p>Chat, papan skor, status pesanan, kolaborasi. Untuk daftar yang jarang berubah (seperti catatan pribadi), <code>select()</code> biasa plus pull-to-refresh sudah cukup dan lebih hemat kuota koneksi.</p></div>
+
+<h4>Storage: menyimpan file</h4>
+<ol>
+  <li>Buka <strong>Storage</strong> &rarr; <strong>New bucket</strong>, beri nama <code>avatars</code>. Centang <strong>Public bucket</strong> agar file bisa dibuka lewat URL.</li>
+  <li>Storage juga dilindungi RLS. Buat policy agar user hanya boleh mengunggah ke foldernya sendiri:</li>
+</ol>
+<pre><code class="language-sql">create policy "User mengunggah ke foldernya sendiri"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'avatars'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+create policy "User menimpa file di foldernya sendiri"
+on storage.objects for update to authenticated
+using (
+  bucket_id = 'avatars'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+</code></pre>
+<p>Kode unggah (byte gambar bisa didapat dari package seperti <code>image_picker</code> dengan <code>await file.readAsBytes()</code>):</p>
+<pre><code class="language-dart">Future&lt;String&gt; unggahFoto(Uint8List bytes) async {
+  final userId = supabase.auth.currentUser!.id;
+  // Simpan di folder milik user: avatars/&lt;userId&gt;/foto.jpg
+  final path = '$userId/foto.jpg';
+
+  await supabase.storage
+      .from('avatars')
+      .uploadBinary(
+        path,
+        bytes,
+        fileOptions: const FileOptions(
+          contentType: 'image/jpeg',
+          upsert: true, // timpa jika sudah ada
+        ),
+      );
+
+  // URL publik (bucket harus bertipe Public)
+  return supabase.storage.from('avatars').getPublicUrl(path);
+}
+</code></pre>
+<ul>
+  <li><code>uploadBinary</code> menerima <code>Uint8List</code> sehingga bisa dipakai di Android, iOS, maupun Web.</li>
+  <li><code>storage.foldername(name)[1]</code> di policy adalah nama folder pertama dari path file, yang harus sama dengan id user.</li>
+  <li><code>upsert: true</code> membutuhkan policy UPDATE juga, karena file lama ditimpa.</li>
+  <li>Untuk bucket privat, gunakan <code>createSignedUrl(path, detik)</code> sebagai pengganti <code>getPublicUrl</code>.</li>
+</ul>
+
+<h4>Ringkasan Modul 12</h4>
+<ul>
+  <li>Supabase = PostgreSQL + Auth + RLS + Realtime + Storage, diakses lewat <code>supabase_flutter</code>.</li>
+  <li><code>Supabase.initialize(url:, publishableKey:)</code> sekali di <code>main()</code>. Simpan nilai di <code>env.json</code> + <code>--dart-define-from-file</code>.</li>
+  <li>Secret/service_role key <strong>tidak pernah</strong> masuk ke aplikasi. Data dilindungi oleh <strong>RLS</strong>.</li>
+  <li>Query: <code>from().select()/insert()/update()/delete()/upsert()</code> plus filter, order, range, single/maybeSingle.</li>
+  <li>Error database = <code>PostgrestException</code>, error login = <code>AuthException</code>, sisanya biasanya jaringan.</li>
+</ul>

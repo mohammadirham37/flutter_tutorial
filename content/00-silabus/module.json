@@ -1,0 +1,127 @@
+{
+  "id": "modul-00",
+  "badge": "Pengantar",
+  "category": "Silabus",
+  "title": "Silabus Perkuliahan & Pengenalan Mata Kuliah",
+  "duration": "Pertemuan 1 (bersama Modul 01)",
+  "prerequisites": [
+    "Algoritma & Pemrograman Dasar",
+    "Konsep Berorientasi Objek (OOP)"
+  ],
+  "summary": "Rencana Pembelajaran Semester (RPS) untuk 17 modul (M00-M16) dalam 16 pertemuan, alur belajar dan alasan urutannya, cara memakai web tutorial, metode belajar yang disarankan, kontrak perkuliahan, serta persiapan perangkat untuk pengembangan aplikasi mobile dengan Flutter & Dart.",
+  "learningOutcomes": [
+    "Memahami roadmap pembelajaran Flutter dari dasar, data lokal dan cloud (Hive, Supabase), hingga rilis produksi.",
+    "Menjelaskan alasan urutan modul dan keterkaitan antarmodul.",
+    "Menggunakan tab Materi, Praktikum, dan Kuis serta menjalankan contoh kode dengan benar.",
+    "Mengetahui bobot penilaian praktikum, tugas mandiri, dan proyek akhir (capstone).",
+    "Menyiapkan perangkat keras dan perangkat lunak sesuai standar industri pengembangan mobile."
+  ],
+  "sections": [
+    {
+      "id": "rps-overview",
+      "title": "1. Rencana Pembelajaran Semester (RPS)",
+      "file": "01-rps-overview.html"
+    },
+    {
+      "id": "silabus-jadwal-pertemuan",
+      "title": "2. Jadwal 16 Pertemuan + UTS/UAS",
+      "file": "02-jadwal-pertemuan.html"
+    },
+    {
+      "id": "silabus-alur-belajar",
+      "title": "3. Alur Belajar: Mengapa Urutannya Seperti Ini?",
+      "file": "03-alur-belajar.html"
+    },
+    {
+      "id": "silabus-cara-pakai-web",
+      "title": "4. Cara Menggunakan Web Tutorial (Materi, Praktikum, Kuis)",
+      "file": "04-cara-menggunakan-web.html"
+    },
+    {
+      "id": "silabus-metode-belajar",
+      "title": "5. Metode Belajar & Cara Menjalankan Contoh Kode",
+      "file": "05-metode-belajar.html"
+    },
+    {
+      "id": "penilaian-kontrak",
+      "title": "6. Kontrak Perkuliahan & Bobot Penilaian",
+      "file": "06-penilaian-kontrak.html"
+    },
+    {
+      "id": "persiapan-hardware",
+      "title": "7. Spesifikasi Perangkat Keras & Lunak yang Disarankan",
+      "file": "07-persiapan-hardware.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 0: Survey Kesiapan Lingkungan & Akun GitHub",
+    "objective": "Menyiapkan akun repositori kode untuk penyerahan seluruh tugas perkuliahan dan mencoba alur menjalankan contoh kode.",
+    "instructions": [
+      "Buat atau gunakan akun GitHub aktif Anda.",
+      "Buat satu repositori publik dengan format penamaan: <code>flutter-praktikum-[NIM]-[NAMA]</code>.",
+      "Buat file <code>README.md</code> yang memuat biodata mahasiswa dan tabel rekapitulasi praktikum M00 sampai M16 (kolom: modul, judul, status, tautan folder).",
+      "Jalankan contoh kode Dart pada section 5 di <a href=\"https://dartpad.dev\" target=\"_blank\" rel=\"noopener\">dartpad.dev</a>, ubah daftar modul sesuai topik yang paling ingin Anda pelajari, lalu simpan tangkapan layarnya di repositori.",
+      "Isi bagian 'Spesifikasi Laptop' di README (OS, prosesor, RAM, ruang SSD kosong) dan tulis rencana device uji Anda: emulator atau HP fisik.",
+      "Commit dan push semua perubahan, lalu simpan tautan repositori untuk diserahkan ke sistem portal dosen."
+    ],
+    "expectedOutput": "Repositori GitHub aktif dengan branch utama 'main', README berisi profil mahasiswa, tabel rekap 17 modul, spesifikasi laptop, dan tangkapan layar DartPad.",
+    "rubric": "Kelengkapan profil dan README (40%), Format penamaan repositori standar (20%), Bukti menjalankan kode di DartPad (20%), Riwayat commit yang rapi (20%)."
+  },
+  "quiz": [
+    {
+      "question": "Mengapa pengujian kode pada perangkat fisik Android (Physical Device) sering disarankan untuk laptop dengan RAM 8 GB?",
+      "options": [
+        "Karena Android Emulator mengonsumsi RAM 2-4 GB tambahan di laptop sehingga memperberat sistem",
+        "Karena Flutter tidak bisa dikompilasi ke emulator komputer",
+        "Karena Android Studio mewajibkan kabel USB untuk membaca kode Dart",
+        "Karena perangkat fisik tidak membutuhkan koneksi internet sama sekali"
+      ],
+      "correctIndex": 0,
+      "explanation": "Android Emulator menjalankan virtualisasi OS Android penuh yang memakan 2 hingga 4 GB RAM komputer. Menggunakan smartphone fisik via USB Debugging memindahkan beban komputasi OS ke ponsel, membuat laptop bekerja jauh lebih ringan."
+    },
+    {
+      "question": "Apa peran utama repositori GitHub dalam perkuliahan pemrograman mobile ini?",
+      "options": [
+        "Hanya untuk mengunduh tema editor visual",
+        "Sebagai pelacak riwayat perubahan kode (version control) dan portofolio digital mahasiswa",
+        "Untuk menggantikan fungsi Flutter SDK di sistem lokal",
+        "Untuk menyembunyikan source code agar tidak bisa dilihat siapa pun"
+      ],
+      "correctIndex": 1,
+      "explanation": "GitHub berfungsi sebagai Version Control System (VCS) untuk memantau progres perubahan kode, kolaborasi proyek, dan menjadi etalase portofolio profesional mahasiswa saat melamar magang atau kerja."
+    },
+    {
+      "question": "Mengapa Modul 02 (Bahasa Dart) dipelajari sebelum Modul 03 (Widget)?",
+      "options": [
+        "Karena widget Flutter ditulis dengan Dart, sehingga class, constructor, named parameter, dan null safety harus dipahami lebih dulu",
+        "Karena Modul 03 tidak membutuhkan Flutter SDK",
+        "Karena Dart hanya dipakai untuk membuat backend",
+        "Karena urutan modul hanya disusun berdasarkan abjad"
+      ],
+      "correctIndex": 0,
+      "explanation": "Setiap baris kode Flutter adalah kode Dart. Tanpa memahami class, constructor, parameter bernama, dan null safety, penulisan widget akan terasa membingungkan."
+    },
+    {
+      "question": "Sebuah contoh kode di materi diberi label <code>lib/main.dart</code>. Apa yang harus Anda lakukan?",
+      "options": [
+        "Menempelkan kode di bagian paling bawah main.dart bawaan",
+        "Membuat file baru bernama main2.dart",
+        "Mengganti seluruh isi lib/main.dart dengan kode contoh, lalu menjalankan aplikasi",
+        "Menjalankannya di DartPad karena semua kode berlabel bisa jalan di sana"
+      ],
+      "correctIndex": 2,
+      "explanation": "Label file berarti kode adalah isi satu file utuh. Menempel di bawah kode lama akan menghasilkan dua fungsi main() dan class ganda sehingga terjadi error."
+    },
+    {
+      "question": "Mengapa Modul 11 (Hive) ditempatkan sebelum Modul 13-14 (Proyek Tutorial dengan Supabase)?",
+      "options": [
+        "Karena Hive menggantikan Supabase sepenuhnya",
+        "Karena Hive dipakai sebagai cache offline pada proyek CRUD Supabase di Modul 14",
+        "Karena Supabase hanya bisa dipasang setelah Hive dihapus",
+        "Karena Hive adalah syarat untuk membuat akun GitHub"
+      ],
+      "correctIndex": 1,
+      "explanation": "Proyek tutorial bagian 2 menggabungkan CRUD ke Supabase (online) dengan cache lokal Hive (offline). Karena itu Hive harus dikuasai lebih dulu."
+    }
+  ]
+}

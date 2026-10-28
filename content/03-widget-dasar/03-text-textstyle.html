@@ -1,0 +1,179 @@
+<p class="lead">Widget <strong><code>Text</code></strong> menampilkan tulisan. Tampilan tulisan (ukuran, warna, ketebalan, jarak huruf) diatur lewat objek <strong><code>TextStyle</code></strong> yang diberikan ke parameter <code>style</code>.</p>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">const Text(
+  'Informatika UNSOED',
+  style: TextStyle(
+    fontSize: 24,                 // ukuran huruf (logical pixel)
+    fontWeight: FontWeight.bold,  // ketebalan: w100 s.d. w900
+    color: Colors.indigo,         // warna teks
+    letterSpacing: 1.2,           // jarak antar huruf
+  ),
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/text-textstyle-1.jpg" alt="Text dengan TextStyle: besar, tebal, berwarna" loading="lazy">
+    <div class="screenshot-caption">Text dengan TextStyle: besar, tebal, berwarna</div>
+  </div>
+</div>
+
+<h4>Properti penting</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Milik</th><th>Properti</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>Text</code></td><td><code>textAlign</code></td><td>Perataan: <code>TextAlign.left</code>, <code>center</code>, <code>right</code>, <code>justify</code>.</td></tr>
+      <tr><td><code>Text</code></td><td><code>maxLines</code></td><td>Batas jumlah baris.</td></tr>
+      <tr><td><code>Text</code></td><td><code>overflow</code></td><td>Perilaku jika teks kepanjangan, misalnya <code>TextOverflow.ellipsis</code> (menambah "...").</td></tr>
+      <tr><td><code>TextStyle</code></td><td><code>fontStyle</code></td><td><code>FontStyle.italic</code> untuk huruf miring.</td></tr>
+      <tr><td><code>TextStyle</code></td><td><code>decoration</code></td><td>Garis bawah, coret: <code>TextDecoration.underline</code>, <code>lineThrough</code>.</td></tr>
+      <tr><td><code>TextStyle</code></td><td><code>height</code></td><td>Tinggi baris sebagai kelipatan ukuran font (misal 1.5).</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh lengkap: berbagai gaya teks</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const DemoTeks(),
+    );
+  }
+}
+
+class DemoTeks extends StatelessWidget {
+  const DemoTeks({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Demo Text &amp; TextStyle')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // 1. Teks polos tanpa gaya
+          const Text('1. Teks polos tanpa style'),
+          const SizedBox(height: 12),
+
+          // 2. Ukuran, tebal, warna
+          const Text(
+            '2. Judul Besar',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: Colors.teal,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 3. Miring, garis bawah, coret
+          const Text(
+            '3. Miring dan bergaris bawah',
+            style: TextStyle(
+              fontStyle: FontStyle.italic,
+              decoration: TextDecoration.underline,
+            ),
+          ),
+          const Text(
+            'Harga lama: Rp150.000',
+            style: TextStyle(decoration: TextDecoration.lineThrough, color: Colors.grey),
+          ),
+          const SizedBox(height: 12),
+
+          // 4. Teks panjang dipotong dengan ellipsis
+          const Text(
+            '4. Ini adalah judul pengumuman yang sangat panjang sekali sehingga '
+            'tidak muat dalam satu baris layar ponsel mahasiswa',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 12),
+
+          // 5. Rata tengah dan jarak baris
+          const Text(
+            '5. Paragraf rata tengah dengan jarak baris 1.6 agar '
+            'lebih nyaman dibaca saat teksnya panjang.',
+            textAlign: TextAlign.center,
+            style: TextStyle(height: 1.6),
+          ),
+          const SizedBox(height: 12),
+
+          // 6. Memakai gaya dari tema (disarankan)
+          Text(
+            '6. headlineSmall dari tema',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 12),
+
+          // 7. Text.rich: satu kalimat, beberapa gaya
+          const Text.rich(
+            TextSpan(
+              text: '7. IPK kamu: ',
+              children: [
+                TextSpan(
+                  text: '3.85',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                ),
+                TextSpan(text: ' (Cumlaude)'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/text-textstyle-2.jpg" alt="Berbagai gaya teks, ellipsis, dan Text.rich" loading="lazy">
+    <div class="screenshot-caption">Berbagai gaya teks, ellipsis, dan Text.rich</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li>Teks panjang di Dart bisa ditulis sebagai beberapa string yang ditempel berurutan (<em>adjacent strings</em>), seperti pada nomor 4 dan 5. Dart menggabungkannya otomatis.</li>
+  <li><code>maxLines: 1</code> + <code>overflow: TextOverflow.ellipsis</code> adalah pasangan yang paling sering dipakai untuk judul di daftar.</li>
+  <li><code>Theme.of(context).textTheme.headlineSmall</code> mengambil gaya teks bawaan tema Material 3. Cara ini membuat ukuran huruf konsisten di seluruh aplikasi.</li>
+  <li><code>Text.rich</code> dengan <code>TextSpan</code> dipakai jika satu kalimat butuh beberapa gaya berbeda.</li>
+</ul>
+
+<h4>Menggabungkan gaya tema dengan <code>copyWith</code></h4>
+<p>Sering kita ingin gaya dari tema, tetapi warnanya diganti. Gunakan <code>copyWith</code> agar tidak menulis ulang semua properti:</p>
+<pre><code class="language-dart">Text(
+  'Jadwal Hari Ini',
+  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+        color: Theme.of(context).colorScheme.primary,
+        fontWeight: FontWeight.bold,
+      ),
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/text-textstyle-3.jpg" alt="Gaya titleLarge dari tema yang diubah dengan copyWith" loading="lazy">
+    <div class="screenshot-caption">Gaya titleLarge dari tema yang diubah dengan copyWith</div>
+  </div>
+</div>
+<p>Tanda <code>?.</code> dipakai karena <code>titleLarge</code> bertipe <code>TextStyle?</code> (boleh null).</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Memberi angka bertipe <code>int</code> ke tempat yang butuh <code>double</code> sebenarnya aman (<code>fontSize: 24</code> boleh), tetapi menulis <code>fontWeight: 700</code> salah. Gunakan <code>FontWeight.w700</code>.</li>
+  <li>Memakai <code>overflow: TextOverflow.ellipsis</code> tanpa <code>maxLines</code> atau tanpa batas lebar. Ellipsis hanya muncul jika teks memang dibatasi.</li>
+  <li>Menulis ukuran font berbeda-beda secara manual di setiap halaman. Lebih baik pakai <code>textTheme</code> agar konsisten.</li>
+</ul></div>

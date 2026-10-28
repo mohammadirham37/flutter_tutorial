@@ -1,0 +1,104 @@
+<p class="lead">Supabase Auth mengurus register, login, penyimpanan sesi, dan perpanjangan token secara otomatis. Di section ini kita mengenal method-method dasarnya. Implementasi lengkap dengan UI dikerjakan di Modul 13.</p>
+
+<h4>Pengaturan di dashboard</h4>
+<ol>
+  <li>Buka <strong>Authentication &rarr; Sign In / Providers</strong>. Pastikan provider <strong>Email</strong> aktif (default sudah aktif).</li>
+  <li>Perhatikan opsi <strong>Confirm email</strong>:
+    <ul>
+      <li><strong>ON</strong> (default): setelah register, user harus mengeklik link di email sebelum bisa login. <code>signUp</code> mengembalikan <code>session == null</code>.</li>
+      <li><strong>OFF</strong>: user langsung login setelah register. <code>signUp</code> mengembalikan session yang valid. Cocok untuk latihan di kelas.</li>
+    </ul>
+  </li>
+  <li>Daftar user yang sudah register bisa dilihat di <strong>Authentication &rarr; Users</strong>.</li>
+</ol>
+<div class="callout callout-warning"><h4>⚠️ Batas pengiriman email</h4><p>Layanan email bawaan Supabase hanya untuk percobaan dan dibatasi beberapa email per jam. Jika satu kelas register bersamaan dengan Confirm email ON, sebagian akan mendapat error <code>over_email_send_rate_limit</code>. Untuk praktikum, matikan Confirm email. Untuk aplikasi produksi, pasang SMTP sendiri di <strong>Authentication &rarr; Emails &rarr; SMTP Settings</strong>.</p></div>
+
+<h4>1. Register: <code>signUp</code></h4>
+<pre><code class="language-dart">Future&lt;void&gt; daftar() async {
+  final AuthResponse res = await supabase.auth.signUp(
+    email: 'budi@mhs.unsoed.ac.id',
+    password: 'rahasia123',
+    data: {'full_name': 'Budi Santoso'}, // disimpan di user metadata
+  );
+
+  final User? user = res.user; // akun yang baru dibuat
+  final Session? session = res.session; // null jika wajib konfirmasi email
+  debugPrint('User: ${user?.id}, langsung login: ${session != null}');
+}
+</code></pre>
+<ul>
+  <li><code>data</code> disimpan sebagai <strong>user metadata</strong> (di database bernama kolom <code>raw_user_meta_data</code>). Di Modul 13 kita memakai trigger untuk menyalin <code>full_name</code> ke tabel <code>profiles</code>.</li>
+  <li>Password minimal 6 karakter (default Supabase). Jika kurang, muncul <code>AuthException</code> dengan code <code>weak_password</code>.</li>
+</ul>
+
+<h4>2. Login dan logout</h4>
+<pre><code class="language-dart">Future&lt;void&gt; masuk() async {
+  final res = await supabase.auth.signInWithPassword(
+    email: 'budi@mhs.unsoed.ac.id',
+    password: 'rahasia123',
+  );
+  debugPrint('Halo ${res.user?.email}');
+}
+
+Future&lt;void&gt; keluar() async {
+  await supabase.auth.signOut();
+}
+</code></pre>
+<p>Setelah login berhasil, <strong>semua</strong> query database berikutnya otomatis membawa token user. RLS pun mengenali siapa yang meminta data melalui <code>auth.uid()</code>, tanpa kode tambahan.</p>
+
+<h4>3. Mengecek sesi saat ini</h4>
+<pre><code class="language-dart">void cekSesi() {
+  // Sesi disimpan otomatis di perangkat oleh supabase_flutter,
+  // jadi setelah aplikasi ditutup dan dibuka lagi user tetap login.
+  final Session? session = supabase.auth.currentSession;
+  final User? user = supabase.auth.currentUser;
+
+  if (session == null) {
+    debugPrint('Belum login');
+  } else {
+    debugPrint('Login sebagai ${user!.email}');
+    debugPrint('Nama: ${user.userMetadata?['full_name']}');
+  }
+}
+</code></pre>
+
+<h4>4. Mendengarkan perubahan status login</h4>
+<pre><code class="language-dart">StreamSubscription&lt;AuthState&gt; dengarkanAuth() {
+  return supabase.auth.onAuthStateChange.listen((AuthState data) {
+    final AuthChangeEvent event = data.event;
+    final Session? session = data.session;
+
+    switch (event) {
+      case AuthChangeEvent.initialSession:
+        debugPrint('Aplikasi dibuka, sesi awal: ${session != null}');
+      case AuthChangeEvent.signedIn:
+        debugPrint('Berhasil login');
+      case AuthChangeEvent.signedOut:
+        debugPrint('Sudah logout');
+      case AuthChangeEvent.tokenRefreshed:
+        debugPrint('Token diperbarui otomatis');
+      default:
+        debugPrint('Event lain: ${event.name}');
+    }
+  });
+}
+// Jangan lupa: subscription.cancel() di dispose() jika dipakai di widget.
+</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Event</th><th>Kapan terjadi</th></tr></thead>
+    <tbody>
+      <tr><td><code>initialSession</code></td><td>Selalu menjadi event pertama saat stream didengarkan. Berisi sesi tersimpan (atau null).</td></tr>
+      <tr><td><code>signedIn</code></td><td>Setelah login/register berhasil (dan sesi aktif).</td></tr>
+      <tr><td><code>signedOut</code></td><td>Setelah <code>signOut()</code> atau sesi tidak valid lagi.</td></tr>
+      <tr><td><code>tokenRefreshed</code></td><td>Token akses diperpanjang otomatis (kira-kira setiap jam).</td></tr>
+      <tr><td><code>userUpdated</code></td><td>Data user diubah lewat <code>updateUser()</code>.</td></tr>
+      <tr><td><code>passwordRecovery</code></td><td>User membuka link reset password.</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Stream inilah kunci navigasi otomatis: <strong>ada sesi = tampilkan Home, tidak ada sesi = tampilkan Login</strong>. Pola ini disebut <em>AuthGate</em> dan dibangun di Modul 13.</p>
+
+<div class="callout callout-info"><h4>ℹ️ Di mana sesi disimpan?</h4><p><code>supabase_flutter</code> menyimpan sesi di penyimpanan lokal perangkat (berbasis SharedPreferences, Modul 10). Karena itu user tetap login walaupun aplikasi ditutup, dan token diperbarui otomatis selama aplikasi berjalan.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Register dengan email yang sudah terdaftar</h4><p>Jika Confirm email ON, Supabase <strong>tidak</strong> melempar error saat email sudah terdaftar. Ia mengembalikan user "palsu" agar penyerang tidak bisa menebak email siapa saja yang terdaftar (<em>user enumeration</em>). Jika Confirm email OFF, error <code>user_already_exists</code> akan muncul.</p></div>

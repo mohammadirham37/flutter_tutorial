@@ -1,0 +1,162 @@
+<p class="lead"><code>AuthProvider</code> menjembatani UI dan <code>AuthService</code>. Tugasnya: menyimpan status <em>loading</em>, menangkap exception, dan menerjemahkannya menjadi pesan Bahasa Indonesia yang ramah pengguna.</p>
+
+<h4>File 4: <code>lib/providers/auth_provider.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/providers/auth_provider.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../services/auth_service.dart';
+
+/// Hasil proses registrasi, dipakai RegisterScreen untuk menentukan
+/// pesan yang ditampilkan.
+enum RegisterResult { failed, loggedIn, needsEmailConfirmation }
+
+class AuthProvider extends ChangeNotifier {
+  AuthProvider(this._authService);
+
+  final AuthService _authService;
+
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  bool get isLoading =&gt; _isLoading;
+  String? get errorMessage =&gt; _errorMessage;
+
+  Stream&lt;AuthState&gt; get authStateChanges =&gt; _authService.authStateChanges;
+  Session? get currentSession =&gt; _authService.currentSession;
+  User? get currentUser =&gt; _authService.currentUser;
+
+  /// Nama yang ditampilkan di AppBar. Diambil dari metadata saat register.
+  String get displayName {
+    final user = currentUser;
+    if (user == null) return '';
+    final name = user.userMetadata?['full_name'];
+    if (name is String &amp;&amp; name.isNotEmpty) return name;
+    return user.email ?? '';
+  }
+
+  Future&lt;bool&gt; signIn({required String email, required String password}) async {
+    _setLoading(true);
+    try {
+      await _authService.signIn(email: email.trim(), password: password);
+      return true;
+    } on AuthException catch (e) {
+      _errorMessage = _mapAuthError(e);
+      return false;
+    } catch (e) {
+      _errorMessage = 'Terjadi kesalahan tak terduga: $e';
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future&lt;RegisterResult&gt; register({
+    required String fullName,
+    required String email,
+    required String password,
+  }) async {
+    _setLoading(true);
+    try {
+      final response = await _authService.signUp(
+        fullName: fullName.trim(),
+        email: email.trim(),
+        password: password,
+      );
+      // Jika "Confirm email" aktif di dashboard, session bernilai null
+      // sampai pengguna mengeklik link di email.
+      if (response.session == null) {
+        return RegisterResult.needsEmailConfirmation;
+      }
+      return RegisterResult.loggedIn;
+    } on AuthException catch (e) {
+      _errorMessage = _mapAuthError(e);
+      return RegisterResult.failed;
+    } catch (e) {
+      _errorMessage = 'Terjadi kesalahan tak terduga: $e';
+      return RegisterResult.failed;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future&lt;void&gt; signOut() async {
+    try {
+      await _authService.signOut();
+    } on AuthException catch (e) {
+      // signOut tetap menghapus sesi lokal walau request ke server gagal.
+      debugPrint('signOut: ${e.message}');
+    }
+  }
+
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  void _setLoading(bool value) {
+    _isLoading = value;
+    if (value) _errorMessage = null;
+    notifyListeners();
+  }
+
+  /// Menerjemahkan error Supabase Auth menjadi pesan berbahasa Indonesia.
+  String _mapAuthError(AuthException e) {
+    if (e is AuthRetryableFetchException) {
+      return 'Tidak dapat terhubung ke server. Periksa koneksi internet.';
+    }
+    switch (e.code) {
+      case 'invalid_credentials':
+        return 'Email atau password salah.';
+      case 'email_not_confirmed':
+        return 'Email belum dikonfirmasi. Buka link verifikasi di inbox Anda.';
+      case 'user_already_exists':
+      case 'email_exists':
+        return 'Email sudah terdaftar. Silakan login.';
+      case 'weak_password':
+        return 'Password terlalu lemah. Gunakan minimal 6 karakter.';
+      case 'email_address_invalid':
+        return 'Alamat email tidak valid.';
+      case 'over_email_send_rate_limit':
+      case 'over_request_rate_limit':
+        return 'Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.';
+      case 'signup_disabled':
+        return 'Pendaftaran akun baru sedang dinonaktifkan.';
+    }
+    return e.message;
+  }
+}
+</code></pre>
+
+<h4>Membedah AuthProvider</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Bagian</th><th>Penjelasan</th></tr></thead>
+    <tbody>
+      <tr><td><code>enum RegisterResult</code></td><td>Register punya <strong>tiga</strong> kemungkinan hasil: gagal, langsung login, atau perlu konfirmasi email. Enum membuat UI bisa memakai <code>switch</code> yang jelas, alih-alih <code>bool</code> yang ambigu.</td></tr>
+      <tr><td><code>_isLoading</code> + <code>_errorMessage</code></td><td>State privat dengan getter publik (pola Modul 08). UI membaca <code>isLoading</code> untuk menonaktifkan tombol dan menampilkan spinner.</td></tr>
+      <tr><td><code>displayName</code></td><td>Mengambil <code>full_name</code> dari <code>userMetadata</code>, dengan email sebagai cadangan jika nama kosong.</td></tr>
+      <tr><td><code>try / on AuthException / catch / finally</code></td><td><code>finally</code> <strong>selalu</strong> dijalankan, baik sukses maupun gagal, sehingga loading pasti dimatikan. Tanpa <code>finally</code>, spinner bisa berputar selamanya jika terjadi error.</td></tr>
+      <tr><td><code>response.session == null</code></td><td>Tanda bahwa Confirm email aktif: akun dibuat tetapi belum login.</td></tr>
+      <tr><td><code>_setLoading(true)</code></td><td>Sekaligus menghapus error lama, agar pesan error percobaan sebelumnya tidak muncul lagi.</td></tr>
+      <tr><td><code>signOut()</code></td><td>Error saat logout hanya dicatat. <code>signOut</code> tetap menghapus sesi lokal walaupun request ke server gagal (misalnya offline), jadi user tetap keluar.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Pemetaan error ke pesan ramah</h4>
+<p><code>AuthException</code> memiliki properti <code>code</code> berisi kode error dari server Supabase Auth. Kode-kode yang kita tangani:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th><code>e.code</code></th><th>Kapan muncul</th><th>Pesan untuk user</th></tr></thead>
+    <tbody>
+      <tr><td><code>invalid_credentials</code></td><td>Email tidak terdaftar atau password salah</td><td>Email atau password salah.</td></tr>
+      <tr><td><code>email_not_confirmed</code></td><td>Login sebelum klik link konfirmasi</td><td>Email belum dikonfirmasi...</td></tr>
+      <tr><td><code>user_already_exists</code> / <code>email_exists</code></td><td>Register dengan email yang sudah dipakai (Confirm email OFF)</td><td>Email sudah terdaftar. Silakan login.</td></tr>
+      <tr><td><code>weak_password</code></td><td>Password kurang dari batas minimal</td><td>Password terlalu lemah...</td></tr>
+      <tr><td><code>over_email_send_rate_limit</code></td><td>Terlalu banyak email konfirmasi terkirim</td><td>Terlalu banyak percobaan...</td></tr>
+      <tr><td><em>(AuthRetryableFetchException)</em></td><td>Tidak ada internet / server tidak terjangkau</td><td>Tidak dapat terhubung ke server...</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout callout-tip"><h4>💡 Kenapa "Email atau password salah", bukan "Email tidak terdaftar"?</h4><p>Supabase sengaja tidak membedakan kedua kasus. Pesan yang terlalu spesifik membantu penyerang menebak email mana yang terdaftar. Pesan gabungan seperti ini adalah praktik keamanan standar.</p></div>

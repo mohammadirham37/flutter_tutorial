@@ -1,0 +1,193 @@
+{
+  "id": "modul-09",
+  "badge": "REST API & HTTP",
+  "category": "Jaringan",
+  "title": "Integrasi REST API & Asynchronous Networking",
+  "duration": "Pertemuan 9 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 08: State Management Provider"
+  ],
+  "summary": "Menghubungkan aplikasi Flutter ke server backend melalui HTTP/REST secara bertahap: konsep request-response, JSON dan model Dart (fromJson/toJson), GET/POST/PUT/PATCH/DELETE dengan package http, header & Bearer token, penanganan error dan timeout, lapisan ApiClient-Repository, FutureBuilder, pull-to-refresh, integrasi Provider, hingga studi kasus aplikasi CRUD Posts multi-file.",
+  "learningOutcomes": [
+    "Menjelaskan komponen request/response HTTP: method, URL, header, body, dan status code.",
+    "Mengonversi JSON menjadi objek Dart (jsonDecode, fromJson) termasuk object bersarang dan list, serta sebaliknya (toJson, jsonEncode).",
+    "Melakukan HTTP Request (GET, POST, PUT, PATCH, DELETE) menggunakan package http dan mengirim header Authorization Bearer.",
+    "Menangani kegagalan jaringan (status code, SocketException, ClientException, TimeoutException) dengan pesan yang ramah pengguna.",
+    "Menyusun lapisan ApiClient dan Repository sehingga UI terpisah dari kode jaringan.",
+    "Menampilkan tiga kondisi UI (loading, error, data) dengan FutureBuilder maupun Provider, dilengkapi pull-to-refresh.",
+    "Membangun aplikasi CRUD lengkap (daftar, detail, tambah, edit, hapus) yang terhubung ke REST API."
+  ],
+  "sections": [
+    {
+      "id": "rest-konsep-http",
+      "title": "1. Konsep HTTP & REST: Method, Status Code, Header, Body",
+      "file": "01-konsep-http-rest.html"
+    },
+    {
+      "id": "rest-json-dasar",
+      "title": "2. Dasar JSON: jsonDecode & jsonEncode",
+      "file": "02-json-dasar.html"
+    },
+    {
+      "id": "json-serialization",
+      "title": "3. Model Dart: fromJson & toJson (Nested & List)",
+      "file": "03-json-serialization.html"
+    },
+    {
+      "id": "rest-persiapan-izin",
+      "title": "4. Persiapan: Package http & Izin Internet Android/iOS",
+      "file": "04-persiapan-izin.html"
+    },
+    {
+      "id": "rest-get-data",
+      "title": "5. GET: Mengambil Daftar dan Detail Data",
+      "file": "05-get-data.html"
+    },
+    {
+      "id": "service-http-crud",
+      "title": "6. POST, PUT, PATCH, dan DELETE",
+      "file": "06-service-http-crud.html"
+    },
+    {
+      "id": "rest-header-token",
+      "title": "7. Header & Bearer Token",
+      "file": "07-header-token.html"
+    },
+    {
+      "id": "rest-error-handling",
+      "title": "8. Penanganan Error, Timeout, dan Offline",
+      "file": "08-error-handling.html"
+    },
+    {
+      "id": "rest-repository-layer",
+      "title": "9. Service Layer: ApiClient & Repository",
+      "file": "09-repository-layer.html"
+    },
+    {
+      "id": "futurebuilder-ui",
+      "title": "10. Menangani 3 Kondisi UI dengan FutureBuilder",
+      "file": "10-futurebuilder-ui.html"
+    },
+    {
+      "id": "rest-pull-refresh",
+      "title": "11. Pull-to-Refresh dengan RefreshIndicator",
+      "file": "11-pull-to-refresh.html"
+    },
+    {
+      "id": "rest-provider-api",
+      "title": "12. Integrasi REST API dengan Provider",
+      "file": "12-provider-api.html"
+    },
+    {
+      "id": "rest-studi-kasus-crud",
+      "title": "13. Studi Kasus: Aplikasi CRUD Posts Multi-File",
+      "file": "13-studi-kasus-crud.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 9: Aplikasi Katalog Tugas Kuliah Berbasis REST API",
+    "objective": "Membangun aplikasi CRUD yang terhubung ke REST API publik dengan arsitektur berlapis (ApiClient, Repository, Provider) dan penanganan error yang ramah pengguna.",
+    "instructions": [
+      "Gunakan endpoint <code>https://jsonplaceholder.typicode.com/todos</code> (atau mock API pribadi seperti mockapi.io agar data benar-benar tersimpan).",
+      "Buat model <code>Todo</code> (id, userId, title, completed) lengkap dengan <code>fromJson</code>, <code>toJson</code>, dan <code>copyWith</code>.",
+      "Buat <code>ApiClient</code> yang menambahkan header JSON, memberi timeout 10 detik, dan mengubah semua kegagalan menjadi <code>ApiException</code>.",
+      "Buat <code>TodoRepository</code> (abstract) beserta <code>RemoteTodoRepository</code> dan <code>FakeTodoRepository</code>.",
+      "Buat <code>TodoProvider</code> dengan status <code>loading/success/error</code>; tampilkan daftar todo dengan <code>?_limit=20</code> dan pull-to-refresh.",
+      "Sediakan halaman detail, form tambah/edit (satu form untuk dua mode, dengan validasi), dan hapus dengan dialog konfirmasi.",
+      "Ubah status selesai todo memakai request <code>PATCH</code> yang hanya mengirim field <code>completed</code>.",
+      "Uji mode pesawat dan host yang salah: aplikasi wajib menampilkan pesan error dan tombol coba lagi, bukan crash. Tambahkan izin INTERNET lalu uji juga dengan build release."
+    ],
+    "expectedOutput": "Aplikasi daftar tugas yang memuat data dari internet, bisa menambah, mengedit, menandai selesai, dan menghapus data dengan umpan balik visual (loading, SnackBar, pesan error) yang jelas.",
+    "rubric": "Model & parsing JSON (15%), ApiClient + error handling (20%), Repository & Provider (20%), Operasi CRUD + PATCH berjalan (25%), UX: loading, pull-to-refresh, validasi, konfirmasi hapus (20%)."
+  },
+  "quiz": [
+    {
+      "question": "Mengapa variabel 'Future' pada FutureBuilder sebaiknya diinisialisasi di dalam method 'initState()', bukan langsung dipanggil di dalam method 'build()'?",
+      "options": [
+        "Agar request HTTP tidak terpanggil berulang kali setiap kali layar berkedip atau di-rebuild oleh framework",
+        "Karena method build() tidak mendukung internet",
+        "Agar ukuran aplikasi menjadi lebih kecil",
+        "Supaya status HTTP otomatis bernilai 200"
+      ],
+      "correctIndex": 0,
+      "explanation": "Jika memanggil fungsi API langsung di dalam method build(), setiap kali ada interaksi kecil (seperti mengetik di keyboard atau animasi), build() dipanggil ulang, memicu pengiriman request HTTP berulang kali ke server tanpa henti."
+    },
+    {
+      "question": "Kode status HTTP (Status Code) manakah yang mengindikasikan bahwa data baru BERHASIL dibuat di server?",
+      "options": [
+        "200 OK",
+        "201 Created",
+        "404 Not Found",
+        "500 Internal Server Error"
+      ],
+      "correctIndex": 1,
+      "explanation": "Dalam standar arsitektur REST API, kode 201 Created menandakan bahwa permintaan POST untuk membuat entitas baru berhasil dieksekusi oleh server."
+    },
+    {
+      "question": "Apa hasil jsonDecode('[\"a\", \"b\"]') di Dart?",
+      "options": [
+        "List&lt;dynamic&gt;",
+        "List&lt;String&gt;",
+        "Map&lt;String, dynamic&gt;",
+        "String"
+      ],
+      "correctIndex": 0,
+      "explanation": "Array JSON selalu di-decode menjadi List&lt;dynamic&gt;. Untuk mendapatkan List&lt;String&gt; gunakan List&lt;String&gt;.from(...) atau .cast&lt;String&gt;()."
+    },
+    {
+      "question": "Request http.get mengembalikan status 404. Apa yang terjadi pada kode yang hanya memakai try/catch tanpa mengecek statusCode?",
+      "options": [
+        "Masuk ke blok catch secara otomatis",
+        "Tidak ada exception; kode melanjutkan seolah sukses sehingga harus mengecek statusCode sendiri",
+        "Aplikasi langsung tertutup",
+        "Package http mengulang request secara otomatis"
+      ],
+      "correctIndex": 1,
+      "explanation": "Package http hanya melempar exception untuk kegagalan koneksi. Status 4xx/5xx tetap dianggap response yang valid, sehingga kita wajib mengecek statusCode."
+    },
+    {
+      "question": "Apa perbedaan utama PUT dan PATCH?",
+      "options": [
+        "PUT untuk membuat data, PATCH untuk menghapus",
+        "PUT mengganti seluruh data, PATCH hanya mengubah field yang dikirim",
+        "PATCH lebih aman dari PUT",
+        "Tidak ada perbedaan"
+      ],
+      "correctIndex": 1,
+      "explanation": "PUT mengirim representasi lengkap objek sebagai pengganti, sedangkan PATCH hanya mengirim field yang berubah."
+    },
+    {
+      "question": "Format header yang benar untuk mengirim token login adalah...",
+      "options": [
+        "'Token': token",
+        "'Authorization': 'Bearer $token'",
+        "'Authorization': 'Bearer:$token'",
+        "'Bearer': token"
+      ],
+      "correctIndex": 1,
+      "explanation": "Standar Bearer token memakai header Authorization dengan nilai 'Bearer ' (ada spasi) diikuti token."
+    },
+    {
+      "question": "Mengapa body POST harus di-jsonEncode dan diberi header Content-Type: application/json?",
+      "options": [
+        "Agar request lebih cepat",
+        "Karena tanpa itu package http mengirim Map sebagai form-urlencoded dan server tidak membacanya sebagai JSON",
+        "Karena Dart tidak mendukung Map",
+        "Agar status code menjadi 200"
+      ],
+      "correctIndex": 1,
+      "explanation": "Jika body berupa Map, http mengirimnya sebagai form. jsonEncode mengubahnya menjadi teks JSON dan Content-Type memberi tahu server cara membacanya."
+    },
+    {
+      "question": "Pada RefreshIndicator, mengapa daftar perlu physics: AlwaysScrollableScrollPhysics()?",
+      "options": [
+        "Agar scroll lebih cepat",
+        "Agar gestur tarik tetap bisa dilakukan walaupun isi list sedikit atau sedang menampilkan pesan error",
+        "Agar list tidak bisa di-scroll",
+        "Karena RefreshIndicator mewajibkan GridView"
+      ],
+      "correctIndex": 1,
+      "explanation": "Jika konten tidak memenuhi layar, ListView tidak bisa di-scroll sehingga gestur pull-to-refresh tidak terpicu. AlwaysScrollableScrollPhysics memaksa list tetap bisa ditarik."
+    }
+  ]
+}

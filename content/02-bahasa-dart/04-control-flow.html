@@ -1,0 +1,171 @@
+<p class="lead">Control flow menentukan <em>baris mana yang dijalankan</em> dan <em>berapa kali</em>. Ada dua kelompok besar: percabangan (<code>if</code>, <code>switch</code>) dan perulangan (<code>for</code>, <code>while</code>).</p>
+
+<h4>if, else if, else</h4>
+<pre><code class="language-dart">void main() {
+  double nilai = 78.5;
+
+  if (nilai &gt;= 85) {
+    print('A');
+  } else if (nilai &gt;= 70) {
+    print('B');
+  } else if (nilai &gt;= 55) {
+    print('C');
+  } else {
+    print('D/E');
+  }
+  // Output: B
+}
+</code></pre>
+<p>Kondisi diperiksa dari atas ke bawah, dan hanya blok <strong>pertama</strong> yang kondisinya benar yang dijalankan. Nilai 78.5 tidak memenuhi <code>&gt;= 85</code>, tetapi memenuhi <code>&gt;= 70</code>, sehingga pengecekan berhenti di situ. Kondisi di Dart harus bertipe <code>bool</code>; menulis <code>if (1)</code> seperti di C adalah error.</p>
+
+<h4>switch statement</h4>
+<pre><code class="language-dart">void main() {
+  String hari = 'Sabtu';
+
+  switch (hari) {
+    case 'Sabtu':
+    case 'Minggu':
+      print('Libur kuliah');
+    case 'Jumat':
+      print('Kuliah sampai jam 11');
+    default:
+      print('Kuliah seperti biasa');
+  }
+  // Output: Libur kuliah
+}
+</code></pre>
+<p>Sejak Dart 3, <code>break</code> tidak wajib lagi: case yang berisi kode otomatis berhenti di akhir case-nya. Case yang kosong (seperti <code>'Sabtu'</code>) "jatuh" ke case berikutnya, sehingga Sabtu dan Minggu berbagi kode yang sama.</p>
+
+<h4>switch expression (Dart 3)</h4>
+<p><em>Switch expression</em> adalah switch yang <strong>menghasilkan nilai</strong>. Bentuknya lebih ringkas: tidak ada <code>case</code>, tidak ada <code>break</code>, setiap cabang ditulis <code>pola =&gt; nilai</code>, dan <code>_</code> berarti "selain itu".</p>
+<pre><code class="language-dart">void main() {
+  String nilaiHuruf = 'B';
+  int bobot = switch (nilaiHuruf) {
+    'A' =&gt; 4,
+    'B' =&gt; 3,
+    'C' =&gt; 2,
+    'D' =&gt; 1,
+    _ =&gt; 0,
+  };
+  print('Bobot nilai $nilaiHuruf = $bobot'); // Output: Bobot nilai B = 3
+
+  int nomorHari = 6;
+  String jenisHari = switch (nomorHari) {
+    6 || 7 =&gt; 'Akhir pekan',
+    &gt;= 1 &amp;&amp; &lt;= 5 =&gt; 'Hari kerja',
+    _ =&gt; 'Nomor hari tidak valid',
+  };
+  print(jenisHari); // Output: Akhir pekan
+}
+</code></pre>
+<p><code>6 || 7</code> berarti "6 atau 7", dan <code>&gt;= 1 &amp;&amp; &lt;= 5</code> berarti "di antara 1 sampai 5". Ini adalah <em>pattern</em> yang akan dibahas lebih dalam di section Fitur Modern Dart 3.</p>
+
+<h4>Perulangan for</h4>
+<pre><code class="language-dart">void main() {
+  for (int i = 1; i &lt;= 3; i++) {
+    print('Pertemuan ke-$i');
+  }
+  // Output:
+  // Pertemuan ke-1
+  // Pertemuan ke-2
+  // Pertemuan ke-3
+
+  // Perulangan bersarang (nested): tabel perkalian 3 x 3
+  for (int baris = 1; baris &lt;= 3; baris++) {
+    String isi = '';
+    for (int kolom = 1; kolom &lt;= 3; kolom++) {
+      isi += '${baris * kolom}'.padLeft(4);
+    }
+    print(isi);
+  }
+  // Output:
+  //    1   2   3
+  //    2   4   6
+  //    3   6   9
+}
+</code></pre>
+<p>Bagian <code>for (inisialisasi; kondisi; perubahan)</code>: <code>i</code> mulai dari 1, perulangan berjalan selama <code>i &lt;= 3</code>, dan setelah tiap putaran <code>i</code> bertambah 1.</p>
+
+<h4>for-in dan forEach</h4>
+<pre><code class="language-dart">void main() {
+  List&lt;String&gt; matkul = ['Pemrograman Mobile', 'Basis Data', 'Jaringan Komputer'];
+
+  // for-in: ambil setiap elemen tanpa indeks
+  for (final mk in matkul) {
+    print('- $mk');
+  }
+  // Output:
+  // - Pemrograman Mobile
+  // - Basis Data
+  // - Jaringan Komputer
+
+  // for biasa jika butuh nomor urut
+  for (int i = 0; i &lt; matkul.length; i++) {
+    print('${i + 1}. ${matkul[i]}');
+  }
+  // Output:
+  // 1. Pemrograman Mobile
+  // 2. Basis Data
+  // 3. Jaringan Komputer
+
+  // forEach dengan fungsi
+  matkul.forEach((mk) =&gt; print(mk.toUpperCase()));
+  // Output:
+  // PEMROGRAMAN MOBILE
+  // BASIS DATA
+  // JARINGAN KOMPUTER
+}
+</code></pre>
+
+<h4>while dan do-while</h4>
+<pre><code class="language-dart">void main() {
+  int saldo = 100000;
+  int hari = 0;
+  while (saldo &gt;= 25000) {
+    saldo -= 25000;
+    hari++;
+  }
+  print('Uang jajan cukup untuk $hari hari, sisa $saldo'); // Output: Uang jajan cukup untuk 4 hari, sisa 0
+
+  int percobaan = 0;
+  do {
+    percobaan++;
+    print('Percobaan login ke-$percobaan');
+  } while (percobaan &lt; 2);
+  // Output:
+  // Percobaan login ke-1
+  // Percobaan login ke-2
+}
+</code></pre>
+<p><code>while</code> mengecek kondisi <strong>sebelum</strong> menjalankan isi perulangan, sedangkan <code>do-while</code> menjalankan isi minimal satu kali, baru mengecek kondisi di akhir. Gunakan <code>while</code> jika jumlah putaran tidak diketahui sejak awal.</p>
+
+<h4>break dan continue</h4>
+<pre><code class="language-dart">void main() {
+  List&lt;int&gt; daftarNilai = [80, 45, 90, -1, 70];
+
+  for (final n in daftarNilai) {
+    if (n &lt; 0) {
+      print('Data tidak valid, berhenti.');
+      break; // keluar dari perulangan sepenuhnya
+    }
+    if (n &lt; 60) {
+      print('$n dilewati');
+      continue; // lompat ke elemen berikutnya
+    }
+    print('$n lulus');
+  }
+  // Output:
+  // 80 lulus
+  // 45 dilewati
+  // 90 lulus
+  // Data tidak valid, berhenti.
+}
+</code></pre>
+<p>Nilai 70 tidak pernah diproses karena <code>break</code> sudah menghentikan perulangan saat bertemu -1.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Infinite loop</strong>: lupa mengubah variabel kondisi di dalam <code>while</code> (misalnya lupa <code>hari++</code>), sehingga program tidak pernah berhenti.</li>
+  <li><strong>Off-by-one</strong>: memakai <code>i &lt;= list.length</code> padahal indeks terakhir adalah <code>length - 1</code>. Akibatnya muncul <code>RangeError</code>.</li>
+  <li>Lupa cabang <code>_</code> pada switch expression untuk tipe <code>int</code>/<code>String</code>. Compiler akan menolak karena tidak semua kemungkinan tertangani.</li>
+</ul></div>

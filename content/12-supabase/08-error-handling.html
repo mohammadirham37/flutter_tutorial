@@ -1,0 +1,89 @@
+<p class="lead">Request ke internet <em>pasti</em> suatu saat gagal, entah karena sinyal hilang, server menolak, atau data tidak valid. Aplikasi yang baik menampilkan pesan yang jelas, bukan layar merah atau loading tanpa akhir.</p>
+
+<h4>Tiga jenis kegagalan</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Jenis</th><th>Exception di Dart</th><th>Contoh penyebab</th></tr></thead>
+    <tbody>
+      <tr><td>Database menolak</td><td><code>PostgrestException</code></td><td>RLS, UNIQUE dilanggar, CHECK gagal, tabel tidak ada</td></tr>
+      <tr><td>Auth menolak</td><td><code>AuthException</code> (dan turunannya)</td><td>password salah, email belum dikonfirmasi, email sudah terdaftar</td></tr>
+      <tr><td>Jaringan gagal</td><td><code>SocketException</code>, <code>ClientException</code>, <code>TimeoutException</code>, <code>AuthRetryableFetchException</code></td><td>tidak ada internet, DNS gagal, server terlalu lama</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Menangani <code>PostgrestException</code></h4>
+<pre><code class="language-dart">Future&lt;String&gt; tambahDenganPenangananError() async {
+  try {
+    await supabase.from('mata_kuliah').insert({
+      'kode': 'INF301', // sudah ada -&gt; melanggar UNIQUE
+      'nama': 'Duplikat',
+      'semester': 5,
+    });
+    return 'Berhasil disimpan';
+  } on PostgrestException catch (e) {
+    // e.code berisi kode error PostgreSQL / PostgREST
+    switch (e.code) {
+      case '23505':
+        return 'Kode mata kuliah sudah dipakai.';
+      case '23514':
+        return 'Data melanggar aturan CHECK (misalnya SKS di luar 1-6).';
+      case '42501':
+        return 'Ditolak oleh Row Level Security. Apakah Anda sudah login?';
+      default:
+        return 'Kesalahan database: ${e.message}';
+    }
+  } on TimeoutException {
+    return 'Server terlalu lama merespons.';
+  } catch (e) {
+    // Biasanya SocketException / ClientException: tidak ada internet.
+    return 'Tidak dapat terhubung ke server.';
+  }
+}
+</code></pre>
+<ul>
+  <li><code>on PostgrestException catch (e)</code> hanya menangkap error dari database. Properti pentingnya: <code>e.message</code>, <code>e.code</code>, <code>e.details</code>, dan <code>e.hint</code>.</li>
+  <li><code>catch (e)</code> paling bawah menangkap sisanya, biasanya masalah jaringan.</li>
+  <li>Urutan <code>on ... catch</code> penting: yang paling spesifik ditulis di atas.</li>
+</ul>
+
+<h4>Kode error yang sering muncul</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Code</th><th>Arti</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr><td><code>42501</code></td><td>Ditolak RLS (<em>new row violates row-level security policy</em>)</td><td>Periksa policy INSERT/UPDATE dan pastikan user sudah login.</td></tr>
+      <tr><td><code>23505</code></td><td>Nilai UNIQUE ganda (<em>duplicate key value</em>)</td><td>Beri tahu user bahwa data sudah ada.</td></tr>
+      <tr><td><code>23502</code></td><td>Kolom NOT NULL tidak diisi</td><td>Lengkapi data yang dikirim.</td></tr>
+      <tr><td><code>23503</code></td><td>Foreign key tidak ditemukan</td><td>Pastikan baris induk ada.</td></tr>
+      <tr><td><code>23514</code></td><td>Constraint CHECK gagal</td><td>Validasi input di form.</td></tr>
+      <tr><td><code>22P02</code></td><td>Format salah, misalnya teks dikirim ke kolom uuid/int</td><td>Periksa tipe data.</td></tr>
+      <tr><td><code>PGRST116</code></td><td><code>.single()</code> menerima 0 atau lebih dari 1 baris</td><td>Pakai <code>maybeSingle()</code> atau perbaiki filter.</td></tr>
+      <tr><td><code>PGRST205</code> / <code>42P01</code></td><td>Tabel tidak ditemukan</td><td>Jalankan SQL pembuatan tabel, cek ejaan nama tabel.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Menangani <code>AuthException</code></h4>
+<pre><code class="language-dart">Future&lt;String?&gt; loginDenganPenangananError(
+  String email,
+  String password,
+) async {
+  try {
+    await supabase.auth.signInWithPassword(email: email, password: password);
+    return null; // null = sukses
+  } on AuthRetryableFetchException {
+    return 'Tidak ada koneksi internet.';
+  } on AuthException catch (e) {
+    // e.code: 'invalid_credentials', 'email_not_confirmed', dst.
+    if (e.code == 'invalid_credentials') return 'Email atau password salah.';
+    if (e.code == 'email_not_confirmed') return 'Konfirmasi email dulu.';
+    return e.message;
+  }
+}
+</code></pre>
+<p><code>AuthRetryableFetchException</code> adalah turunan <code>AuthException</code> yang dilempar saat request Auth gagal karena jaringan. Karena merupakan turunan, ia harus ditangkap <strong>sebelum</strong> <code>on AuthException</code>.</p>
+
+<div class="callout callout-tip"><h4>💡 Di mana sebaiknya try-catch ditulis?</h4><p>Jangan menyebar try-catch di setiap widget. Di proyek Modul 13–14, error ditangkap di <strong>Provider</strong>, diterjemahkan menjadi pesan Bahasa Indonesia, lalu UI cukup menampilkan pesannya. Dengan begitu tampilan tetap bersih dan logika error terkumpul di satu tempat.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Jangan menelan error</h4><p><code>catch (e) {}</code> yang kosong membuat bug tidak terlihat: data tidak tersimpan dan user tidak tahu kenapa. Minimal tampilkan SnackBar atau tulis <code>debugPrint(e.toString())</code> saat pengembangan.</p></div>

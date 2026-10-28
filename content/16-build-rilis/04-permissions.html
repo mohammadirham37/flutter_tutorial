@@ -1,0 +1,77 @@
+<p class="lead">Android melindungi fitur sensitif (internet, kamera, lokasi, notifikasi) dengan <strong>permission</strong>. Aplikasi harus mendeklarasikan permission di <code>AndroidManifest.xml</code>; sebagian juga harus diminta langsung kepada pengguna saat aplikasi berjalan.</p>
+
+<h4>Jebakan nomor satu: permission INTERNET</h4>
+<p>Aplikasi Catatan Kuliah berjalan lancar di emulator, tetapi setelah APK release dipasang di HP, login Supabase selalu gagal. Kenapa? Proyek Flutter punya <strong>tiga</strong> file manifest:</p>
+<pre><code class="language-text">android/app/src/
+├── debug/AndroidManifest.xml     # dipakai saat flutter run (debug)
+├── profile/AndroidManifest.xml   # dipakai saat --profile
+└── main/AndroidManifest.xml      # dipakai SEMUA mode, termasuk release</code></pre>
+<p>Manifest <code>debug</code> bawaan sudah berisi permission INTERNET (dibutuhkan untuk hot reload), sedangkan manifest <code>main</code> <strong>tidak</strong>. Jadi aplikasi bisa mengakses internet saat debug, tetapi tidak saat release. Isi manifest debug bawaan:</p>
+<p class="code-file-label">📄 <code>android/app/src/debug/AndroidManifest.xml</code> (bawaan flutter create)</p>
+<pre><code class="language-text">&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+    &lt;!-- The INTERNET permission is required for development. Specifically,
+         the Flutter tool needs it to communicate with the running application
+         to allow setting breakpoints, to provide hot reload, etc.
+    --&gt;
+    &lt;uses-permission android:name="android.permission.INTERNET"/&gt;
+&lt;/manifest&gt;</code></pre>
+<p>Solusinya, tambahkan permission di manifest <code>main</code>, <strong>di luar</strong> tag <code>&lt;application&gt;</code>:</p>
+<p class="code-file-label">📄 <code>android/app/src/main/AndroidManifest.xml</code> (potongan)</p>
+<pre><code class="language-text">&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+    &lt;!-- Wajib untuk Supabase, REST API, gambar dari internet --&gt;
+    &lt;uses-permission android:name="android.permission.INTERNET"/&gt;
+
+    &lt;application
+        android:label="Catatan Kuliah"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"&gt;
+        ...
+    &lt;/application&gt;
+&lt;/manifest&gt;</code></pre>
+
+<h4>Permission lain yang sering dipakai</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Fitur</th><th>Permission</th><th>Perlu diminta saat runtime?</th></tr></thead>
+    <tbody>
+      <tr><td>Internet</td><td><code>android.permission.INTERNET</code></td><td>Tidak</td></tr>
+      <tr><td>Cek status koneksi</td><td><code>android.permission.ACCESS_NETWORK_STATE</code></td><td>Tidak</td></tr>
+      <tr><td>Kamera</td><td><code>android.permission.CAMERA</code></td><td>Ya</td></tr>
+      <tr><td>Lokasi</td><td><code>android.permission.ACCESS_FINE_LOCATION</code>, <code>ACCESS_COARSE_LOCATION</code></td><td>Ya</td></tr>
+      <tr><td>Notifikasi (Android 13+)</td><td><code>android.permission.POST_NOTIFICATIONS</code></td><td>Ya</td></tr>
+      <tr><td>Getar</td><td><code>android.permission.VIBRATE</code></td><td>Tidak</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Contoh manifest untuk aplikasi capstone yang memakai kamera dan lokasi (misalnya aplikasi pengaduan sarana kampus):</p>
+<p class="code-file-label">📄 <code>android/app/src/main/AndroidManifest.xml</code> (potongan)</p>
+<pre><code class="language-text">&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+    &lt;uses-permission android:name="android.permission.INTERNET"/&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/&gt;
+    &lt;uses-permission android:name="android.permission.CAMERA"/&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/&gt;
+    &lt;uses-permission android:name="android.permission.POST_NOTIFICATIONS"/&gt;
+
+    &lt;!-- Kamera tidak wajib: aplikasi tetap bisa dipasang di perangkat tanpa kamera --&gt;
+    &lt;uses-feature android:name="android.hardware.camera" android:required="false"/&gt;
+
+    &lt;application ...&gt;
+        ...
+    &lt;/application&gt;
+&lt;/manifest&gt;</code></pre>
+<p>Permission “berbahaya” (kamera, lokasi, notifikasi) juga harus diminta saat runtime. Package seperti <code>image_picker</code> dan <code>geolocator</code> biasanya sudah menampilkan dialog izin sendiri. Untuk kontrol penuh, gunakan package <code>permission_handler</code> dan ikuti petunjuk konfigurasinya di pub.dev.</p>
+
+<h4>iOS: alasan penggunaan di Info.plist</h4>
+<p>iOS tidak memakai daftar permission, tetapi mewajibkan <strong>kalimat alasan</strong> untuk setiap fitur sensitif. Tanpa kalimat ini aplikasi langsung tertutup saat meminta izin, dan App Store menolak aplikasi.</p>
+<p class="code-file-label">📄 <code>ios/Runner/Info.plist</code> (potongan)</p>
+<pre><code class="language-text">&lt;key&gt;NSCameraUsageDescription&lt;/key&gt;
+&lt;string&gt;Kamera dipakai untuk memotret fasilitas yang rusak.&lt;/string&gt;
+&lt;key&gt;NSLocationWhenInUseUsageDescription&lt;/key&gt;
+&lt;string&gt;Lokasi dipakai untuk menandai posisi laporan di peta kampus.&lt;/string&gt;</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Menambahkan INTERNET hanya di manifest <code>debug</code>, atau menaruh <code>&lt;uses-permission&gt;</code> di dalam tag <code>&lt;application&gt;</code>.</li>
+  <li>Meminta permission yang tidak dipakai. Play Console akan menanyakan alasannya, dan pengguna jadi curiga.</li>
+  <li>Tidak menangani kasus pengguna menolak izin. Tampilkan pesan dan jalan alternatif, jangan biarkan aplikasi crash.</li>
+</ul></div>

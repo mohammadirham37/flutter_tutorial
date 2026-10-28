@@ -1,0 +1,164 @@
+<p>Setiap proyek baru dari <code>flutter create</code> berisi aplikasi <strong>counter</strong>: layar dengan angka dan tombol <kbd>+</kbd>. Aplikasi kecil ini sudah memuat hampir semua konsep dasar Flutter, jadi kita bedah bagian per bagian. Komentar bawaan sudah dihapus dan diganti nomor penanda.</p>
+
+<h4>Sebelum itu: aplikasi Flutter paling kecil</h4>
+<p>Agar terlihat bahwa "semua adalah widget", ini program Flutter terkecil yang bisa dijalankan. Tidak ada AppBar, tema, atau tombol, hanya satu teks di tengah layar:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+void main() {
+  runApp(
+    const Center(
+      child: Text(
+        'Halo, Flutter!',
+        textDirection: TextDirection.ltr,
+        style: TextStyle(fontSize: 32),
+      ),
+    ),
+  );
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/01-pengenalan-flutter/aplikasi-minimal.jpg" alt="Teks Halo, Flutter! di tengah layar hitam" loading="lazy">
+    <div class="screenshot-caption">Aplikasi paling kecil: hanya satu Text tanpa MaterialApp</div>
+  </div>
+</div>
+<p><code>runApp()</code> menerima satu widget dan menjadikannya akar (root) seluruh tampilan. Karena tidak memakai <code>MaterialApp</code>, kita harus menyebut arah teks (<code>textDirection</code>) sendiri. Inilah alasan hampir semua aplikasi dibungkus <code>MaterialApp</code>: ia menyediakan arah teks, tema, navigasi, dan banyak hal lain secara otomatis.</p>
+
+<h4>Kode counter bawaan</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// 1
+import 'package:flutter/material.dart';
+
+// 2
+void main() {
+  runApp(const MyApp());
+}
+
+// 3
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // 4
+    return MaterialApp(
+      title: 'Flutter Demo',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+      ),
+      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+    );
+  }
+}
+
+// 5
+class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key, required this.title});
+
+  final String title;
+
+  @override
+  State&lt;MyHomePage&gt; createState() =&gt; _MyHomePageState();
+}
+
+// 6
+class _MyHomePageState extends State&lt;MyHomePage&gt; {
+  int _counter = 0;
+
+  // 7
+  void _incrementCounter() {
+    setState(() {
+      _counter++;
+    });
+  }
+
+  // 8
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: Text(widget.title),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('You have pushed the button this many times:'),
+            Text(
+              '$_counter',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _incrementCounter,
+        tooltip: 'Increment',
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/01-pengenalan-flutter/counter-awal.jpg" alt="Aplikasi counter dengan angka 0" loading="lazy">
+    <div class="screenshot-caption">Tampilan awal aplikasi counter</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/01-pengenalan-flutter/counter-tiga-kali.jpg" alt="Aplikasi counter dengan angka 3" loading="lazy">
+    <div class="screenshot-caption">Setelah tombol + ditekan tiga kali</div>
+  </div>
+</div>
+
+<div class="callout callout-info">
+  <h4>ℹ️ Kode Anda sedikit berbeda?</h4>
+  <p>Versi Flutter terbaru memakai fitur Dart <em>dot shorthand</em>, sehingga <code>flutter create</code> menulis <code>.fromSeed(...)</code> dan <code>.center</code> alih-alih <code>ColorScheme.fromSeed(...)</code> dan <code>MainAxisAlignment.center</code>. Artinya sama persis. Di materi ini kita memakai bentuk lengkap agar asal setiap nilai terlihat jelas.</p>
+</div>
+
+<h4>Penjelasan baris per baris</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>No.</th><th>Kode</th><th>Penjelasan</th></tr></thead>
+    <tbody>
+      <tr><td><strong>1</strong></td><td><code>import 'package:flutter/material.dart';</code></td><td>Mengimpor pustaka Material Design: semua widget seperti <code>Scaffold</code>, <code>AppBar</code>, <code>Text</code>, dan <code>Icons</code> berasal dari sini.</td></tr>
+      <tr><td><strong>2</strong></td><td><code>void main()</code> dan <code>runApp(const MyApp())</code></td><td>Titik masuk program. <code>runApp</code> memasang widget <code>MyApp</code> sebagai akar tampilan. <code>const</code> berarti objek dibuat sekali saat kompilasi sehingga lebih hemat.</td></tr>
+      <tr><td><strong>3</strong></td><td><code>class MyApp extends StatelessWidget</code></td><td>Widget akar yang tidak punya data berubah. <code>const MyApp({super.key})</code> adalah constructor yang meneruskan <code>key</code> ke kelas induk.</td></tr>
+      <tr><td><strong>4</strong></td><td><code>MaterialApp(...)</code></td><td>Pembungkus aplikasi: <code>title</code> (nama di task switcher), <code>theme</code> (warna dari satu <code>seedColor</code> menjadi palet Material 3), dan <code>home</code> (halaman pertama).</td></tr>
+      <tr><td><strong>5</strong></td><td><code>class MyHomePage extends StatefulWidget</code></td><td>Halaman yang datanya berubah (angka counter). Field <code>title</code> bersifat <code>final</code>, diisi lewat parameter <code>required this.title</code>. <code>createState()</code> membuat objek State pasangannya.</td></tr>
+      <tr><td><strong>6</strong></td><td><code>class _MyHomePageState extends State&lt;MyHomePage&gt;</code></td><td>Tempat data yang bisa berubah disimpan: <code>int _counter = 0</code>. Garis bawah (<code>_</code>) artinya privat, hanya bisa diakses dari file ini.</td></tr>
+      <tr><td><strong>7</strong></td><td><code>setState(() { _counter++; })</code></td><td>Mengubah data <strong>sekaligus</strong> memberi tahu Flutter agar memanggil <code>build()</code> lagi. Tanpa <code>setState</code>, angka berubah di memori tetapi layar tidak ikut berubah.</td></tr>
+      <tr><td><strong>8</strong></td><td><code>Widget build(BuildContext context)</code></td><td>Menggambarkan tampilan: <code>Scaffold</code> (kerangka halaman) berisi <code>AppBar</code>, <code>body</code> berupa <code>Center</code> &gt; <code>Column</code> &gt; dua <code>Text</code>, dan <code>FloatingActionButton</code> yang memanggil <code>_incrementCounter</code> saat ditekan. <code>widget.title</code> dipakai untuk membaca field dari kelas <code>MyHomePage</code>.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Pohon widget (widget tree) aplikasi counter</h4>
+<pre><code class="language-text">MyApp
+└── MaterialApp
+    └── MyHomePage
+        └── Scaffold
+            ├── AppBar
+            │   └── Text (judul)
+            ├── Center
+            │   └── Column
+            │       ├── Text ('You have pushed ...')
+            │       └── Text ('$_counter')
+            └── FloatingActionButton
+                └── Icon (Icons.add)</code></pre>
+
+<h4>Alur ketika tombol + ditekan</h4>
+<ol>
+  <li>Pengguna mengetuk <code>FloatingActionButton</code>, sehingga <code>onPressed</code> memanggil <code>_incrementCounter()</code>.</li>
+  <li><code>setState</code> menjalankan <code>_counter++</code> lalu menandai widget sebagai "kotor" (perlu digambar ulang).</li>
+  <li>Pada frame berikutnya Flutter memanggil <code>build()</code> lagi, dan <code>Text('$_counter')</code> kini berisi angka baru.</li>
+</ol>
+
+<div class="callout callout-warning">
+  <h4>⚠️ Kesalahan umum</h4>
+  <ul>
+    <li>Mengubah <code>_counter++</code> di luar <code>setState</code>: angka tidak muncul di layar.</li>
+    <li>Menaruh variabel <code>_counter</code> di dalam <code>build()</code>: nilainya kembali ke 0 setiap kali layar digambar ulang.</li>
+    <li>Menulis <code>title</code> alih-alih <code>widget.title</code> di dalam kelas State: error <code>Undefined name 'title'</code>.</li>
+  </ul>
+</div>

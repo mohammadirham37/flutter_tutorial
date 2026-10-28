@@ -1,0 +1,266 @@
+<p class="lead">Di Modul 14, <code>NoteRepository</code> mengambil catatan dari Supabase dan menyimpannya ke cache Hive. Bagaimana mengujinya tanpa internet, tanpa akun Supabase, dan tanpa mengotori database? Jawabannya: ganti sumber data asli dengan <strong>pengganti palsu</strong> yang kita kendalikan penuh.</p>
+
+<div class="callout callout-info"><h4>ℹ️ Versi ringkas, bukan salinan kode proyek</h4><p>Agar setiap contoh di modul ini bisa dijalankan sendiri, class <code>Note</code>, <code>NoteRepository</code>, dan data source di bawah sengaja dibuat lebih sederhana daripada kode proyek Modul 14 (nama method dan field bisa berbeda). Konsepnya sama persis. Test untuk kode proyek yang sesungguhnya ada di Modul 14 section <em>Unit Test</em> (<code>test/note_repository_test.dart</code> dan <code>test/note_local_data_source_test.dart</code>).</p></div>
+
+<h4>Kenapa butuh pengganti?</h4>
+<ul>
+  <li><strong>Cepat</strong>: tidak ada request jaringan, ratusan test selesai dalam hitungan detik.</li>
+  <li><strong>Stabil</strong>: hasil test tidak bergantung pada koneksi atau isi database hari ini.</li>
+  <li><strong>Bisa mensimulasikan kegagalan</strong>: kondisi “offline” sulit dibuat dengan server sungguhan, tetapi mudah dengan pengganti palsu.</li>
+</ul>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Istilah</th><th>Arti</th><th>Contoh</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Fake</strong></td><td>Implementasi sederhana yang benar-benar berfungsi, ditulis tangan</td><td>Data disimpan di <code>List</code>, bukan di Supabase</td></tr>
+      <tr><td><strong>Mock</strong></td><td>Objek yang perilakunya diatur per test dan bisa diperiksa pemanggilannya</td><td><code>when(...).thenAnswer(...)</code>, <code>verify(...)</code> dengan mocktail</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Langkah 1: kode harus bergantung pada abstraksi</h4>
+<p>Pengganti hanya bisa dipasang jika repository tidak membuat koneksi Supabase/Hive sendiri, melainkan <strong>menerimanya dari luar</strong> lewat konstruktor (<em>dependency injection</em>). Berikut versi sederhana arsitektur Modul 14:</p>
+<p class="code-file-label">📄 <code>lib/models/note.dart</code></p>
+<pre><code class="language-dart">// lib/models/note.dart
+class Note {
+  final String id;
+  final String title;
+  final String content;
+
+  const Note({required this.id, required this.title, required this.content});
+}</code></pre>
+<p class="code-file-label">📄 <code>lib/data/note_data_source.dart</code></p>
+<pre><code class="language-dart">// lib/data/note_data_source.dart
+import '../models/note.dart';
+
+/// Sumber data online (di Modul 14: tabel notes di Supabase).
+abstract class NoteRemoteDataSource {
+  Future&lt;List&lt;Note&gt;&gt; fetchNotes();
+  Future&lt;Note&gt; createNote(String title, String content);
+}
+
+/// Cache offline (di Modul 14: box Hive).
+abstract class NoteLocalCache {
+  Future&lt;void&gt; saveNotes(List&lt;Note&gt; notes);
+  Future&lt;List&lt;Note&gt;&gt; readNotes();
+}</code></pre>
+<p class="code-file-label">📄 <code>lib/data/note_repository.dart</code></p>
+<pre><code class="language-dart">// lib/data/note_repository.dart
+import '../models/note.dart';
+import 'note_data_source.dart';
+
+class NoteRepository {
+  NoteRepository({required this.remote, required this.cache});
+
+  final NoteRemoteDataSource remote;
+  final NoteLocalCache cache;
+
+  /// true jika data terakhir diambil dari cache (sedang offline).
+  bool lastFromCache = false;
+
+  Future&lt;List&lt;Note&gt;&gt; getNotes() async {
+    try {
+      final notes = await remote.fetchNotes();
+      await cache.saveNotes(notes);
+      lastFromCache = false;
+      return notes;
+    } catch (_) {
+      lastFromCache = true;
+      return cache.readNotes();
+    }
+  }
+
+  Future&lt;Note&gt; addNote(String title, String content) async {
+    if (title.trim().isEmpty) {
+      throw ArgumentError('Judul tidak boleh kosong');
+    }
+    return remote.createNote(title.trim(), content);
+  }
+}</code></pre>
+<p><code>NoteRepository</code> hanya mengenal <code>NoteRemoteDataSource</code> dan <code>NoteLocalCache</code> (abstract class). Di aplikasi asli, kita memasang implementasi Supabase dan Hive. Di test, kita memasang versi palsu.</p>
+
+<h4>Langkah 2: menulis fake class</h4>
+<p>Fake ditulis dengan <code>implements</code>, sehingga compiler memaksa kita mengisi semua method. Tambahkan “tombol” untuk mengatur perilaku (<code>shouldFail</code>) dan “penghitung” untuk diperiksa (<code>fetchCount</code>).</p>
+<p class="code-file-label">📄 <code>test/mock/fakes.dart</code></p>
+<pre><code class="language-dart">// test/mock/fakes.dart
+import 'package:catatan_kuliah/data/note_data_source.dart';
+import 'package:catatan_kuliah/models/note.dart';
+
+/// Pengganti Supabase: datanya disimpan di list biasa.
+class FakeRemoteDataSource implements NoteRemoteDataSource {
+  FakeRemoteDataSource({List&lt;Note&gt;? awal}) : notes = [...?awal];
+
+  final List&lt;Note&gt; notes;
+  bool shouldFail = false; // ubah ke true untuk mensimulasikan offline
+  int fetchCount = 0; // berapa kali fetchNotes dipanggil
+
+  @override
+  Future&lt;List&lt;Note&gt;&gt; fetchNotes() async {
+    fetchCount++;
+    if (shouldFail) throw Exception('Tidak ada koneksi internet');
+    return List.of(notes);
+  }
+
+  @override
+  Future&lt;Note&gt; createNote(String title, String content) async {
+    if (shouldFail) throw Exception('Tidak ada koneksi internet');
+    final note = Note(id: 'n${notes.length + 1}', title: title, content: content);
+    notes.add(note);
+    return note;
+  }
+}
+
+/// Pengganti Hive: cache disimpan di memori.
+class FakeLocalCache implements NoteLocalCache {
+  List&lt;Note&gt; saved = [];
+
+  @override
+  Future&lt;void&gt; saveNotes(List&lt;Note&gt; notes) async =&gt; saved = List.of(notes);
+
+  @override
+  Future&lt;List&lt;Note&gt;&gt; readNotes() async =&gt; List.of(saved);
+}</code></pre>
+<p>File ini diletakkan di folder <code>test/</code> karena hanya dipakai untuk pengujian. Namanya tidak diakhiri <code>_test.dart</code>, jadi tidak dijalankan sebagai test.</p>
+
+<h4>Langkah 3: menguji repository dengan fake</h4>
+<p class="code-file-label">📄 <code>test/mock/note_repository_test.dart</code></p>
+<pre><code class="language-dart">// test/mock/note_repository_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:catatan_kuliah/data/note_repository.dart';
+import 'package:catatan_kuliah/models/note.dart';
+
+import 'fakes.dart';
+
+void main() {
+  late FakeRemoteDataSource remote;
+  late FakeLocalCache cache;
+  late NoteRepository repository;
+
+  const catatan1 = Note(id: 'n1', title: 'Pertemuan 1', content: 'Pengenalan Dart');
+
+  setUp(() {
+    remote = FakeRemoteDataSource(awal: [catatan1]);
+    cache = FakeLocalCache();
+    repository = NoteRepository(remote: remote, cache: cache);
+  });
+
+  test('online: data diambil dari remote lalu disimpan ke cache', () async {
+    final notes = await repository.getNotes();
+
+    expect(notes, hasLength(1));
+    expect(notes.first.title, 'Pertemuan 1');
+    expect(cache.saved, hasLength(1)); // cache ikut terisi
+    expect(repository.lastFromCache, isFalse);
+  });
+
+  test('offline: data diambil dari cache', () async {
+    cache.saved = [catatan1];
+    remote.shouldFail = true;
+
+    final notes = await repository.getNotes();
+
+    expect(notes.single.id, 'n1');
+    expect(repository.lastFromCache, isTrue);
+  });
+
+  test('offline dan cache kosong: hasilnya list kosong, bukan crash', () async {
+    remote.shouldFail = true;
+
+    expect(await repository.getNotes(), isEmpty);
+  });
+
+  test('addNote menolak judul kosong tanpa memanggil remote', () async {
+    await expectLater(repository.addNote('   ', 'isi'), throwsArgumentError);
+    expect(remote.notes, hasLength(1)); // tidak bertambah
+  });
+
+  test('addNote merapikan spasi judul', () async {
+    final note = await repository.addNote('  Kuis 1  ', 'Bab 1-3');
+
+    expect(note.title, 'Kuis 1');
+    expect(remote.notes, hasLength(2));
+  });
+}</code></pre>
+<p>Lima test ini mendokumentasikan perilaku penting repository: online menyimpan cache, offline membaca cache, offline tanpa cache tidak crash, dan validasi judul. Jika suatu hari ada yang mengubah <code>getNotes()</code> dan lupa menyimpan cache, test pertama langsung gagal.</p>
+
+<h4>Alternatif: mocktail</h4>
+<p>Menulis fake butuh waktu jika interface-nya besar. Package <code>mocktail</code> membuat mock tanpa menulis method satu per satu. Pasang sebagai <em>dev dependency</em>:</p>
+<pre><code class="language-bash">flutter pub add dev:mocktail</code></pre>
+<p class="code-file-label">📄 <code>test/mock/note_repository_mocktail_test.dart</code></p>
+<pre><code class="language-dart">// test/mock/note_repository_mocktail_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:catatan_kuliah/data/note_data_source.dart';
+import 'package:catatan_kuliah/data/note_repository.dart';
+import 'package:catatan_kuliah/models/note.dart';
+
+// Cukup satu baris per class, tanpa menulis method apa pun
+class MockRemote extends Mock implements NoteRemoteDataSource {}
+
+class MockCache extends Mock implements NoteLocalCache {}
+
+void main() {
+  late MockRemote remote;
+  late MockCache cache;
+  late NoteRepository repository;
+
+  const catatan = Note(id: 'n1', title: 'UTS', content: 'Bab 1-6');
+
+  setUp(() {
+    remote = MockRemote();
+    cache = MockCache();
+    repository = NoteRepository(remote: remote, cache: cache);
+  });
+
+  test('online: hasil remote disimpan ke cache', () async {
+    // Atur perilaku mock (stub)
+    when(() =&gt; remote.fetchNotes()).thenAnswer((_) async =&gt; [catatan]);
+    when(() =&gt; cache.saveNotes(any())).thenAnswer((_) async {});
+
+    final notes = await repository.getNotes();
+
+    expect(notes, [catatan]);
+    // Pastikan saveNotes dipanggil tepat satu kali dengan data yang benar
+    verify(() =&gt; cache.saveNotes([catatan])).called(1);
+    verifyNever(() =&gt; cache.readNotes());
+  });
+
+  test('offline: remote melempar error, cache yang dibaca', () async {
+    when(() =&gt; remote.fetchNotes()).thenThrow(Exception('offline'));
+    when(() =&gt; cache.readNotes()).thenAnswer((_) async =&gt; [catatan]);
+
+    final notes = await repository.getNotes();
+
+    expect(notes, [catatan]);
+    expect(repository.lastFromCache, isTrue);
+    verifyNever(() =&gt; cache.saveNotes(any()));
+  });
+}</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>API mocktail</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>class MockX extends Mock implements X {}</code></td><td>Membuat class mock</td></tr>
+      <tr><td><code>when(() =&gt; mock.f()).thenReturn(nilai)</code></td><td>Method biasa mengembalikan nilai</td></tr>
+      <tr><td><code>when(() =&gt; mock.f()).thenAnswer((_) async =&gt; nilai)</code></td><td>Method yang mengembalikan Future</td></tr>
+      <tr><td><code>when(() =&gt; mock.f()).thenThrow(error)</code></td><td>Method melempar error</td></tr>
+      <tr><td><code>any()</code></td><td>Argumen apa saja</td></tr>
+      <tr><td><code>verify(() =&gt; mock.f()).called(n)</code></td><td>Memastikan method dipanggil n kali</td></tr>
+      <tr><td><code>verifyNever(() =&gt; mock.f())</code></td><td>Memastikan method tidak pernah dipanggil</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Jika memakai <code>any()</code> untuk argumen bertipe class buatan sendiri (misalnya <code>Note</code>), mocktail meminta Anda mendaftarkan nilai cadangan sekali di <code>setUpAll(() =&gt; registerFallbackValue(const Note(id: '', title: '', content: '')));</code>. Untuk <code>List&lt;Note&gt;</code> seperti contoh di atas, hal ini tidak diperlukan.</p>
+
+<h4>Fake atau mock?</h4>
+<ul>
+  <li>Pakai <strong>fake</strong> jika pengganti yang sama dipakai di banyak file test (repository, provider, widget test). Contoh di modul ini memakai fake yang sama di tiga tempat.</li>
+  <li>Pakai <strong>mock</strong> jika Anda ingin memeriksa <em>interaksi</em>: method apa yang dipanggil, berapa kali, dengan argumen apa.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Membuat koneksi di dalam class (<code>final client = Supabase.instance.client;</code> di dalam repository). Class seperti ini tidak bisa diuji tanpa Supabase sungguhan. Terima dependensi lewat konstruktor.</li>
+  <li>Lupa melakukan stub: memanggil method mock yang belum diatur dengan <code>when</code> menghasilkan error <code>type 'Null' is not a subtype of type 'Future&lt;...&gt;'</code>.</li>
+  <li>Memakai <code>thenReturn</code> untuk method yang mengembalikan Future. Gunakan <code>thenAnswer((_) async =&gt; ...)</code>.</li>
+  <li>Hanya menguji jalur sukses. Bagian paling berharga dari fake/mock justru kemampuannya mensimulasikan kegagalan.</li>
+</ul></div>

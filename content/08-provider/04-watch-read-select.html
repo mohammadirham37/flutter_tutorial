@@ -1,0 +1,239 @@
+<p class="lead">Ada beberapa cara membaca provider. Perbedaannya ada pada <strong>kapan widget di-build ulang</strong>. Memilih cara yang tepat membuat aplikasi benar sekaligus hemat rebuild.</p>
+
+<h4>Ringkasan lima cara</h4>
+<pre><code class="language-dart">// 1) watch: baca + langganan SEMUA perubahan (di dalam build)
+final profil = context.watch&lt;ProfilProvider&gt;();
+
+// 2) select: baca + langganan SATU nilai saja (di dalam build)
+final nama = context.select((ProfilProvider p) =&gt; p.nama);
+
+// 3) read: ambil objek tanpa langganan (di callback/event)
+void onTekan() =&gt; context.read&lt;ProfilProvider&gt;().tambahPoin();
+
+// 4) Consumer: langganan, tetapi hanya bagian builder yang rebuild
+final widgetPoin = Consumer&lt;ProfilProvider&gt;(
+  builder: (context, p, child) =&gt; Text('Poin: ${p.poin}'),
+);
+
+// 5) Selector: seperti Consumer + select
+final widgetPoin2 = Selector&lt;ProfilProvider, int&gt;(
+  selector: (context, p) =&gt; p.poin,
+  builder: (context, poin, child) =&gt; Text('Poin: $poin'),
+);
+</code></pre>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Cara</th><th>Rebuild ketika</th><th>Dipakai di</th></tr></thead>
+    <tbody>
+      <tr><td><code>context.watch&lt;T&gt;()</code></td><td>Setiap <code>notifyListeners()</code></td><td><code>build()</code></td></tr>
+      <tr><td><code>context.select&lt;T, R&gt;(fn)</code></td><td>Hanya jika nilai hasil <code>fn</code> berubah</td><td><code>build()</code></td></tr>
+      <tr><td><code>context.read&lt;T&gt;()</code></td><td>Tidak pernah</td><td>Callback: <code>onPressed</code>, <code>onTap</code>, <code>initState</code> (lewat post-frame)</td></tr>
+      <tr><td><code>Consumer&lt;T&gt;</code></td><td>Setiap notify, tetapi hanya isi <code>builder</code></td><td>Di tengah pohon widget</td></tr>
+      <tr><td><code>Selector&lt;T, R&gt;</code></td><td>Hanya jika nilai <code>selector</code> berubah, hanya isi <code>builder</code></td><td>Di tengah pohon widget</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh lengkap: membuktikan perbedaan rebuild</h4>
+<p>Setiap kartu menampilkan berapa kali ia di-build. Tekan tombol dan amati angka mana yang naik.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Demo rebuild: angka "build ke-N" menunjukkan berapa kali tiap kartu di-build
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+class ProfilProvider extends ChangeNotifier {
+  String _nama = 'Andi';
+  int _poin = 0;
+
+  String get nama =&gt; _nama;
+  int get poin =&gt; _poin;
+
+  void tambahPoin() {
+    _poin++;
+    notifyListeners();
+  }
+
+  void gantiNama() {
+    _nama = _nama == 'Andi' ? 'Bunga' : 'Andi';
+    notifyListeners();
+  }
+}
+
+// Penghitung build HANYA untuk keperluan demo (jangan ditiru di aplikasi nyata)
+final Map&lt;String, int&gt; jumlahBuild = {};
+int catatBuild(String nama) =&gt; jumlahBuild[nama] = (jumlahBuild[nama] ?? 0) + 1;
+
+void main() {
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) =&gt; ProfilProvider(),
+      child: const MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.deepOrange),
+      home: const DemoPage(),
+    );
+  }
+}
+
+class DemoPage extends StatelessWidget {
+  const DemoPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Halaman ini TIDAK watch apa pun, jadi tidak ikut rebuild
+    return Scaffold(
+      appBar: AppBar(title: const Text('watch vs select vs Consumer')),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          const KartuWatch(),
+          const KartuSelectNama(),
+          const KartuConsumer(),
+          const KartuSelectorPoin(),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton(
+                  onPressed: () =&gt; context.read&lt;ProfilProvider&gt;().tambahPoin(),
+                  child: const Text('Tambah Poin'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () =&gt; context.read&lt;ProfilProvider&gt;().gantiNama(),
+                  child: const Text('Ganti Nama'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 1) watch: rebuild untuk SETIAP perubahan (nama maupun poin)
+class KartuWatch extends StatelessWidget {
+  const KartuWatch({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.watch&lt;ProfilProvider&gt;();
+    final n = catatBuild('watch');
+    return Card(
+      child: ListTile(
+        title: Text('watch: ${p.nama}, ${p.poin} poin'),
+        subtitle: Text('build ke-$n'),
+      ),
+    );
+  }
+}
+
+// 2) select: rebuild HANYA jika nama berubah
+class KartuSelectNama extends StatelessWidget {
+  const KartuSelectNama({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final nama = context.select((ProfilProvider p) =&gt; p.nama);
+    final n = catatBuild('select');
+    return Card(
+      child: ListTile(
+        title: Text('select(nama): $nama'),
+        subtitle: Text('build ke-$n'),
+      ),
+    );
+  }
+}
+
+// 3) Consumer: kartu luar tidak rebuild, hanya isi builder
+class KartuConsumer extends StatelessWidget {
+  const KartuConsumer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final nLuar = catatBuild('consumer-luar');
+    return Card(
+      child: Consumer&lt;ProfilProvider&gt;(
+        builder: (context, p, child) {
+          final nDalam = catatBuild('consumer-dalam');
+          return ListTile(
+            title: Text('Consumer: ${p.poin} poin'),
+            subtitle: Text('luar build ke-$nLuar, builder ke-$nDalam'),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// 4) Selector: builder rebuild HANYA jika poin berubah
+class KartuSelectorPoin extends StatelessWidget {
+  const KartuSelectorPoin({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Selector&lt;ProfilProvider, int&gt;(
+        selector: (context, p) =&gt; p.poin,
+        builder: (context, poin, child) {
+          final n = catatBuild('selector');
+          return ListTile(
+            title: Text('Selector(poin): $poin'),
+            subtitle: Text('build ke-$n'),
+          );
+        },
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/rebuild-poin.jpg" alt="Setelah 3x Tambah Poin: kartu select(nama) tidak rebuild" loading="lazy">
+    <div class="screenshot-caption">Setelah 3x Tambah Poin: kartu select(nama) tidak rebuild</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/rebuild-nama.jpg" alt="Setelah Ganti Nama: Selector(poin) tidak rebuild" loading="lazy">
+    <div class="screenshot-caption">Setelah Ganti Nama: Selector(poin) tidak rebuild</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan hasil:</strong></p>
+<ul>
+  <li><strong>Tambah Poin</strong>: kartu <em>watch</em>, <em>Consumer (builder)</em>, dan <em>Selector</em> naik. Kartu <em>select(nama)</em> tetap karena nama tidak berubah.</li>
+  <li><strong>Ganti Nama</strong>: kartu <em>watch</em>, <em>select(nama)</em>, dan <em>Consumer (builder)</em> naik. <em>Selector(poin)</em> tetap.</li>
+  <li>Angka "luar" pada kartu Consumer tidak pernah naik. Hanya bagian di dalam <code>builder</code> yang di-build ulang.</li>
+  <li><code>DemoPage</code> sendiri tidak pernah rebuild karena hanya memakai <code>read</code> di tombol.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Cara memilih</h4>
+<ol>
+  <li>Di callback? Pakai <code>read</code>.</li>
+  <li>Di <code>build</code> dan butuh banyak field? Pakai <code>watch</code>.</li>
+  <li>Di <code>build</code> dan butuh satu nilai saja? Pakai <code>select</code>.</li>
+  <li>Widget besar tapi hanya sebagian kecil yang berubah? Bungkus bagian kecil itu dengan <code>Consumer</code>/<code>Selector</code>, atau pecah menjadi widget sendiri.</li>
+</ol>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><code>context.read</code> di dalam <code>build</code>: layar tidak ter-update karena widget tidak berlangganan.</li>
+  <li><code>context.watch</code> di dalam <code>onPressed</code>: error saat tombol ditekan.</li>
+  <li><code>select</code> yang mengembalikan list baru setiap kali, misalnya <code>select((p) =&gt; p.items.where(...).toList())</code>. List baru selalu dianggap "berbeda", sehingga select tidak menghemat apa pun. Pilih nilai sederhana seperti <code>int</code>, <code>bool</code>, atau <code>String</code>.</li>
+</ul>
+</div>

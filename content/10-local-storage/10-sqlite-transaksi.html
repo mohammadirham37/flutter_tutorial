@@ -1,0 +1,216 @@
+<p class="lead">Beberapa operasi harus berhasil <strong>semua atau tidak sama sekali</strong>. Contoh pengisian KRS: menambah baris KRS <em>dan</em> mengurangi kuota kelas. Jika langkah kedua gagal, langkah pertama harus dibatalkan. Inilah <strong>transaksi</strong>. Selain itu, ada <strong>batch</strong> untuk menjalankan banyak perintah sekaligus dengan cepat.</p>
+
+<h4>Konsep</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th></th><th><code>db.transaction</code></th><th><code>db.batch</code></th></tr></thead>
+    <tbody>
+      <tr><td>Tujuan</td><td>Keutuhan data (atomik)</td><td>Kecepatan banyak perintah</td></tr>
+      <tr><td>Jika ada error</td><td>Semua perubahan di dalamnya dibatalkan (rollback)</td><td>Jika di-commit tanpa transaksi, perintah sebelumnya bisa tetap tersimpan</td></tr>
+      <tr><td>Bisa membaca hasil di tengah?</td><td>Ya (<code>await txn.query</code>)</td><td>Tidak, hasil didapat setelah <code>commit()</code></td></tr>
+      <tr><td>Contoh</td><td>Transfer saldo, ambil kuota KRS</td><td>Impor 1.000 data awal</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh Kecil: Transaksi</h4>
+<pre><code class="language-dart">import 'package:sqflite/sqflite.dart';
+
+Future&lt;void&gt; transfer(Database db, int dari, int ke, int jumlah) async {
+  await db.transaction((txn) async {
+    // PENTING: di dalam transaksi gunakan txn, BUKAN db
+    await txn.rawUpdate('UPDATE dompet SET saldo = saldo - ? WHERE id = ?', [jumlah, dari]);
+    final rows = await txn.query('dompet', columns: ['saldo'], where: 'id = ?', whereArgs: [dari]);
+    if ((rows.first['saldo'] as int) &lt; 0) {
+      throw Exception('Saldo tidak cukup'); // melempar = ROLLBACK otomatis
+    }
+    await txn.rawUpdate('UPDATE dompet SET saldo = saldo + ? WHERE id = ?', [jumlah, ke]);
+  });
+}
+</code></pre>
+
+<h4>Contoh Kecil: Batch</h4>
+<pre><code class="language-dart">import 'package:sqflite/sqflite.dart';
+
+Future&lt;void&gt; imporNilai(Database db, List&lt;Map&lt;String, Object?&gt;&gt; data) async {
+  await db.transaction((txn) async {
+    final batch = txn.batch();
+    for (final row in data) {
+      batch.insert('nilai', row); // belum dijalankan, hanya dikumpulkan
+    }
+    await batch.commit(noResult: true); // dijalankan sekaligus
+  });
+}
+</code></pre>
+<p>Batch di dalam transaksi adalah kombinasi terbaik: cepat <strong>dan</strong> aman. <code>noResult: true</code> membuat lebih cepat lagi karena kita tidak butuh id setiap baris.</p>
+
+<h4>Contoh Lengkap: Simulasi Pengisian KRS</h4>
+<p class="code-file-label">📄 <code>lib/data/krs_database.dart</code></p>
+<pre><code class="language-dart">import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+
+class KrsDatabase {
+  static Database? _db;
+
+  static Future&lt;Database&gt; get database async =&gt; _db ??= await openDatabase(
+        join(await getDatabasesPath(), 'krs_demo.db'),
+        version: 1,
+        onCreate: (db, version) async {
+          await db.execute('''
+            CREATE TABLE kelas (
+              id INTEGER PRIMARY KEY,
+              nama TEXT NOT NULL,
+              kuota INTEGER NOT NULL
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE krs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              kelas_id INTEGER NOT NULL,
+              waktu TEXT NOT NULL
+            )
+          ''');
+          await db.insert('kelas', {'id': 1, 'nama': 'Pemrograman Mobile A', 'kuota': 2});
+          await db.insert('kelas', {'id': 2, 'nama': 'Basis Data B', 'kuota': 5});
+        },
+      );
+
+  /// Ambil kelas: tambah KRS + kurangi kuota, dalam SATU transaksi.
+  static Future&lt;void&gt; ambilKelas(int kelasId) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.insert('krs', {
+        'kelas_id': kelasId,
+        'waktu': DateTime.now().toIso8601String(),
+      });
+      final rows = await txn.query('kelas', where: 'id = ?', whereArgs: [kelasId]);
+      final kuota = rows.first['kuota'] as int;
+      if (kuota &lt;= 0) {
+        // Insert KRS di atas ikut dibatalkan karena exception ini
+        throw StateError('Kuota kelas sudah penuh');
+      }
+      await txn.update('kelas', {'kuota': kuota - 1}, where: 'id = ?', whereArgs: [kelasId]);
+    });
+  }
+
+  /// Isi 500 baris KRS dummy memakai batch.
+  static Future&lt;Duration&gt; imporDummy() async {
+    final db = await database;
+    final sw = Stopwatch()..start();
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      for (var i = 0; i &lt; 500; i++) {
+        batch.insert('krs', {'kelas_id': 2, 'waktu': 'dummy-$i'});
+      }
+      await batch.commit(noResult: true);
+    });
+    return sw.elapsed;
+  }
+
+  static Future&lt;List&lt;Map&lt;String, Object?&gt;&gt;&gt; ringkasan() async {
+    final db = await database;
+    return db.rawQuery('''
+      SELECT k.id, k.nama, k.kuota, COUNT(r.id) AS terisi
+      FROM kelas k LEFT JOIN krs r ON r.kelas_id = k.id
+      GROUP BY k.id
+    ''');
+  }
+}
+</code></pre>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Pastikan sudah: flutter pub add sqflite path, dan membuat lib/data/krs_database.dart
+import 'package:flutter/material.dart';
+
+import 'data/krs_database.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: KrsScreen()));
+
+class KrsScreen extends StatefulWidget {
+  const KrsScreen({super.key});
+
+  @override
+  State&lt;KrsScreen&gt; createState() =&gt; _KrsScreenState();
+}
+
+class _KrsScreenState extends State&lt;KrsScreen&gt; {
+  List&lt;Map&lt;String, Object?&gt;&gt; _kelas = [];
+  String _log = 'Tekan "Ambil" berkali-kali sampai kuota habis.';
+
+  @override
+  void initState() {
+    super.initState();
+    _muat();
+  }
+
+  Future&lt;void&gt; _muat() async {
+    final data = await KrsDatabase.ringkasan();
+    if (mounted) setState(() =&gt; _kelas = data);
+  }
+
+  Future&lt;void&gt; _ambil(int id) async {
+    try {
+      await KrsDatabase.ambilKelas(id);
+      _log = 'Berhasil mengambil kelas $id';
+    } on StateError catch (e) {
+      _log = 'Gagal: ${e.message} (transaksi di-rollback, KRS tidak bertambah)';
+    }
+    await _muat();
+  }
+
+  Future&lt;void&gt; _impor() async {
+    final durasi = await KrsDatabase.imporDummy();
+    _log = '500 baris dimasukkan dengan batch dalam ${durasi.inMilliseconds} ms';
+    await _muat();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Simulasi KRS (Transaksi)')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          for (final k in _kelas)
+            Card(
+              child: ListTile(
+                title: Text(k['nama'] as String),
+                subtitle: Text('Sisa kuota: ${k['kuota']} • Baris KRS: ${k['terisi']}'),
+                trailing: FilledButton(
+                  onPressed: () =&gt; _ambil(k['id'] as int),
+                  child: const Text('Ambil'),
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _impor,
+            icon: const Icon(Icons.bolt),
+            label: const Text('Impor 500 data (batch)'),
+          ),
+          const SizedBox(height: 16),
+          Text(_log),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/krs.jpg" alt="Simulasi KRS" loading="lazy">
+    <div class="screenshot-caption">Setelah Ambil ditekan 3 kali: kuota 0, baris KRS tetap 2</div>
+  </div>
+</div>
+
+
+<p><strong>Penjelasan:</strong> pada kelas "Pemrograman Mobile A" (kuota 2), tekan Ambil tiga kali. Pada percobaan ketiga, insert ke tabel <code>krs</code> sebenarnya sudah dijalankan, tetapi karena exception dilempar sebelum transaksi selesai, SQLite membatalkan insert tersebut. Angka "Baris KRS" tetap 2.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li><strong>Memakai <code>db</code> di dalam <code>db.transaction</code></strong>: aplikasi macet (<em>deadlock</em>) karena <code>db</code> menunggu transaksi selesai. Selalu pakai <code>txn</code>.</li>
+  <li>Menangkap exception di dalam blok transaksi (try/catch di dalamnya) sehingga rollback tidak terjadi. Biarkan exception keluar dari callback.</li>
+  <li>Insert ribuan baris satu per satu dengan <code>await db.insert</code> di loop. Gunakan batch.</li>
+  <li>Lupa <code>await batch.commit()</code>: tidak ada data yang tersimpan.</li>
+</ul>
+</div>

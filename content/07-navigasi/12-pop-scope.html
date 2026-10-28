@@ -1,0 +1,182 @@
+<p class="lead">Kadang tombol back perlu "dicegat", misalnya ketika form sudah diisi tetapi belum disimpan. Widget yang dipakai adalah <code>PopScope</code> (pengganti <code>WillPopScope</code> yang sudah dihapus dari Flutter).</p>
+
+<h4>Dua parameter penting</h4>
+<ul>
+  <li><code>canPop</code>: <code>true</code> berarti back boleh langsung menutup halaman. <code>false</code> berarti back diblokir.</li>
+  <li><code>onPopInvokedWithResult: (didPop, result)</code>: dipanggil setiap kali ada upaya kembali. <code>didPop</code> bernilai <code>true</code> jika halaman sudah tertutup, <code>false</code> jika diblokir.</li>
+</ul>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">return PopScope(
+  canPop: false, // blokir tombol/gestur back
+  onPopInvokedWithResult: (bool didPop, Object? result) {
+    if (didPop) return; // sudah keluar, tidak perlu apa-apa
+    // Di sini: tampilkan dialog konfirmasi, simpan draf, dll.
+    debugPrint('Back ditekan tapi diblokir');
+  },
+  child: const Scaffold(body: Center(child: Text('Form'))),
+);
+</code></pre>
+
+<h4>Contoh lengkap: konfirmasi sebelum membuang isian form</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.brown),
+      home: const BerandaScreen(),
+    );
+  }
+}
+
+class BerandaScreen extends StatelessWidget {
+  const BerandaScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Beranda')),
+      body: Center(
+        child: FilledButton(
+          onPressed: () =&gt; Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) =&gt; const FormIzinScreen()),
+          ),
+          child: const Text('Ajukan Izin Kuliah'),
+        ),
+      ),
+    );
+  }
+}
+
+class FormIzinScreen extends StatefulWidget {
+  const FormIzinScreen({super.key});
+
+  @override
+  State&lt;FormIzinScreen&gt; createState() =&gt; _FormIzinScreenState();
+}
+
+class _FormIzinScreenState extends State&lt;FormIzinScreen&gt; {
+  final _alasanController = TextEditingController();
+  bool _adaPerubahan = false;
+
+  @override
+  void dispose() {
+    _alasanController.dispose();
+    super.dispose();
+  }
+
+  Future&lt;bool&gt; _konfirmasiKeluar() async {
+    final keluar = await showDialog&lt;bool&gt;(
+      context: context,
+      builder: (dialogContext) =&gt; AlertDialog(
+        title: const Text('Buang perubahan?'),
+        content: const Text('Isian form belum dikirim dan akan hilang.'),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, false),
+            child: const Text('Tetap di sini'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, true),
+            child: const Text('Buang'),
+          ),
+        ],
+      ),
+    );
+    return keluar ?? false;
+  }
+
+  void _kirim() {
+    // Setelah terkirim, form boleh ditutup tanpa konfirmasi
+    setState(() =&gt; _adaPerubahan = false);
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Pengajuan izin terkirim')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      // Jika tidak ada perubahan -&gt; boleh langsung kembali
+      canPop: !_adaPerubahan,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final keluar = await _konfirmasiKeluar();
+        // Pakai context milik State, cek mounted setelah await
+        if (keluar &amp;&amp; context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Form Izin')),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              TextField(
+                controller: _alasanController,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Alasan izin',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (teks) {
+                  final berubah = teks.trim().isNotEmpty;
+                  if (berubah != _adaPerubahan) {
+                    setState(() =&gt; _adaPerubahan = berubah);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              Text(_adaPerubahan
+                  ? 'Ada perubahan: tombol back akan meminta konfirmasi'
+                  : 'Belum ada perubahan: tombol back langsung kembali'),
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(onPressed: _kirim, child: const Text('Kirim')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/popscope-dialog.jpg" alt="Tombol back memicu dialog konfirmasi" loading="lazy">
+    <div class="screenshot-caption">Tombol back memicu dialog konfirmasi</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ol>
+  <li><code>canPop: !_adaPerubahan</code>: jika form masih kosong, back berjalan normal.</li>
+  <li>Begitu pengguna mengetik, <code>_adaPerubahan</code> menjadi <code>true</code>, sehingga <code>canPop</code> menjadi <code>false</code>.</li>
+  <li>Saat back ditekan, <code>onPopInvokedWithResult</code> dipanggil dengan <code>didPop == false</code>, lalu dialog konfirmasi ditampilkan.</li>
+  <li>Jika pengguna memilih "Buang", kita menutup halaman sendiri dengan <code>Navigator.pop(context)</code>. Pemanggilan <code>pop</code> secara langsung dari kode tetap berjalan walaupun <code>canPop</code> bernilai <code>false</code>.</li>
+  <li>Tombol panah di <code>AppBar</code>, tombol back Android, dan gestur back semuanya melewati <code>PopScope</code>.</li>
+</ol>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Memakai <code>WillPopScope</code> atau parameter <code>onPopInvoked</code> dari tutorial lama. Keduanya sudah usang; gunakan <code>PopScope</code> + <code>onPopInvokedWithResult</code>.</li>
+  <li>Tidak mengecek <code>didPop</code>. Jika halaman sudah tertutup lalu kita memanggil <code>Navigator.pop</code> lagi, halaman di bawahnya ikut tertutup.</li>
+  <li>Membuat <code>canPop: false</code> permanen tanpa memberi jalan keluar. Pengguna akan "terjebak" di halaman itu.</li>
+</ul>
+</div>

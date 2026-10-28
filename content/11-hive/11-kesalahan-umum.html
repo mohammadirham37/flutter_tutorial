@@ -1,0 +1,55 @@
+<p class="lead">Kumpulan error yang paling sering ditemui mahasiswa saat memakai Hive, lengkap dengan penyebab dan cara memperbaikinya.</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Pesan error / gejala</th><th>Penyebab</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr><td><code>HiveError: Box not found. Did you forget to call Hive.openBox()?</code></td><td><code>Hive.box('x')</code> dipanggil sebelum <code>openBox('x')</code>, atau nama box salah ketik.</td><td>Buka semua box di <code>main()</code> sebelum <code>runApp</code>. Simpan nama box dalam konstanta (<code>CatatanRepository.namaBox</code>).</td></tr>
+      <tr><td><code>HiveError: Cannot write, unknown type: Catatan. Did you forget to register an adapter?</code></td><td>Adapter belum didaftarkan.</td><td>Panggil <code>Hive.registerAdapter(CatatanAdapter())</code> setelah <code>initFlutter</code> dan sebelum <code>openBox</code>.</td></tr>
+      <tr><td><code>HiveError: There is already a TypeAdapter for typeId 0.</code></td><td>Dua adapter memakai typeId sama, atau adapter yang sama didaftarkan dua kali (sering terjadi di test).</td><td>Beri typeId berbeda untuk setiap model. Di test, cek dulu dengan <code>if (!Hive.isAdapterRegistered(0))</code>.</td></tr>
+      <tr><td><code>Cannot read, unknown typeId: 34. Did you forget to register an adapter?</code></td><td>File box berisi objek bertipe yang adapternya belum didaftarkan, atau typeId-nya pernah diubah.</td><td>Daftarkan adapter yang benar. Jangan mengubah typeId setelah ada data. Saat development, uninstall aplikasi untuk menghapus data lama.</td></tr>
+      <tr><td><code>RangeError</code> / data acak saat membaca objek</td><td>Urutan <code>read()</code> tidak sama dengan <code>write()</code>, atau field ditambah tanpa migrasi.</td><td>Samakan urutan. Pakai byte versi (bagian 5) atau adapter hasil generate (bagian 6).</td></tr>
+      <tr><td><code>type '_Map&lt;dynamic, dynamic&gt;' is not a subtype of type 'Map&lt;String, dynamic&gt;'</code></td><td>Map yang dibaca ulang dari file selalu bertipe <code>Map&lt;dynamic, dynamic&gt;</code>.</td><td><code>Map&lt;String, dynamic&gt;.from(data)</code>, atau buat <code>fromMap(Map map)</code>.</td></tr>
+      <tr><td>"Binding has not yet been initialized"</td><td><code>await Hive.initFlutter()</code> dipanggil sebelum <code>WidgetsFlutterBinding.ensureInitialized()</code>.</td><td>Jadikan <code>ensureInitialized()</code> baris pertama di <code>main()</code>.</td></tr>
+      <tr><td>UI tidak berubah setelah data disimpan</td><td>Menulis ke box tanpa <code>notifyListeners()</code>/<code>setState</code>, atau tidak memakai <code>listenable()</code>.</td><td>Lewatkan perubahan lewat provider yang memanggil <code>notifyListeners()</code>, atau bungkus UI dengan <code>ValueListenableBuilder</code>.</td></tr>
+      <tr><td>Data hilang setelah aplikasi ditutup paksa</td><td><code>put</code> tidak di-<code>await</code>, dan aplikasi mati sebelum data tertulis ke file.</td><td>Selalu <code>await</code> operasi tulis yang penting.</td></tr>
+      <tr><td>Data "hilang" setelah ganti nama box atau ganti package</td><td>Nama box baru berarti file baru. Box lama masih ada tetapi tidak dibuka.</td><td>Jangan mengganti nama box tanpa memindahkan datanya.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Hot reload vs hot restart</h4>
+<ul>
+  <li><strong>Hot reload</strong> tidak menjalankan ulang <code>main()</code>. Jika kamu baru menambah <code>openBox</code> atau <code>registerAdapter</code> di <code>main()</code>, perubahannya belum terpakai, sehingga error "Box not found" bisa muncul. Lakukan <strong>hot restart</strong> (tombol ⟳ atau tekan <kbd>R</kbd> di terminal).</li>
+  <li><strong>Hot restart</strong> menjalankan ulang <code>main()</code> dari awal, tetapi file box tetap ada di perangkat. Data <strong>tidak</strong> ter-reset. Untuk benar-benar mengosongkan data, uninstall aplikasi atau panggil <code>box.clear()</code>.</li>
+  <li>Setelah mengubah adapter dengan cara yang tidak kompatibel (mengubah urutan field), hot restart akan mencoba membaca data lama dengan adapter baru dan bisa crash. Uninstall aplikasi saat masih tahap development.</li>
+</ul>
+
+<h4>Tips debugging</h4>
+<pre><code class="language-dart">// 1. Lihat seluruh isi box di Debug Console
+debugPrint(Hive.box('pengaturan').toMap().toString());
+
+// 2. Cek apakah box sudah terbuka sebelum dipakai
+if (!Hive.isBoxOpen('catatan_box')) {
+  await Hive.openBox&lt;Catatan&gt;('catatan_box');
+}
+
+// 3. Hapus satu box beserta filenya (misalnya tombol "Reset data" saat development)
+await Hive.deleteBoxFromDisk('catatan_box');
+
+// 4. Tangkap HiveError agar aplikasi tidak langsung crash
+try {
+  await Hive.openBox&lt;Catatan&gt;('catatan_box');
+} on HiveError catch (e) {
+  debugPrint('Gagal membuka box: ${e.message}');
+}
+</code></pre>
+
+<div class="callout callout-tip"><h4>💡 Ringkasan modul</h4><ul>
+<li>Box = kumpulan key-value yang tersimpan permanen. Buka sekali di <code>main()</code>, lalu baca secara sinkron.</li>
+<li><code>put</code> berfungsi untuk create sekaligus update. Pakai key unik (id), hindari index.</li>
+<li>Map dan List bisa langsung disimpan; ingat <code>Map.from</code> saat membaca.</li>
+<li>Objek sendiri butuh TypeAdapter dengan <code>typeId</code> unik yang tidak boleh berubah; tulis manual atau generate dengan <code>@GenerateAdapters</code>.</li>
+<li>UI reaktif lewat <code>box.listenable()</code> atau pola Repository + Provider.</li>
+<li>Data sensitif: <code>HiveAesCipher</code> dengan kunci di <code>flutter_secure_storage</code>.</li>
+</ul></div>

@@ -1,0 +1,292 @@
+<p class="lead">Sebelum belajar alat debugging yang canggih, keterampilan paling penting adalah <strong>membaca pesan error</strong>. Hampir semua error Flutter sebenarnya sudah memberi tahu apa masalahnya, di file mana, dan sering kali juga cara memperbaikinya. Sayangnya, banyak mahasiswa langsung menyalin error ke mesin pencari tanpa membacanya.</p>
+
+<h4>Di mana error muncul?</h4>
+<ul>
+  <li><strong>Terminal / Debug Console VS Code</strong>: pesan lengkap beserta <em>stack trace</em>. Ini sumber informasi utama.</li>
+  <li><strong>Layar aplikasi</strong>: pada mode debug, error saat <code>build()</code> menampilkan layar merah dengan teks kuning. Error layout menampilkan garis kuning-hitam.</li>
+  <li><strong>Tab Problems VS Code</strong>: error kompilasi (salah tipe, salah nama) yang muncul sebelum aplikasi dijalankan.</li>
+</ul>
+
+<h4>Anatomi pesan error Flutter</h4>
+<p>Berikut contoh pesan asli yang muncul di Debug Console saat <code>setState()</code> dipanggil setelah halaman ditutup:</p>
+<pre><code class="language-text">══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞═══════════════════════
+The following assertion was thrown running a test:
+setState() called after dispose(): _ProfilSalahState#7b34c(lifecycle state: defunct, not mounted)
+This error happens if you call setState() on a State object for a widget that
+no longer appears in the widget tree ...
+The preferred solution is to cancel the timer or stop listening to the animation
+in the dispose() callback. Another solution is to check the "mounted" property of
+this object before calling setState() ...
+
+When the exception was thrown, this was the stack:
+#0      State.setState.&lt;anonymous closure&gt; (package:flutter/src/widgets/framework.dart:1163:9)
+#1      State.setState (package:flutter/src/widgets/framework.dart:1200:6)
+#2      _ProfilSalahState._muat (package:catatan_kuliah/demos/error_demos.dart:71:5)
+&lt;asynchronous suspension&gt;</code></pre>
+
+<p>Baca dengan urutan berikut:</p>
+<ol>
+  <li><strong>Judul</strong> (<code>EXCEPTION CAUGHT BY ...</code>): bagian Flutter mana yang menangkap error, misalnya <em>WIDGETS LIBRARY</em> (saat build) atau <em>RENDERING LIBRARY</em> (saat layout).</li>
+  <li><strong>Kalimat pertama</strong>: inti masalahnya. Di sini: <code>setState() called after dispose()</code>.</li>
+  <li><strong>Paragraf penjelasan</strong>: Flutter sering langsung menyarankan solusi. Di sini: cek properti <code>mounted</code>.</li>
+  <li><strong>Stack trace</strong>: daftar pemanggilan fungsi, paling atas adalah yang terakhir dipanggil. <strong>Cari baris pertama yang berasal dari package proyek Anda</strong> (bukan <code>package:flutter/</code>). Pada contoh di atas itu baris <code>#2</code>: file <code>error_demos.dart</code> baris 71 kolom 5.</li>
+</ol>
+
+<div class="callout callout-tip"><h4>💡 Tips</h4><p>Di Debug Console VS Code, nama file pada stack trace bisa di-klik (<kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + klik) dan langsung membuka baris yang bermasalah.</p></div>
+
+<p>Berikut lima error yang paling sering ditemui mahasiswa, lengkap dengan kode penyebab dan perbaikannya.</p>
+
+<h4>Error 1: A RenderFlex overflowed by ... pixels</h4>
+<p><strong>Artinya:</strong> anak-anak <code>Row</code>/<code>Column</code> butuh ruang lebih besar daripada yang tersedia. Muncul garis kuning-hitam di sisi yang meluap.</p>
+<pre><code class="language-dart">// SALAH: teks panjang di dalam Row tidak punya batas lebar
+class KartuMatkulSalah extends StatelessWidget {
+  const KartuMatkulSalah({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        Icon(Icons.book),
+        SizedBox(width: 8),
+        Text('Pemrograman Perangkat Bergerak Lanjut untuk Informatika Semester 5'),
+      ],
+    );
+  }
+}</code></pre>
+<p>Pesan di console: <code>A RenderFlex overflowed by 173 pixels on the right.</code> Perbaikannya, bungkus anak yang fleksibel dengan <code>Expanded</code> (atau <code>Flexible</code>) agar ukurannya mengikuti sisa ruang:</p>
+<pre><code class="language-dart">// BENAR: Expanded memberi Text sisa lebar yang tersedia
+class KartuMatkulBenar extends StatelessWidget {
+  const KartuMatkulBenar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        Icon(Icons.book),
+        SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Pemrograman Perangkat Bergerak Lanjut untuk Informatika Semester 5',
+            overflow: TextOverflow.ellipsis, // potong dengan "..."
+          ),
+        ),
+      ],
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/overflow-salah.jpg" alt="Garis kuning hitam RenderFlex overflow" loading="lazy">
+    <div class="screenshot-caption">Sebelum: teks meluap, muncul garis kuning-hitam di kanan</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/overflow-benar.jpg" alt="Teks terpotong rapi dengan elipsis" loading="lazy">
+    <div class="screenshot-caption">Sesudah: Expanded + TextOverflow.ellipsis</div>
+  </div>
+</div>
+<p>Untuk <code>Column</code> yang terlalu tinggi (misalnya form panjang saat keyboard muncul), solusinya biasanya membungkus <code>Column</code> dengan <code>SingleChildScrollView</code>.</p>
+
+<h4>Error 2: setState() called after dispose()</h4>
+<p><strong>Artinya:</strong> proses async (ambil data, <code>Future.delayed</code>, timer) selesai setelah pengguna meninggalkan halaman, lalu kode mencoba memanggil <code>setState()</code> pada State yang sudah dibuang.</p>
+<pre><code class="language-dart">class ProfilSalah extends StatefulWidget {
+  const ProfilSalah({super.key});
+
+  @override
+  State&lt;ProfilSalah&gt; createState() =&gt; _ProfilSalahState();
+}
+
+class _ProfilSalahState extends State&lt;ProfilSalah&gt; {
+  String _nama = 'Memuat...';
+
+  @override
+  void initState() {
+    super.initState();
+    _muat();
+  }
+
+  Future&lt;void&gt; _muat() async {
+    final nama = await ambilProfil(); // butuh 3 detik
+    // Jika pengguna sudah menekan "Back" sebelum 3 detik,
+    // State ini sudah di-dispose dan baris berikut memicu error.
+    setState(() =&gt; _nama = nama);
+  }
+
+  @override
+  Widget build(BuildContext context) =&gt; Text(_nama);
+}</code></pre>
+<p>Perbaikannya: setiap kali ada <code>await</code> sebelum <code>setState()</code> atau sebelum memakai <code>context</code>, cek <code>mounted</code> dulu.</p>
+<pre><code class="language-dart">class ProfilBenar extends StatefulWidget {
+  const ProfilBenar({super.key});
+
+  @override
+  State&lt;ProfilBenar&gt; createState() =&gt; _ProfilBenarState();
+}
+
+class _ProfilBenarState extends State&lt;ProfilBenar&gt; {
+  String _nama = 'Memuat...';
+
+  @override
+  void initState() {
+    super.initState();
+    _muat();
+  }
+
+  Future&lt;void&gt; _muat() async {
+    final nama = await ambilProfil();
+    if (!mounted) return; // widget sudah tidak ada di layar, berhenti
+    setState(() =&gt; _nama = nama);
+  }
+
+  @override
+  Widget build(BuildContext context) =&gt; Text(_nama);
+}</code></pre>
+<p>Untuk <code>Timer</code> dan <code>StreamSubscription</code>, batalkan di <code>dispose()</code> dengan <code>timer.cancel()</code> atau <code>subscription.cancel()</code>.</p>
+
+<h4>Error 3: Null check operator used on a null value</h4>
+<p><strong>Artinya:</strong> Anda memakai operator <code>!</code> (“saya jamin tidak null”) pada nilai yang ternyata null. Ini error paling sering di aplikasi yang membaca data dari API atau database.</p>
+<pre><code class="language-dart">class KartuEmail extends StatelessWidget {
+  const KartuEmail({super.key, this.mahasiswa});
+
+  final Mahasiswa? mahasiswa;
+
+  @override
+  Widget build(BuildContext context) {
+    // SALAH: crash jika mahasiswa atau email-nya null
+    // return Text(mahasiswa!.email!);
+
+    // BENAR 1: beri nilai cadangan dengan ?. dan ??
+    final email = mahasiswa?.email ?? 'Email belum diisi';
+
+    // BENAR 2: simpan ke variabel lokal, lalu cek null secara eksplisit
+    final mhs = mahasiswa;
+    if (mhs == null) {
+      return const Text('Data mahasiswa tidak ditemukan');
+    }
+    return Text('${mhs.nama} - $email'); // mhs sudah pasti tidak null
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/null-check-salah.jpg" alt="Layar merah null check operator" loading="lazy">
+    <div class="screenshot-caption">Versi salah (<code>mahasiswa!.email!</code>): layar merah di mode debug</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/null-check-benar.jpg" alt="Teks dengan nilai cadangan" loading="lazy">
+    <div class="screenshot-caption">Versi benar: email null diganti teks cadangan</div>
+  </div>
+</div>
+<p>Di build <em>release</em>, layar merah ini berubah menjadi area abu-abu kosong. Pengguna tidak melihat pesan apa pun, jadi bug seperti ini harus ditemukan saat debug atau lewat test.</p>
+
+<h4>Error 4: Vertical viewport was given unbounded height</h4>
+<p><strong>Artinya:</strong> widget yang bisa di-scroll (<code>ListView</code>, <code>GridView</code>) diletakkan di dalam widget yang tidak membatasi tingginya (<code>Column</code>, atau <code>ListView</code> lain). <code>ListView</code> ingin setinggi mungkin, <code>Column</code> memberi tinggi tak terbatas, sehingga Flutter bingung.</p>
+<pre><code class="language-dart">// SALAH: ListView di dalam Column -&gt; "Vertical viewport was given unbounded height"
+class DaftarSalah extends StatelessWidget {
+  const DaftarSalah({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const Text('Daftar Catatan'),
+        ListView.builder(
+          itemCount: 20,
+          itemBuilder: (context, i) =&gt; ListTile(title: Text('Catatan $i')),
+        ),
+      ],
+    );
+  }
+}</code></pre>
+<p>Pesan di console menunjuk langsung ke <code>ListView</code> yang bermasalah (<code>The relevant error-causing widget was: ListView ...error_demos.dart:147:18</code>). Perbaikannya:</p>
+<pre><code class="language-dart">// BENAR: Expanded memberi ListView tinggi = sisa ruang Column
+class DaftarBenar extends StatelessWidget {
+  const DaftarBenar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const Text('Daftar Catatan'),
+        Expanded(
+          child: ListView.builder(
+            itemCount: 20,
+            itemBuilder: (context, i) =&gt; ListTile(title: Text('Catatan $i')),
+          ),
+        ),
+      ],
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/unbounded-salah.jpg" alt="Halaman kosong karena error unbounded height" loading="lazy">
+    <div class="screenshot-caption">Sebelum: halaman kosong, error hanya terlihat di console</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/unbounded-benar.jpg" alt="Daftar catatan tampil normal" loading="lazy">
+    <div class="screenshot-caption">Sesudah: ListView dibungkus Expanded</div>
+  </div>
+</div>
+<p>Alternatif lain adalah <code>ListView(shrinkWrap: true, physics: NeverScrollableScrollPhysics())</code>, tetapi ini hanya cocok untuk daftar pendek karena semua item dibangun sekaligus.</p>
+
+<h4>Error 5: Could not find the correct Provider&lt;T&gt; above this Widget</h4>
+<p><strong>Artinya:</strong> widget memanggil <code>context.watch&lt;T&gt;()</code> atau <code>context.read&lt;T&gt;()</code>, tetapi tidak ada <code>Provider&lt;T&gt;</code> di atasnya pada widget tree. Penyebab paling umum: provider dipasang di dalam satu halaman, lalu halaman lain yang dibuka dengan <code>Navigator.push</code> mencoba membacanya.</p>
+<pre><code class="language-dart">// SALAH: provider dipasang DI BAWAH MaterialApp, hanya untuk HalamanA.
+// Halaman yang dibuka lewat Navigator.push tidak bisa melihatnya.
+class AppSalah extends StatelessWidget {
+  const AppSalah({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: ChangeNotifierProvider(
+        create: (_) =&gt; CounterProvider(),
+        child: const HalamanA(),
+      ),
+    );
+  }
+}</code></pre>
+<p>Halaman baru dari <code>Navigator.push</code> adalah “saudara” <code>HalamanA</code> di bawah <code>MaterialApp</code>, bukan anaknya, sehingga tidak bisa melihat provider tersebut. Pindahkan provider ke atas <code>MaterialApp</code>:</p>
+<pre><code class="language-dart">// BENAR: provider membungkus MaterialApp sehingga semua route bisa membacanya
+class AppBenar extends StatelessWidget {
+  const AppBenar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) =&gt; CounterProvider(),
+      child: const MaterialApp(home: HalamanA()),
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/provider-not-found.jpg" alt="Layar merah ProviderNotFoundException" loading="lazy">
+    <div class="screenshot-caption">AppSalah: setelah membuka Halaman B, pesan error lengkap dengan daftar penyebab</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/provider-benar.jpg" alt="Halaman B menampilkan nilai provider" loading="lazy">
+    <div class="screenshot-caption">AppBenar: Halaman B bisa membaca CounterProvider</div>
+  </div>
+</div>
+<p>Penyebab lain: lupa memberi tipe generik (<code>context.read()</code> tanpa <code>&lt;CounterProvider&gt;</code>), atau menambah provider baru di <code>main.dart</code> lalu hanya melakukan <em>hot reload</em>. Untuk kasus terakhir, lakukan <em>hot restart</em> (<kbd>Shift</kbd>+<kbd>R</kbd> atau tombol restart di VS Code).</p>
+
+<h4>Ringkasan</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Pesan error</th><th>Penyebab umum</th><th>Perbaikan</th></tr></thead>
+    <tbody>
+      <tr><td>RenderFlex overflowed</td><td>Isi Row/Column lebih besar dari layar</td><td><code>Expanded</code>, <code>Flexible</code>, <code>SingleChildScrollView</code></td></tr>
+      <tr><td>setState() called after dispose()</td><td>setState setelah await, halaman sudah ditutup</td><td><code>if (!mounted) return;</code>, cancel timer di dispose</td></tr>
+      <tr><td>Null check operator used on a null value</td><td>Operator <code>!</code> pada nilai null</td><td><code>?.</code>, <code>??</code>, cek null dengan variabel lokal</td></tr>
+      <tr><td>Vertical viewport was given unbounded height</td><td>ListView di dalam Column</td><td>Bungkus dengan <code>Expanded</code></td></tr>
+      <tr><td>Could not find the correct Provider</td><td>Provider dipasang terlalu bawah</td><td>Pindahkan ke atas <code>MaterialApp</code>, hot restart</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Hanya membaca baris terakhir error, padahal inti masalah ada di kalimat pertama.</li>
+  <li>Mencari penyebab di file <code>framework.dart</code>. Baris dari <code>package:flutter/</code> hampir tidak pernah salah; cari baris pertama dari proyek Anda.</li>
+  <li>Menambahkan <code>!</code> di mana-mana agar error merah di editor hilang. Ini hanya memindahkan error dari waktu kompilasi ke waktu aplikasi berjalan.</li>
+  <li>Memperbaiki overflow dengan mengecilkan font. Di HP lain dengan layar lebih kecil, error akan muncul lagi.</li>
+</ul></div>

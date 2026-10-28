@@ -1,0 +1,71 @@
+<p class="lead">Kita memakai Hive (Modul 11) sebagai <strong>cache</strong>: salinan terakhir catatan dari server yang disimpan di HP. Jika server tidak bisa dihubungi, aplikasi tetap bisa menampilkan catatan dari cache.</p>
+
+<h4>Kenapa menyimpan sebagai Map, bukan TypeAdapter?</h4>
+<p>Di Modul 11 Anda belajar dua cara: menyimpan Map biasa atau membuat <code>TypeAdapter</code>. Untuk cache, Map lebih sederhana: model <code>Note</code> sudah punya <code>toJson()</code>/<code>fromJson()</code>, tidak perlu <code>registerAdapter</code>, tidak ada <code>typeId</code> yang harus dijaga, dan tidak perlu code generation.</p>
+<pre><code class="language-text">Box&lt;Map&gt; "notes_cache"
+┌──────────────────────────────────────┬─────────────────────────────────────────┐
+│ key (id catatan)                     │ value (Map hasil note.toJson())         │
+├──────────────────────────────────────┼─────────────────────────────────────────┤
+│ "3f6c2a9e-8b1d-4c7a-9e21-..."        │ {id: ..., title: "Basis Data", ...}     │
+│ "a71d0c44-52be-4f0e-8d3a-..."        │ {id: ..., title: "Tugas Mobile", ...}   │
+└──────────────────────────────────────┴─────────────────────────────────────────┘
+</code></pre>
+<p>Memakai <strong>id catatan sebagai key</strong> membuat update dan delete satu catatan menjadi operasi langsung (<code>put(id)</code>/<code>delete(id)</code>), tanpa perlu mencari indeks.</p>
+
+<h4>File: <code>lib/data/note_local_data_source.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/data/note_local_data_source.dart</code></p>
+<pre><code class="language-dart">import 'package:hive_ce/hive_ce.dart';
+
+import '../models/note.dart';
+
+/// Cache catatan di Hive. Setiap catatan disimpan sebagai Map
+/// dengan key = id catatan, sehingga tidak perlu TypeAdapter/codegen.
+class NoteLocalDataSource {
+  NoteLocalDataSource(this._box);
+
+  static const String boxName = 'notes_cache';
+
+  final Box&lt;Map&gt; _box;
+
+  /// Membuka box. Panggil setelah Hive.initFlutter() (atau Hive.init()).
+  static Future&lt;NoteLocalDataSource&gt; open() async {
+    final box = await Hive.openBox&lt;Map&gt;(boxName);
+    return NoteLocalDataSource(box);
+  }
+
+  /// Semua catatan di cache, urut dari yang terakhir diubah.
+  List&lt;Note&gt; getNotes() {
+    final notes = _box.values.map(Note.fromJson).toList();
+    notes.sort((a, b) =&gt; b.updatedAt.compareTo(a.updatedAt));
+    return notes;
+  }
+
+  /// Mengganti seluruh isi cache dengan data terbaru dari server.
+  Future&lt;void&gt; saveNotes(List&lt;Note&gt; notes) async {
+    await _box.clear();
+    await _box.putAll({for (final note in notes) note.id: note.toJson()});
+  }
+
+  Future&lt;void&gt; saveNote(Note note) =&gt; _box.put(note.id, note.toJson());
+
+  Future&lt;void&gt; deleteNote(String id) =&gt; _box.delete(id);
+
+  /// Dipanggil saat logout agar data user lain tidak tertinggal.
+  Future&lt;void&gt; clear() =&gt; _box.clear();
+}
+</code></pre>
+
+<h4>Penjelasan</h4>
+<ul>
+  <li><strong><code>import 'package:hive_ce/hive_ce.dart'</code></strong>: file ini cukup memakai Hive inti, tanpa Flutter. Karena itu ia bisa diuji dengan <code>Hive.init(folderSementara)</code> di unit test (section 10).</li>
+  <li><strong><code>static Future&lt;NoteLocalDataSource&gt; open()</code></strong>: membuka box bersifat async, sedangkan constructor tidak boleh async. Solusinya adalah <em>factory method</em> statis yang membuka box lalu membuat objek.</li>
+  <li><strong><code>getNotes()</code></strong> bersifat sinkron karena Hive membaca dari memori setelah box dibuka. Hasilnya diurutkan <code>updatedAt</code> terbaru, sama dengan urutan dari server.</li>
+  <li><strong><code>saveNotes()</code></strong> mengosongkan box lalu <code>putAll</code>. Catatan yang sudah dihapus di server (misalnya dari HP lain) ikut hilang dari cache.</li>
+  <li><strong><code>clear()</code></strong> dipanggil saat logout. Tanpa ini, user B yang login di HP yang sama bisa sempat melihat catatan user A ketika offline.</li>
+</ul>
+
+<h4>Inisialisasi di <code>main()</code></h4>
+<p>Box harus dibuka sebelum dipakai. Potongan ini akan menjadi bagian dari <code>main.dart</code> final di section 9:</p>
+<pre><code class="language-dart">await Hive.initFlutter();                 // folder penyimpanan di HP
+final localDataSource = await NoteLocalDataSource.open(); // buka box
+</code></pre>

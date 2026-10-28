@@ -1,0 +1,281 @@
+<p class="lead">Di Modul 14, logika halaman catatan dipindahkan ke <code>NotesProvider</code>. Kabar baiknya: <code>ChangeNotifier</code> adalah class Dart biasa, sehingga bisa diuji dengan <strong>unit test</strong> tanpa widget sama sekali. Setelah itu, kita uji halaman yang memakai provider tersebut dengan <strong>widget test</strong>.</p>
+
+<h4>Provider yang akan diuji</h4>
+<p class="code-file-label">📄 <code>lib/providers/notes_provider.dart</code></p>
+<pre><code class="language-dart">// lib/providers/notes_provider.dart
+import 'package:flutter/foundation.dart';
+
+import '../data/note_repository.dart';
+import '../models/note.dart';
+
+enum NotesStatus { initial, loading, loaded, error }
+
+class NotesProvider extends ChangeNotifier {
+  NotesProvider(this._repository);
+
+  final NoteRepository _repository;
+
+  NotesStatus status = NotesStatus.initial;
+  List&lt;Note&gt; notes = [];
+  String? errorMessage;
+  bool get isOffline =&gt; _repository.lastFromCache;
+
+  Future&lt;void&gt; loadNotes() async {
+    status = NotesStatus.loading;
+    notifyListeners();
+    try {
+      notes = await _repository.getNotes();
+      status = NotesStatus.loaded;
+    } catch (e) {
+      errorMessage = 'Gagal memuat catatan';
+      status = NotesStatus.error;
+    }
+    notifyListeners();
+  }
+
+  Future&lt;bool&gt; addNote(String title, String content) async {
+    try {
+      final note = await _repository.addNote(title, content);
+      notes = [note, ...notes];
+      notifyListeners();
+      return true;
+    } catch (e) {
+      errorMessage = 'Gagal menyimpan catatan';
+      notifyListeners();
+      return false;
+    }
+  }
+}</code></pre>
+
+<h4>Langkah 1: unit test untuk ChangeNotifier</h4>
+<p>Provider dibuat dengan repository sungguhan yang diberi data source palsu dari bagian sebelumnya (<code>test/mock/fakes.dart</code>). Dengan begitu kita sekaligus menguji kerja sama provider dan repository.</p>
+<p class="code-file-label">📄 <code>test/unit/notes_provider_test.dart</code></p>
+<pre><code class="language-dart">// test/unit/notes_provider_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:catatan_kuliah/data/note_repository.dart';
+import 'package:catatan_kuliah/models/note.dart';
+import 'package:catatan_kuliah/providers/notes_provider.dart';
+
+import '../mock/fakes.dart';
+
+void main() {
+  late FakeRemoteDataSource remote;
+  late NotesProvider provider;
+
+  setUp(() {
+    remote = FakeRemoteDataSource(
+      awal: [const Note(id: 'n1', title: 'Pertemuan 1', content: 'Dart')],
+    );
+    final repository = NoteRepository(remote: remote, cache: FakeLocalCache());
+    provider = NotesProvider(repository);
+  });
+
+  test('status awal initial dan list kosong', () {
+    expect(provider.status, NotesStatus.initial);
+    expect(provider.notes, isEmpty);
+  });
+
+  test('loadNotes: loading lalu loaded', () async {
+    final riwayatStatus = &lt;NotesStatus&gt;[];
+    provider.addListener(() =&gt; riwayatStatus.add(provider.status));
+
+    await provider.loadNotes();
+
+    expect(riwayatStatus, [NotesStatus.loading, NotesStatus.loaded]);
+    expect(provider.notes, hasLength(1));
+  });
+
+  test('addNote menaruh catatan baru di urutan teratas', () async {
+    await provider.loadNotes();
+
+    final berhasil = await provider.addNote('Kuis', 'Bab 2');
+
+    expect(berhasil, isTrue);
+    expect(provider.notes.first.title, 'Kuis');
+    expect(provider.notes, hasLength(2));
+  });
+
+  test('addNote gagal saat offline, errorMessage terisi', () async {
+    remote.shouldFail = true;
+
+    final berhasil = await provider.addNote('Kuis', 'Bab 2');
+
+    expect(berhasil, isFalse);
+    expect(provider.errorMessage, 'Gagal menyimpan catatan');
+  });
+
+  test('provider memanggil notifyListeners saat addNote', () async {
+    var jumlahNotifikasi = 0;
+    provider.addListener(() =&gt; jumlahNotifikasi++);
+
+    await provider.addNote('Kuis', 'Bab 2');
+
+    expect(jumlahNotifikasi, 1);
+  });
+}</code></pre>
+<p>Teknik yang perlu diperhatikan:</p>
+<ul>
+  <li><strong><code>provider.addListener(...)</code></strong>: inilah cara widget “mendengar” provider. Di test, kita memakainya untuk merekam urutan status (<code>loading</code> lalu <code>loaded</code>) dan menghitung berapa kali <code>notifyListeners()</code> dipanggil.</li>
+  <li><strong>Menguji jumlah notifikasi</strong> mencegah dua bug yang sering terjadi: lupa memanggil <code>notifyListeners()</code> (UI tidak berubah) dan memanggilnya berlebihan (UI rebuild tanpa perlu).</li>
+  <li><strong><code>remote.shouldFail = true</code></strong>: mensimulasikan kondisi offline cukup dengan satu baris.</li>
+</ul>
+
+<h4>Langkah 2: halaman yang memakai provider</h4>
+<p class="code-file-label">📄 <code>lib/pages/notes_page.dart</code></p>
+<pre><code class="language-dart">// lib/pages/notes_page.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/notes_provider.dart';
+
+class NotesPage extends StatelessWidget {
+  const NotesPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch&lt;NotesProvider&gt;();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Catatan Kuliah')),
+      body: switch (provider.status) {
+        NotesStatus.initial ||
+        NotesStatus.loading =&gt; const Center(child: CircularProgressIndicator()),
+        NotesStatus.error =&gt; Center(child: Text(provider.errorMessage ?? 'Error')),
+        NotesStatus.loaded =&gt; Column(
+            children: [
+              if (provider.isOffline)
+                const MaterialBanner(
+                  content: Text('Mode offline: menampilkan data cache'),
+                  actions: [SizedBox.shrink()],
+                ),
+              Expanded(
+                child: provider.notes.isEmpty
+                    ? const Center(child: Text('Belum ada catatan'))
+                    : ListView.builder(
+                        itemCount: provider.notes.length,
+                        itemBuilder: (context, index) {
+                          final note = provider.notes[index];
+                          return ListTile(
+                            title: Text(note.title),
+                            subtitle: Text(note.content),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+      },
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/notes-online.jpg" alt="Daftar catatan saat online" loading="lazy">
+    <div class="screenshot-caption">Fake remote berhasil: daftar catatan tampil</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/notes-offline.jpg" alt="Banner mode offline dengan data cache" loading="lazy">
+    <div class="screenshot-caption"><code>shouldFail = true</code>: data cache dan banner mode offline</div>
+  </div>
+</div>
+<p>Screenshot di atas diambil dengan memasang <code>FakeRemoteDataSource</code> dan <code>FakeLocalCache</code> di <code>main()</code>. Ini trik yang berguna untuk mendesain tampilan offline tanpa harus mematikan internet.</p>
+
+<h4>Langkah 3: widget test dengan ChangeNotifierProvider</h4>
+<p>Pola kuncinya: bungkus halaman dengan <code>ChangeNotifierProvider</code> yang berisi provider dengan dependensi palsu, <strong>di atas</strong> <code>MaterialApp</code>, persis seperti di <code>main.dart</code>.</p>
+<p class="code-file-label">📄 <code>test/widget/notes_page_test.dart</code></p>
+<pre><code class="language-dart">// test/widget/notes_page_test.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:catatan_kuliah/data/note_repository.dart';
+import 'package:catatan_kuliah/models/note.dart';
+import 'package:catatan_kuliah/pages/notes_page.dart';
+import 'package:catatan_kuliah/providers/notes_provider.dart';
+
+import '../mock/fakes.dart';
+
+void main() {
+  late FakeRemoteDataSource remote;
+  late FakeLocalCache cache;
+
+  setUp(() {
+    remote = FakeRemoteDataSource(
+      awal: [const Note(id: 'n1', title: 'Pertemuan 1', content: 'Dart')],
+    );
+    cache = FakeLocalCache();
+  });
+
+  Widget buatApp() {
+    final repository = NoteRepository(remote: remote, cache: cache);
+    return ChangeNotifierProvider(
+      create: (_) =&gt; NotesProvider(repository)..loadNotes(),
+      child: const MaterialApp(home: NotesPage()),
+    );
+  }
+
+  testWidgets('menampilkan loading lalu daftar catatan', (tester) async {
+    await tester.pumpWidget(buatApp());
+
+    // Frame pertama: data belum datang
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    await tester.pumpAndSettle(); // tunggu Future selesai
+
+    expect(find.text('Pertemuan 1'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('offline dengan cache: tampil banner mode offline',
+      (tester) async {
+    remote.shouldFail = true;
+    cache.saved = [const Note(id: 'c1', title: 'Dari cache', content: '-')];
+
+    await tester.pumpWidget(buatApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dari cache'), findsOneWidget);
+    expect(find.textContaining('Mode offline'), findsOneWidget);
+  });
+
+  testWidgets('tanpa data sama sekali: tampil pesan kosong', (tester) async {
+    remote.notes.clear();
+
+    await tester.pumpWidget(buatApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Belum ada catatan'), findsOneWidget);
+  });
+}</code></pre>
+<ul>
+  <li><code>NotesProvider(repository)..loadNotes()</code>: operator kaskade (<code>..</code>) memanggil <code>loadNotes()</code> lalu mengembalikan provider-nya.</li>
+  <li>Frame pertama setelah <code>pumpWidget</code> menampilkan loading karena Future belum selesai. <code>pumpAndSettle()</code> menunggu Future fake selesai lalu menggambar ulang.</li>
+  <li>Fungsi <code>buatApp()</code> dipanggil <em>setelah</em> test mengubah <code>remote</code>/<code>cache</code>, sehingga setiap test bisa menyiapkan skenario berbeda.</li>
+</ul>
+
+<h4>Alternatif: memakai ChangeNotifierProvider.value</h4>
+<p>Jika test perlu memegang objek provider untuk dipanggil langsung, buat provider di luar lalu berikan dengan <code>.value</code>:</p>
+<pre><code class="language-dart">testWidgets('catatan baru langsung tampil di daftar', (tester) async {
+  final provider = NotesProvider(
+    NoteRepository(remote: FakeRemoteDataSource(), cache: FakeLocalCache()),
+  );
+  await provider.loadNotes();
+
+  await tester.pumpWidget(
+    ChangeNotifierProvider.value(
+      value: provider,
+      child: const MaterialApp(home: NotesPage()),
+    ),
+  );
+  expect(find.text('Belum ada catatan'), findsOneWidget);
+
+  await provider.addNote('Tugas Besar', 'Deadline minggu 16');
+  await tester.pump();
+
+  expect(find.text('Tugas Besar'), findsOneWidget);
+});</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Membuat provider yang di dalamnya langsung memanggil <code>Supabase.instance.client</code> atau <code>Hive.box()</code>. Provider seperti itu tidak bisa diuji; terima repository lewat konstruktor.</li>
+  <li>Meletakkan <code>ChangeNotifierProvider</code> di bawah <code>MaterialApp</code> di test, lalu test navigasi gagal dengan <em>ProviderNotFoundException</em> (lihat bagian 1).</li>
+  <li>Hanya menguji provider lewat UI. Unit test provider jauh lebih cepat dan pesan gagalnya lebih jelas; gunakan widget test untuk memastikan UI bereaksi terhadap state.</li>
+</ul></div>

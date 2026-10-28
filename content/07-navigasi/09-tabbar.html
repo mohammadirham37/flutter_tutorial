@@ -1,0 +1,148 @@
+<p class="lead"><code>TabBar</code> menampilkan deretan tab di bawah <code>AppBar</code>, dan <code>TabBarView</code> menampilkan isi tab yang bisa digeser kiri-kanan. Cocok untuk mengelompokkan data sejenis, misalnya jadwal per hari atau nilai per semester.</p>
+
+<h4>Tiga komponen yang harus selaras</h4>
+<ol>
+  <li><code>DefaultTabController(length: n)</code>: pengatur tab aktif.</li>
+  <li><code>TabBar(tabs: [...])</code>: deretan judul tab, biasanya di <code>AppBar.bottom</code>.</li>
+  <li><code>TabBarView(children: [...])</code>: isi setiap tab.</li>
+</ol>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">return DefaultTabController(
+  length: 2, // HARUS sama dengan jumlah Tab dan jumlah anak TabBarView
+  child: Scaffold(
+    appBar: AppBar(
+      title: const Text('Nilai'),
+      bottom: const TabBar(
+        tabs: [Tab(text: 'Semester Ganjil'), Tab(text: 'Semester Genap')],
+      ),
+    ),
+    body: const TabBarView(
+      children: [
+        Center(child: Text('Nilai ganjil')),
+        Center(child: Text('Nilai genap')),
+      ],
+    ),
+  ),
+);
+</code></pre>
+
+<h4>Contoh lengkap: jadwal kuliah per hari</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.pink),
+      home: const JadwalScreen(),
+    );
+  }
+}
+
+class Jadwal {
+  final String jam;
+  final String matkul;
+  final String ruang;
+
+  const Jadwal(this.jam, this.matkul, this.ruang);
+}
+
+const jadwalPerHari = {
+  'Senin': [
+    Jadwal('07.30', 'Pemrograman Mobile', 'Lab 1'),
+    Jadwal('10.00', 'Basis Data', 'R. 201'),
+  ],
+  'Selasa': [Jadwal('08.00', 'Jaringan Komputer', 'Lab 3')],
+  'Rabu': &lt;Jadwal&gt;[],
+  'Kamis': [Jadwal('13.00', 'Kecerdasan Buatan', 'R. 305')],
+  'Jumat': [Jadwal('07.30', 'Etika Profesi', 'Aula')],
+};
+
+class JadwalScreen extends StatelessWidget {
+  const JadwalScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final hari = jadwalPerHari.keys.toList();
+
+    return DefaultTabController(
+      length: hari.length,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Jadwal Kuliah'),
+          bottom: TabBar(
+            isScrollable: true, // tab bisa digeser jika banyak
+            tabAlignment: TabAlignment.start,
+            tabs: [for (final h in hari) Tab(text: h)],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            for (final h in hari) DaftarJadwal(items: jadwalPerHari[h]!),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DaftarJadwal extends StatelessWidget {
+  final List&lt;Jadwal&gt; items;
+
+  const DaftarJadwal({super.key, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const Center(child: Text('Tidak ada kuliah. Waktunya belajar mandiri!'));
+    }
+    return ListView.separated(
+      itemCount: items.length,
+      separatorBuilder: (context, i) =&gt; const Divider(height: 1),
+      itemBuilder: (context, i) {
+        final j = items[i];
+        return ListTile(
+          leading: Text(j.jam, style: const TextStyle(fontWeight: FontWeight.bold)),
+          title: Text(j.matkul),
+          subtitle: Text(j.ruang),
+        );
+      },
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/tab-senin.jpg" alt="Tab Senin" loading="lazy">
+    <div class="screenshot-caption">Tab Senin</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/tab-rabu.jpg" alt="Tab Rabu tanpa jadwal" loading="lazy">
+    <div class="screenshot-caption">Tab Rabu tanpa jadwal</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li>Daftar hari diambil dari <code>jadwalPerHari.keys</code>, sehingga <code>length</code>, jumlah <code>Tab</code>, dan jumlah anak <code>TabBarView</code> selalu sama.</li>
+  <li><code>isScrollable: true</code> + <code>tabAlignment: TabAlignment.start</code> membuat tab bisa digulir dan rata kiri saat jumlahnya banyak.</li>
+  <li>Widget <code>DaftarJadwal</code> dipakai ulang untuk setiap hari, dengan tampilan khusus jika list kosong.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><code>length</code> tidak sama dengan jumlah tab atau isi, menghasilkan error <em>"Controller's length property does not match"</em>.</li>
+  <li>Lupa membungkus dengan <code>DefaultTabController</code>, menghasilkan error <em>"No TabController for TabBar"</em>.</li>
+  <li>Memakai <code>TabBarView</code> di dalam <code>Column</code> tanpa <code>Expanded</code>, sehingga tingginya tidak terbatas.</li>
+</ul>
+</div>

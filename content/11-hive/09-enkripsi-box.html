@@ -1,0 +1,61 @@
+<p class="lead">File box Hive tersimpan sebagai data biner biasa. Siapa pun yang bisa menyalin file aplikasi (misalnya di HP yang di-root) bisa membaca isinya. Untuk data sensitif seperti token atau catatan pribadi, Hive mendukung <strong>enkripsi AES-256</strong> per box.</p>
+
+<h4>Bahan yang dibutuhkan</h4>
+<ul>
+  <li><strong>Kunci 256-bit</strong> (32 byte). Dibuat sekali dengan <code>Hive.generateSecureKey()</code>.</li>
+  <li><strong>Tempat aman untuk kunci.</strong> Kunci tidak boleh disimpan di Hive biasa atau ditulis di kode. Simpan di <code>flutter_secure_storage</code>, yang memakai Keystore (Android) dan Keychain (iOS).</li>
+  <li><code>HiveAesCipher(kunci)</code> yang diberikan ke <code>openBox</code> lewat parameter <code>encryptionCipher</code>.</li>
+</ul>
+
+<pre><code class="language-bash">flutter pub add flutter_secure_storage
+</code></pre>
+<p>Versi terbaru <code>flutter_secure_storage</code> membutuhkan Android minimal API 23. Jika build gagal karena <code>minSdk</code>, ubah <code>minSdk</code> di <code>android/app/build.gradle.kts</code> menjadi minimal 23.</p>
+
+<p class="code-file-label">📄 <code>lib/services/box_rahasia.dart</code></p>
+<pre><code class="language-dart">// lib/services/box_rahasia.dart
+import 'dart:convert';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+const _storage = FlutterSecureStorage();
+const _namaKunci = 'kunci_enkripsi_hive';
+
+Future&lt;Box&lt;String&gt;&gt; bukaBoxRahasia() async {
+  // 1. Coba ambil kunci yang pernah disimpan
+  var kunciBase64 = await _storage.read(key: _namaKunci);
+
+  // 2. Belum ada? Buat kunci acak 256-bit lalu simpan ke secure storage
+  if (kunciBase64 == null) {
+    final kunciBaru = Hive.generateSecureKey(); // List&lt;int&gt; 32 byte
+    kunciBase64 = base64UrlEncode(kunciBaru);
+    await _storage.write(key: _namaKunci, value: kunciBase64);
+  }
+
+  // 3. Buka box dengan cipher AES
+  final kunci = base64Url.decode(kunciBase64);
+  return Hive.openBox&lt;String&gt;(
+    'rahasia',
+    encryptionCipher: HiveAesCipher(kunci),
+  );
+}
+</code></pre>
+
+<p>Pemakaiannya sama seperti box biasa. Enkripsi dan dekripsi terjadi otomatis:</p>
+<pre><code class="language-dart">// Di main(), setelah await Hive.initFlutter();
+final rahasia = await bukaBoxRahasia();
+await rahasia.put('token', 'eyJhbGciOi...');
+debugPrint(rahasia.get('token')); // eyJhbGciOi...
+</code></pre>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li>Kunci berupa <code>List&lt;int&gt;</code>, sedangkan secure storage hanya menyimpan String. Karena itu kunci diubah dengan <code>base64UrlEncode</code> saat disimpan dan <code>base64Url.decode</code> saat dipakai.</li>
+  <li>Kunci dibuat sekali saja. Membuat kunci baru setiap aplikasi dibuka berarti data lama tidak akan bisa dibaca lagi.</li>
+  <li>Hanya <strong>value</strong> yang dienkripsi. <strong>Key</strong> box tetap tersimpan tanpa enkripsi, jadi jangan menaruh informasi sensitif di nama key.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Perhatian</h4><ul>
+<li>Membuka box terenkripsi dengan kunci yang salah, atau membuka box biasa yang sudah berisi data dengan cipher, akan memicu error. Tentukan sejak awal box mana yang dienkripsi.</li>
+<li>Jika kunci hilang (misalnya data secure storage terhapus), isi box tidak bisa dipulihkan. Untuk data yang masih ada di server, cukup hapus box lalu unduh ulang.</li>
+</ul></div>

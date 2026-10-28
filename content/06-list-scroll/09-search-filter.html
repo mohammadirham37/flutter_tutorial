@@ -1,0 +1,239 @@
+<p class="lead">Fitur pencarian membuat daftar panjang mudah dipakai. Kuncinya sederhana: <strong>jangan ubah data asli</strong>. Simpan kata kunci di State, lalu hitung daftar yang ditampilkan dari data asli setiap kali <code>build</code>.</p>
+
+<h4>Konsep</h4>
+<ol>
+  <li><code>_semua</code>: data asli, tidak pernah dikurangi oleh pencarian.</li>
+  <li><code>_kataKunci</code>: diperbarui oleh <code>onChanged</code> TextField + <code>setState</code>.</li>
+  <li>Daftar tampil = <code>_semua.where(...)</code> berdasarkan kata kunci.</li>
+</ol>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">final List&lt;String&gt; _semua = ['Algoritma', 'Basis Data', 'Kalkulus', 'Jaringan'];
+String _kataKunci = '';
+
+@override
+Widget build(BuildContext context) {
+  // Data yang DITAMPILKAN dihitung ulang setiap build dari data asli
+  final hasil = _semua
+      .where((m) =&gt; m.toLowerCase().contains(_kataKunci.toLowerCase()))
+      .toList();
+
+  return Column(
+    children: [
+      TextField(
+        decoration: const InputDecoration(hintText: 'Cari...'),
+        onChanged: (teks) =&gt; setState(() =&gt; _kataKunci = teks),
+      ),
+      Expanded(
+        child: ListView.builder(
+          itemCount: hasil.length,
+          itemBuilder: (context, i) =&gt; ListTile(title: Text(hasil[i])),
+        ),
+      ),
+    ],
+  );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/filter-kecil.jpg" alt="Mengetik "da" menyisakan Basis Data" loading="lazy">
+    <div class="screenshot-caption">Mengetik "da" menyisakan Basis Data</div>
+  </div>
+</div>
+<p><code>toLowerCase()</code> pada kedua sisi membuat pencarian tidak membedakan huruf besar dan kecil.</p>
+
+<h4>Contoh lengkap: direktori dosen dengan pencarian dan filter</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const DirektoriDosenScreen(),
+    );
+  }
+}
+
+class Dosen {
+  final String nama;
+  final String bidang;
+  final bool tersedia;
+
+  const Dosen(this.nama, this.bidang, this.tersedia);
+}
+
+class DirektoriDosenScreen extends StatefulWidget {
+  const DirektoriDosenScreen({super.key});
+
+  @override
+  State&lt;DirektoriDosenScreen&gt; createState() =&gt; _DirektoriDosenScreenState();
+}
+
+class _DirektoriDosenScreenState extends State&lt;DirektoriDosenScreen&gt; {
+  static const _semuaDosen = [
+    Dosen('Dr. Bambang Susilo', 'Kecerdasan Buatan', true),
+    Dosen('Nadia Fitri, M.T.', 'Rekayasa Perangkat Lunak', false),
+    Dosen('Irham Akbar, M.Cs.', 'Pemrograman Mobile', true),
+    Dosen('Prof. Hartono', 'Kecerdasan Buatan', false),
+    Dosen('Eko Prasetyo, Ph.D.', 'Keamanan Siber', true),
+    Dosen('Sari Wulandari, M.Kom.', 'Basis Data', true),
+    Dosen('Andi Wijaya, M.T.', 'Jaringan Komputer', false),
+    Dosen('Rina Kartika, M.Sc.', 'Data Science', true),
+  ];
+
+  final _cariController = TextEditingController();
+  String _kataKunci = '';
+  String _bidang = 'Semua';
+  bool _hanyaTersedia = false;
+
+  @override
+  void dispose() {
+    _cariController.dispose();
+    super.dispose();
+  }
+
+  List&lt;Dosen&gt; get _hasilFilter {
+    final kunci = _kataKunci.toLowerCase().trim();
+    return _semuaDosen.where((d) {
+      final cocokTeks = d.nama.toLowerCase().contains(kunci) ||
+          d.bidang.toLowerCase().contains(kunci);
+      final cocokBidang = _bidang == 'Semua' || d.bidang == _bidang;
+      final cocokStatus = !_hanyaTersedia || d.tersedia;
+      return cocokTeks &amp;&amp; cocokBidang &amp;&amp; cocokStatus;
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasil = _hasilFilter;
+    final daftarBidang = ['Semua', ..._semuaDosen.map((d) =&gt; d.bidang).toSet()];
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Direktori Dosen')),
+      body: Column(
+        children: [
+          // 1. Kolom pencarian
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: TextField(
+              controller: _cariController,
+              decoration: InputDecoration(
+                hintText: 'Cari nama atau bidang...',
+                prefixIcon: const Icon(Icons.search),
+                border: const OutlineInputBorder(),
+                suffixIcon: _kataKunci.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _cariController.clear();
+                          setState(() =&gt; _kataKunci = '');
+                        },
+                      ),
+              ),
+              onChanged: (teks) =&gt; setState(() =&gt; _kataKunci = teks),
+            ),
+          ),
+
+          // 2. Filter bidang dengan ChoiceChip (gulir horizontal)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                for (final b in daftarBidang)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: ChoiceChip(
+                      label: Text(b),
+                      selected: _bidang == b,
+                      onSelected: (_) =&gt; setState(() =&gt; _bidang = b),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // 3. Filter status
+          SwitchListTile(
+            dense: true,
+            title: const Text('Hanya dosen yang tersedia untuk bimbingan'),
+            value: _hanyaTersedia,
+            onChanged: (v) =&gt; setState(() =&gt; _hanyaTersedia = v),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('${hasil.length} dari ${_semuaDosen.length} dosen'),
+            ),
+          ),
+          const Divider(),
+
+          // 4. Hasil (Expanded agar ListView punya tinggi yang jelas)
+          Expanded(
+            child: hasil.isEmpty
+                ? const Center(child: Text('Tidak ada dosen yang cocok'))
+                : ListView.builder(
+                    itemCount: hasil.length,
+                    itemBuilder: (context, i) {
+                      final d = hasil[i];
+                      return ListTile(
+                        leading: CircleAvatar(child: Text(d.nama[0])),
+                        title: Text(d.nama),
+                        subtitle: Text(d.bidang),
+                        trailing: Icon(
+                          Icons.circle,
+                          size: 12,
+                          color: d.tersedia ? Colors.green : Colors.grey,
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/search-awal.jpg" alt="Direktori dosen tanpa filter" loading="lazy">
+    <div class="screenshot-caption">Direktori dosen tanpa filter</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/search-ketik.jpg" alt="Mengetik "kecerdasan" di kolom pencarian" loading="lazy">
+    <div class="screenshot-caption">Mengetik "kecerdasan" di kolom pencarian</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/search-tidak-ada.jpg" alt="Kata kunci tanpa hasil: pesan kosong" loading="lazy">
+    <div class="screenshot-caption">Kata kunci tanpa hasil: pesan kosong</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li>Getter <code>_hasilFilter</code> menggabungkan tiga syarat dengan <code>&amp;&amp;</code>: cocok teks (nama atau bidang), cocok bidang dari chip, dan cocok status ketersediaan.</li>
+  <li><code>.map((d) =&gt; d.bidang).toSet()</code> menghilangkan bidang yang kembar sebelum dibuat menjadi chip. <code>['Semua', ...]</code> menambahkan pilihan "Semua" di depan dengan <em>spread operator</em>.</li>
+  <li><code>ChoiceChip</code> adalah chip yang hanya bisa dipilih satu (seperti radio).</li>
+  <li>Daftar dibungkus <code>Expanded</code> karena berada di dalam <code>Column</code>.</li>
+  <li>Teks "x dari y dosen" memberi tahu pengguna bahwa filter sedang aktif.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Menghapus item dari data asli saat mencari</strong> (<code>_semua.removeWhere(...)</code>). Setelah kata kunci dihapus, data tidak bisa kembali.</li>
+  <li><strong>Memakai index hasil filter untuk menghapus dari data asli.</strong> Index keduanya berbeda; hapus berdasarkan objek atau id (lihat studi kasus).</li>
+  <li><strong>Lupa <code>setState</code></strong> di <code>onChanged</code>, sehingga daftar tidak berubah saat mengetik.</li>
+</ul></div>

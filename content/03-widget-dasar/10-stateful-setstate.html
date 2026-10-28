@@ -1,0 +1,233 @@
+<p class="lead"><strong><code>StatefulWidget</code></strong> terdiri dari dua class: class widget (konfigurasi, tetap immutable) dan class <strong><code>State</code></strong> (tempat menyimpan data yang berubah). Untuk mengubah data dan memperbarui layar, kita memanggil <strong><code>setState()</code></strong>.</p>
+
+<h4>Kerangka StatefulWidget</h4>
+<pre><code class="language-dart">// Class 1: widget-nya. Hanya bertugas membuat objek State.
+class Penghitung extends StatefulWidget {
+  const Penghitung({super.key});
+
+  @override
+  State&lt;Penghitung&gt; createState() =&gt; _PenghitungState();
+}
+
+// Class 2: State-nya. Di sinilah data yang berubah disimpan.
+class _PenghitungState extends State&lt;Penghitung&gt; {
+  int _jumlah = 0; // data (state)
+
+  @override
+  Widget build(BuildContext context) {
+    return Text('Jumlah: $_jumlah');
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/stateful-setstate-1.jpg" alt="Kerangka Penghitung menampilkan nilai awal 0" loading="lazy">
+    <div class="screenshot-caption">Kerangka Penghitung menampilkan nilai awal 0</div>
+  </div>
+</div>
+<p>Tanda garis bawah (<code>_</code>) di depan nama berarti <em>private</em>: hanya bisa diakses dari file yang sama. Ini konvensi untuk class State.</p>
+<div class="callout callout-tip"><h4>💡 Pintasan VS Code</h4><p>Ketik <code>stful</code> lalu tekan <kbd>Enter</kbd> untuk membuat kerangka StatefulWidget, dan <code>stless</code> untuk StatelessWidget.</p></div>
+
+<h4>Contoh lengkap: counter dengan tambah, kurang, dan reset</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.orange),
+      home: const HalamanCounter(),
+    );
+  }
+}
+
+class HalamanCounter extends StatefulWidget {
+  const HalamanCounter({super.key});
+
+  @override
+  State&lt;HalamanCounter&gt; createState() =&gt; _HalamanCounterState();
+}
+
+class _HalamanCounterState extends State&lt;HalamanCounter&gt; {
+  int _hadir = 0; // jumlah mahasiswa yang hadir
+
+  void _tambah() {
+    setState(() {
+      _hadir++;
+    });
+  }
+
+  void _kurang() {
+    // Jangan sampai negatif
+    if (_hadir == 0) return;
+    setState(() {
+      _hadir--;
+    });
+  }
+
+  void _reset() {
+    setState(() =&gt; _hadir = 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // build dipanggil ulang setiap setState; print ini membuktikannya
+    debugPrint('build() dipanggil, _hadir = $_hadir');
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Presensi Kelas')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Mahasiswa hadir:', style: TextStyle(fontSize: 18)),
+            Text(
+              '$_hadir',
+              style: TextStyle(
+                fontSize: 72,
+                fontWeight: FontWeight.bold,
+                // Warna berubah sesuai state
+                color: _hadir &gt;= 10 ? Colors.green : Colors.orange,
+              ),
+            ),
+            Text(_hadir &gt;= 10 ? 'Kuorum tercapai' : 'Belum kuorum (min. 10)'),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton.filledTonal(
+                  onPressed: _hadir == 0 ? null : _kurang, // null = tombol nonaktif
+                  icon: const Icon(Icons.remove),
+                ),
+                const SizedBox(width: 16),
+                IconButton.filled(
+                  onPressed: _tambah,
+                  icon: const Icon(Icons.add),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: _reset,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reset'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/stateful-setstate-2.jpg" alt="Counter presensi: tampilan awal, tombol kurang nonaktif" loading="lazy">
+    <div class="screenshot-caption">Counter presensi: tampilan awal, tombol kurang nonaktif</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/stateful-setstate-tambah.jpg" alt="Setelah tombol tambah ditekan beberapa kali" loading="lazy">
+    <div class="screenshot-caption">Setelah tombol tambah ditekan beberapa kali</div>
+  </div>
+</div>
+
+<h4>Apa yang terjadi saat tombol + ditekan?</h4>
+<ol>
+  <li>Flutter memanggil <code>_tambah()</code>.</li>
+  <li>Di dalam <code>setState</code>, nilai <code>_hadir</code> bertambah 1.</li>
+  <li><code>setState</code> menandai widget ini sebagai "kotor" (<em>dirty</em>), artinya perlu digambar ulang.</li>
+  <li>Pada frame berikutnya, Flutter memanggil ulang <code>build()</code>. Karena <code>_hadir</code> sudah berubah, <code>Text</code> menampilkan angka baru dan warnanya ikut menyesuaikan.</li>
+</ol>
+<p>Buka tab <strong>Debug Console</strong> di VS Code: setiap kali tombol ditekan, baris <code>build() dipanggil</code> muncul.</p>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><code>onPressed: null</code> membuat tombol nonaktif (abu-abu). Kita memakainya saat nilai sudah 0.</li>
+  <li><code>setState(() =&gt; _hadir = 0)</code> adalah bentuk singkat (arrow function) dari <code>setState(() { _hadir = 0; })</code>.</li>
+  <li>Logika yang tidak mengubah tampilan (seperti <code>if (_hadir == 0) return;</code>) boleh di luar <code>setState</code>.</li>
+</ul>
+
+<h4>Contoh kedua: toggle dan input teks</h4>
+<p>State tidak harus angka. Berikut contoh state bertipe <code>bool</code> dan <code>String</code>:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MaterialApp(home: HalamanPengaturan()));
+}
+
+class HalamanPengaturan extends StatefulWidget {
+  const HalamanPengaturan({super.key});
+
+  @override
+  State&lt;HalamanPengaturan&gt; createState() =&gt; _HalamanPengaturanState();
+}
+
+class _HalamanPengaturanState extends State&lt;HalamanPengaturan&gt; {
+  bool _notifikasiAktif = true;
+  String _nama = '';
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pengaturan')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          SwitchListTile(
+            title: const Text('Notifikasi jadwal kuliah'),
+            subtitle: Text(_notifikasiAktif ? 'Aktif' : 'Nonaktif'),
+            value: _notifikasiAktif,
+            onChanged: (nilaiBaru) {
+              setState(() =&gt; _notifikasiAktif = nilaiBaru);
+            },
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            decoration: const InputDecoration(
+              labelText: 'Nama panggilan',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (teks) {
+              setState(() =&gt; _nama = teks);
+            },
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _nama.isEmpty ? 'Ketik nama di atas' : 'Halo, $_nama!',
+            style: const TextStyle(fontSize: 22),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/stateful-setstate-3.jpg" alt="SwitchListTile dan TextField dengan state" loading="lazy">
+    <div class="screenshot-caption">SwitchListTile dan TextField dengan state</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/stateful-setstate-3-ketik.jpg" alt="Setelah nama diketik: teks sapaan langsung berubah" loading="lazy">
+    <div class="screenshot-caption">Setelah nama diketik: teks sapaan langsung berubah</div>
+  </div>
+</div>
+<p>Setiap kali switch digeser atau huruf diketik, <code>setState</code> memperbarui variabel dan layar langsung menyesuaikan. Form dibahas lebih dalam di Modul 05.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Mengubah variabel tanpa <code>setState</code>.</strong> Nilainya berubah di memori, tetapi layar tidak diperbarui.</li>
+  <li><strong>Menaruh variabel state di dalam <code>build()</code>.</strong> Contoh: <code>int _hadir = 0;</code> ditulis di dalam <code>build</code>. Nilainya kembali ke 0 setiap build. Variabel state harus menjadi field class State.</li>
+  <li><strong>Memanggil <code>setState</code> di dalam <code>build()</code>.</strong> Ini memicu build tanpa henti dan error.</li>
+  <li><strong>Menaruh state di class widget</strong> (yang <code>extends StatefulWidget</code>). Class widget harus immutable; state disimpan di class <code>State</code>.</li>
+</ul></div>

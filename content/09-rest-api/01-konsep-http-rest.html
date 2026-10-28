@@ -1,0 +1,135 @@
+<p class="lead">Hampir semua aplikasi modern (Gojek, Tokopedia, SIA kampus) tidak menyimpan seluruh datanya di HP. Data diambil dari <strong>server</strong> lewat internet. Cara paling umum untuk "mengobrol" dengan server adalah <strong>REST API</strong> yang berjalan di atas protokol <strong>HTTP</strong>. Sebelum menulis kode Flutter, pahami dulu bahasa percakapannya.</p>
+
+<h4>Client, Server, Request, Response</h4>
+<p>Aplikasi Flutter berperan sebagai <strong>client</strong>. Client mengirim <strong>request</strong> (permintaan) ke <strong>server</strong>, lalu server membalas dengan <strong>response</strong> (jawaban). Satu request selalu dibalas satu response.</p>
+
+<pre><code class="language-text">  Aplikasi Flutter (client)                        Server (backend)
+  ─────────────────────────                        ────────────────
+  GET /posts/1   ───────────── request ──────────&gt;
+                 &lt;──────────── response ──────────  200 OK + data JSON
+</code></pre>
+
+<p>Setiap request terdiri dari 4 bagian utama:</p>
+<ol>
+  <li><strong>Method</strong>: apa yang ingin dilakukan (ambil, buat, ubah, hapus).</li>
+  <li><strong>URL</strong>: alamat data yang dituju.</li>
+  <li><strong>Header</strong>: informasi tambahan (format data, token login).</li>
+  <li><strong>Body</strong>: isi data yang dikirim (biasanya JSON). Request GET dan DELETE umumnya tidak punya body.</li>
+</ol>
+<p>Response juga punya <strong>status code</strong> (angka hasil), <strong>header</strong>, dan <strong>body</strong>.</p>
+
+<h4>Anatomi URL</h4>
+<pre><code class="language-text">https://jsonplaceholder.typicode.com/posts/1/comments?_limit=5&amp;_sort=id
+└─┬─┘   └────────────┬────────────┘└───────┬────────┘└───────┬───────┘
+scheme            host / base URL        path          query parameter
+
+- Base URL : https://jsonplaceholder.typicode.com  (alamat server)
+- Endpoint : /posts/1/comments                     (sumber data yang dituju)
+- Path param: 1                                     (id post yang spesifik)
+- Query    : _limit=5 dan _sort=id                  (filter tambahan, dipisah &amp;)
+</code></pre>
+
+<h4>HTTP Method (Kata Kerja REST)</h4>
+<p>REST memakai kata benda untuk URL (<code>/posts</code>, <code>/users</code>) dan method HTTP sebagai kata kerjanya:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Method</th><th>Fungsi</th><th>Contoh</th><th>Ada body?</th><th>Padanan CRUD</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td>Mengambil data</td><td><code>GET /posts</code>, <code>GET /posts/1</code></td><td>Tidak</td><td>Read</td></tr>
+      <tr><td><code>POST</code></td><td>Membuat data baru</td><td><code>POST /posts</code></td><td>Ya</td><td>Create</td></tr>
+      <tr><td><code>PUT</code></td><td>Mengganti <em>seluruh</em> data</td><td><code>PUT /posts/1</code></td><td>Ya (lengkap)</td><td>Update</td></tr>
+      <tr><td><code>PATCH</code></td><td>Mengubah <em>sebagian</em> field</td><td><code>PATCH /posts/1</code></td><td>Ya (sebagian)</td><td>Update</td></tr>
+      <tr><td><code>DELETE</code></td><td>Menghapus data</td><td><code>DELETE /posts/1</code></td><td>Tidak</td><td>Delete</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Status Code</h4>
+<p>Status code adalah angka 3 digit yang memberi tahu hasil request. Digit pertama menunjukkan kelompoknya:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kode</th><th>Nama</th><th>Arti untuk aplikasi</th></tr></thead>
+    <tbody>
+      <tr><td><code>200</code></td><td>OK</td><td>Berhasil (GET, PUT, PATCH, DELETE).</td></tr>
+      <tr><td><code>201</code></td><td>Created</td><td>Data baru berhasil dibuat (POST).</td></tr>
+      <tr><td><code>204</code></td><td>No Content</td><td>Berhasil, tetapi body kosong (sering untuk DELETE).</td></tr>
+      <tr><td><code>400</code></td><td>Bad Request</td><td>Data yang dikirim salah format / tidak valid.</td></tr>
+      <tr><td><code>401</code></td><td>Unauthorized</td><td>Belum login atau token salah/kedaluwarsa.</td></tr>
+      <tr><td><code>403</code></td><td>Forbidden</td><td>Sudah login, tetapi tidak punya hak akses.</td></tr>
+      <tr><td><code>404</code></td><td>Not Found</td><td>URL atau data dengan id tersebut tidak ada.</td></tr>
+      <tr><td><code>422</code></td><td>Unprocessable Entity</td><td>Validasi gagal (mis. email sudah dipakai).</td></tr>
+      <tr><td><code>500</code></td><td>Internal Server Error</td><td>Server sedang bermasalah, bukan salah aplikasi.</td></tr>
+      <tr><td><code>503</code></td><td>Service Unavailable</td><td>Server sedang down / maintenance.</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout callout-tip"><h4>💡 Cara Mudah Mengingat</h4><p><strong>2xx</strong> = sukses, <strong>4xx</strong> = kesalahan dari sisi client (aplikasi kita), <strong>5xx</strong> = kesalahan dari sisi server. Di kode, cek sukses dengan <code>statusCode &gt;= 200 &amp;&amp; statusCode &lt; 300</code>.</p></div>
+
+<h4>Header yang Sering Dipakai</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Header</th><th>Contoh nilai</th><th>Kegunaan</th></tr></thead>
+    <tbody>
+      <tr><td><code>Content-Type</code></td><td><code>application/json; charset=UTF-8</code></td><td>Memberi tahu server bahwa body yang kita kirim berformat JSON.</td></tr>
+      <tr><td><code>Accept</code></td><td><code>application/json</code></td><td>Meminta server membalas dalam format JSON.</td></tr>
+      <tr><td><code>Authorization</code></td><td><code>Bearer eyJhbGciOi...</code></td><td>Mengirim token login agar server tahu siapa kita.</td></tr>
+      <tr><td><code>x-api-key</code></td><td><code>abc123</code></td><td>Kunci API khusus yang diminta sebagian layanan.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh Request &amp; Response Lengkap</h4>
+<p>Beginilah wujud "mentah" satu request POST dan response-nya. Package <code>http</code> di Flutter akan membuat teks seperti ini untuk kita.</p>
+<pre><code class="language-text">POST /posts HTTP/1.1
+Host: jsonplaceholder.typicode.com
+Content-Type: application/json; charset=UTF-8
+Accept: application/json
+
+{"title": "Belajar REST", "body": "Isi tulisan", "userId": 1}
+
+------------------------------------------------------------
+
+HTTP/1.1 201 Created
+Content-Type: application/json; charset=utf-8
+
+{"title": "Belajar REST", "body": "Isi tulisan", "userId": 1, "id": 101}
+</code></pre>
+
+<h4>Contoh Kode: Menyusun URL dengan Kelas <code>Uri</code></h4>
+<p>Di Dart, URL disimpan sebagai objek <code>Uri</code>. Ada dua cara membuatnya. <code>Uri.parse</code> cocok untuk URL sederhana, sedangkan <code>Uri.https</code> lebih aman untuk query parameter karena karakter khusus (spasi, &amp;) otomatis di-<em>encode</em>.</p>
+
+<p class="code-file-label">📄 <code>lib/contoh_uri.dart</code></p>
+<pre><code class="language-dart">// Jalankan dengan: dart run lib/contoh_uri.dart
+void main() {
+  // Cara 1: Uri.parse dari string utuh
+  final uri1 = Uri.parse('https://jsonplaceholder.typicode.com/posts/1');
+  print(uri1.host); // jsonplaceholder.typicode.com
+  print(uri1.path); // /posts/1
+
+  // Cara 2: Uri.https(host, path, queryParameters)
+  final uri2 = Uri.https(
+    'jsonplaceholder.typicode.com',
+    '/posts',
+    {'userId': '1', '_limit': '5'}, // nilai query WAJIB String
+  );
+  print(uri2); // https://jsonplaceholder.typicode.com/posts?userId=1&amp;_limit=5
+
+  // Karakter khusus otomatis di-encode
+  final uri3 = Uri.https('example.com', '/cari', {'q': 'flutter &amp; dart'});
+  print(uri3); // https://example.com/cari?q=flutter+%26+dart
+
+  // Menambah query ke Uri yang sudah ada
+  final uri4 = uri1.replace(queryParameters: {'lang': 'id'});
+  print(uri4); // https://jsonplaceholder.typicode.com/posts/1?lang=id
+}
+</code></pre>
+<p><strong>Penjelasan:</strong> nilai di <code>queryParameters</code> harus bertipe <code>String</code>, jadi angka ditulis <code>'1'</code> bukan <code>1</code>. Bagian <code>uri3</code> memperlihatkan alasan memakai <code>Uri.https</code>: tanda <code>&amp;</code> di dalam kata kunci pencarian berubah menjadi <code>%26</code> sehingga tidak dianggap pemisah query.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Menulis host dengan <code>https://</code> di <code>Uri.https('https://example.com', ...)</code>. Argumen pertama hanya host, tanpa scheme.</li>
+  <li>Mengirim angka di <code>queryParameters</code> (<code>{'page': 1}</code>) sehingga error tipe. Ubah menjadi <code>'1'</code> atau <code>1.toString()</code>.</li>
+  <li>Menganggap status <code>404</code> akan melempar exception. Package <code>http</code> <strong>tidak</strong> melempar error untuk 4xx/5xx; kita sendiri yang wajib mengecek <code>statusCode</code>.</li>
+  <li>Memakai GET untuk mengirim data sensitif lewat query (mis. password). Data di URL tercatat di log server; kirim lewat body POST.</li>
+</ul>
+</div>

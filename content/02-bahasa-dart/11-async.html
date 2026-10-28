@@ -1,0 +1,263 @@
+<p class="lead">Aplikasi mobile sering harus menunggu: mengambil data dari internet, membaca database, atau menunggu input. Jika program "diam menunggu", layar akan membeku. Dart memakai model <em>single-threaded event loop</em> dengan <code>Future</code> dan <code>Stream</code> agar pekerjaan yang lama berjalan tanpa memblokir tampilan.</p>
+
+<h4>Kode sinkron vs asinkron</h4>
+<pre><code class="language-dart">void main() {
+  print('1. Mulai');
+  Future.delayed(const Duration(seconds: 1), () {
+    print('3. Data selesai diambil (setelah 1 detik)');
+  });
+  print('2. Lanjut mengerjakan hal lain');
+  // Output:
+  // 1. Mulai
+  // 2. Lanjut mengerjakan hal lain
+  // 3. Data selesai diambil (setelah 1 detik)
+}
+</code></pre>
+<p><code>Future.delayed</code> "menjadwalkan" pekerjaan untuk nanti, lalu Dart langsung lanjut ke baris berikutnya. Itulah sebabnya baris 2 tercetak sebelum baris 3. <code>Future</code> adalah janji bahwa sebuah nilai (atau error) akan tersedia <strong>di masa depan</strong>.</p>
+
+<h4>async dan await</h4>
+<pre><code class="language-dart">Future&lt;String&gt; ambilNamaMahasiswa(String nim) async {
+  await Future.delayed(const Duration(milliseconds: 500)); // simulasi jaringan
+  return 'Ayu Lestari';
+}
+
+Future&lt;void&gt; main() async {
+  print('Mengambil data...');
+  String nama = await ambilNamaMahasiswa('H1D023001');
+  print('Nama: $nama');
+  print('Selesai');
+  // Output:
+  // Mengambil data...
+  // Nama: Ayu Lestari
+  // Selesai
+}
+</code></pre>
+<ul>
+  <li><code>async</code> menandai fungsi asinkron. Tipe kembaliannya dibungkus <code>Future</code>: <code>return 'Ayu'</code> menjadi <code>Future&lt;String&gt;</code>.</li>
+  <li><code>await</code> menunggu Future selesai lalu mengambil nilainya. <code>await</code> hanya boleh dipakai di dalam fungsi <code>async</code>.</li>
+  <li>Selama menunggu, event loop bebas mengerjakan hal lain, misalnya menggambar ulang layar di Flutter.</li>
+</ul>
+
+<h4>then() vs await</h4>
+<pre><code class="language-dart">Future&lt;int&gt; ambilJumlahSks() {
+  return Future.delayed(const Duration(milliseconds: 300), () =&gt; 21);
+}
+
+Future&lt;void&gt; main() async {
+  // Gaya 1: callback then()
+  await ambilJumlahSks().then((sks) =&gt; print('then(): $sks SKS'));
+
+  // Gaya 2: async/await (lebih mudah dibaca)
+  final sks = await ambilJumlahSks();
+  print('await: $sks SKS');
+  // Output:
+  // then(): 21 SKS
+  // await: 21 SKS
+}
+</code></pre>
+<p>Keduanya setara. <code>async/await</code> lebih disarankan karena kode terbaca berurutan dari atas ke bawah, terutama jika ada beberapa langkah yang saling bergantung.</p>
+
+<h4>Menangani error pada kode async</h4>
+<pre><code class="language-dart">import 'dart:async';
+
+Future&lt;double&gt; ambilIpk(String nim) async {
+  await Future.delayed(const Duration(milliseconds: 300));
+  if (!nim.startsWith('H1D')) {
+    throw Exception('NIM $nim tidak ditemukan');
+  }
+  return 3.67;
+}
+
+Future&lt;void&gt; main() async {
+  for (final nim in ['H1D023001', 'X999']) {
+    try {
+      final ipk = await ambilIpk(nim);
+      print('$nim: IPK $ipk');
+    } catch (e) {
+      print('Gagal: $e');
+    }
+  }
+
+  // Membatasi waktu tunggu
+  try {
+    await ambilIpk('H1D023001').timeout(const Duration(milliseconds: 100));
+  } on TimeoutException {
+    print('Server terlalu lama merespons');
+  }
+  // Output:
+  // H1D023001: IPK 3.67
+  // Gagal: Exception: NIM X999 tidak ditemukan
+  // Server terlalu lama merespons
+}
+</code></pre>
+<p>Dengan <code>await</code>, error dari Future bisa ditangkap memakai <code>try/catch</code> biasa, persis seperti kode sinkron. <code>.timeout()</code> melempar <code>TimeoutException</code> (dari <code>dart:async</code>) jika Future tidak selesai dalam batas waktu.</p>
+
+<h4>Menjalankan beberapa Future secara paralel</h4>
+<p>Jika beberapa permintaan tidak saling bergantung, jangan di-<code>await</code> satu per satu. Jalankan bersamaan dengan <code>Future.wait</code>.</p>
+<pre><code class="language-dart">Future&lt;int&gt; ambilNilai(String matkul) async {
+  await Future.delayed(const Duration(milliseconds: 400));
+  return switch (matkul) {
+    'Mobile' =&gt; 88,
+    'Web' =&gt; 79,
+    _ =&gt; 70,
+  };
+}
+
+Future&lt;void&gt; main() async {
+  final nilai = await Future.wait([
+    ambilNilai('Mobile'),
+    ambilNilai('Web'),
+    ambilNilai('AI'),
+  ]);
+  print(nilai); // Output: [88, 79, 70]
+}
+</code></pre>
+<p>Ketiga permintaan berjalan bersamaan sehingga total waktunya sekitar 0,4 detik, bukan 1,2 detik. Urutan hasil selalu sama dengan urutan Future di dalam list.</p>
+
+<p>Jika tipe hasilnya berbeda-beda, Dart 3 menyediakan <code>.wait</code> pada record:</p>
+<pre><code class="language-dart">Future&lt;String&gt; ambilProfil() async {
+  await Future.delayed(const Duration(milliseconds: 500));
+  return 'Profil Ayu';
+}
+
+Future&lt;List&lt;String&gt;&gt; ambilJadwal() async {
+  await Future.delayed(const Duration(milliseconds: 500));
+  return ['Mobile', 'Web'];
+}
+
+Future&lt;int&gt; ambilNotifikasi() async {
+  await Future.delayed(const Duration(milliseconds: 500));
+  return 3;
+}
+
+Future&lt;void&gt; main() async {
+  final stopwatch = Stopwatch()..start();
+
+  // Berurutan: total sekitar 1,5 detik
+  final profil = await ambilProfil();
+  final jadwal = await ambilJadwal();
+  final notif = await ambilNotifikasi();
+  print('Berurutan: $profil, $jadwal, $notif notifikasi');
+  print('Lebih dari 1,4 detik? ${stopwatch.elapsedMilliseconds &gt; 1400}');
+
+  stopwatch.reset();
+
+  // Paralel dengan record .wait: total sekitar 0,5 detik
+  final (p, j, n) = await (ambilProfil(), ambilJadwal(), ambilNotifikasi()).wait;
+  print('Paralel: $p, $j, $n notifikasi');
+  print('Kurang dari 1 detik? ${stopwatch.elapsedMilliseconds &lt; 1000}');
+  // Output:
+  // Berurutan: Profil Ayu, [Mobile, Web], 3 notifikasi
+  // Lebih dari 1,4 detik? true
+  // Paralel: Profil Ayu, [Mobile, Web], 3 notifikasi
+  // Kurang dari 1 detik? true
+}
+</code></pre>
+
+<h4>Stream: rangkaian data dari waktu ke waktu</h4>
+<p>Jika <code>Future</code> menghasilkan <strong>satu</strong> nilai, <code>Stream</code> menghasilkan <strong>banyak</strong> nilai yang datang bergantian, misalnya pesan chat, posisi GPS, atau perubahan data realtime dari Supabase (Modul 12).</p>
+<pre><code class="language-dart">Future&lt;void&gt; main() async {
+  final stream = Stream.fromIterable(['Ayu', 'Bima', 'Citra']);
+
+  await for (final nama in stream) {
+    print('Hadir: $nama');
+  }
+  print('Absensi selesai');
+  // Output:
+  // Hadir: Ayu
+  // Hadir: Bima
+  // Hadir: Citra
+  // Absensi selesai
+}
+</code></pre>
+<p><code>await for</code> menunggu setiap data yang datang, lalu keluar dari perulangan ketika stream selesai.</p>
+
+<h4>Membuat Stream dengan <code>async*</code> dan <code>yield</code></h4>
+<pre><code class="language-dart">Stream&lt;int&gt; hitungMundur(int dari) async* {
+  for (var i = dari; i &gt;= 1; i--) {
+    await Future.delayed(const Duration(milliseconds: 300));
+    yield i; // kirim satu nilai ke pendengar
+  }
+}
+
+Future&lt;void&gt; main() async {
+  await for (final detik in hitungMundur(3)) {
+    print('$detik...');
+  }
+  print('Ujian dimulai!');
+
+  // Stream juga punya where, map, take, toList seperti List
+  final hasil = await Stream.fromIterable([1, 2, 3, 4, 5, 6])
+      .where((n) =&gt; n.isEven)
+      .map((n) =&gt; n * 10)
+      .toList();
+  print(hasil);
+  // Output:
+  // 3...
+  // 2...
+  // 1...
+  // Ujian dimulai!
+  // [20, 40, 60]
+}
+</code></pre>
+<p>Fungsi <code>async*</code> mengembalikan <code>Stream</code>. Setiap <code>yield</code> mengirim satu nilai tanpa mengakhiri fungsi, berbeda dengan <code>return</code> yang mengakhiri fungsi.</p>
+
+<h4>listen() dan StreamController</h4>
+<p><code>StreamController</code> dipakai ketika kita ingin "mengirim" data ke stream secara manual, misalnya setiap kali isi keranjang belanja berubah.</p>
+<pre><code class="language-dart">import 'dart:async';
+
+class Keranjang {
+  final _controller = StreamController&lt;int&gt;();
+  int _jumlah = 0;
+
+  Stream&lt;int&gt; get jumlahStream =&gt; _controller.stream;
+
+  void tambah() {
+    _jumlah++;
+    _controller.add(_jumlah); // kirim data baru ke stream
+  }
+
+  Future&lt;void&gt; tutup() =&gt; _controller.close();
+}
+
+Future&lt;void&gt; main() async {
+  final keranjang = Keranjang();
+
+  keranjang.jumlahStream.listen(
+    (jumlah) =&gt; print('Isi keranjang: $jumlah'),
+    onDone: () =&gt; print('Stream ditutup'),
+  );
+
+  keranjang.tambah();
+  keranjang.tambah();
+  keranjang.tambah();
+  await keranjang.tutup(); // tunggu sampai semua data terkirim
+  // Output:
+  // Isi keranjang: 1
+  // Isi keranjang: 2
+  // Isi keranjang: 3
+  // Stream ditutup
+}
+</code></pre>
+<p><code>listen()</code> mendaftarkan fungsi yang dipanggil setiap ada data baru. Secara default, stream hanya boleh punya satu pendengar; gunakan <code>StreamController.broadcast()</code> jika butuh banyak pendengar. Di Flutter, <code>StreamBuilder</code> melakukan <code>listen</code> secara otomatis dan membangun ulang widget setiap kali data baru datang.</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th></th><th><code>Future&lt;T&gt;</code></th><th><code>Stream&lt;T&gt;</code></th></tr></thead>
+    <tbody>
+      <tr><td>Jumlah nilai</td><td>Satu kali</td><td>Nol sampai banyak</td></tr>
+      <tr><td>Cara menunggu</td><td><code>await</code></td><td><code>await for</code> / <code>listen()</code></td></tr>
+      <tr><td>Membuat fungsi</td><td><code>async</code> + <code>return</code></td><td><code>async*</code> + <code>yield</code></td></tr>
+      <tr><td>Widget Flutter</td><td><code>FutureBuilder</code></td><td><code>StreamBuilder</code></td></tr>
+      <tr><td>Contoh</td><td>Login, GET data API</td><td>Chat, lokasi GPS, data realtime</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Lupa <code>await</code>: variabel berisi <code>Instance of 'Future&lt;String&gt;'</code>, bukan datanya.</li>
+  <li>Memakai <code>await</code> di fungsi yang tidak ditandai <code>async</code>, sehingga terjadi error compile.</li>
+  <li>Meng-<code>await</code> satu per satu permintaan yang sebenarnya bisa paralel. Gunakan <code>Future.wait</code> atau record <code>.wait</code>.</li>
+  <li>Lupa menutup <code>StreamController</code> atau membatalkan <code>StreamSubscription</code> (di Flutter, lakukan di <code>dispose()</code>), sehingga terjadi kebocoran memori.</li>
+</ul></div>

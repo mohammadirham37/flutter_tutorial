@@ -1,0 +1,140 @@
+<p class="lead">Server mengirim data dalam bentuk <strong>teks JSON</strong>. Teks ini harus diubah dulu menjadi objek Dart (<em>decode</em>) agar bisa dipakai, dan objek Dart harus diubah menjadi teks JSON (<em>encode</em>) sebelum dikirim ke server. Keduanya disediakan library bawaan <code>dart:convert</code>, tanpa perlu package tambahan.</p>
+
+<h4>Wujud JSON</h4>
+<p>JSON hanya mengenal 6 jenis nilai. Hafalkan padanannya di Dart karena ini sumber error paling sering:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>JSON</th><th>Contoh</th><th>Hasil di Dart setelah <code>jsonDecode</code></th></tr></thead>
+    <tbody>
+      <tr><td>Object</td><td><code>{"nama": "Budi"}</code></td><td><code>Map&lt;String, dynamic&gt;</code></td></tr>
+      <tr><td>Array</td><td><code>[1, 2, 3]</code></td><td><code>List&lt;dynamic&gt;</code> (bukan <code>List&lt;int&gt;</code>!)</td></tr>
+      <tr><td>String</td><td><code>"halo"</code></td><td><code>String</code></td></tr>
+      <tr><td>Number</td><td><code>10</code> / <code>3.5</code></td><td><code>int</code> / <code>double</code></td></tr>
+      <tr><td>Boolean</td><td><code>true</code></td><td><code>bool</code></td></tr>
+      <tr><td>null</td><td><code>null</code></td><td><code>null</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>Contoh JSON satu mahasiswa yang berisi object bersarang (<code>prodi</code>) dan array (<code>hobi</code>):</p>
+<pre><code class="language-json">{
+  "nim": "H1D022001",
+  "nama": "Budi Santoso",
+  "ipk": 3.75,
+  "aktif": true,
+  "prodi": { "kode": "IF", "nama": "Informatika" },
+  "hobi": ["coding", "futsal"]
+}
+</code></pre>
+
+<h4>Contoh Kecil: <code>jsonDecode</code> dan <code>jsonEncode</code></h4>
+<pre><code class="language-dart">import 'dart:convert';
+
+void main() {
+  // Teks JSON (String) -&gt; objek Dart
+  const teks = '{"nama": "Budi", "umur": 20}';
+  final Map&lt;String, dynamic&gt; data = jsonDecode(teks);
+  print(data['nama']); // Budi
+
+  // Objek Dart -&gt; teks JSON (String)
+  final kirim = {'nama': 'Siti', 'umur': 21};
+  final String json = jsonEncode(kirim);
+  print(json); // {"nama":"Siti","umur":21}
+}
+</code></pre>
+<p><code>jsonDecode</code> menerima <code>String</code> dan mengembalikan <code>dynamic</code>. Karena itu kita menyebutkan tipe tujuannya (<code>Map&lt;String, dynamic&gt;</code>) agar editor bisa membantu.</p>
+
+<h4>Contoh Lengkap: Membaca Data Bersarang dan Array</h4>
+<p class="code-file-label">📄 <code>lib/contoh_json.dart</code></p>
+<pre><code class="language-dart">// Jalankan dengan: dart run lib/contoh_json.dart
+import 'dart:convert';
+
+const String responseBody = '''
+{
+  "nim": "H1D022001",
+  "nama": "Budi Santoso",
+  "ipk": 3.75,
+  "aktif": true,
+  "prodi": { "kode": "IF", "nama": "Informatika" },
+  "hobi": ["coding", "futsal"],
+  "nilai": [
+    { "matkul": "Pemrograman Mobile", "huruf": "A" },
+    { "matkul": "Basis Data", "huruf": "AB" }
+  ]
+}
+''';
+
+void main() {
+  // 1. Decode teks menjadi Map
+  final Map&lt;String, dynamic&gt; mhs = jsonDecode(responseBody) as Map&lt;String, dynamic&gt;;
+
+  // 2. Ambil nilai sederhana dengan cast "as"
+  final String nama = mhs['nama'] as String;
+  final double ipk = (mhs['ipk'] as num).toDouble(); // aman untuk 3 maupun 3.75
+  final bool aktif = mhs['aktif'] as bool;
+  print('$nama, IPK $ipk, aktif: $aktif');
+
+  // 3. Object bersarang adalah Map di dalam Map
+  final Map&lt;String, dynamic&gt; prodi = mhs['prodi'] as Map&lt;String, dynamic&gt;;
+  print('Prodi: ${prodi['nama']}');
+
+  // 4. Array berisi String: List&lt;dynamic&gt; harus dikonversi
+  final List&lt;String&gt; hobi = List&lt;String&gt;.from(mhs['hobi'] as List);
+  print('Hobi: ${hobi.join(', ')}');
+
+  // 5. Array berisi object: tiap elemen adalah Map
+  final List&lt;dynamic&gt; nilaiList = mhs['nilai'] as List&lt;dynamic&gt;;
+  for (final item in nilaiList) {
+    final nilai = item as Map&lt;String, dynamic&gt;;
+    print('- ${nilai['matkul']}: ${nilai['huruf']}');
+  }
+
+  // 6. Field yang tidak ada menghasilkan null, gunakan ?? untuk nilai default
+  final String? email = mhs['email'] as String?;
+  print('Email: ${email ?? 'belum diisi'}');
+
+  // 7. Encode kembali; JsonEncoder.withIndent membuat output rapi
+  mhs['aktif'] = false;
+  const encoder = JsonEncoder.withIndent('  ');
+  print(encoder.convert(mhs));
+}
+</code></pre>
+
+<p><strong>Penjelasan baris penting:</strong></p>
+<ul>
+  <li><strong>Langkah 2</strong>: angka JSON <code>3</code> menjadi <code>int</code>, sedangkan <code>3.75</code> menjadi <code>double</code>. Menulis <code>as double</code> akan crash jika server mengirim <code>3</code>. Pola <code>(x as num).toDouble()</code> aman untuk keduanya.</li>
+  <li><strong>Langkah 4</strong>: hasil decode array selalu <code>List&lt;dynamic&gt;</code>. <code>List&lt;String&gt;.from(...)</code> menyalin isinya ke list bertipe benar.</li>
+  <li><strong>Langkah 6</strong>: kunci yang tidak ada di Map menghasilkan <code>null</code>, bukan error. Pakai tipe nullable (<code>String?</code>) lalu beri nilai default.</li>
+</ul>
+
+<h4>Mengirim Data: Map Dart ke Body JSON</h4>
+<p>Saat mengirim POST/PUT, body harus berupa String JSON. Objek seperti <code>DateTime</code> tidak bisa langsung di-encode, jadi ubah dulu menjadi String:</p>
+<pre><code class="language-dart">import 'dart:convert';
+
+void main() {
+  final sekarang = DateTime(2026, 9, 1, 8, 30);
+
+  final body = jsonEncode({
+    'judul': 'Kuis 1',
+    'tanggal': sekarang.toIso8601String(), // DateTime -&gt; "2026-09-01T08:30:00.000"
+    'peserta': ['Budi', 'Siti'],
+    'selesai': false,
+  });
+  print(body);
+
+  // Membaca kembali tanggal dari JSON
+  final data = jsonDecode(body) as Map&lt;String, dynamic&gt;;
+  final tanggal = DateTime.parse(data['tanggal'] as String);
+  print(tanggal.day); // 1
+}
+</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li><strong><code>type 'List&lt;dynamic&gt;' is not a subtype of type 'List&lt;String&gt;'</code></strong>: menulis <code>mhs['hobi'] as List&lt;String&gt;</code>. Gunakan <code>List&lt;String&gt;.from(...)</code> atau <code>.cast&lt;String&gt;()</code>.</li>
+  <li><strong><code>type 'int' is not a subtype of type 'double'</code></strong>: lihat langkah 2, pakai <code>num</code>.</li>
+  <li><strong><code>FormatException: Unexpected character</code></strong>: teks yang di-decode bukan JSON, biasanya halaman HTML error dari server. Cek <code>statusCode</code> sebelum decode.</li>
+  <li><strong><code>Converting object to an encodable object failed: Instance of 'DateTime'</code></strong>: encode objek yang bukan tipe JSON. Ubah ke String/Map dulu.</li>
+  <li>Salah huruf kunci: <code>data['Nama']</code> berbeda dengan <code>data['nama']</code>. Kunci JSON <em>case-sensitive</em>. Inilah alasan kita membuat Model Class di section berikutnya.</li>
+</ul>
+</div>

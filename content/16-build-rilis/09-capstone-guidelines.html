@@ -1,0 +1,211 @@
+<div class="callout callout-info">
+  <h4>🏆 Ketentuan Capstone Project (Bobot 35% Nilai Akhir)</h4>
+  <p>Mahasiswa secara berkelompok (2-3 orang) atau mandiri membangun satu aplikasi mobile lengkap yang menyelesaikan permasalahan nyata di lingkungan kampus atau masyarakat. Capstone adalah tempat menggabungkan semua materi: widget dan layout (Modul 03-06), navigasi (07), Provider (08), API dan penyimpanan (09-12), arsitektur proyek (13-14), testing (15), dan rilis (16).</p>
+</div>
+
+<h4>Boleh memakai arsitektur Catatan Kuliah sebagai dasar</h4>
+<p>Anda <strong>diizinkan dan disarankan</strong> memakai struktur proyek Modul 13-14 sebagai kerangka: <code>AuthProvider</code> + <code>AuthGate</code> untuk login Supabase, pola <code>Repository</code> dengan remote data source (Supabase) dan cache Hive, serta Provider untuk state halaman. Syaratnya:</p>
+<ul>
+  <li>Domain aplikasi <strong>harus berbeda</strong> dari catatan kuliah (tabel, model, dan halaman baru, bukan sekadar mengganti judul).</li>
+  <li>Minimal <strong>dua entitas data yang saling berhubungan</strong> (misalnya <code>laporan</code> dan <code>kategori</code>, atau <code>produk</code> dan <code>pesanan</code>), bukan hanya satu tabel.</li>
+  <li>Sebutkan di README bagian mana yang diadaptasi dari modul.</li>
+</ul>
+<p>Struktur folder yang direkomendasikan:</p>
+<pre><code class="language-text">lib/
+├── main.dart              # inisialisasi Env, Supabase, Hive, MultiProvider
+├── config/env.dart        # konfigurasi --dart-define-from-file
+├── models/                # class data + fromJson/toJson
+├── data/                  # data source (Supabase, Hive) dan repository
+├── providers/             # AuthProvider dan provider fitur
+├── pages/                 # satu file per halaman
+├── widgets/               # widget yang dipakai ulang
+└── utils/                 # validator, formatter, konstanta
+test/
+├── unit/                  # validator, model, provider
+├── mock/                  # fake data source
+└── widget/                # halaman login, daftar, form</code></pre>
+
+<h4>Pilihan tema proyek</h4>
+<ol class="space-y-2 my-3">
+  <li><strong>Sistem Pengaduan Sarana Kampus:</strong> laporan fasilitas rusak dengan foto kamera, kategori, dan status penanganan (baru, diproses, selesai).</li>
+  <li><strong>Marketplace UMKM Mahasiswa:</strong> katalog produk, keranjang belanja (Provider), riwayat pesanan per pengguna.</li>
+  <li><strong>Perpustakaan &amp; Peminjaman Buku:</strong> pencarian buku via REST API publik, daftar pinjaman di Supabase, bookmark offline.</li>
+  <li><strong>Layanan Akademik:</strong> jadwal kuliah, pengajuan surat izin online, pengingat tugas.</li>
+  <li><strong>Tema bebas</strong> dengan persetujuan dosen paling lambat minggu ke-2 periode capstone.</li>
+</ol>
+
+<h4>Fitur wajib</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>No</th><th>Fitur</th><th>Keterangan / modul acuan</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Autentikasi</td><td>Register, login, logout, sesi tetap tersimpan saat aplikasi dibuka ulang (Modul 13)</td></tr>
+      <tr><td>2</td><td>CRUD data online</td><td>Minimal 2 tabel berelasi di Supabase dengan Row Level Security aktif (Modul 12, 14)</td></tr>
+      <tr><td>3</td><td>Penyimpanan lokal</td><td>Cache offline (Hive/SQLite) atau preferensi pengguna (SharedPreferences) yang benar-benar dipakai (Modul 10, 11, 14)</td></tr>
+      <tr><td>4</td><td>State management</td><td>Provider dengan pemisahan UI, provider, dan repository (Modul 08, 14)</td></tr>
+      <tr><td>5</td><td>Navigasi</td><td>Minimal 5 halaman, ada passing data antarhalaman, ada bottom navigation atau drawer (Modul 07)</td></tr>
+      <tr><td>6</td><td>Form tervalidasi</td><td>Minimal 2 form dengan validasi dan pesan error yang jelas (Modul 05)</td></tr>
+      <tr><td>7</td><td>State UI lengkap</td><td>Setiap daftar menangani loading, kosong, error, dan offline</td></tr>
+      <tr><td>8</td><td>Testing</td><td>Minimal 10 test: unit test (validator/provider), test repository dengan fake, dan 2 widget test (Modul 15)</td></tr>
+      <tr><td>9</td><td>Siap rilis</td><td>Ikon dan splash sendiri, nama dan application ID sendiri, key Supabase lewat <code>--dart-define-from-file</code>, APK release bertanda tangan (Modul 16)</td></tr>
+    </tbody>
+  </table>
+</div>
+<p><strong>Nilai tambah (bonus maksimal 10 poin):</strong> fitur kamera/galeri dengan Supabase Storage, pencarian dan filter, mode gelap, realtime Supabase, notifikasi lokal, integration test, atau dipublikasikan di jalur internal testing Play Console.</p>
+
+<h4>Rubrik penilaian</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead>
+      <tr><th>Kriteria</th><th>Bobot</th><th>Sangat baik (85-100)</th><th>Cukup (60-75)</th><th>Kurang (&lt; 60)</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Fungsionalitas fitur wajib</strong></td><td>25%</td>
+        <td>Semua fitur wajib berjalan di APK release tanpa crash</td>
+        <td>Sebagian kecil fitur belum lengkap atau ada bug minor</td>
+        <td>Beberapa fitur wajib tidak ada atau crash</td>
+      </tr>
+      <tr>
+        <td><strong>Arsitektur &amp; kualitas kode</strong></td><td>20%</td>
+        <td>Lapisan UI/provider/repository jelas, <code>flutter analyze</code> 0 issue, nama dan struktur rapi</td>
+        <td>Ada pemisahan tetapi masih ada logika data di widget, beberapa lint</td>
+        <td>Semua logika di dalam widget, banyak warning</td>
+      </tr>
+      <tr>
+        <td><strong>Integrasi data (online &amp; offline)</strong></td><td>15%</td>
+        <td>CRUD berelasi lancar, RLS benar, cache offline berfungsi</td>
+        <td>CRUD berjalan, offline terbatas</td>
+        <td>Data hanya lokal atau RLS dimatikan</td>
+      </tr>
+      <tr>
+        <td><strong>UI/UX</strong></td><td>15%</td>
+        <td>Material 3 konsisten, bebas overflow, state loading/kosong/error rapi, responsif</td>
+        <td>Tampilan cukup, ada overflow kecil atau state yang terlewat</td>
+        <td>Tampilan tidak konsisten, sering overflow</td>
+      </tr>
+      <tr>
+        <td><strong>Testing</strong></td><td>10%</td>
+        <td>&ge; 10 test bermakna lulus, termasuk fake repository dan widget test</td>
+        <td>Beberapa test, sebagian hanya kasus sukses</td>
+        <td>Tidak ada test atau test gagal</td>
+      </tr>
+      <tr>
+        <td><strong>Rilis &amp; dokumentasi</strong></td><td>10%</td>
+        <td>APK bertanda tangan, README lengkap sesuai template, tidak ada rahasia di repo</td>
+        <td>README kurang lengkap, APK debug</td>
+        <td>Tanpa README atau key Supabase ter-commit</td>
+      </tr>
+      <tr>
+        <td><strong>Presentasi &amp; demo</strong></td><td>5%</td>
+        <td>Demo lancar, semua anggota menguasai kode saat tanya jawab</td>
+        <td>Demo tersendat, sebagian anggota kurang menguasai</td>
+        <td>Tidak bisa mendemonstrasikan aplikasi</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+<p>Nilai individu dapat disesuaikan berdasarkan kontribusi yang terlihat di riwayat commit dan jawaban saat tanya jawab.</p>
+
+<h4>Timeline (6 minggu)</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Minggu</th><th>Kegiatan</th><th>Luaran (dicek dosen/asisten)</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Pembentukan kelompok, pemilihan tema, analisis kebutuhan</td><td>Proposal 1-2 halaman: masalah, fitur, sketsa layar</td></tr>
+      <tr><td>2</td><td>Desain data dan UI</td><td>Skema tabel Supabase + RLS, wireframe semua halaman, repo GitHub dibuat</td></tr>
+      <tr><td>3</td><td>Fondasi: auth, navigasi, model, repository</td><td>Login/register berjalan, kerangka halaman</td></tr>
+      <tr><td>4</td><td>Fitur inti: CRUD berelasi, cache offline</td><td>Demo progres 50% kepada asisten</td></tr>
+      <tr><td>5</td><td>Penyempurnaan UI, testing, perbaikan bug</td><td>Minimal 10 test lulus, <code>flutter analyze</code> bersih</td></tr>
+      <tr><td>6</td><td>Rilis dan dokumentasi</td><td>APK release, README, video demo, presentasi akhir</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Deliverables (yang dikumpulkan)</h4>
+<ol>
+  <li><strong>Repositori GitHub</strong> (publik atau undang dosen): riwayat commit dari semua anggota, tanpa <code>key.properties</code>, <code>*.jks</code>, dan <code>config/*.json</code> berisi key asli.</li>
+  <li><strong>README.md</strong> sesuai template di bawah.</li>
+  <li><strong>APK release</strong> <code>app-arm64-v8a-release.apk</code> yang sudah ditandatangani, diunggah di bagian <em>Releases</em> GitHub.</li>
+  <li><strong>Video demo</strong> 3-5 menit (YouTube unlisted/Google Drive): alur utama dari register sampai fitur inti, termasuk kondisi offline.</li>
+  <li><strong>Slide presentasi</strong> (maksimal 10 slide): masalah, solusi, arsitektur, demo, tantangan, pembagian tugas.</li>
+  <li><strong>Akun demo</strong> (email dan password) untuk penguji, ditulis di README atau formulir pengumpulan.</li>
+</ol>
+
+<h4>Template README.md</h4>
+<p class="code-file-label">📄 <code>README.md</code></p>
+<pre><code class="language-text"># Lapor Kampus
+
+Aplikasi pelaporan kerusakan fasilitas kampus UNSOED. Mahasiswa memotret
+fasilitas yang rusak, memilih kategori, dan memantau status penanganannya.
+
+## Anggota Kelompok
+| Nama          | NIM         | Peran                         |
+|---------------|-------------|-------------------------------|
+| Budi Santoso  | H1D022001   | Auth, repository, testing     |
+| Siti Aminah   | H1D022002   | UI halaman laporan, navigasi  |
+| Rizky Pratama | H1D022003   | Supabase (tabel, RLS), rilis  |
+
+## Screenshot
+| Login | Daftar Laporan | Detail | Mode Offline |
+|-------|----------------|--------|--------------|
+| ![](docs/login.png) | ![](docs/list.png) | ![](docs/detail.png) | ![](docs/offline.png) |
+
+## Fitur
+- Register, login, logout (Supabase Auth), sesi tersimpan
+- CRUD laporan + kategori (tabel berelasi, RLS aktif)
+- Cache offline dengan Hive
+- Unggah foto ke Supabase Storage (bonus)
+
+## Arsitektur
+UI (pages, widgets) -&gt; Provider -&gt; Repository -&gt; Data source (Supabase / Hive).
+Diadaptasi dari proyek Catatan Kuliah Modul 13-14: AuthGate, AuthProvider,
+pola NoteRepository (diganti menjadi LaporanRepository).
+
+## Skema Database
+| Tabel    | Kolom penting                                   |
+|----------|-------------------------------------------------|
+| kategori | id, nama                                        |
+| laporan  | id, user_id, kategori_id, judul, status, foto   |
+
+## Menjalankan Proyek
+1. `flutter pub get`
+2. Salin `config/example.json` menjadi `config/dev.json`, isi URL dan key Supabase
+3. `flutter run --dart-define-from-file=config/dev.json`
+
+## Testing
+```bash
+flutter test            # 14 test, semua lulus
+flutter test --coverage
+```
+
+## Build Rilis
+```bash
+flutter build apk --split-per-abi --obfuscate \
+  --split-debug-info=build/symbols --dart-define-from-file=config/prod.json
+```
+
+## Unduh APK
+Lihat halaman Releases: app-arm64-v8a-release.apk (v1.0.0+1)
+
+## Video Demo
+https://youtu.be/xxxxxxxx
+
+## Akun Demo
+Email: demo@laporkampus.id / Password: diberikan di formulir pengumpulan</code></pre>
+
+<h4>Panduan presentasi dan demo</h4>
+<ul>
+  <li>Demo memakai <strong>APK release di HP sungguhan</strong>, bukan emulator dalam mode debug.</li>
+  <li>Tunjukkan satu skenario offline: matikan internet, data cache tetap tampil.</li>
+  <li>Siapkan diri untuk pertanyaan seperti “tunjukkan di mana data laporan diambil dari Supabase” atau “apa yang terjadi jika token kedaluwarsa”. Setiap anggota harus bisa menjelaskan kode yang ia tulis.</li>
+  <li>Boleh memakai bantuan AI atau referensi daring, tetapi sebutkan di README dan pastikan Anda memahami setiap baris kode yang dikumpulkan.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum capstone</h4><ul>
+  <li>Satu anggota mengerjakan semuanya dan anggota lain hanya membuat slide. Riwayat commit akan terlihat.</li>
+  <li>Mematikan RLS di Supabase agar “tidak error”. Ini mengurangi nilai integrasi data secara signifikan.</li>
+  <li>Hanya menguji di emulator debug, lalu APK release gagal login saat presentasi (lupa permission INTERNET atau lupa <code>--dart-define-from-file</code>).</li>
+  <li>Meng-commit <code>config/dev.json</code> berisi key asli. Rotasi key di dashboard Supabase jika sudah terlanjur.</li>
+  <li>Mulai mengerjakan di minggu ke-5. Ikuti timeline; demo progres minggu ke-4 adalah titik pemeriksaan wajib.</li>
+</ul></div>

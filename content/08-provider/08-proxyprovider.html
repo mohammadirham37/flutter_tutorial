@@ -1,0 +1,152 @@
+<p class="lead">Kadang satu provider butuh data dari provider lain. Contoh: daftar catatan bergantung pada siapa yang sedang login. <code>ChangeNotifierProxyProvider</code> menyambungkan keduanya: setiap kali provider sumber berubah, provider tujuan diberi tahu.</p>
+
+<h4>Bentuk umumnya</h4>
+<pre><code class="language-dart">ChangeNotifierProxyProvider&lt;Sumber, Tujuan&gt;(
+  create: (_) =&gt; Tujuan(),                                  // dibuat sekali
+  update: (_, sumber, tujuan) =&gt; tujuan!..perbarui(sumber), // dipanggil tiap Sumber berubah
+)
+</code></pre>
+
+<h4>Contoh lengkap: catatan per pengguna</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+class AuthProvider extends ChangeNotifier {
+  String? _nim;
+  String? get nim =&gt; _nim;
+
+  void loginSebagai(String nim) {
+    _nim = nim;
+    notifyListeners();
+  }
+}
+
+// CatatanProvider BERGANTUNG pada AuthProvider: catatan milik siapa?
+class CatatanProvider extends ChangeNotifier {
+  String? _nimAktif;
+  final Map&lt;String, List&lt;String&gt;&gt; _catatanPerNim = {};
+
+  List&lt;String&gt; get catatan =&gt; _catatanPerNim[_nimAktif] ?? const [];
+
+  // Dipanggil oleh ProxyProvider setiap AuthProvider berubah
+  void perbaruiPengguna(String? nim) {
+    if (nim == _nimAktif) return;
+    _nimAktif = nim;
+    notifyListeners();
+  }
+
+  void tambah(String teks) {
+    final nim = _nimAktif;
+    if (nim == null) return;
+    _catatanPerNim.putIfAbsent(nim, () =&gt; []).add(teks);
+    notifyListeners();
+  }
+}
+
+void main() {
+  runApp(
+    MultiProvider(
+      providers: [
+        // 1. Provider yang menjadi sumber harus didaftarkan LEBIH DULU
+        ChangeNotifierProvider(create: (_) =&gt; AuthProvider()),
+        // 2. ProxyProvider: &lt;Sumber, Hasil&gt;
+        ChangeNotifierProxyProvider&lt;AuthProvider, CatatanProvider&gt;(
+          create: (_) =&gt; CatatanProvider(),
+          // update dipanggil di awal dan setiap AuthProvider notifyListeners
+          update: (_, auth, catatan) =&gt; catatan!..perbaruiPengguna(auth.nim),
+        ),
+      ],
+      child: const MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.purple),
+      home: const CatatanPage(),
+    );
+  }
+}
+
+class CatatanPage extends StatelessWidget {
+  const CatatanPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final nim = context.watch&lt;AuthProvider&gt;().nim;
+    final catatan = context.watch&lt;CatatanProvider&gt;().catatan;
+
+    return Scaffold(
+      appBar: AppBar(title: Text('Catatan milik: ${nim ?? '-'}')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                for (final n in ['H1D023001', 'H1D023002'])
+                  ChoiceChip(
+                    label: Text(n),
+                    selected: nim == n,
+                    onSelected: (_) =&gt; context.read&lt;AuthProvider&gt;().loginSebagai(n),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              children: [for (final c in catatan) ListTile(title: Text(c))],
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.add),
+        label: const Text('Tambah Catatan'),
+        onPressed: nim == null
+            ? null
+            : () {
+                final prov = context.read&lt;CatatanProvider&gt;();
+                prov.tambah('Catatan ke-${prov.catatan.length + 1}');
+              },
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/proxy-a.jpg" alt="Catatan milik H1D023001" loading="lazy">
+    <div class="screenshot-caption">Catatan milik H1D023001</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/proxy-b.jpg" alt="Ganti pengguna: CatatanProvider ikut diperbarui" loading="lazy">
+    <div class="screenshot-caption">Ganti pengguna: CatatanProvider ikut diperbarui</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>AuthProvider</code> wajib didaftarkan <strong>sebelum</strong> ProxyProvider yang membutuhkannya.</li>
+  <li><code>update</code> menerima objek <code>CatatanProvider</code> yang sudah ada (<code>catatan!</code>) dan hanya memperbarui NIM-nya. Objek tidak dibuat ulang, jadi catatan yang tersimpan tidak hilang.</li>
+  <li>Di <code>perbaruiPengguna</code>, <code>if (nim == _nimAktif) return;</code> mencegah notify yang tidak perlu.</li>
+  <li>Pilih NIM pertama, tambah dua catatan, lalu pilih NIM kedua: daftar kosong. Kembali ke NIM pertama: dua catatan muncul lagi.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Seberapa sering dipakai?</h4><p>Untuk proyek kuliah, ProxyProvider jarang wajib. Alternatif yang lebih sederhana: panggil <code>context.read&lt;CatatanProvider&gt;().perbaruiPengguna(nim)</code> tepat setelah login berhasil. Namun mengenal ProxyProvider membantu saat membaca kode proyek orang lain.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Membuat objek baru di <code>update</code>: <code>update: (_, auth, __) =&gt; CatatanProvider()</code>. Semua data hilang setiap kali auth berubah.</li>
+  <li>Urutan provider terbalik (ProxyProvider di atas AuthProvider) sehingga muncul ProviderNotFoundException.</li>
+</ul>
+</div>

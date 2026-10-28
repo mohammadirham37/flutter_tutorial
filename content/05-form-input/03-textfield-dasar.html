@@ -1,0 +1,209 @@
+<p class="lead"><code>TextField</code> adalah kotak tempat pengguna mengetik teks. Tampilannya (label, ikon, garis tepi, pesan error) diatur oleh satu objek bernama <code>InputDecoration</code>.</p>
+
+<h4>Konsep</h4>
+<ul>
+  <li><code>TextField</code> mengurus <em>perilaku</em>: menerima ketikan, menampilkan kursor, membuka keyboard.</li>
+  <li><code>InputDecoration</code> mengurus <em>tampilan</em>: <code>labelText</code>, <code>hintText</code>, <code>prefixIcon</code>, <code>suffixIcon</code>, <code>helperText</code>, <code>errorText</code>, <code>border</code>, dan lain-lain.</li>
+  <li>Untuk membaca isi teks, cara paling sederhana adalah <code>onChanged</code>: fungsi yang dipanggil setiap kali isi berubah. Cara yang lebih lengkap (controller) dibahas di section berikutnya.</li>
+</ul>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">// Versi paling sederhana
+const TextField(),
+
+// Dengan label, petunjuk, dan ikon
+TextField(
+  decoration: const InputDecoration(
+    labelText: 'Nama Lengkap',        // label yang naik ke atas saat fokus
+    hintText: 'Contoh: Nadia Putri',  // teks samar saat kosong
+    prefixIcon: Icon(Icons.person),   // ikon di kiri
+    border: OutlineInputBorder(),     // kotak bergaris
+  ),
+  onChanged: (teks) =&gt; debugPrint('Diketik: $teks'),
+),
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/textfield-kecil.jpg" alt="TextField polos (atas) dan TextField dengan label, hint, ikon, serta kotak garis" loading="lazy">
+    <div class="screenshot-caption">TextField polos (atas) dan TextField dengan label, hint, ikon, serta kotak garis</div>
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Properti InputDecoration</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>labelText</code></td><td>Label di dalam kotak, naik ke atas saat field fokus atau berisi</td></tr>
+      <tr><td><code>hintText</code></td><td>Contoh isian yang tampil samar saat kosong</td></tr>
+      <tr><td><code>helperText</code></td><td>Teks bantuan kecil di bawah field</td></tr>
+      <tr><td><code>errorText</code></td><td>Pesan error merah di bawah field (garis ikut merah)</td></tr>
+      <tr><td><code>prefixIcon</code> / <code>suffixIcon</code></td><td>Ikon di kiri / kanan</td></tr>
+      <tr><td><code>prefixText</code> / <code>suffixText</code></td><td>Teks tetap di kiri / kanan, misalnya "Rp" atau "kg"</td></tr>
+      <tr><td><code>border</code></td><td><code>UnderlineInputBorder()</code> (bawaan) atau <code>OutlineInputBorder()</code></td></tr>
+      <tr><td><code>filled</code> + <code>fillColor</code></td><td>Memberi warna latar pada field</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh lengkap: katalog gaya TextField</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const KatalogTextFieldScreen(),
+    );
+  }
+}
+
+class KatalogTextFieldScreen extends StatefulWidget {
+  const KatalogTextFieldScreen({super.key});
+
+  @override
+  State&lt;KatalogTextFieldScreen&gt; createState() =&gt; _KatalogTextFieldScreenState();
+}
+
+class _KatalogTextFieldScreenState extends State&lt;KatalogTextFieldScreen&gt; {
+  String _nama = '';
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Katalog TextField')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // 1. Gaya garis bawah (bawaan)
+          const TextField(
+            decoration: InputDecoration(labelText: '1. Gaya bawaan (garis bawah)'),
+          ),
+          const SizedBox(height: 16),
+
+          // 2. Gaya kotak + onChanged untuk membaca teks secara langsung
+          TextField(
+            decoration: const InputDecoration(
+              labelText: '2. Nama Panggilan',
+              hintText: 'Ketik nama panggilanmu',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (value) =&gt; setState(() =&gt; _nama = value),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 12),
+            child: Text('Halo, ${_nama.isEmpty ? '...' : _nama}!'),
+          ),
+          const SizedBox(height: 16),
+
+          // 3. Latar terisi (filled) + ikon depan dan belakang
+          const TextField(
+            decoration: InputDecoration(
+              labelText: '3. Email Kampus',
+              prefixIcon: Icon(Icons.email_outlined),
+              suffixIcon: Icon(Icons.check_circle_outline),
+              filled: true,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 4. Teks bantuan + batas karakter (counter otomatis muncul)
+          const TextField(
+            maxLength: 12,
+            decoration: InputDecoration(
+              labelText: '4. NIM',
+              helperText: 'Lihat di Kartu Tanda Mahasiswa',
+              prefixText: 'H1D',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 5. Multi-baris untuk teks panjang
+          const TextField(
+            minLines: 3,
+            maxLines: 5,
+            decoration: InputDecoration(
+              labelText: '5. Alamat Kos',
+              alignLabelWithHint: true,
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 6. Tampilan error manual (tanpa Form)
+          const TextField(
+            decoration: InputDecoration(
+              labelText: '6. Contoh Error',
+              errorText: 'Field ini wajib diisi',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 7. Nonaktif dan hanya-baca
+          const TextField(
+            enabled: false,
+            decoration: InputDecoration(
+              labelText: '7. Fakultas (tidak bisa diubah)',
+              hintText: 'Fakultas Teknik',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 8. Sudut membulat + warna garis saat fokus
+          TextField(
+            decoration: InputDecoration(
+              labelText: '8. Cari mata kuliah',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: const BorderSide(color: Colors.orange, width: 2),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/textfield-katalog.jpg" alt="Bagian atas katalog TextField" loading="lazy">
+    <div class="screenshot-caption">Bagian atas katalog TextField</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/05-form-input/textfield-katalog-ketik.jpg" alt="Setelah mengetik "Budi" di field nomor 2" loading="lazy">
+    <div class="screenshot-caption">Setelah mengetik "Budi" di field nomor 2</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><strong>Field 2</strong> memakai <code>onChanged</code> untuk menyimpan teks ke <code>_nama</code> lalu memanggil <code>setState</code>, sehingga sapaan di bawahnya ikut berubah setiap huruf diketik.</li>
+  <li><strong>Field 4</strong> memakai <code>maxLength: 12</code>. Flutter otomatis menampilkan penghitung "0/12" dan menolak huruf ke-13.</li>
+  <li><strong>Field 5</strong> memakai <code>minLines</code> dan <code>maxLines</code> sehingga kotak setinggi 3 baris dan bisa membesar sampai 5 baris. <code>alignLabelWithHint: true</code> membuat label sejajar di atas, bukan di tengah.</li>
+  <li><strong>Field 6</strong> menampilkan error secara manual dengan <code>errorText</code>. Pada form sungguhan, error lebih mudah diatur dengan <code>Form</code> dan <code>validator</code> (section 6).</li>
+  <li><strong>Field 8</strong> membedakan garis saat normal (<code>border</code>) dan saat fokus (<code>focusedBorder</code>).</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Tema global</h4><p>Agar semua TextField di aplikasi otomatis memakai kotak garis, atur sekali di tema: <code>ThemeData(inputDecorationTheme: const InputDecorationThemeData(border: OutlineInputBorder()))</code>. Dengan begitu kita tidak perlu menulis <code>border:</code> di setiap field.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Error "InputDecorator ... unbounded width".</strong> Terjadi saat TextField diletakkan langsung di dalam <code>Row</code>. Bungkus dengan <code>Expanded</code> atau beri lebar dengan <code>SizedBox</code>.</li>
+  <li><strong>Error "No Material widget found".</strong> TextField harus berada di bawah <code>Scaffold</code> atau <code>Material</code>.</li>
+  <li><strong>Keyboard menutupi field di bagian bawah layar.</strong> Pakai <code>ListView</code> atau <code>SingleChildScrollView</code> sebagai pembungkus agar halaman bisa digulir.</li>
+</ul></div>

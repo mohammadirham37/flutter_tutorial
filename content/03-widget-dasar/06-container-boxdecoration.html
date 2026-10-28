@@ -1,0 +1,348 @@
+<p class="lead"><strong><code>Container</code></strong> adalah "kotak serbaguna". Satu widget ini bisa mengatur ukuran (<code>width</code>, <code>height</code>), jarak dalam (<code>padding</code>), jarak luar (<code>margin</code>), posisi anak (<code>alignment</code>), dan dekorasi (<code>decoration</code>: warna, sudut membulat, border, bayangan, gradasi).</p>
+
+<h4>Contoh kecil: kotak berwarna</h4>
+<pre><code class="language-dart">Container(
+  width: 200,
+  height: 100,
+  color: Colors.amber,
+  alignment: Alignment.center,
+  child: const Text('Saya di dalam Container'),
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/container-boxdecoration-1.jpg" alt="Container kuning 200 x 100 dengan teks di tengah" loading="lazy">
+    <div class="screenshot-caption">Container kuning 200 x 100 dengan teks di tengah</div>
+  </div>
+</div>
+
+<h4>Padding vs margin</h4>
+<pre><code class="language-text">┌──────────────── margin (jarak ke luar) ───────────────┐
+│  ┌───────────── batas Container (warna) ───────────┐  │
+│  │   padding (jarak ke dalam)                      │  │
+│  │      ┌──────── child ────────┐                  │  │
+│  │      │  Text('Halo')         │                  │  │
+│  │      └───────────────────────┘                  │  │
+│  └─────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────┘
+</code></pre>
+<p><code>EdgeInsets</code> dipakai untuk keduanya: <code>EdgeInsets.all(16)</code> (semua sisi), <code>EdgeInsets.symmetric(horizontal: 16, vertical: 8)</code>, dan <code>EdgeInsets.only(left: 8, top: 4)</code>.</p>
+
+<h4>BoxDecoration: menghias kotak</h4>
+<pre><code class="language-dart">Container(
+  padding: const EdgeInsets.all(16),
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(12),          // sudut membulat
+    border: Border.all(color: Colors.indigo, width: 2), // garis tepi
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.15),  // bayangan transparan
+        blurRadius: 8,
+        offset: const Offset(0, 4),                   // geser ke bawah 4px
+      ),
+    ],
+  ),
+  child: const Text('Kotak dengan dekorasi'),
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/container-boxdecoration-2.jpg" alt="BoxDecoration: border, sudut membulat, bayangan" loading="lazy">
+    <div class="screenshot-caption">BoxDecoration: border, sudut membulat, bayangan</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: galeri dekorasi Container</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const GaleriContainer(),
+    );
+  }
+}
+
+class GaleriContainer extends StatelessWidget {
+  const GaleriContainer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Galeri Container')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // 1. Warna polos + ukuran tetap
+          Container(
+            height: 80,
+            color: Colors.indigo.shade100,
+            alignment: Alignment.center,
+            child: const Text('1. Warna polos'),
+          ),
+          const SizedBox(height: 16),
+
+          // 2. Sudut membulat + border
+          Container(
+            height: 80,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.indigo, width: 2),
+            ),
+            child: const Text('2. Border + sudut membulat'),
+          ),
+          const SizedBox(height: 16),
+
+          // 3. Bayangan
+          Container(
+            height: 80,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: const Text('3. Bayangan (boxShadow)'),
+          ),
+          const SizedBox(height: 16),
+
+          // 4. Gradasi warna
+          Container(
+            height: 80,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.pink],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Text('4. LinearGradient', style: TextStyle(color: Colors.white)),
+          ),
+          const SizedBox(height: 16),
+
+          // 5. Lingkaran
+          Center(
+            child: Container(
+              width: 100,
+              height: 100,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Colors.teal,
+                shape: BoxShape.circle, // jangan dipakai bersama borderRadius
+              ),
+              child: const Text('5. Bulat', style: TextStyle(color: Colors.white)),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 6. Border hanya di sisi kiri (gaya kartu pengumuman)
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              border: const Border(
+                left: BorderSide(color: Colors.amber, width: 6),
+              ),
+            ),
+            child: const Text('6. Pengumuman: UTS dimulai 3 November.'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/container-boxdecoration-3.jpg" alt="Galeri dekorasi Container" loading="lazy">
+    <div class="screenshot-caption">Galeri dekorasi Container</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><code>alignment: Alignment.center</code> menaruh <code>child</code> di tengah kotak.</li>
+  <li><code>Colors.indigo.shade100</code> adalah tingkat terang warna (50, 100, ... 900).</li>
+  <li><code>withValues(alpha: 0.2)</code> membuat warna 20% tidak transparan. Ini pengganti <code>withOpacity</code> yang sudah usang.</li>
+  <li><code>BoxShape.circle</code> membuat kotak menjadi lingkaran; ukurannya sebaiknya persegi (lebar = tinggi).</li>
+  <li><code>Border(left: BorderSide(...))</code> membuat garis hanya di satu sisi.</li>
+</ul>
+
+<h4>Studi kasus: Kartu Tanda Mahasiswa</h4>
+<p>Berikut implementasi kode kartu mahasiswa yang memadukan <code>Container</code>, <code>BoxDecoration</code>, <code>Text</code>, <code>Icon</code>, dan <code>SizedBox</code>:</p>
+
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Kartu Mahasiswa',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: Scaffold(
+        appBar: AppBar(title: const Text("Kartu Tanda Mahasiswa")),
+        body: const Column(
+          children: [
+            SizedBox(height: 16),
+            KartuMahasiswaWidget(
+              nama: "Nadia Putri",
+              nim: "21102001",
+              jurusan: "S1 Informatika",
+            ),
+            KartuMahasiswaWidget(
+              nama: "Fikri Ramadhan",
+              nim: "21102045",
+              jurusan: "S1 Sistem Informasi",
+              isAktif: false,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class KartuMahasiswaWidget extends StatelessWidget {
+  final String nama;
+  final String nim;
+  final String jurusan;
+  final bool isAktif;
+
+  const KartuMahasiswaWidget({
+    super.key,
+    required this.nama,
+    required this.nim,
+    required this.jurusan,
+    this.isAktif = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)], // Gradasi Biru Kampus
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            // withValues menggantikan withOpacity yang sudah deprecated
+            color: Colors.blue.withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Flexible mencegah overflow jika layar HP sempit
+              const Flexible(
+                child: Text(
+                  "KARTU TANDA MAHASISWA",
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    letterSpacing: 1.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Icon(
+                isAktif ? Icons.verified : Icons.cancel,
+                color: isAktif ? Colors.greenAccent : Colors.redAccent,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            nama,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "NIM: $nim",
+            style: const TextStyle(
+              color: Colors.white,
+              fontFamily: 'monospace',
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            jurusan,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/container-boxdecoration-4.jpg" alt="Studi kasus Kartu Tanda Mahasiswa (aktif dan tidak aktif)" loading="lazy">
+    <div class="screenshot-caption">Studi kasus Kartu Tanda Mahasiswa (aktif dan tidak aktif)</div>
+  </div>
+</div>
+
+<h4>Penjelasan studi kasus</h4>
+<ul>
+  <li><code>KartuMahasiswaWidget</code> menerima data lewat konstruktor (<code>nama</code>, <code>nim</code>, <code>jurusan</code>, <code>isAktif</code>), sehingga satu class bisa dipakai untuk banyak mahasiswa.</li>
+  <li><code>width: double.infinity</code> membuat kartu selebar mungkin sesuai ruang dari induknya.</li>
+  <li>Ikon berubah berdasarkan <code>isAktif</code> memakai operator ternary <code>kondisi ? a : b</code>.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Memakai <code>color</code> dan <code>decoration</code> bersamaan.</strong> Ini menimbulkan error <em>"Cannot provide both a color and a decoration"</em>. Jika memakai <code>decoration</code>, pindahkan warna ke <code>BoxDecoration(color: ...)</code>.</li>
+  <li><strong><code>shape: BoxShape.circle</code> + <code>borderRadius</code></strong> sekaligus akan error. Pilih salah satu.</li>
+  <li><strong>Memakai Container hanya untuk jarak.</strong> Jika hanya butuh jarak, <code>SizedBox</code> atau <code>Padding</code> lebih ringan dan lebih jelas maksudnya (dibahas di section berikutnya).</li>
+</ul></div>

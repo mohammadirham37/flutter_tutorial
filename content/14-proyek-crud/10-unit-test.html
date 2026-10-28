@@ -1,0 +1,233 @@
+<p class="lead">Logika paling penting di proyek ini adalah <em>fallback</em> offline di <code>NoteRepository</code> dan cache Hive. Logika seperti ini sulit diuji secara manual (harus menyalakan/mematikan internet berulang kali), tetapi mudah diuji dengan unit test karena repository tidak bergantung pada UI.</p>
+
+<h4>Ide utama: ganti Supabase dengan "server palsu"</h4>
+<p>Kita membuat <code>FakeRemoteDataSource</code> yang <code>implements NoteRemoteDataSource</code>. Class ini menyimpan data di List biasa dan bisa diperintah untuk melempar error (misalnya <code>SocketException</code>) agar seolah-olah offline. Hive asli tetap dipakai, tetapi diarahkan ke folder sementara dengan <code>Hive.init(path)</code>.</p>
+
+<h4>File: <code>test/note_local_data_source_test.dart</code></h4>
+<p class="code-file-label">📄 <code>test/note_local_data_source_test.dart</code></p>
+<pre><code class="language-dart">import 'dart:io';
+
+import 'package:catatan_kuliah/data/note_local_data_source.dart';
+import 'package:catatan_kuliah/models/note.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive_ce.dart';
+
+Note buatNote(String id, {String title = 'Judul', int hari = 1}) {
+  final waktu = DateTime.utc(2026, 10, hari);
+  return Note(
+    id: id,
+    userId: 'user-1',
+    title: title,
+    content: 'Isi $title',
+    category: 'Kuliah',
+    createdAt: waktu,
+    updatedAt: waktu,
+  );
+}
+
+void main() {
+  late Directory tempDir;
+  late NoteLocalDataSource local;
+
+  setUp(() async {
+    // Hive.init (bukan initFlutter) karena test berjalan tanpa plugin Flutter.
+    tempDir = await Directory.systemTemp.createTemp('hive_test_');
+    Hive.init(tempDir.path);
+    local = await NoteLocalDataSource.open();
+  });
+
+  tearDown(() async {
+    await Hive.deleteFromDisk();
+    await tempDir.delete(recursive: true);
+  });
+
+  test('saveNotes lalu getNotes mengembalikan data urut terbaru', () async {
+    await local.saveNotes([
+      buatNote('a', title: 'Lama', hari: 1),
+      buatNote('b', title: 'Baru', hari: 5),
+    ]);
+
+    final notes = local.getNotes();
+
+    expect(notes.map((n) =&gt; n.id), ['b', 'a']);
+    expect(notes.first.title, 'Baru');
+  });
+
+  test('saveNotes mengganti seluruh isi cache', () async {
+    await local.saveNotes([buatNote('a'), buatNote('b')]);
+    await local.saveNotes([buatNote('c')]);
+
+    expect(local.getNotes().map((n) =&gt; n.id), ['c']);
+  });
+
+  test('saveNote, deleteNote, dan clear', () async {
+    await local.saveNote(buatNote('a'));
+    await local.saveNote(buatNote('a', title: 'Diubah'));
+    expect(local.getNotes().single.title, 'Diubah');
+
+    await local.saveNote(buatNote('b'));
+    await local.deleteNote('a');
+    expect(local.getNotes().map((n) =&gt; n.id), ['b']);
+
+    await local.clear();
+    expect(local.getNotes(), isEmpty);
+  });
+}
+</code></pre>
+
+<h4>File: <code>test/note_repository_test.dart</code></h4>
+<p class="code-file-label">📄 <code>test/note_repository_test.dart</code></p>
+<pre><code class="language-dart">import 'dart:io';
+
+import 'package:catatan_kuliah/data/note_local_data_source.dart';
+import 'package:catatan_kuliah/data/note_remote_data_source.dart';
+import 'package:catatan_kuliah/data/note_repository.dart';
+import 'package:catatan_kuliah/models/note.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive_ce.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+Note buatNote(String id, {String title = 'Judul'}) {
+  final waktu = DateTime.utc(2026, 10, 1);
+  return Note(
+    id: id,
+    userId: 'user-1',
+    title: title,
+    content: 'Isi $title',
+    category: 'Kuliah',
+    createdAt: waktu,
+    updatedAt: waktu,
+  );
+}
+
+/// Pengganti Supabase untuk test. `implements` membuat kita wajib
+/// menulis ulang semua method, sehingga tidak ada request jaringan sungguhan.
+class FakeRemoteDataSource implements NoteRemoteDataSource {
+  List&lt;Note&gt; serverNotes = [];
+  Object? errorToThrow; // jika diisi, setiap method melempar error ini
+
+  void _maybeThrow() {
+    final error = errorToThrow;
+    if (error != null) throw error;
+  }
+
+  @override
+  Future&lt;List&lt;Note&gt;&gt; fetchNotes() async {
+    _maybeThrow();
+    return serverNotes;
+  }
+
+  @override
+  Future&lt;Note&gt; createNote({
+    required String title,
+    required String content,
+    required String category,
+  }) async {
+    _maybeThrow();
+    final note = buatNote('baru', title: title);
+    serverNotes.add(note);
+    return note;
+  }
+
+  @override
+  Future&lt;Note&gt; updateNote(Note note) async {
+    _maybeThrow();
+    return note;
+  }
+
+  @override
+  Future&lt;void&gt; deleteNote(String id) async {
+    _maybeThrow();
+    serverNotes.removeWhere((n) =&gt; n.id == id);
+  }
+}
+
+void main() {
+  late Directory tempDir;
+  late NoteLocalDataSource local;
+  late FakeRemoteDataSource remote;
+  late NoteRepository repository;
+
+  setUp(() async {
+    tempDir = await Directory.systemTemp.createTemp('repo_test_');
+    Hive.init(tempDir.path);
+    local = await NoteLocalDataSource.open();
+    remote = FakeRemoteDataSource();
+    repository = NoteRepository(remote: remote, local: local);
+  });
+
+  tearDown(() async {
+    await Hive.deleteFromDisk();
+    await tempDir.delete(recursive: true);
+  });
+
+  test('online: data server dikembalikan dan disimpan ke cache', () async {
+    remote.serverNotes = [buatNote('1'), buatNote('2')];
+
+    final result = await repository.getNotes();
+
+    expect(result.fromCache, isFalse);
+    expect(result.notes, hasLength(2));
+    expect(local.getNotes(), hasLength(2));
+  });
+
+  test('offline: jika jaringan gagal, data diambil dari cache', () async {
+    await local.saveNotes([buatNote('cache-1', title: 'Dari Hive')]);
+    remote.errorToThrow = const SocketException('Tidak ada internet');
+
+    final result = await repository.getNotes();
+
+    expect(result.fromCache, isTrue);
+    expect(result.notes.single.title, 'Dari Hive');
+  });
+
+  test('error dari server (PostgrestException) tidak disembunyikan', () async {
+    remote.errorToThrow = const PostgrestException(
+      message: 'permission denied',
+      code: '42501',
+    );
+
+    expect(repository.getNotes(), throwsA(isA&lt;PostgrestException&gt;()));
+  });
+
+  test('addNote dan deleteNote ikut memperbarui cache', () async {
+    final note = await repository.addNote(
+      title: 'Basis Data',
+      content: 'Normalisasi',
+      category: 'Kuliah',
+    );
+    expect(local.getNotes().single.id, note.id);
+
+    await repository.deleteNote(note.id);
+    expect(local.getNotes(), isEmpty);
+  });
+
+  test('deleteNote gagal: cache tidak berubah', () async {
+    await local.saveNotes([buatNote('1')]);
+    remote.errorToThrow = const SocketException('offline');
+
+    await expectLater(
+      repository.deleteNote('1'),
+      throwsA(isA&lt;SocketException&gt;()),
+    );
+    expect(local.getNotes(), hasLength(1));
+  });
+}
+</code></pre>
+
+<h4>Penjelasan</h4>
+<ul>
+  <li><strong><code>setUp</code>/<code>tearDown</code></strong> dijalankan sebelum/sesudah <em>setiap</em> test: buat folder sementara, <code>Hive.init</code>, buka box, lalu hapus semuanya. Setiap test mulai dari kondisi bersih.</li>
+  <li><strong><code>Hive.init(tempDir.path)</code></strong> dipakai, bukan <code>Hive.initFlutter()</code>, karena di unit test tidak ada plugin <code>path_provider</code>.</li>
+  <li><strong>Test "offline"</strong> adalah inti modul ini: cache diisi, server dibuat gagal dengan <code>SocketException</code>, lalu kita pastikan <code>fromCache</code> bernilai <code>true</code> dan data cache yang dikembalikan.</li>
+  <li><strong>Test PostgrestException</strong> memastikan error RLS <em>tidak</em> disembunyikan oleh cache.</li>
+  <li><strong><code>expectLater(future, throwsA(...))</code></strong> menunggu Future selesai lalu memeriksa exception-nya.</li>
+</ul>
+
+<h4>Jalankan</h4>
+<pre><code class="language-bash">flutter test
+</code></pre>
+<p>Hasil yang diharapkan:</p>
+<pre><code class="language-text">00:01 +8: All tests passed!
+</code></pre>
+<div class="callout callout-info"><h4>ℹ️ Kenapa tidak ada widget test bawaan?</h4><p><code>flutter create</code> membuat <code>test/widget_test.dart</code> untuk aplikasi counter. File itu tidak relevan lagi dan akan gagal, jadi hapus saja. Widget test untuk layar Login/Home dibahas di modul Testing.</p></div>

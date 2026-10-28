@@ -1,0 +1,177 @@
+<p class="lead">Navigasi di Flutter bekerja seperti <strong>Tumpukan Piring (Stack - LIFO)</strong>. Saat pengguna membuka halaman baru, halaman tersebut diletakkan di atas tumpukan (<code>push</code>). Saat tombol kembali ditekan, halaman paling atas diambil dan disingkirkan (<code>pop</code>).</p>
+
+<p>Yang mengatur tumpukan ini adalah widget <code>Navigator</code>. Kita tidak perlu membuatnya sendiri: <code>MaterialApp</code> sudah menyediakan satu <code>Navigator</code> untuk seluruh aplikasi. Setiap "halaman" di dalam tumpukan disebut <strong>route</strong> (rute).</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead>
+      <tr>
+        <th>Operasi</th>
+        <th>Metode Flutter</th>
+        <th>Efek pada Tumpukan</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Masuk Halaman Baru</strong></td>
+        <td><code>Navigator.push(context, route)</code></td>
+        <td>Menambahkan halaman baru di puncak stack. Layar sebelumnya masih hidup di bawahnya.</td>
+      </tr>
+      <tr>
+        <td><strong>Kembali</strong></td>
+        <td><code>Navigator.pop(context, [result])</code></td>
+        <td>Menghapus halaman paling atas. Mengembalikan kontrol ke layar di bawahnya.</td>
+      </tr>
+      <tr>
+        <td><strong>Ganti Halaman (Replace)</strong></td>
+        <td><code>Navigator.pushReplacement(context, route)</code></td>
+        <td>Menghancurkan halaman saat ini dan menggantinya dengan yang baru (Contoh: dari Layar Login ke Layar Utama).</td>
+      </tr>
+      <tr>
+        <td><strong>Bersihkan Seluruh Stack</strong></td>
+        <td><code>Navigator.pushAndRemoveUntil(...)</code></td>
+        <td>Menghapus seluruh riwayat layar masa lalu (Contoh: Logout kembali ke Login).</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Ilustrasi tumpukan</h4>
+<pre><code class="language-text">Awal aplikasi        Setelah push(Tentang)     Setelah pop()
++-----------+        +-----------+             +-----------+
+|  Beranda  |        |  Tentang  |  &lt;- atas    |  Beranda  |
++-----------+        +-----------+             +-----------+
+                     |  Beranda  |
+                     +-----------+
+</code></pre>
+
+<h4>Contoh kecil: push dan pop</h4>
+<p>Dua baris ini adalah inti navigasi. Baris pertama dipanggil di halaman asal, baris kedua di halaman tujuan.</p>
+<pre><code class="language-dart">// MASUK ke halaman baru (push = taruh di atas tumpukan)
+Navigator.push(
+  context,
+  MaterialPageRoute(builder: (context) =&gt; const HalamanB()),
+);
+
+// KEMBALI ke halaman sebelumnya (pop = ambil halaman teratas)
+Navigator.pop(context);
+</code></pre>
+
+<ul>
+  <li><code>context</code> dipakai untuk mencari <code>Navigator</code> terdekat di atas widget ini.</li>
+  <li><code>MaterialPageRoute</code> membungkus halaman tujuan dan memberi animasi transisi standar (dibahas di section berikutnya).</li>
+  <li><code>Navigator.pop(context)</code> tidak perlu tahu halaman mana yang ada di bawahnya. Ia cukup membuang halaman teratas.</li>
+</ul>
+
+<h4>Contoh lengkap: Beranda dan Tentang</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const BerandaScreen(),
+    );
+  }
+}
+
+// --- HALAMAN 1 (paling bawah di tumpukan) ---
+class BerandaScreen extends StatelessWidget {
+  const BerandaScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Beranda')),
+      body: Center(
+        child: FilledButton.icon(
+          icon: const Icon(Icons.info_outline),
+          label: const Text('Buka Halaman Tentang'),
+          onPressed: () {
+            // push: TentangScreen diletakkan DI ATAS BerandaScreen
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) =&gt; const TentangScreen()),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// --- HALAMAN 2 ---
+class TentangScreen extends StatelessWidget {
+  const TentangScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // AppBar otomatis menampilkan tombol panah kembali (←)
+      // karena ada halaman lain di bawah tumpukan.
+      appBar: AppBar(title: const Text('Tentang Aplikasi')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Portal Akademik v1.0'),
+            const SizedBox(height: 16),
+            OutlinedButton(
+              // pop: buang halaman teratas, kembali ke Beranda
+              onPressed: () =&gt; Navigator.pop(context),
+              child: const Text('Kembali ke Beranda'),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              // push lagi: tumpukan menjadi Beranda -&gt; Tentang -&gt; Tentang
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) =&gt; const TentangScreen()),
+                );
+              },
+              child: const Text('Push Tentang sekali lagi'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/pushpop-beranda.jpg" alt="Halaman pertama: Beranda" loading="lazy">
+    <div class="screenshot-caption">Halaman pertama: Beranda</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/pushpop-tentang.jpg" alt="Setelah push: Tentang di atas Beranda (ada panah kembali)" loading="lazy">
+    <div class="screenshot-caption">Setelah push: Tentang di atas Beranda (ada panah kembali)</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>home: const BerandaScreen()</code> menjadi route pertama (paling bawah) di tumpukan.</li>
+  <li>Di <code>TentangScreen</code>, <code>AppBar</code> otomatis menampilkan tombol panah kembali. Tombol itu memanggil <code>Navigator.maybePop</code> untuk kita.</li>
+  <li>Tombol "Push Tentang sekali lagi" sengaja dibuat untuk membuktikan bahwa halaman yang sama boleh ada dua kali di tumpukan. Tekan back dua kali untuk kembali ke Beranda.</li>
+  <li>Tombol back fisik/gestur di Android juga melakukan <code>pop</code>.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Memanggil <code>pop</code> di halaman pertama.</strong> Jika tumpukan tinggal satu route, <code>Navigator.pop</code> membuat layar hitam (tidak ada halaman tersisa). Gunakan <code>Navigator.canPop(context)</code> untuk mengecek, atau <code>Navigator.maybePop(context)</code> yang aman.</li>
+  <li><strong>Memanggil <code>Navigator.push</code> langsung di dalam <code>build()</code>.</strong> Navigasi harus dipicu oleh aksi (tombol, timer, hasil login), bukan setiap kali widget di-render.</li>
+  <li><strong>Memakai <code>context</code> milik <code>MyApp</code> (di atas <code>MaterialApp</code>).</strong> Context tersebut belum punya <code>Navigator</code>, sehingga muncul error <em>"Navigator operation requested with a context that does not include a Navigator"</em>. Lakukan navigasi dari widget halaman (di bawah <code>MaterialApp</code>).</li>
+</ul>
+</div>

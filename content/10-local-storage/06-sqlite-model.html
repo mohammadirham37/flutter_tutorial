@@ -1,0 +1,128 @@
+<p class="lead">Seperti di Modul 09 (JSON), data dari database sebaiknya tidak dipakai sebagai <code>Map</code> mentah. Kita buat <strong>model</strong> dengan dua method: <code>toMap()</code> untuk menyimpan ke tabel dan <code>fromMap()</code> untuk membaca dari tabel.</p>
+
+<h4>Konsep: Konversi Tipe</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Field Dart</th><th>Kolom SQLite</th><th><code>toMap()</code></th><th><code>fromMap()</code></th></tr></thead>
+    <tbody>
+      <tr><td><code>int? id</code></td><td><code>INTEGER PRIMARY KEY</code></td><td>tidak ditulis jika null (dibuat otomatis)</td><td><code>map['id'] as int?</code></td></tr>
+      <tr><td><code>bool isSelesai</code></td><td><code>INTEGER</code></td><td><code>isSelesai ? 1 : 0</code></td><td><code>map['isSelesai'] == 1</code></td></tr>
+      <tr><td><code>DateTime tenggat</code></td><td><code>TEXT</code></td><td><code>tenggat.toIso8601String()</code></td><td><code>DateTime.parse(...)</code></td></tr>
+      <tr><td><code>double ipk</code></td><td><code>REAL</code></td><td>langsung</td><td><code>(map['ipk'] as num).toDouble()</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh Kecil</h4>
+<pre><code class="language-dart">class Matkul {
+  final int? id;
+  final String nama;
+  final int sks;
+
+  const Matkul({this.id, required this.nama, required this.sks});
+
+  Map&lt;String, Object?&gt; toMap() =&gt; {
+        if (id != null) 'id': id,
+        'nama': nama,
+        'sks': sks,
+      };
+
+  factory Matkul.fromMap(Map&lt;String, Object?&gt; map) =&gt; Matkul(
+        id: map['id'] as int?,
+        nama: map['nama'] as String,
+        sks: map['sks'] as int,
+      );
+}
+</code></pre>
+
+<h4>Model Lengkap: Tugas Kuliah</h4>
+<p>Model ini dipakai di section CRUD berikutnya. Nama kunci Map harus <strong>sama persis</strong> dengan nama kolom tabel.</p>
+<p class="code-file-label">📄 <code>lib/models/tugas.dart</code></p>
+<pre><code class="language-dart">class Tugas {
+  final int? id;
+  final String judul;
+  final String matkul;
+  final DateTime tenggat;
+  final bool isSelesai;
+
+  const Tugas({
+    this.id,
+    required this.judul,
+    required this.matkul,
+    required this.tenggat,
+    this.isSelesai = false,
+  });
+
+  /// Dart -&gt; baris tabel
+  Map&lt;String, Object?&gt; toMap() {
+    return {
+      if (id != null) 'id': id,
+      'judul': judul,
+      'matkul': matkul,
+      'tenggat': tenggat.toIso8601String(), // DateTime -&gt; TEXT
+      'isSelesai': isSelesai ? 1 : 0, // bool -&gt; INTEGER
+    };
+  }
+
+  /// Baris tabel -&gt; Dart
+  factory Tugas.fromMap(Map&lt;String, Object?&gt; map) {
+    return Tugas(
+      id: map['id'] as int?,
+      judul: map['judul'] as String,
+      matkul: map['matkul'] as String,
+      tenggat: DateTime.parse(map['tenggat'] as String),
+      isSelesai: map['isSelesai'] == 1,
+    );
+  }
+
+  Tugas copyWith({int? id, String? judul, String? matkul, DateTime? tenggat, bool? isSelesai}) {
+    return Tugas(
+      id: id ?? this.id,
+      judul: judul ?? this.judul,
+      matkul: matkul ?? this.matkul,
+      tenggat: tenggat ?? this.tenggat,
+      isSelesai: isSelesai ?? this.isSelesai,
+    );
+  }
+
+  /// Sisa hari menuju tenggat (negatif berarti terlambat)
+  int get sisaHari =&gt; tenggat.difference(DateTime.now()).inDays;
+
+  @override
+  String toString() =&gt; 'Tugas(id: $id, judul: $judul, selesai: $isSelesai)';
+}
+</code></pre>
+
+<h4>Mencoba Konversi Tanpa Database</h4>
+<p class="code-file-label">📄 <code>lib/contoh_tugas.dart</code></p>
+<pre><code class="language-dart">// Jalankan dengan: dart run lib/contoh_tugas.dart
+import 'models/tugas.dart';
+
+void main() {
+  final tugas = Tugas(
+    judul: 'Laporan Praktikum 10',
+    matkul: 'Pemrograman Mobile',
+    tenggat: DateTime(2026, 11, 20, 23, 59),
+  );
+
+  final map = tugas.toMap();
+  print(map);
+  // {judul: Laporan Praktikum 10, matkul: Pemrograman Mobile,
+  //  tenggat: 2026-11-20T23:59:00.000, isSelesai: 0}
+
+  // Seolah-olah baris ini dibaca dari database (sudah punya id)
+  final dariDb = Tugas.fromMap({...map, 'id': 7, 'isSelesai': 1});
+  print(dariDb); // Tugas(id: 7, judul: Laporan Praktikum 10, selesai: true)
+  print(dariDb.tenggat.year); // 2026
+}
+</code></pre>
+<p><strong>Penjelasan:</strong> <code>{...map, 'id': 7}</code> adalah <em>spread operator</em>: menyalin isi <code>map</code> lalu menambah/menimpa kunci tertentu. Perhatikan <code>toMap()</code> tidak menulis <code>id</code> ketika null, karena kolom <code>AUTOINCREMENT</code> akan mengisinya sendiri.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Menyimpan <code>bool</code> langsung (<code>'isSelesai': true</code>). sqflite akan menolak atau menyimpan dengan tidak konsisten; selalu ubah ke 0/1.</li>
+  <li>Menyimpan <code>DateTime</code> langsung: error <em>Unsupported value</em>. Ubah ke String ISO 8601 (atau <code>millisecondsSinceEpoch</code> sebagai INTEGER).</li>
+  <li>Menulis <code>'id': null</code> di <code>toMap()</code> lalu memakai <code>ConflictAlgorithm.replace</code>; lebih aman tidak menulis id sama sekali saat insert.</li>
+  <li>Nama kunci di Map berbeda dengan nama kolom (<code>is_selesai</code> vs <code>isSelesai</code>): muncul error <em>no such column</em>.</li>
+</ul>
+</div>

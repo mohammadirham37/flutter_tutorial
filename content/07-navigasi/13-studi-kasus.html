@@ -1,0 +1,437 @@
+<p class="lead">Saatnya menggabungkan semua materi menjadi satu aplikasi <strong>Portal Akademik</strong> multi-halaman: login dengan <code>pushReplacement</code>, tab utama dengan <code>NavigationBar</code> + <code>IndexedStack</code>, detail mata kuliah yang menerima data lewat constructor dan mengembalikan hasil, dialog logout, <code>pushAndRemoveUntil</code>, serta <code>PopScope</code>.</p>
+
+<h4>Struktur folder</h4>
+<pre><code class="language-text">lib/
+├── main.dart
+├── models/
+│   └── matkul.dart
+├── data/
+│   └── dummy_data.dart
+└── screens/
+    ├── login_screen.dart
+    ├── main_screen.dart
+    └── detail_matkul_screen.dart
+</code></pre>
+
+<h4>Peta navigasi</h4>
+<pre><code class="language-text">LoginScreen --pushReplacement--&gt; MainScreen (tab: Beranda | Mata Kuliah | Profil)
+MainScreen  --push&lt;bool&gt;------&gt; DetailMatkulScreen --pop(true)--&gt; MainScreen
+MainScreen  --showDialog&lt;bool&gt;--&gt; konfirmasi --pushAndRemoveUntil--&gt; LoginScreen
+</code></pre>
+
+<h4>Langkah 1: model dan data</h4>
+<p class="code-file-label">📄 <code>lib/models/matkul.dart</code></p>
+<pre><code class="language-dart">// lib/models/matkul.dart
+class Matkul {
+  final String kode;
+  final String nama;
+  final int sks;
+  final String dosen;
+  final String deskripsi;
+
+  const Matkul({
+    required this.kode,
+    required this.nama,
+    required this.sks,
+    required this.dosen,
+    required this.deskripsi,
+  });
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/data/dummy_data.dart</code></p>
+<pre><code class="language-dart">// lib/data/dummy_data.dart
+import '../models/matkul.dart';
+
+const List&lt;Matkul&gt; semuaMatkul = [
+  Matkul(
+    kode: 'IF201',
+    nama: 'Pemrograman Mobile',
+    sks: 3,
+    dosen: 'Dr. Rina Wulandari',
+    deskripsi: 'Membangun aplikasi Android &amp; iOS dengan Flutter.',
+  ),
+  Matkul(
+    kode: 'IF202',
+    nama: 'Basis Data',
+    sks: 3,
+    dosen: 'Budi Santoso, M.Kom.',
+    deskripsi: 'Perancangan basis data relasional dan SQL.',
+  ),
+  Matkul(
+    kode: 'IF203',
+    nama: 'Jaringan Komputer',
+    sks: 2,
+    dosen: 'Sari Dewi, M.T.',
+    deskripsi: 'Model OSI, TCP/IP, dan praktik konfigurasi jaringan.',
+  ),
+  Matkul(
+    kode: 'IF204',
+    nama: 'Kecerdasan Buatan',
+    sks: 3,
+    dosen: 'Dr. Agus Riyadi',
+    deskripsi: 'Pencarian, logika, dan dasar machine learning.',
+  ),
+];
+</code></pre>
+
+<h4>Langkah 2: titik masuk aplikasi</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+
+import 'screens/login_screen.dart';
+
+void main() {
+  runApp(const PortalAkademikApp());
+}
+
+class PortalAkademikApp extends StatelessWidget {
+  const PortalAkademikApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Portal Akademik',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const LoginScreen(),
+    );
+  }
+}
+</code></pre>
+
+<h4>Langkah 3: halaman login</h4>
+<p class="code-file-label">📄 <code>lib/screens/login_screen.dart</code></p>
+<pre><code class="language-dart">// lib/screens/login_screen.dart
+import 'package:flutter/material.dart';
+
+import 'main_screen.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State&lt;LoginScreen&gt; createState() =&gt; _LoginScreenState();
+}
+
+class _LoginScreenState extends State&lt;LoginScreen&gt; {
+  final _nimController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nimController.dispose();
+    super.dispose();
+  }
+
+  void _login() {
+    final nim = _nimController.text.trim();
+    if (nim.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('NIM wajib diisi')),
+      );
+      return;
+    }
+    // Login sukses: ganti Login dengan MainScreen (tidak bisa back ke login)
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) =&gt; MainScreen(nim: nim)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.school, size: 80),
+              const SizedBox(height: 16),
+              Text('Portal Akademik', style: Theme.of(context).textTheme.headlineMedium),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _nimController,
+                decoration: const InputDecoration(
+                  labelText: 'NIM',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(onPressed: _login, child: const Text('Masuk')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Langkah 4: halaman utama dengan tab</h4>
+<p class="code-file-label">📄 <code>lib/screens/main_screen.dart</code></p>
+<pre><code class="language-dart">// lib/screens/main_screen.dart
+import 'package:flutter/material.dart';
+
+import '../data/dummy_data.dart';
+import '../models/matkul.dart';
+import 'detail_matkul_screen.dart';
+import 'login_screen.dart';
+
+class MainScreen extends StatefulWidget {
+  final String nim;
+
+  const MainScreen({super.key, required this.nim});
+
+  @override
+  State&lt;MainScreen&gt; createState() =&gt; _MainScreenState();
+}
+
+class _MainScreenState extends State&lt;MainScreen&gt; {
+  int _tab = 0;
+  final List&lt;Matkul&gt; _diambil = [];
+
+  int get _totalSks =&gt; _diambil.fold(0, (total, m) =&gt; total + m.sks);
+
+  // Buka detail, tunggu jawaban "ambil" (true) atau tidak
+  Future&lt;void&gt; _bukaDetail(Matkul matkul) async {
+    final ambil = await Navigator.push&lt;bool&gt;(
+      context,
+      MaterialPageRoute(
+        builder: (_) =&gt; DetailMatkulScreen(
+          matkul: matkul,
+          sudahDiambil: _diambil.contains(matkul),
+        ),
+      ),
+    );
+    if (ambil != true || !mounted) return;
+    setState(() =&gt; _diambil.add(matkul));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.green,
+        content: Text('${matkul.nama} masuk KRS'),
+      ),
+    );
+  }
+
+  Future&lt;void&gt; _logout() async {
+    final yakin = await showDialog&lt;bool&gt;(
+      context: context,
+      builder: (dialogContext) =&gt; AlertDialog(
+        title: const Text('Keluar dari akun?'),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; Navigator.pop(dialogContext, true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+    if (yakin != true || !mounted) return;
+    // Bersihkan SELURUH tumpukan, sisakan Login saja
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) =&gt; const LoginScreen()),
+      (route) =&gt; false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tabs = [
+      _BerandaTab(nim: widget.nim, totalSks: _totalSks),
+      _MatkulTab(diambil: _diambil, onTap: _bukaDetail),
+      _ProfilTab(nim: widget.nim, onLogout: _logout),
+    ];
+
+    return PopScope(
+      // Jika bukan di tab Beranda, tombol back kembali ke Beranda dulu
+      canPop: _tab == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) setState(() =&gt; _tab = 0);
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Portal Akademik')),
+        body: IndexedStack(index: _tab, children: tabs),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _tab,
+          onDestinationSelected: (i) =&gt; setState(() =&gt; _tab = i),
+          destinations: [
+            const NavigationDestination(icon: Icon(Icons.home), label: 'Beranda'),
+            NavigationDestination(
+              icon: Badge(
+                isLabelVisible: _diambil.isNotEmpty,
+                label: Text('${_diambil.length}'),
+                child: const Icon(Icons.book),
+              ),
+              label: 'Mata Kuliah',
+            ),
+            const NavigationDestination(icon: Icon(Icons.person), label: 'Profil'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BerandaTab extends StatelessWidget {
+  final String nim;
+  final int totalSks;
+
+  const _BerandaTab({required this.nim, required this.totalSks});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Selamat datang, $nim'),
+          const SizedBox(height: 8),
+          Text('Total SKS diambil: $totalSks',
+              style: Theme.of(context).textTheme.headlineSmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _MatkulTab extends StatelessWidget {
+  final List&lt;Matkul&gt; diambil;
+  final ValueChanged&lt;Matkul&gt; onTap;
+
+  const _MatkulTab({required this.diambil, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: [
+        for (final m in semuaMatkul)
+          ListTile(
+            title: Text(m.nama),
+            subtitle: Text('${m.kode} • ${m.sks} SKS'),
+            trailing: diambil.contains(m)
+                ? const Icon(Icons.check_circle, color: Colors.green)
+                : const Icon(Icons.chevron_right),
+            onTap: () =&gt; onTap(m),
+          ),
+      ],
+    );
+  }
+}
+
+class _ProfilTab extends StatelessWidget {
+  final String nim;
+  final VoidCallback onLogout;
+
+  const _ProfilTab({required this.nim, required this.onLogout});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: [
+        ListTile(leading: const Icon(Icons.badge), title: const Text('NIM'), subtitle: Text(nim)),
+        ListTile(
+          leading: const Icon(Icons.logout, color: Colors.red),
+          title: const Text('Logout'),
+          onTap: onLogout,
+        ),
+      ],
+    );
+  }
+}
+</code></pre>
+
+<h4>Langkah 5: halaman detail</h4>
+<p class="code-file-label">📄 <code>lib/screens/detail_matkul_screen.dart</code></p>
+<pre><code class="language-dart">// lib/screens/detail_matkul_screen.dart
+import 'package:flutter/material.dart';
+
+import '../models/matkul.dart';
+
+class DetailMatkulScreen extends StatelessWidget {
+  final Matkul matkul;
+  final bool sudahDiambil;
+
+  const DetailMatkulScreen({
+    super.key,
+    required this.matkul,
+    required this.sudahDiambil,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(matkul.kode)),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(matkul.nama, style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 8),
+            Text('${matkul.sks} SKS • ${matkul.dosen}'),
+            const SizedBox(height: 16),
+            Text(matkul.deskripsi),
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                icon: const Icon(Icons.add_task),
+                label: Text(sudahDiambil ? 'Sudah di KRS' : 'Daftar Matkul Ini'),
+                // null = tombol nonaktif
+                onPressed: sudahDiambil ? null : () =&gt; Navigator.pop(context, true),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Hasil</h4>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/case-login.jpg" alt="Halaman login" loading="lazy">
+    <div class="screenshot-caption">Halaman login</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/case-matkul.jpg" alt="Tab Mata Kuliah" loading="lazy">
+    <div class="screenshot-caption">Tab Mata Kuliah</div>
+  </div>
+</div>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/case-krs.jpg" alt="Matkul masuk KRS: centang hijau dan badge" loading="lazy">
+    <div class="screenshot-caption">Matkul masuk KRS: centang hijau dan badge</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><strong>Login</strong> memakai <code>pushReplacement</code>, jadi tombol back di MainScreen tidak kembali ke login. NIM dikirim ke <code>MainScreen</code> lewat constructor.</li>
+  <li><strong>MainScreen</strong> menyimpan daftar <code>_diambil</code> dan mengoper data serta callback ke tiap tab lewat constructor (<code>_MatkulTab(diambil: ..., onTap: ...)</code>).</li>
+  <li><strong>Detail</strong> mengembalikan <code>true</code> saat tombol "Daftar Matkul Ini" ditekan. MainScreen menunggu hasil itu dengan <code>await Navigator.push&lt;bool&gt;</code>.</li>
+  <li><strong>PopScope</strong> di MainScreen: jika pengguna sedang di tab selain Beranda, tombol back memindahkan ke Beranda dulu, bukan menutup aplikasi.</li>
+  <li><strong>Logout</strong> meminta konfirmasi lewat dialog, lalu membersihkan tumpukan dengan <code>pushAndRemoveUntil</code>.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Menuju Modul 08</h4><p>Perhatikan bahwa <code>_diambil</code> harus dioper dari <code>MainScreen</code> ke tab-tabnya lewat constructor dan callback. Bayangkan jika halaman detail, halaman ringkasan KRS, dan badge di AppBar semuanya butuh data yang sama: constructor akan penuh dengan parameter "titipan". Masalah ini disebut <strong>prop drilling</strong>, dan diselesaikan dengan Provider di modul berikutnya.</p></div>
+
+<div class="callout callout-tip"><h4>💡 Tantangan tambahan</h4>
+<ul>
+  <li>Tambahkan tombol "Batalkan" di halaman detail jika mata kuliah sudah diambil, lalu kembalikan nilai <code>false</code> untuk menghapusnya dari <code>_diambil</code>.</li>
+  <li>Tambahkan <code>Drawer</code> berisi menu Tentang Aplikasi.</li>
+  <li>Ubah navigasi aplikasi ini menjadi <code>go_router</code> dengan rute <code>/login</code>, <code>/</code>, dan <code>/matkul/:kode</code>.</li>
+</ul>
+</div>

@@ -1,0 +1,248 @@
+<p class="lead">Dua kebutuhan klasik aplikasi: <strong>layar onboarding</strong> yang hanya tampil sekali saat pertama dipasang, dan <strong>sesi login</strong> agar pengguna tidak perlu login setiap membuka aplikasi. Keduanya cukup memakai beberapa nilai <code>bool</code> dan <code>String</code> di SharedPreferences.</p>
+
+<h4>Alur Aplikasi</h4>
+<pre><code class="language-text">Buka aplikasi
+   └─&gt; SplashGate membaca penyimpanan
+         ├─ sudahOnboarding == false ──&gt; OnboardingScreen ──(Mulai)──&gt; simpan true ──&gt; Login
+         ├─ token == null            ──&gt; LoginScreen ──(Login)──&gt; simpan token ──&gt; Home
+         └─ token ada                ──&gt; HomeScreen ──(Logout)──&gt; hapus token ──&gt; Login
+</code></pre>
+
+<h4>Langkah 1: SessionManager</h4>
+<p>Semua akses SharedPreferences dikumpulkan di satu class. Layar tidak perlu tahu nama kunci.</p>
+<p class="code-file-label">📄 <code>lib/services/session_manager.dart</code></p>
+<pre><code class="language-dart">// lib/services/session_manager.dart
+import 'package:shared_preferences/shared_preferences.dart';
+
+class SessionManager {
+  static const String keyOnboarding = 'ONBOARDING_DONE';
+  static const String keyToken = 'USER_AUTH_TOKEN';
+  static const String keyNama = 'USER_NAME';
+
+  final SharedPreferencesAsync _prefs = SharedPreferencesAsync();
+
+  // ---------- Onboarding ----------
+  Future&lt;bool&gt; sudahOnboarding() async =&gt; await _prefs.getBool(keyOnboarding) ?? false;
+
+  Future&lt;void&gt; selesaiOnboarding() =&gt; _prefs.setBool(keyOnboarding, true);
+
+  // ---------- Sesi login ----------
+  Future&lt;void&gt; simpanSesiLogin({required String token, required String nama}) async {
+    await _prefs.setString(keyToken, token);
+    await _prefs.setString(keyNama, nama);
+  }
+
+  Future&lt;String?&gt; ambilToken() =&gt; _prefs.getString(keyToken);
+
+  Future&lt;String?&gt; ambilNama() =&gt; _prefs.getString(keyNama);
+
+  Future&lt;bool&gt; cekStatusLogin() async =&gt; await ambilToken() != null;
+
+  // Hapus HANYA data sesi; flag onboarding dan pengaturan lain tetap ada
+  Future&lt;void&gt; logout() =&gt; _prefs.clear(allowList: {keyToken, keyNama});
+}
+</code></pre>
+<p><strong>Penjelasan:</strong> status login tidak disimpan sebagai <code>bool</code> terpisah, melainkan disimpulkan dari ada/tidaknya token. Dengan begitu tidak mungkin terjadi keadaan "login = true tetapi token kosong". Method <code>logout()</code> memakai <code>clear(allowList: ...)</code> agar hanya kunci sesi yang terhapus.</p>
+
+<div class="callout callout-info"><h4>ℹ️ Tentang Keamanan Token</h4><p>Contoh ini cocok untuk belajar. SharedPreferences tidak terenkripsi, jadi untuk aplikasi produksi simpan token di <code>flutter_secure_storage</code>. Polanya sama: ganti isi <code>SessionManager</code> saja, layar tidak berubah.</p></div>
+
+<h4>Langkah 2: Contoh Lengkap Onboarding + Login</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Pastikan sudah: flutter pub add shared_preferences, serta membuat lib/services/session_manager.dart
+import 'package:flutter/material.dart';
+
+import 'services/session_manager.dart';
+
+final session = SessionManager();
+
+void main() {
+  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: SplashGate()));
+}
+
+/// Membaca penyimpanan lalu memutuskan layar pertama.
+class SplashGate extends StatefulWidget {
+  const SplashGate({super.key});
+
+  @override
+  State&lt;SplashGate&gt; createState() =&gt; _SplashGateState();
+}
+
+class _SplashGateState extends State&lt;SplashGate&gt; {
+  @override
+  void initState() {
+    super.initState();
+    _tentukanTujuan();
+  }
+
+  Future&lt;void&gt; _tentukanTujuan() async {
+    final onboarding = await session.sudahOnboarding();
+    final login = await session.cekStatusLogin();
+    if (!mounted) return;
+
+    final Widget tujuan = !onboarding
+        ? const OnboardingScreen()
+        : login
+            ? const HomeScreen()
+            : const LoginScreen();
+    // pushReplacement: SplashGate dibuang agar tombol Back tidak kembali ke sini
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) =&gt; tujuan));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+  }
+}
+
+class OnboardingScreen extends StatelessWidget {
+  const OnboardingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.school, size: 96, color: Colors.indigo),
+              const SizedBox(height: 24),
+              Text('Selamat Datang di SIA Mobile',
+                  style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              const Text('Layar ini hanya muncul sekali saat aplikasi pertama dibuka.',
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 32),
+              FilledButton(
+                onPressed: () async {
+                  await session.selesaiOnboarding();
+                  if (!context.mounted) return;
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) =&gt; const LoginScreen()),
+                  );
+                },
+                child: const Text('Mulai'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State&lt;LoginScreen&gt; createState() =&gt; _LoginScreenState();
+}
+
+class _LoginScreenState extends State&lt;LoginScreen&gt; {
+  final _namaCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _namaCtrl.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _login() async {
+    final nama = _namaCtrl.text.trim();
+    if (nama.isEmpty) return;
+    // Pada aplikasi nyata token didapat dari API login (Modul 09)
+    await session.simpanSesiLogin(token: 'token-${DateTime.now().millisecondsSinceEpoch}', nama: nama);
+    if (!mounted) return;
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) =&gt; const HomeScreen()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            TextField(
+              controller: _namaCtrl,
+              decoration: const InputDecoration(labelText: 'Nama', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(onPressed: _login, child: const Text('Masuk')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Beranda'),
+        actions: [
+          IconButton(
+            tooltip: 'Logout',
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await session.logout();
+              if (!context.mounted) return;
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) =&gt; const LoginScreen()),
+              );
+            },
+          ),
+        ],
+      ),
+      body: Center(
+        child: FutureBuilder&lt;String?&gt;(
+          future: session.ambilNama(),
+          builder: (context, snapshot) =&gt; Text(
+            'Halo, ${snapshot.data ?? '...'}!\nTutup lalu buka aplikasi: kamu tetap login.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/onboarding.jpg" alt="Layar onboarding" loading="lazy">
+    <div class="screenshot-caption">Pembukaan pertama: onboarding</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/login.jpg" alt="Layar login" loading="lazy">
+    <div class="screenshot-caption">Setelah Mulai: layar login</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/beranda.jpg" alt="Layar beranda" loading="lazy">
+    <div class="screenshot-caption">Setelah login: beranda dengan nama tersimpan</div>
+  </div>
+</div>
+
+
+<p><strong>Cara menguji:</strong> (1) buka pertama kali, muncul onboarding; (2) tekan Mulai lalu login; (3) tutup aplikasi sepenuhnya dan buka lagi, langsung masuk Beranda; (4) Logout lalu buka lagi, muncul Login (bukan onboarding).</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Memakai <code>Navigator.push</code> (bukan <code>pushReplacement</code>) dari splash/login, sehingga tombol Back kembali ke layar login.</li>
+  <li>Logout dengan <code>clear()</code> tanpa filter, sehingga onboarding muncul lagi.</li>
+  <li>Memakai <code>context</code> setelah <code>await</code> tanpa cek <code>mounted</code> / <code>context.mounted</code>.</li>
+  <li>Untuk mengulang dari awal saat testing, hapus data aplikasi (Settings → Apps → Clear storage) atau uninstall. Hot restart <strong>tidak</strong> menghapus data tersimpan.</li>
+</ul>
+</div>

@@ -1,0 +1,146 @@
+<p class="lead">Layar HP modern tidak lagi persegi panjang sempurna: ada <strong>status bar</strong>, <strong>notch/poni</strong>, <strong>lubang kamera</strong>, sudut membulat, dan <strong>garis navigasi gestur</strong> di bawah. <strong><code>SafeArea</code></strong> memberi padding otomatis agar konten tidak tertutup bagian-bagian tersebut.</p>
+
+<pre><code class="language-text">┌──────────────────────────┐
+│ 12:30   ▀▀▀▀▀▀     ▮ 85% │ ← status bar + notch (tidak aman)
+├──────────────────────────┤
+│                          │
+│     AREA AMAN            │ ← SafeArea menaruh konten di sini
+│                          │
+├──────────────────────────┤
+│         ───────          │ ← garis navigasi gestur (tidak aman)
+└──────────────────────────┘
+</code></pre>
+
+<h4>Kapan perlu SafeArea?</h4>
+<ul>
+  <li><strong>Halaman dengan <code>AppBar</code>:</strong> AppBar sudah otomatis menghindari status bar. <code>body</code> tidak perlu SafeArea untuk bagian atas.</li>
+  <li><strong>Halaman tanpa AppBar</strong> (splash screen, halaman login penuh, halaman dengan header gambar): <strong>perlu</strong> SafeArea.</li>
+  <li><strong>Konten menempel di bawah layar</strong> (tombol "Bayar" di bawah): perlu SafeArea bagian bawah agar tidak tertutup garis gestur.</li>
+</ul>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">Scaffold(
+  // Tanpa AppBar: teks ini akan tertutup status bar jika tanpa SafeArea
+  body: SafeArea(
+    child: Column(
+      children: const [
+        Text('Selamat Datang', style: TextStyle(fontSize: 28)),
+        Text('Silakan masuk dengan akun SSO UNSOED'),
+      ],
+    ),
+  ),
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/safearea-1.jpg" alt="Halaman tanpa AppBar dengan SafeArea" loading="lazy">
+    <div class="screenshot-caption">Halaman tanpa AppBar dengan SafeArea</div>
+  </div>
+</div>
+
+<h4>Memilih sisi yang dilindungi</h4>
+<pre><code class="language-dart">SafeArea(
+  top: false,   // atas boleh menempel (misal gambar header sampai ke status bar)
+  bottom: true, // bawah tetap aman dari garis gestur
+  minimum: const EdgeInsets.all(16), // padding minimum walau HP tidak punya notch
+  child: FilledButton(onPressed: () {}, child: const Text('Bayar UKT')),
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/safearea-2.jpg" alt="SafeArea bagian bawah dengan padding minimum" loading="lazy">
+    <div class="screenshot-caption">SafeArea bagian bawah dengan padding minimum</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: membandingkan dengan dan tanpa SafeArea</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: DemoSafeArea()));
+}
+
+class DemoSafeArea extends StatefulWidget {
+  const DemoSafeArea({super.key});
+
+  @override
+  State&lt;DemoSafeArea&gt; createState() =&gt; _DemoSafeAreaState();
+}
+
+class _DemoSafeAreaState extends State&lt;DemoSafeArea&gt; {
+  bool _pakaiSafeArea = false;
+
+  @override
+  Widget build(BuildContext context) {
+    // Besar area yang tidak aman di HP ini
+    final padding = MediaQuery.paddingOf(context);
+
+    final isi = Container(
+      color: Colors.teal.shade100,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            color: Colors.teal,
+            padding: const EdgeInsets.all(8),
+            child: const Text('TEKS PALING ATAS', style: TextStyle(color: Colors.white)),
+          ),
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Padding atas (status bar): ${padding.top.toStringAsFixed(0)} px'),
+                  Text('Padding bawah (navigasi): ${padding.bottom.toStringAsFixed(0)} px'),
+                  const SizedBox(height: 16),
+                  SwitchListTile(
+                    title: const Text('Pakai SafeArea'),
+                    value: _pakaiSafeArea,
+                    onChanged: (v) =&gt; setState(() =&gt; _pakaiSafeArea = v),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Container(
+            color: Colors.teal,
+            padding: const EdgeInsets.all(8),
+            child: const Text('TEKS PALING BAWAH', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    return Scaffold(
+      // Sengaja tanpa AppBar
+      body: _pakaiSafeArea ? SafeArea(child: isi) : isi,
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/safearea-3.jpg" alt="Tanpa SafeArea: teks paling atas tertutup status bar" loading="lazy">
+    <div class="screenshot-caption">Tanpa SafeArea: teks paling atas tertutup status bar</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/safearea-aktif.jpg" alt="Dengan SafeArea: konten turun ke area aman" loading="lazy">
+    <div class="screenshot-caption">Dengan SafeArea: konten turun ke area aman</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><code>MediaQuery.paddingOf(context)</code> berisi ukuran area tidak aman. Nilai inilah yang dipakai SafeArea sebagai padding.</li>
+  <li>Saat SafeArea mati, teks "PALING ATAS" bertabrakan dengan jam dan ikon baterai. Saat SafeArea aktif, teks turun ke area aman.</li>
+  <li>Widget <code>isi</code> disimpan dalam variabel agar bisa dipakai dengan atau tanpa SafeArea tanpa menulis ulang.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Membungkus seluruh <code>Scaffold</code> dengan SafeArea.</strong> Latar AppBar jadi tidak menyatu dengan status bar dan muncul strip kosong. Taruh SafeArea di dalam <code>body</code>.</li>
+  <li><strong>Hanya menguji di emulator tanpa notch.</strong> Coba juga emulator dengan notch/lubang kamera dan mode landscape (notch pindah ke samping).</li>
+  <li><strong>Lupa sisi bawah</strong> untuk tombol yang menempel di bawah layar pada HP dengan navigasi gestur.</li>
+</ul></div>

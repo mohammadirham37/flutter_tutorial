@@ -1,0 +1,102 @@
+<p class="lead">Box punya method yang mirip <code>Map</code>. Di bagian ini kita coba satu per satu, lengkap dengan output yang muncul di Debug Console.</p>
+
+<h4>Daftar method penting</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Method</th><th>Fungsi</th><th>Async?</th></tr></thead>
+    <tbody>
+      <tr><td><code>put(key, value)</code></td><td>Simpan atau timpa value dengan key tertentu</td><td>Ya (<code>Future</code>)</td></tr>
+      <tr><td><code>get(key, defaultValue: ...)</code></td><td>Ambil value; <code>null</code> atau <code>defaultValue</code> jika key tidak ada</td><td>Tidak</td></tr>
+      <tr><td><code>add(value)</code></td><td>Simpan dengan key angka otomatis (0, 1, 2, ...), mengembalikan key baru</td><td>Ya</td></tr>
+      <tr><td><code>delete(key)</code></td><td>Hapus satu data berdasarkan key</td><td>Ya</td></tr>
+      <tr><td><code>containsKey(key)</code></td><td>Cek apakah key ada</td><td>Tidak</td></tr>
+      <tr><td><code>keys</code>, <code>values</code>, <code>length</code></td><td>Semua key, semua value, jumlah data</td><td>Tidak</td></tr>
+      <tr><td><code>getAt(i)</code>, <code>putAt(i, v)</code>, <code>deleteAt(i)</code></td><td>Akses berdasarkan posisi (index), bukan key</td><td><code>getAt</code> tidak, lainnya ya</td></tr>
+      <tr><td><code>toMap()</code></td><td>Salin seluruh isi box menjadi <code>Map</code></td><td>Tidak</td></tr>
+      <tr><td><code>clear()</code></td><td>Hapus semua data di box, mengembalikan jumlah yang terhapus</td><td>Ya</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Pola mudahnya: <strong>menulis</strong> (put, add, delete, clear) mengembalikan <code>Future</code>; <strong>membaca</strong> (get, keys, values, length) langsung dapat hasilnya.</p>
+
+<h4>Contoh lengkap semua operasi</h4>
+<p>Fungsi berikut bisa kamu panggil dari <code>main()</code> setelah <code>await Hive.initFlutter()</code>, misalnya <code>await demoOperasiDasar();</code> sebelum <code>runApp</code>.</p>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+Future&lt;void&gt; demoOperasiDasar() async {
+  final box = await Hive.openBox('latihan');
+
+  // ---- CREATE / UPDATE dengan key buatan sendiri ----
+  await box.put('nama', 'Budi');
+  await box.put('semester', 4);
+  await box.put('aktif', true);
+  await box.put('semester', 5); // key sama = menimpa (update)
+
+  // ---- READ ----
+  debugPrint('${box.get('nama')}'); // Budi
+  debugPrint('${box.get('semester')}'); // 5
+  debugPrint('${box.get('ipk')}'); // null (key belum ada)
+  debugPrint('${box.get('ipk', defaultValue: 0.0)}'); // 0.0
+  debugPrint('${box.containsKey('aktif')}'); // true
+
+  // ---- add(): key berupa angka otomatis 0, 1, 2, ... ----
+  final k1 = await box.add('Kalkulus');
+  final k2 = await box.add('Basis Data');
+  debugPrint('key baru: $k1, $k2');
+
+  // ---- melihat isi box ----
+  debugPrint('keys   : ${box.keys}');
+  debugPrint('values : ${box.values}');
+  debugPrint('length : ${box.length}');
+
+  // ---- akses berdasarkan POSISI (index), bukan key ----
+  debugPrint('getAt(0): ${box.getAt(0)}');
+  await box.putAt(0, 'Kalkulus Lanjut');
+  debugPrint('setelah putAt: ${box.get(0)}');
+
+  // ---- DELETE ----
+  await box.delete('aktif');
+  await box.deleteAt(0);
+  debugPrint('setelah delete: ${box.toMap()}');
+
+  final jumlahDihapus = await box.clear();
+  debugPrint('clear() menghapus $jumlahDihapus data, sisa ${box.length}');
+}
+</code></pre>
+
+<p>Output di Debug Console:</p>
+<pre><code class="language-text">Budi
+5
+null
+0.0
+true
+key baru: 0, 1
+keys   : (0, 1, aktif, nama, semester)
+values : (Kalkulus, Basis Data, true, Budi, 5)
+length : 5
+getAt(0): Kalkulus
+setelah putAt: Kalkulus Lanjut
+setelah delete: {1: Basis Data, nama: Budi, semester: 5}
+clear() menghapus 3 data, sisa 0
+</code></pre>
+
+<p><strong>Hal yang perlu diperhatikan dari output:</strong></p>
+<ul>
+  <li><strong><code>put</code> = create sekaligus update.</strong> <code>put('semester', 5)</code> menimpa nilai 4 karena key-nya sama. Hive tidak membedakan insert dan update.</li>
+  <li><strong>Key boleh <code>String</code> atau <code>int</code>.</strong> <code>add()</code> memakai key int otomatis yang terus naik.</li>
+  <li><strong>Urutan key bukan urutan penyimpanan.</strong> Hive mengurutkan key: angka dulu, lalu string secara alfabet. Karena itu <code>getAt(0)</code> menghasilkan <code>Kalkulus</code> (key 0), bukan <code>Budi</code> yang disimpan pertama.</li>
+  <li><strong><code>deleteAt(0)</code> menghapus posisi pertama</strong>, yaitu key 0 (<code>Kalkulus Lanjut</code>), sedangkan <code>delete('aktif')</code> menghapus berdasarkan key.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Pakai key, hindari index</h4><p>Method <code>...At(index)</code> mudah salah, karena index bergeser setiap ada data yang dihapus. Untuk data seperti catatan atau tugas, simpan dengan key unik milik datanya sendiri (misalnya <code>id</code>) memakai <code>put(id, data)</code>, lalu ubah dan hapus memakai key yang sama. Pola ini dipakai di mini project.</p></div>
+
+<h4>Perlu <code>await</code> saat menulis?</h4>
+<p>Data yang di-<code>put</code> langsung bisa dibaca dari memori meskipun tidak di-<code>await</code>. Namun penulisan ke file berjalan di belakang layar. Jika aplikasi tiba-tiba dimatikan sebelum <code>Future</code>-nya selesai, data itu bisa hilang. Biasakan <code>await</code> di method async, terutama sebelum pindah halaman atau menampilkan pesan "tersimpan".</p>
+
+<pre><code class="language-dart">// Kurang aman: tidak menunggu sampai benar-benar tertulis ke file
+box.put('draft', teks);
+
+// Aman
+await box.put('draft', teks);
+</code></pre>

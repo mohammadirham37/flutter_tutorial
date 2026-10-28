@@ -1,0 +1,278 @@
+<p class="lead">Jangan pernah menggunakan raw <code>Map&lt;String, dynamic&gt;</code> langsung di widget UI karena rentan salah ketik kunci string (typo) dan runtime error. Selalu petakan respon API ke dalam <strong>Model Class</strong> berstruktur kuat. Dengan model, editor akan memberi saran otomatis (<em>autocomplete</em>) dan kesalahan nama field langsung terdeteksi sebelum aplikasi dijalankan.</p>
+
+<h4>Pola Dasar: <code>fromJson</code> dan <code>toJson</code></h4>
+<ul>
+  <li><code>factory NamaModel.fromJson(Map&lt;String, dynamic&gt; json)</code>: mengubah Map hasil <code>jsonDecode</code> menjadi objek.</li>
+  <li><code>Map&lt;String, dynamic&gt; toJson()</code>: mengubah objek menjadi Map yang siap di-<code>jsonEncode</code>.</li>
+</ul>
+
+<p>Contoh model mahasiswa sederhana:</p>
+<p class="code-file-label">📄 <code>lib/models/mahasiswa_model.dart</code></p>
+<pre><code class="language-dart">// lib/models/mahasiswa_model.dart
+// Model Data Mahasiswa Berbasis JSON
+class MahasiswaModel {
+  final int id;
+  final String nama;
+  final String email;
+  final String nim;
+  final String avatarUrl;
+
+  MahasiswaModel({
+    required this.id,
+    required this.nama,
+    required this.email,
+    required this.nim,
+    required this.avatarUrl,
+  });
+
+  // Factory Constructor untuk mengurai JSON dari API Server
+  factory MahasiswaModel.fromJson(Map&lt;String, dynamic&gt; json) {
+    return MahasiswaModel(
+      id: json['id'] as int,
+      nama: json['nama'] as String? ?? 'Mahasiswa Anonim',
+      email: json['email'] as String? ?? '-',
+      nim: json['nim'] as String? ?? '-',
+      avatarUrl: json['avatar'] as String? ?? 'https://i.pravatar.cc/150',
+    );
+  }
+
+  // Method untuk mengirim data objek kembali ke format JSON payload
+  Map&lt;String, dynamic&gt; toJson() {
+    return {
+      'nama': nama,
+      'email': email,
+      'nim': nim,
+    };
+  }
+}</code></pre>
+<p><strong>Penjelasan:</strong> <code>json['nama'] as String? ?? 'Mahasiswa Anonim'</code> dibaca: "ambil <code>nama</code>, boleh null, jika null pakai nilai default". Pola ini membuat aplikasi tidak crash ketika server lupa mengirim satu field. Perhatikan juga <code>toJson()</code> tidak menyertakan <code>id</code> karena id biasanya dibuat oleh server.</p>
+
+<h4>Model untuk JSONPlaceholder: <code>Post</code></h4>
+<p>Sepanjang modul ini kita memakai API publik gratis <a href="https://jsonplaceholder.typicode.com" target="_blank">jsonplaceholder.typicode.com</a>. Satu post di sana berbentuk:</p>
+<pre><code class="language-json">{
+  "userId": 1,
+  "id": 1,
+  "title": "sunt aut facere repellat provident",
+  "body": "quia et suscipit suscipit recusandae..."
+}
+</code></pre>
+
+<p class="code-file-label">📄 <code>lib/models/post.dart</code></p>
+<pre><code class="language-dart">class Post {
+  final int? id; // null ketika post belum dikirim ke server
+  final int userId;
+  final String title;
+  final String body;
+
+  const Post({
+    this.id,
+    required this.userId,
+    required this.title,
+    required this.body,
+  });
+
+  factory Post.fromJson(Map&lt;String, dynamic&gt; json) {
+    return Post(
+      id: json['id'] as int?,
+      userId: json['userId'] as int? ?? 0,
+      title: json['title'] as String? ?? '',
+      body: json['body'] as String? ?? '',
+    );
+  }
+
+  Map&lt;String, dynamic&gt; toJson() {
+    return {
+      if (id != null) 'id': id, // "collection if": id hanya ditulis jika ada
+      'userId': userId,
+      'title': title,
+      'body': body,
+    };
+  }
+
+  // copyWith: membuat salinan dengan sebagian field diganti (berguna saat edit)
+  Post copyWith({int? id, int? userId, String? title, String? body}) {
+    return Post(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      title: title ?? this.title,
+      body: body ?? this.body,
+    );
+  }
+
+  @override
+  String toString() =&gt; 'Post(id: $id, title: $title)';
+}
+</code></pre>
+
+<h4>Mengubah Array JSON Menjadi <code>List&lt;Post&gt;</code></h4>
+<p>Endpoint <code>/posts</code> mengembalikan array. Polanya selalu sama: decode menjadi <code>List</code>, lalu <code>map</code> setiap elemen ke <code>fromJson</code>.</p>
+<pre><code class="language-dart">List&lt;Post&gt; parsePosts(String responseBody) {
+  final List&lt;dynamic&gt; data = jsonDecode(responseBody) as List&lt;dynamic&gt;;
+  return data
+      .map((item) =&gt; Post.fromJson(item as Map&lt;String, dynamic&gt;))
+      .toList();
+}
+</code></pre>
+
+<h4>Object Bersarang (Nested) dan List di Dalam Model</h4>
+<p>Endpoint <code>/users</code> berisi object di dalam object (<code>address</code> berisi <code>geo</code>, serta <code>company</code>). Buat <strong>satu class untuk setiap object</strong>, lalu panggil <code>fromJson</code> milik class anak dari dalam class induk.</p>
+<pre><code class="language-json">{
+  "id": 1,
+  "name": "Leanne Graham",
+  "email": "Sincere@april.biz",
+  "address": {
+    "street": "Kulas Light",
+    "city": "Gwenborough",
+    "geo": { "lat": "-37.3159", "lng": "81.1496" }
+  },
+  "company": { "name": "Romaguera-Crona" }
+}
+</code></pre>
+
+<p class="code-file-label">📄 <code>lib/models/user.dart</code></p>
+<pre><code class="language-dart">class Geo {
+  final double lat;
+  final double lng;
+
+  const Geo({required this.lat, required this.lng});
+
+  // API mengirim koordinat sebagai String, jadi kita parse ke double
+  factory Geo.fromJson(Map&lt;String, dynamic&gt; json) {
+    return Geo(
+      lat: double.tryParse(json['lat']?.toString() ?? '') ?? 0,
+      lng: double.tryParse(json['lng']?.toString() ?? '') ?? 0,
+    );
+  }
+
+  Map&lt;String, dynamic&gt; toJson() =&gt; {'lat': lat.toString(), 'lng': lng.toString()};
+}
+
+class Address {
+  final String street;
+  final String city;
+  final Geo geo;
+
+  const Address({required this.street, required this.city, required this.geo});
+
+  factory Address.fromJson(Map&lt;String, dynamic&gt; json) {
+    return Address(
+      street: json['street'] as String? ?? '',
+      city: json['city'] as String? ?? '',
+      geo: Geo.fromJson(json['geo'] as Map&lt;String, dynamic&gt;? ?? {}),
+    );
+  }
+
+  Map&lt;String, dynamic&gt; toJson() =&gt; {
+        'street': street,
+        'city': city,
+        'geo': geo.toJson(), // anak juga di-toJson
+      };
+}
+
+class User {
+  final int id;
+  final String name;
+  final String email;
+  final Address address;
+  final String companyName;
+  final List&lt;String&gt; roles; // contoh list String
+
+  const User({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.address,
+    required this.companyName,
+    this.roles = const [],
+  });
+
+  factory User.fromJson(Map&lt;String, dynamic&gt; json) {
+    final company = json['company'] as Map&lt;String, dynamic&gt;? ?? {};
+    return User(
+      id: json['id'] as int,
+      name: json['name'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      address: Address.fromJson(json['address'] as Map&lt;String, dynamic&gt;),
+      companyName: company['name'] as String? ?? '-',
+      roles: List&lt;String&gt;.from(json['roles'] as List? ?? const []),
+    );
+  }
+
+  Map&lt;String, dynamic&gt; toJson() =&gt; {
+        'id': id,
+        'name': name,
+        'email': email,
+        'address': address.toJson(),
+        'company': {'name': companyName},
+        'roles': roles,
+      };
+}
+</code></pre>
+
+<h4>Contoh Lengkap yang Bisa Dijalankan</h4>
+<p>Program berikut memakai model <code>Post</code> dan <code>User</code> di atas dengan data JSON contoh (belum memakai internet), supaya kamu bisa fokus pada proses parsing.</p>
+<p class="code-file-label">📄 <code>lib/contoh_model.dart</code></p>
+<pre><code class="language-dart">// Jalankan dengan: dart run lib/contoh_model.dart
+import 'dart:convert';
+
+import 'models/post.dart';
+import 'models/user.dart';
+
+const postsJson = '''
+[
+  {"userId": 1, "id": 1, "title": "Halo Flutter", "body": "Belajar REST API"},
+  {"userId": 1, "id": 2, "title": "JSON itu mudah", "body": "Asal pakai model"}
+]
+''';
+
+const userJson = '''
+{
+  "id": 1,
+  "name": "Leanne Graham",
+  "email": "Sincere@april.biz",
+  "address": {
+    "street": "Kulas Light",
+    "city": "Gwenborough",
+    "geo": {"lat": "-37.3159", "lng": "81.1496"}
+  },
+  "company": {"name": "Romaguera-Crona"},
+  "roles": ["admin", "editor"]
+}
+''';
+
+void main() {
+  // Array -&gt; List&lt;Post&gt;
+  final List&lt;dynamic&gt; rawPosts = jsonDecode(postsJson) as List&lt;dynamic&gt;;
+  final posts = rawPosts
+      .map((e) =&gt; Post.fromJson(e as Map&lt;String, dynamic&gt;))
+      .toList();
+  for (final post in posts) {
+    print('${post.id}. ${post.title}');
+  }
+
+  // Object bersarang -&gt; User
+  final user = User.fromJson(jsonDecode(userJson) as Map&lt;String, dynamic&gt;);
+  print('${user.name} tinggal di ${user.address.city}');
+  print('Koordinat: ${user.address.geo.lat}, ${user.address.geo.lng}');
+  print('Peran: ${user.roles.join(', ')}');
+
+  // Model -&gt; JSON (untuk dikirim ke server)
+  final baru = Post(userId: 1, title: 'Post baru', body: 'Isi');
+  print(jsonEncode(baru.toJson())); // tanpa "id"
+
+  // copyWith untuk edit
+  final diedit = posts.first.copyWith(title: 'Judul diganti');
+  print(diedit); // Post(id: 1, title: Judul diganti)
+}
+</code></pre>
+
+<div class="callout callout-tip"><h4>💡 Tips: Generator Otomatis</h4><p>Untuk model yang sangat besar, ada package <code>json_serializable</code> yang membuat <code>fromJson</code>/<code>toJson</code> otomatis. Namun pahami dulu cara manual seperti di atas, karena hasil generator pun bentuknya sama.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Lupa memanggil <code>Address.fromJson(...)</code> sehingga field bertipe <code>Address</code> diisi Map, hasilnya error tipe.</li>
+  <li>Lupa memanggil <code>address.toJson()</code> di dalam <code>toJson()</code> induk sehingga <code>jsonEncode</code> gagal mengubah objek <code>Address</code>.</li>
+  <li>Memakai <code>json['id'] as int</code> untuk field yang kadang dikirim sebagai String (<code>"1"</code>). Jika tidak yakin, gunakan <code>int.tryParse(json['id'].toString())</code>.</li>
+  <li>Nama kunci di model tidak sama persis dengan JSON (<code>userid</code> vs <code>userId</code>). Salin kunci langsung dari contoh response.</li>
+</ul>
+</div>

@@ -1,0 +1,281 @@
+<p class="lead">Saatnya menggabungkan semua yang sudah dipelajari menjadi satu program utuh: <strong>Sistem Nilai dan IPK Mahasiswa</strong>. Program ini mengambil data KHS dari "server" (simulasi), memvalidasi data yang rusak, lalu menghitung IPK, predikat, dan mata kuliah yang perlu diulang.</p>
+
+<h4>Spesifikasi</h4>
+<ul>
+  <li>Setiap mata kuliah punya kode, nama, SKS (1 sampai 6), dan nilai angka (0 sampai 100).</li>
+  <li>Nilai angka dikonversi ke nilai huruf dan bobot: A=4.0, AB=3.5, B=3.0, BC=2.5, C=2.0, D=1.0, E=0.0. Nilai di bawah C wajib diulang.</li>
+  <li>IPK = jumlah (SKS &times; bobot) dibagi total SKS.</li>
+  <li>Predikat: &ge; 3.51 Dengan Pujian, &ge; 3.01 Sangat Memuaskan, &ge; 2.76 Memuaskan, selain itu Cukup.</li>
+  <li>Data dari server bisa rusak. Data yang rusak dilewati dan dilaporkan sebagai peringatan, tanpa membuat program berhenti.</li>
+</ul>
+
+<h4>Kode lengkap</h4>
+<p>Simpan sebagai satu file lalu jalankan dengan <code>dart run sistem_nilai.dart</code>. Komentar bernomor menandai bagian-bagian program.</p>
+<p class="code-file-label">📄 <code>sistem_nilai.dart</code></p>
+<pre><code class="language-dart">// ===== 1. ENUM: skala nilai huruf (enhanced enum) =====
+enum NilaiHuruf {
+  a('A', 4.0, 85),
+  ab('AB', 3.5, 80),
+  b('B', 3.0, 70),
+  bc('BC', 2.5, 65),
+  c('C', 2.0, 60),
+  d('D', 1.0, 50),
+  e('E', 0.0, 0);
+
+  const NilaiHuruf(this.label, this.bobot, this.batasBawah);
+
+  final String label;
+  final double bobot;
+  final int batasBawah;
+
+  bool get lulus =&gt; bobot &gt;= 2.0;
+
+  static NilaiHuruf dariAngka(double nilai) =&gt;
+      values.firstWhere((h) =&gt; nilai &gt;= h.batasBawah);
+}
+
+// ===== 2. EXCEPTION kustom =====
+class DataNilaiException implements Exception {
+  final String pesan;
+  DataNilaiException(this.pesan);
+
+  @override
+  String toString() =&gt; 'DataNilaiException: $pesan';
+}
+
+// ===== 3. CLASS MataKuliah (constructor, validasi, factory, getter) =====
+class MataKuliah {
+  final String kode;
+  final String nama;
+  final int sks;
+  final double nilaiAngka;
+
+  MataKuliah({
+    required this.kode,
+    required this.nama,
+    required this.sks,
+    required this.nilaiAngka,
+  }) {
+    if (sks &lt; 1 || sks &gt; 6) {
+      throw DataNilaiException('SKS $kode harus 1-6');
+    }
+    if (nilaiAngka &lt; 0 || nilaiAngka &gt; 100) {
+      throw DataNilaiException('Nilai $kode di luar rentang 0-100');
+    }
+  }
+
+  factory MataKuliah.fromJson(Map&lt;String, dynamic&gt; json) {
+    if (json
+        case {
+          'kode': String kode,
+          'nama': String nama,
+          'sks': int sks,
+          'nilai': num nilai,
+        }) {
+      return MataKuliah(
+        kode: kode,
+        nama: nama,
+        sks: sks,
+        nilaiAngka: nilai.toDouble(),
+      );
+    }
+    throw DataNilaiException('Format data ${json['kode']} tidak sesuai');
+  }
+
+  NilaiHuruf get huruf =&gt; NilaiHuruf.dariAngka(nilaiAngka);
+  double get mutu =&gt; sks * huruf.bobot;
+}
+
+// ===== 4. EXTENSION =====
+extension FormatAngka on double {
+  String get duaDesimal =&gt; toStringAsFixed(2);
+}
+
+// ===== 5. SEALED CLASS: hasil pemuatan data =====
+sealed class HasilMuat {}
+
+class MuatBerhasil extends HasilMuat {
+  final List&lt;MataKuliah&gt; data;
+  final List&lt;String&gt; peringatan;
+  MuatBerhasil(this.data, this.peringatan);
+}
+
+class MuatGagal extends HasilMuat {
+  final String pesan;
+  MuatGagal(this.pesan);
+}
+
+// ===== 6. CLASS Mahasiswa (private, getter, koleksi, record) =====
+class Mahasiswa {
+  final String nim;
+  final String nama;
+  final List&lt;MataKuliah&gt; _khs = [];
+
+  Mahasiswa(this.nim, this.nama);
+
+  List&lt;MataKuliah&gt; get khs =&gt; List.unmodifiable(_khs);
+
+  void tambahSemua(List&lt;MataKuliah&gt; daftar) =&gt; _khs.addAll(daftar);
+
+  int get totalSks =&gt; _khs.fold(0, (total, mk) =&gt; total + mk.sks);
+
+  double get ipk {
+    if (totalSks == 0) return 0;
+    final totalMutu = _khs.fold(0.0, (total, mk) =&gt; total + mk.mutu);
+    return totalMutu / totalSks;
+  }
+
+  String get predikat =&gt; switch (ipk) {
+        &gt;= 3.51 =&gt; 'Dengan Pujian',
+        &gt;= 3.01 =&gt; 'Sangat Memuaskan',
+        &gt;= 2.76 =&gt; 'Memuaskan',
+        _ =&gt; 'Cukup',
+      };
+
+  List&lt;MataKuliah&gt; get perluMengulang =&gt;
+      _khs.where((mk) =&gt; !mk.huruf.lulus).toList();
+
+  ({MataKuliah terbaik, MataKuliah terendah}) get ringkasan {
+    final urut = [..._khs]..sort((a, b) =&gt; b.nilaiAngka.compareTo(a.nilaiAngka));
+    return (terbaik: urut.first, terendah: urut.last);
+  }
+}
+
+// ===== 7. ASYNC: simulasi mengambil data dari server =====
+Future&lt;HasilMuat&gt; muatKhsDariServer(String nim) async {
+  await Future.delayed(const Duration(milliseconds: 500));
+  if (nim.isEmpty) return MuatGagal('NIM kosong');
+
+  final dataJson = &lt;Map&lt;String, dynamic&gt;&gt;[
+    {'kode': 'IF201', 'nama': 'Pemrograman Mobile', 'sks': 3, 'nilai': 88},
+    {'kode': 'IF202', 'nama': 'Basis Data', 'sks': 3, 'nilai': 76.5},
+    {'kode': 'IF203', 'nama': 'Jaringan Komputer', 'sks': 2, 'nilai': 64},
+    {'kode': 'IF204', 'nama': 'Kecerdasan Buatan', 'sks': 3, 'nilai': 81},
+    {'kode': 'IF205', 'nama': 'Etika Profesi', 'sks': 2, 'nilai': 55},
+    {'kode': 'IF206', 'nama': 'Statistika', 'sks': 3, 'nilai': 'A'}, // rusak
+    {'kode': 'IF207', 'nama': 'Kerja Praktik', 'sks': 8, 'nilai': 90}, // rusak
+  ];
+
+  final data = &lt;MataKuliah&gt;[];
+  final peringatan = &lt;String&gt;[];
+  for (final json in dataJson) {
+    try {
+      data.add(MataKuliah.fromJson(json));
+    } on DataNilaiException catch (e) {
+      peringatan.add(e.pesan);
+    }
+  }
+  return MuatBerhasil(data, peringatan);
+}
+
+// ===== 8. MAIN =====
+Future&lt;void&gt; main() async {
+  final mhs = Mahasiswa('H1D023001', 'Ayu Lestari');
+  print('Memuat KHS ${mhs.nama}...');
+
+  final hasil = await muatKhsDariServer(mhs.nim);
+  switch (hasil) {
+    case MuatGagal(:final pesan):
+      print('Gagal memuat: $pesan');
+      return;
+    case MuatBerhasil(:final data, :final peringatan):
+      mhs.tambahSemua(data);
+      for (final p in peringatan) {
+        print('Peringatan: $p');
+      }
+  }
+
+  print('');
+  print('KHS ${mhs.nim} - ${mhs.nama}');
+  for (final (i, mk) in mhs.khs.indexed) {
+    print('${i + 1}. ${mk.kode} ${mk.nama.padRight(20)}'
+        '${mk.sks} SKS  ${mk.nilaiAngka.toString().padLeft(4)}  ${mk.huruf.label}');
+  }
+
+  final (:terbaik, :terendah) = mhs.ringkasan;
+  print('');
+  print('Total SKS   : ${mhs.totalSks}');
+  print('IPK         : ${mhs.ipk.duaDesimal}');
+  print('Predikat    : ${mhs.predikat}');
+  print('Terbaik     : ${terbaik.nama} (${terbaik.huruf.label})');
+  print('Terendah    : ${terendah.nama} (${terendah.huruf.label})');
+  print('Mengulang   : ${mhs.perluMengulang.map((mk) =&gt; mk.nama).join(', ')}');
+}
+</code></pre>
+
+<h4>Output</h4>
+<pre><code class="language-text">Memuat KHS Ayu Lestari...
+Peringatan: Format data IF206 tidak sesuai
+Peringatan: SKS IF207 harus 1-6
+
+KHS H1D023001 - Ayu Lestari
+1. IF201 Pemrograman Mobile  3 SKS  88.0  A
+2. IF202 Basis Data          3 SKS  76.5  B
+3. IF203 Jaringan Komputer   2 SKS  64.0  C
+4. IF204 Kecerdasan Buatan   3 SKS  81.0  AB
+5. IF205 Etika Profesi       2 SKS  55.0  D
+
+Total SKS   : 13
+IPK         : 2.88
+Predikat    : Memuaskan
+Terbaik     : Pemrograman Mobile (A)
+Terendah    : Etika Profesi (D)
+Mengulang   : Etika Profesi
+</code></pre>
+
+<h4>Penjelasan per bagian</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Bagian</th><th>Konsep yang dipakai</th><th>Section</th></tr></thead>
+    <tbody>
+      <tr><td>1. <code>NilaiHuruf</code></td><td>Enhanced enum dengan field, getter <code>lulus</code>, dan method static <code>dariAngka</code> memakai <code>firstWhere</code></td><td>8, 6</td></tr>
+      <tr><td>2. <code>DataNilaiException</code></td><td>Exception kustom dengan <code>implements Exception</code> dan override <code>toString()</code></td><td>10</td></tr>
+      <tr><td>3. <code>MataKuliah</code></td><td>Named parameter <code>required</code>, validasi di body constructor dengan <code>throw</code>, factory <code>fromJson</code> dengan <code>if-case</code> pattern, getter terhitung</td><td>5, 8, 9</td></tr>
+      <tr><td>4. <code>FormatAngka</code></td><td>Extension method pada <code>double</code></td><td>8</td></tr>
+      <tr><td>5. <code>HasilMuat</code></td><td>Sealed class dan exhaustive switch di <code>main()</code> dengan object pattern <code>:final pesan</code></td><td>9</td></tr>
+      <tr><td>6. <code>Mahasiswa</code></td><td>Field private <code>_khs</code>, <code>List.unmodifiable</code>, <code>fold</code>, <code>where</code>, switch expression dengan relational pattern, getter yang mengembalikan record</td><td>6, 8, 9</td></tr>
+      <tr><td>7. <code>muatKhsDariServer</code></td><td><code>async</code>/<code>await</code>, <code>Future.delayed</code>, <code>try</code>/<code>on ... catch</code> di dalam perulangan</td><td>10, 11</td></tr>
+      <tr><td>8. <code>main()</code></td><td><code>Future&lt;void&gt; main() async</code>, destructuring <code>.indexed</code> dan record, interpolasi, <code>padRight</code>/<code>padLeft</code>, <code>map</code> + <code>join</code></td><td>2, 4, 6, 9</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>Beberapa hal yang perlu diperhatikan:</p>
+<ul>
+  <li><strong>Data rusak tidak membuat program berhenti.</strong> <code>IF206</code> ditolak oleh pattern di <code>fromJson</code> karena nilainya String, sedangkan <code>IF207</code> lolos pattern tetapi ditolak validasi SKS di constructor. Keduanya melempar <code>DataNilaiException</code> yang ditangkap di dalam perulangan, sehingga data lain tetap diproses.</li>
+  <li><strong>Perhitungan IPK</strong>: total mutu = 3&times;4.0 + 3&times;3.0 + 2&times;2.0 + 3&times;3.5 + 2&times;1.0 = 37.5. Dibagi 13 SKS menghasilkan 2.8846..., yang dibulatkan menjadi 2.88 oleh extension <code>duaDesimal</code>.</li>
+  <li><strong><code>fold(0.0, ...)</code></strong> sengaja diberi nilai awal <code>0.0</code> (double), karena <code>mutu</code> bertipe double. Jika ditulis <code>0</code>, Dart menganggap akumulatornya <code>int</code> dan terjadi error tipe.</li>
+  <li><strong>Getter <code>khs</code></strong> mengembalikan list yang tidak bisa diubah. Kode di luar class tidak bisa menambah mata kuliah tanpa lewat method <code>tambahSemua</code>.</li>
+</ul>
+
+<h4>Bonus: progres sinkronisasi dengan Stream</h4>
+<p>Fitur tambahan yang sering muncul di aplikasi: menampilkan persentase progres saat data dikirim ke server. Ini cocok dibuat dengan <code>async*</code>.</p>
+<pre><code class="language-dart">Stream&lt;int&gt; sinkronkanKrs(int jumlahMatkul) async* {
+  for (var i = 1; i &lt;= jumlahMatkul; i++) {
+    await Future.delayed(const Duration(milliseconds: 200)); // kirim satu matkul
+    yield i * 100 ~/ jumlahMatkul; // persentase selesai
+  }
+}
+
+Future&lt;void&gt; main() async {
+  await for (final persen in sinkronkanKrs(4)) {
+    print('Menyinkronkan... $persen%');
+  }
+  print('Data KRS Ayu Lestari berhasil disinkronkan');
+  // Output:
+  // Menyinkronkan... 25%
+  // Menyinkronkan... 50%
+  // Menyinkronkan... 75%
+  // Menyinkronkan... 100%
+  // Data KRS Ayu Lestari berhasil disinkronkan
+}
+</code></pre>
+<p>Di Flutter, stream seperti ini bisa dihubungkan ke <code>StreamBuilder</code> untuk menggerakkan <code>LinearProgressIndicator</code>.</p>
+
+<div class="callout callout-tip"><h4>💡 Latihan pengembangan (mandiri)</h4>
+<ol>
+  <li>Tambahkan field <code>semester</code> pada <code>MataKuliah</code>, lalu hitung <strong>IPS</strong> (indeks prestasi per semester) memakai <code>where</code>.</li>
+  <li>Jika satu mata kuliah diambil dua kali, gunakan nilai terbaik saja saat menghitung IPK. Petunjuk: kelompokkan berdasarkan <code>kode</code> dengan <code>Map</code>.</li>
+  <li>Buat <code>muatKhsDariServer</code> mengembalikan <code>MuatGagal</code> secara acak (gunakan <code>Random</code> dari <code>dart:math</code>), lalu pastikan pesan gagal tampil dengan benar.</li>
+  <li>Tambahkan method <code>toJson()</code> pada <code>MataKuliah</code> dan cetak seluruh KHS dalam format JSON memakai <code>jsonEncode</code> dari <code>dart:convert</code>.</li>
+</ol></div>

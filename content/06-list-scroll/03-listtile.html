@@ -1,0 +1,178 @@
+<p class="lead"><code>ListTile</code> adalah satu baris daftar siap pakai dengan slot <code>leading</code> (kiri), <code>title</code>, <code>subtitle</code>, dan <code>trailing</code> (kanan). Hampir semua aplikasi daftar (kontak, chat, pengaturan) bisa dibuat dengannya.</p>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">ListTile(
+  leading: const CircleAvatar(child: Text('IF')),   // kiri
+  title: const Text('Pemrograman Mobile'),           // judul
+  subtitle: const Text('IF305 - 4 SKS'),              // keterangan
+  trailing: const Icon(Icons.chevron_right),          // kanan
+  onTap: () =&gt; debugPrint('Buka detail'),             // seluruh baris bisa ditekan
+),
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/listtile-kecil.jpg" alt="ListTile dengan avatar, judul, subjudul, dan ikon panah" loading="lazy">
+    <div class="screenshot-caption">ListTile dengan avatar, judul, subjudul, dan ikon panah</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: sepuluh ragam ListTile</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const KatalogListTileScreen(),
+    );
+  }
+}
+
+class KatalogListTileScreen extends StatefulWidget {
+  const KatalogListTileScreen({super.key});
+
+  @override
+  State&lt;KatalogListTileScreen&gt; createState() =&gt; _KatalogListTileScreenState();
+}
+
+class _KatalogListTileScreenState extends State&lt;KatalogListTileScreen&gt; {
+  int _terpilih = 1;
+  bool _hadir = true;
+  bool _wifi = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Ragam ListTile')),
+      body: ListView(
+        children: [
+          // 1. Paling dasar
+          const ListTile(title: Text('1. Hanya judul')),
+
+          // 2. Ikon + subjudul
+          const ListTile(
+            leading: Icon(Icons.event),
+            title: Text('2. Ujian Tengah Semester'),
+            subtitle: Text('Senin, 14 Oktober - Ruang C.2'),
+          ),
+
+          // 3. Avatar + trailing teks + bisa ditekan
+          ListTile(
+            leading: CircleAvatar(
+              backgroundColor: warna.primaryContainer,
+              child: const Text('NP'),
+            ),
+            title: const Text('3. Nadia Putri'),
+            subtitle: const Text('Pesan: Besok kumpul jam 8 ya'),
+            trailing: const Text('09:41'),
+            onTap: () {},
+          ),
+
+          // 4. Tiga baris
+          const ListTile(
+            isThreeLine: true,
+            leading: Icon(Icons.article_outlined),
+            title: Text('4. Pengumuman Beasiswa'),
+            subtitle: Text(
+              'Pendaftaran beasiswa prestasi dibuka hingga akhir bulan. '
+              'Syarat IPK minimal 3,25 dan aktif berorganisasi.',
+            ),
+          ),
+
+          // 5. Badge di trailing
+          ListTile(
+            leading: const Icon(Icons.assignment),
+            title: const Text('5. Tugas belum dikumpul'),
+            trailing: Badge(
+              label: const Text('3'),
+              child: Icon(Icons.notifications, color: warna.primary),
+            ),
+          ),
+
+          // 6. Pilihan aktif (selected)
+          for (var i = 0; i &lt; 3; i++)
+            ListTile(
+              selected: _terpilih == i,
+              selectedTileColor: warna.secondaryContainer,
+              leading: const Icon(Icons.class_outlined),
+              title: Text('6. Kelas ${String.fromCharCode(65 + i)}'),
+              trailing: _terpilih == i ? const Icon(Icons.check) : null,
+              onTap: () =&gt; setState(() =&gt; _terpilih = i),
+            ),
+
+          // 7. Versi siap pakai dengan checkbox / switch
+          CheckboxListTile(
+            secondary: const Icon(Icons.how_to_reg),
+            title: const Text('7. Tandai hadir'),
+            value: _hadir,
+            onChanged: (v) =&gt; setState(() =&gt; _hadir = v ?? false),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.wifi),
+            title: const Text('8. Wi-Fi kampus'),
+            value: _wifi,
+            onChanged: (v) =&gt; setState(() =&gt; _wifi = v),
+          ),
+
+          // 9. Di dalam Card agar terlihat seperti kartu
+          Card(
+            margin: const EdgeInsets.all(12),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              leading: const Icon(Icons.menu_book, size: 36),
+              title: const Text('9. Basis Data'),
+              subtitle: const Text('Dosen: Nadia Fitri, M.T.'),
+              trailing: IconButton(
+                icon: const Icon(Icons.more_vert),
+                onPressed: () {},
+              ),
+            ),
+          ),
+
+          // 10. Rapat (dense)
+          const ListTile(
+            dense: true,
+            leading: Icon(Icons.info_outline),
+            title: Text('10. Versi dense: lebih rapat untuk daftar panjang'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/listtile-atas.jpg" alt="Sepuluh ragam ListTile dalam satu layar" loading="lazy">
+    <div class="screenshot-caption">Sepuluh ragam ListTile dalam satu layar</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><strong>Nomor 4:</strong> <code>isThreeLine: true</code> memberi ruang untuk subjudul dua baris.</li>
+  <li><strong>Nomor 5:</strong> <code>Badge</code> menampilkan angka kecil di atas ikon, cocok untuk jumlah notifikasi.</li>
+  <li><strong>Nomor 6:</strong> <code>selected</code> mengubah warna teks/ikon, dan <code>selectedTileColor</code> mengubah warna latar baris terpilih.</li>
+  <li><strong>Nomor 7-8:</strong> <code>CheckboxListTile</code> dan <code>SwitchListTile</code> sudah dibahas di Modul 05. Parameter <code>secondary</code> menaruh ikon di sisi berlawanan dari kontrol.</li>
+  <li><strong>Nomor 9:</strong> ListTile di dalam <code>Card</code> tampil seperti kartu. <code>trailing</code> bisa berisi tombol.</li>
+  <li><strong>Nomor 10:</strong> <code>dense: true</code> membuat baris lebih rapat.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Memberi <code>trailing</code> berupa <code>Row</code> tanpa <code>mainAxisSize: MainAxisSize.min</code>.</strong> Row mengambil seluruh lebar dan terjadi error layout.</li>
+  <li><strong>Memasang ListTile di dalam <code>Row</code>.</strong> ListTile butuh lebar yang jelas; bungkus dengan <code>Expanded</code>.</li>
+  <li><strong>Membungkus ListTile dengan InkWell/GestureDetector.</strong> Tidak perlu, cukup isi <code>onTap</code>.</li>
+</ul></div>

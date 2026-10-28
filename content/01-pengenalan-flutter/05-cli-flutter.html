@@ -1,0 +1,109 @@
+<p>VS Code dan Android Studio punya tombol untuk semua hal, tetapi memahami perintah CLI (terminal) membuat Anda tahu apa yang sebenarnya terjadi dan sangat membantu saat debugging. Berikut perintah yang akan dipakai sepanjang semester.</p>
+
+<h4>1. Membuat proyek: <code>flutter create</code></h4>
+<pre><code class="language-bash"># Bentuk paling sederhana (nama proyek: huruf kecil + garis bawah)
+flutter create halo_kampus
+
+# Menentukan organisasi (dipakai sebagai package name Android: id.ac.unsoed.halo_kampus)
+flutter create --org id.ac.unsoed halo_kampus
+
+# Hanya membuat folder platform tertentu agar proyek lebih ringan
+flutter create --platforms=android,ios,web halo_kampus
+
+# Proyek kosong tanpa contoh counter dan komentar panjang
+flutter create --empty halo_kampus</code></pre>
+
+<div class="callout callout-warning">
+  <h4>⚠️ Aturan nama proyek</h4>
+  <p>Nama proyek harus huruf kecil dan garis bawah (<code>snake_case</code>), tidak boleh diawali angka dan tidak boleh memakai tanda minus. <code>halo-kampus</code> dan <code>HaloKampus</code> akan ditolak, gunakan <code>halo_kampus</code>.</p>
+</div>
+
+<h4>2. Melihat dan menyalakan device</h4>
+<pre><code class="language-bash"># Daftar device yang tersambung (HP, emulator yang sudah menyala, Chrome, desktop)
+flutter devices
+
+# Daftar emulator yang sudah dibuat di Android Studio
+flutter emulators
+
+# Menyalakan emulator berdasarkan id dari perintah di atas
+flutter emulators --launch Pixel_8_API_35</code></pre>
+
+<h4>3. Menjalankan aplikasi: <code>flutter run</code></h4>
+<pre><code class="language-bash"># Jalankan di device default (jika hanya ada satu)
+flutter run
+
+# Pilih device tertentu dengan -d (id atau nama dari 'flutter devices')
+flutter run -d chrome
+flutter run -d emulator-5554
+
+# Mode release: lebih cepat, tanpa Hot Reload (untuk uji performa)
+flutter run --release</code></pre>
+<p>Selama <code>flutter run</code> berjalan, terminal menerima tombol berikut:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Tombol</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>r</kbd></td><td>Hot Reload: suntikkan perubahan kode, state dipertahankan</td></tr>
+      <tr><td><kbd>R</kbd></td><td>Hot Restart: jalankan ulang aplikasi dari <code>main()</code>, state direset</td></tr>
+      <tr><td><kbd>h</kbd></td><td>Tampilkan semua perintah yang tersedia</td></tr>
+      <tr><td><kbd>d</kbd></td><td>Detach: lepas terminal tanpa menutup aplikasi</td></tr>
+      <tr><td><kbd>c</kbd></td><td>Bersihkan layar terminal</td></tr>
+      <tr><td><kbd>q</kbd></td><td>Quit: hentikan aplikasi</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>4. Mengelola package: <code>flutter pub</code></h4>
+<pre><code class="language-bash"># Menambah package dari pub.dev (otomatis menulis ke pubspec.yaml + mengunduh)
+flutter pub add http
+flutter pub add provider
+
+# Menambah package khusus pengembangan (masuk ke dev_dependencies)
+flutter pub add dev:mocktail
+
+# Menghapus package
+flutter pub remove http
+
+# Mengunduh ulang semua package sesuai pubspec.yaml (misal setelah git clone)
+flutter pub get
+
+# Melihat package yang punya versi lebih baru
+flutter pub outdated</code></pre>
+
+<h4>5. Memeriksa dan merapikan kode</h4>
+<pre><code class="language-bash"># Cari error dan peringatan tanpa menjalankan aplikasi
+flutter analyze
+
+# Rapikan format (indentasi, spasi) seluruh file Dart di folder lib
+dart format lib
+
+# Jalankan semua test di folder test/
+flutter test</code></pre>
+
+<h4>6. Membersihkan dan memperbarui</h4>
+<pre><code class="language-bash"># Hapus folder build/ dan cache proyek. Obat pertama untuk error build yang aneh.
+flutter clean
+flutter pub get
+
+# Perbarui Flutter SDK ke versi stable terbaru
+flutter upgrade
+
+# Membuat berkas rilis (dibahas di Modul 16)
+flutter build apk --release</code></pre>
+
+<h4>Ringkasan perintah</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Perintah</th><th>Kapan dipakai</th></tr></thead>
+    <tbody>
+      <tr><td><code>flutter doctor</code></td><td>Cek kesehatan instalasi</td></tr>
+      <tr><td><code>flutter create</code></td><td>Membuat proyek baru</td></tr>
+      <tr><td><code>flutter devices</code> / <code>flutter emulators</code></td><td>Melihat dan menyalakan device</td></tr>
+      <tr><td><code>flutter run</code></td><td>Menjalankan aplikasi (debug)</td></tr>
+      <tr><td><code>flutter pub add</code> / <code>remove</code> / <code>get</code></td><td>Mengelola package</td></tr>
+      <tr><td><code>flutter analyze</code></td><td>Cek error sebelum menjalankan / mengumpulkan</td></tr>
+      <tr><td><code>flutter clean</code></td><td>Saat build error tanpa alasan jelas</td></tr>
+      <tr><td><code>flutter build</code></td><td>Membuat berkas rilis</td></tr>
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,177 @@
+{
+  "id": "modul-12",
+  "badge": "Produksi & Capstone",
+  "category": "Produksi",
+  "title": "Build Rilis APK/AAB & Panduan Capstone Project",
+  "duration": "Pertemuan 16 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 14: Proyek Catatan Kuliah Bagian 2 (CRUD & Cache Offline)",
+    "Modul 15: Debugging & Testing"
+  ],
+  "summary": "Mempersiapkan aplikasi untuk dirilis: versi aplikasi, nama dan application ID, ikon dan splash screen, permission, konfigurasi Supabase dengan --dart-define-from-file, keystore dan signing Gradle Kotlin DSL, obfuscation, build APK split-per-abi dan App Bundle, pengujian build rilis, gambaran Play Console dan iOS, serta panduan lengkap Capstone Project.",
+  "learningOutcomes": [
+    "Mengatur versi aplikasi (version: x.y.z+build), nama aplikasi, dan application ID yang unik.",
+    "Mengonfigurasi launcher icon (termasuk adaptive icon) dan native splash screen dengan generator.",
+    "Mendeklarasikan permission yang dibutuhkan di AndroidManifest.xml dan Info.plist, termasuk INTERNET untuk build rilis.",
+    "Memisahkan konfigurasi rahasia dari kode dengan --dart-define-from-file dan .gitignore.",
+    "Membuat keystore, key.properties, dan konfigurasi signing di build.gradle.kts, lalu memverifikasi tanda tangan APK.",
+    "Mengompilasi APK split-per-abi dan App Bundle dengan obfuscation, lalu mengujinya di perangkat sungguhan.",
+    "Menjelaskan alur internal testing di Google Play Console dan gambaran rilis iOS.",
+    "Menyelesaikan Capstone Project sesuai fitur wajib, rubrik, timeline, dan deliverables."
+  ],
+  "sections": [
+    {
+      "id": "rilis-persiapan-versi",
+      "title": "1. Mode Build & Versi Aplikasi",
+      "file": "01-persiapan-versi.html"
+    },
+    {
+      "id": "rilis-nama-package-id",
+      "title": "2. Nama Aplikasi & Application ID",
+      "file": "02-nama-package-id.html"
+    },
+    {
+      "id": "app-branding",
+      "title": "3. App Icon & Splash Screen",
+      "file": "03-app-branding.html"
+    },
+    {
+      "id": "rilis-permissions",
+      "title": "4. Permission di AndroidManifest & Info.plist",
+      "file": "04-permissions.html"
+    },
+    {
+      "id": "rilis-env-config",
+      "title": "5. Konfigurasi Lingkungan dengan --dart-define-from-file",
+      "file": "05-env-config.html"
+    },
+    {
+      "id": "signing-keystore",
+      "title": "6. Keystore & Konfigurasi Signing",
+      "file": "06-signing-keystore.html"
+    },
+    {
+      "id": "rilis-build-apk-aab",
+      "title": "7. Build APK & AAB, Obfuscation, Uji di Perangkat",
+      "file": "07-build-apk-aab.html"
+    },
+    {
+      "id": "rilis-play-console-ios",
+      "title": "8. Google Play Console & Gambaran iOS",
+      "file": "08-play-console-ios.html"
+    },
+    {
+      "id": "capstone-guidelines",
+      "title": "9. Panduan Capstone Project",
+      "file": "09-capstone-guidelines.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 16: Rilis APK Catatan Kuliah & Persiapan Repositori Capstone",
+    "objective": "Mengubah proyek Catatan Kuliah (Modul 13-14) menjadi APK release yang bertanda tangan, aman dari kebocoran key, dan siap dipasang di HP orang lain, sekaligus menyiapkan repositori capstone sesuai standar.",
+    "instructions": [
+      "Ubah <code>version</code> di <code>pubspec.yaml</code> menjadi <code>1.0.0+1</code>, lalu tampilkan versi aplikasi di halaman Profil memakai <code>package_info_plus</code>.",
+      "Ganti <code>android:label</code> menjadi “Catatan Kuliah” dan <code>applicationId</code> menjadi <code>id.ac.unsoed.&lt;nim&gt;.catatan_kuliah</code>.",
+      "Buat ikon 1024×1024 (dengan versi foreground transparan) dan logo splash, lalu jalankan <code>dart run flutter_launcher_icons</code> dan <code>dart run flutter_native_splash:create</code>.",
+      "Tambahkan permission INTERNET di <code>android/app/src/main/AndroidManifest.xml</code>.",
+      "Pindahkan URL dan publishable key Supabase ke <code>config/dev.json</code> dan <code>config/prod.json</code>, buat <code>config/example.json</code>, perbarui <code>.gitignore</code>, dan gunakan class <code>Env</code>. Pastikan <code>git status</code> tidak menampilkan file konfigurasi rahasia.",
+      "Buat keystore dengan <code>keytool</code>, isi <code>android/key.properties</code>, dan tambahkan konfigurasi signing ke <code>android/app/build.gradle.kts</code>.",
+      "Build dengan <code>flutter build apk --split-per-abi --obfuscate --split-debug-info=build/symbols --dart-define-from-file=config/prod.json</code>, lalu verifikasi tanda tangan dengan <code>apksigner verify --print-certs</code> (screenshot hasilnya).",
+      "Pasang <code>app-arm64-v8a-release.apk</code> di HP fisik (milik sendiri atau teman) dan jalankan 6 butir daftar uji build rilis dari bagian 7. Catat hasilnya dalam tabel di README.",
+      "Unggah APK ke bagian Releases GitHub dan lengkapi README sesuai template capstone (screenshot, fitur, cara menjalankan, cara build).",
+      "Bonus: build <code>flutter build appbundle</code> dan bandingkan ukurannya dengan APK split dan fat APK."
+    ],
+    "expectedOutput": "APK release bertanda tangan keystore sendiri (bukan Android Debug) yang terpasang di HP fisik dengan ikon, nama, dan splash kustom; login dan CRUD Supabase berjalan; repositori GitHub tanpa key/keystore, dengan README lengkap dan APK di halaman Releases.",
+    "rubric": "APK release berhasil dibuat dan bertanda tangan kunci rilis (30%), branding: ikon, splash, nama, application ID (20%), konfigurasi aman: dart-define-from-file dan .gitignore benar (20%), hasil uji di HP fisik terdokumentasi (15%), README dan Releases GitHub (15%)."
+  },
+  "quiz": [
+    {
+      "question": "Pada baris version: 1.4.2+15 di pubspec.yaml, angka 15 berfungsi sebagai...",
+      "options": [
+        "versionName yang dilihat pengguna di Play Store",
+        "versionCode, bilangan bulat yang wajib naik setiap kali mengunggah build baru",
+        "minSdk Android",
+        "Jumlah halaman aplikasi"
+      ],
+      "correctIndex": 1,
+      "explanation": "Bagian sebelum + adalah versionName (1.4.2), bagian setelahnya adalah versionCode (15). Play Console menolak unggahan dengan versionCode yang sudah pernah dipakai, dan Android menolak downgrade."
+    },
+    {
+      "question": "Aplikasi Catatan Kuliah bisa login saat flutter run, tetapi APK release yang dipasang di HP selalu gagal terhubung ke Supabase. Penyebab yang paling mungkin adalah...",
+      "options": [
+        "Supabase tidak mendukung Android",
+        "Permission INTERNET hanya ada di manifest debug, belum ditambahkan ke android/app/src/main/AndroidManifest.xml",
+        "APK release tidak bisa memakai package http",
+        "Ikon aplikasi belum diganti"
+      ],
+      "correctIndex": 1,
+      "explanation": "flutter create menaruh permission INTERNET di manifest debug (untuk hot reload). Build release hanya memakai manifest main, sehingga permission harus ditambahkan di sana."
+    },
+    {
+      "question": "Mengapa kode berikut bisa menghasilkan nilai kosong di build release? final url = String.fromEnvironment('SUPABASE_URL');",
+      "options": [
+        "Karena nama kunci harus huruf kecil",
+        "Karena String.fromEnvironment hanya dijamin bekerja jika dipanggil dalam konteks const",
+        "Karena --dart-define hanya berlaku di iOS",
+        "Karena nilai harus dibaca dengan SharedPreferences"
+      ],
+      "correctIndex": 1,
+      "explanation": "Nilai --dart-define ditanam saat kompilasi. Dokumentasi Dart hanya menjamin String.fromEnvironment terbaca dalam konteks const, sehingga tulis static const url = String.fromEnvironment('SUPABASE_URL');."
+    },
+    {
+      "question": "Apa tujuan utama memakai --dart-define-from-file=config/prod.json dengan config/*.json di .gitignore?",
+      "options": [
+        "Membuat key Supabase mustahil ditemukan oleh siapa pun",
+        "Agar key tidak tersebar lewat repositori git dan konfigurasi dev/prod mudah ditukar tanpa mengubah kode",
+        "Agar APK lebih kecil",
+        "Agar RLS Supabase tidak diperlukan lagi"
+      ],
+      "correctIndex": 1,
+      "explanation": "Nilai dart-define tetap tertanam di APK, jadi bukan rahasia mutlak. Manfaatnya adalah key tidak ikut ter-commit dan lingkungan mudah diganti. Keamanan data tetap bergantung pada RLS, dan service_role key tidak boleh ada di aplikasi."
+    },
+    {
+      "question": "Mengapa file key.properties dan keystore (.jks) harus masuk .gitignore?",
+      "options": [
+        "Karena GitHub tidak bisa menyimpan file biner",
+        "Karena siapa pun yang memegang keystore beserta password-nya bisa menandatangani update palsu atas nama Anda",
+        "Agar ukuran repositori di bawah 1 GB",
+        "Karena keystore hanya bisa dibaca Windows"
+      ],
+      "correctIndex": 1,
+      "explanation": "Keystore adalah identitas kriptografis pemilik aplikasi. Android hanya menerima update yang ditandatangani dengan kunci yang sama, sehingga kebocoran keystore memungkinkan pemalsuan update."
+    },
+    {
+      "question": "Apa keuntungan flutter build apk --split-per-abi dibandingkan flutter build apk biasa?",
+      "options": [
+        "Menghasilkan APK terpisah per arsitektur CPU sehingga setiap file jauh lebih kecil daripada fat APK",
+        "Membuat aplikasi bisa berjalan di iOS",
+        "Menghapus kebutuhan keystore",
+        "Mengubah APK menjadi AAB"
+      ],
+      "correctIndex": 0,
+      "explanation": "APK biasa berisi kode native untuk semua CPU (pada contoh modul 47,2 MB). Split per ABI menghasilkan file terpisah seperti arm64-v8a (16,1 MB) yang cukup untuk hampir semua HP modern."
+    },
+    {
+      "question": "Anda mem-build dengan --obfuscate --split-debug-info=build/symbols. Apa yang harus dilakukan agar stack trace crash dari pengguna bisa dibaca?",
+      "options": [
+        "Tidak perlu apa-apa, stack trace selalu terbaca",
+        "Menyimpan folder simbol untuk versi tersebut dan menerjemahkan stack trace dengan flutter symbolize",
+        "Build ulang tanpa obfuscate lalu meminta pengguna mengulang crash",
+        "Menghapus folder build/symbols agar APK lebih aman"
+      ],
+      "correctIndex": 1,
+      "explanation": "Obfuscation mengacak nama fungsi. File .symbols menyimpan pemetaan aslinya, sehingga flutter symbolize -i stack.txt -d build/symbols/app.android-arm64.symbols bisa mengembalikan nama yang terbaca."
+    },
+    {
+      "question": "Format apa yang wajib diunggah ke Google Play Console untuk aplikasi baru, dan jalur apa yang paling cocok untuk membagikan ke dosen dan anggota kelompok?",
+      "options": [
+        "APK, jalur production",
+        "AAB (Android App Bundle), jalur internal testing",
+        "IPA, jalur TestFlight",
+        "ZIP berisi kode sumber, jalur open testing"
+      ],
+      "correctIndex": 1,
+      "explanation": "Aplikasi baru di Play Store wajib memakai AAB. Internal testing memungkinkan hingga 100 penguji berdasarkan email dan prosesnya paling cepat, cocok untuk tim dan dosen."
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+<p class="lead">Aplikasi kita butuh tempat menyimpan data tambahan tentang user, misalnya nama lengkap. Tabel <code>auth.users</code> dikelola Supabase dan tidak bisa diakses langsung dari aplikasi, sehingga pola yang lazim adalah membuat tabel <code>public.profiles</code> yang barisnya dibuat <strong>otomatis</strong> oleh trigger setiap kali ada user baru.</p>
+
+<h4>Alur data saat register</h4>
+<pre><code class="language-text">Flutter: auth.signUp(email, password, data: {'full_name': 'Fikri Ramadhan'})
+   │
+   ▼
+auth.users  ← baris baru, raw_user_meta_data = {"full_name": "Fikri Ramadhan"}
+   │  (trigger on_auth_user_created: AFTER INSERT)
+   ▼
+public.profiles ← (id = id user baru, full_name = 'Fikri Ramadhan')
+</code></pre>
+
+<h4>Langkah 1: Jalankan SQL berikut di SQL Editor</h4>
+<p>Buka <strong>SQL Editor &rarr; New query</strong>, tempel seluruh SQL di bawah, lalu klik <strong>Run</strong>. SQL ini aman dijalankan ulang karena memakai <code>if not exists</code>, <code>drop ... if exists</code>, dan <code>create or replace</code>.</p>
+<p class="code-file-label">📄 <code>supabase/setup.sql</code></p>
+<pre><code class="language-sql">create table if not exists public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  full_name text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+drop policy if exists "User melihat profilnya sendiri" on public.profiles;
+create policy "User melihat profilnya sendiri"
+on public.profiles for select
+to authenticated
+using ((select auth.uid()) = id);
+
+drop policy if exists "User mengubah profilnya sendiri" on public.profiles;
+create policy "User mengubah profilnya sendiri"
+on public.profiles for update
+to authenticated
+using ((select auth.uid()) = id)
+with check ((select auth.uid()) = id);
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.profiles (id, full_name)
+  values (new.id, new.raw_user_meta_data -&gt;&gt; 'full_name');
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+</code></pre>
+
+<h4>Penjelasan per bagian</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kode</th><th>Penjelasan</th></tr></thead>
+    <tbody>
+      <tr><td><code>id uuid primary key references auth.users (id)</code></td><td>id profil <strong>sama</strong> dengan id user (relasi satu-satu). <code>on delete cascade</code>: profil ikut terhapus jika akun dihapus.</td></tr>
+      <tr><td><code>enable row level security</code></td><td>Mengunci tabel. Tanpa policy, tidak ada yang bisa membaca.</td></tr>
+      <tr><td>Policy select/update dengan <code>(select auth.uid()) = id</code></td><td>User hanya bisa membaca dan mengubah profilnya sendiri. Tidak ada policy INSERT karena insert dilakukan oleh trigger, bukan oleh aplikasi.</td></tr>
+      <tr><td><code>returns trigger</code></td><td>Fungsi khusus yang dipanggil oleh trigger. Variabel <code>new</code> berisi baris yang baru dimasukkan ke <code>auth.users</code>.</td></tr>
+      <tr><td><code>security definer</code></td><td>Fungsi berjalan dengan hak <em>pembuat</em> fungsi (admin), bukan hak user. Ini perlu karena pada saat register user belum login, dan RLS profiles akan menolaknya.</td></tr>
+      <tr><td><code>set search_path = ''</code></td><td>Praktik keamanan untuk fungsi <code>security definer</code>: semua nama tabel harus ditulis lengkap (<code>public.profiles</code>) sehingga tidak bisa "dibelokkan" ke tabel lain.</td></tr>
+      <tr><td><code>new.raw_user_meta_data -&gt;&gt; 'full_name'</code></td><td>Operator <code>-&gt;&gt;</code> mengambil nilai dari kolom JSON sebagai teks. Isinya berasal dari parameter <code>data</code> di <code>signUp()</code>.</td></tr>
+      <tr><td><code>after insert on auth.users for each row</code></td><td>Trigger dijalankan sekali untuk setiap user baru.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Trigger error = register gagal</h4><p>Jika fungsi trigger error (misalnya salah ketik nama tabel), <strong>seluruh</strong> proses register ikut dibatalkan dan aplikasi menerima pesan <em>Database error saving new user</em>. Jika itu terjadi, buka <strong>Logs &rarr; Postgres</strong> di dashboard untuk melihat detail error-nya.</p></div>
+
+<h4>Langkah 2: Atur konfirmasi email</h4>
+<ol>
+  <li>Buka <strong>Authentication &rarr; Sign In / Providers &rarr; Email</strong>.</li>
+  <li>Untuk praktikum di kelas, <strong>matikan</strong> <em>Confirm email</em> agar register langsung login dan tidak terkena batas pengiriman email.</li>
+  <li>Aplikasi yang kita buat tetap mendukung kedua mode: jika Confirm email aktif, RegisterScreen menampilkan dialog "Cek email Anda".</li>
+</ol>
+
+<h4>Langkah 3: Verifikasi</h4>
+<p>Setelah aplikasi selesai (section 8), register satu akun lalu buka <strong>Table Editor &rarr; profiles</strong>. Harus ada satu baris dengan <code>full_name</code> sesuai yang Anda isi. Akun yang sama juga terlihat di <strong>Authentication &rarr; Users</strong>.</p>

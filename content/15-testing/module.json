@@ -1,0 +1,181 @@
+{
+  "id": "modul-11",
+  "badge": "Testing & Debug",
+  "category": "Kualitas",
+  "title": "Debugging, DevTools & Pengujian Otomatis",
+  "duration": "Pertemuan 15 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 08: State Management dengan Provider",
+    "Modul 14: Proyek Catatan Kuliah Bagian 2 (CRUD & Cache Offline)"
+  ],
+  "summary": "Memastikan aplikasi stabil sebelum dirilis. Dimulai dari membaca pesan error dan stack trace, debugPrint, breakpoint, Flutter DevTools, dan flutter analyze, lalu menulis unit test, test dengan fake/mock untuk repository Catatan Kuliah, widget test form login, test Provider, golden test, integration test, dan laporan coverage.",
+  "learningOutcomes": [
+    "Membaca pesan error dan stack trace Flutter serta memperbaiki lima error yang paling umum (overflow, setState setelah dispose, null check, unbounded height, Provider tidak ditemukan).",
+    "Menggunakan debugPrint, developer.log, breakpoint VS Code, dan Flutter DevTools (Inspector, Performance, Network, Memory) untuk menemukan penyebab bug.",
+    "Menjaga kualitas kode dengan flutter analyze, analysis_options.yaml, dan dart fix.",
+    "Menulis unit test dengan test, expect, group, setUp, matcher, test async, dan test exception.",
+    "Mengisolasi pengujian repository dari Supabase dan Hive menggunakan fake class dan mocktail.",
+    "Menulis widget test (pumpWidget, find, tap, enterText, pump, pumpAndSettle) untuk form login dan halaman yang memakai Provider.",
+    "Menjelaskan fungsi golden test dan integration test, serta mengukur coverage dengan flutter test --coverage."
+  ],
+  "sections": [
+    {
+      "id": "testing-membaca-error",
+      "title": "1. Membaca Pesan Error & 5 Error Paling Umum",
+      "file": "01-membaca-error.html"
+    },
+    {
+      "id": "testing-debugprint-breakpoint",
+      "title": "2. debugPrint, log & Breakpoint di VS Code",
+      "file": "02-debugprint-breakpoint.html"
+    },
+    {
+      "id": "flutter-devtools",
+      "title": "3. Flutter DevTools: Inspector, Performance, Network, Memory",
+      "file": "03-flutter-devtools.html"
+    },
+    {
+      "id": "testing-analyze-lints",
+      "title": "4. flutter analyze & Lint",
+      "file": "04-analyze-lints.html"
+    },
+    {
+      "id": "unit-testing-code",
+      "title": "5. Unit Test: test, expect, group, setUp & Matcher",
+      "file": "05-unit-testing-code.html"
+    },
+    {
+      "id": "testing-async-exception",
+      "title": "6. Unit Test Lanjutan: Async & Exception",
+      "file": "06-unit-test-async-exception.html"
+    },
+    {
+      "id": "testing-mocking-fake",
+      "title": "7. Fake & Mock: Menguji Repository Tanpa Supabase",
+      "file": "07-mocking-fake.html"
+    },
+    {
+      "id": "widget-testing-code",
+      "title": "8. Widget Test: Interaksi & Validasi Form Login",
+      "file": "08-widget-testing-code.html"
+    },
+    {
+      "id": "testing-provider",
+      "title": "9. Menguji Provider (NotesProvider)",
+      "file": "09-testing-provider.html"
+    },
+    {
+      "id": "testing-golden-integration-coverage",
+      "title": "10. Golden Test, Integration Test & Coverage",
+      "file": "10-golden-integration-coverage.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 15: Debugging & Suite Pengujian Otomatis Catatan Kuliah",
+    "objective": "Menemukan dan memperbaiki bug dengan alat debugging, lalu menulis rangkaian test otomatis (unit, fake/mock, widget, provider) untuk proyek Catatan Kuliah dari Modul 13-14 sehingga perubahan kode berikutnya tidak merusak fitur lama.",
+    "instructions": [
+      "<strong>Bagian A - Debugging.</strong> Buat proyek latihan berisi kelima contoh kode “SALAH” dari bagian 1. Jalankan, salin kalimat pertama setiap pesan error dan baris stack trace yang menunjuk ke kode Anda ke dalam file <code>DEBUGGING.md</code>, lalu perbaiki satu per satu.",
+      "Pasang breakpoint di dalam fungsi <code>getNotes()</code> pada repository Anda, jalankan dengan <kbd>F5</kbd>, dan catat nilai variabel <code>notes</code> yang terlihat di panel Variables. Lampirkan screenshot-nya.",
+      "Buka DevTools tab Network saat halaman catatan dimuat. Catat URL, status code, dan durasi request ke Supabase.",
+      "Jalankan <code>flutter analyze</code> pada proyek Catatan Kuliah, tambahkan aturan <code>prefer_final_locals</code> dan <code>unawaited_futures</code> ke <code>analysis_options.yaml</code>, lalu perbaiki hingga hasilnya <code>No issues found!</code>.",
+      "<strong>Bagian B - Unit test.</strong> Pindahkan validator email/password ke <code>lib/utils/validators.dart</code> dan buat <code>test/unit/validators_test.dart</code> dengan minimal 6 test (positif, negatif, dan kasus batas).",
+      "<strong>Bagian C - Fake.</strong> Pastikan <code>NoteRepository</code> menerima data source remote dan cache lewat konstruktor. Buat <code>test/mock/fakes.dart</code> dan <code>test/mock/note_repository_test.dart</code> yang menguji skenario online, offline dengan cache, offline tanpa cache, dan validasi judul kosong.",
+      "<strong>Bagian D - Provider.</strong> Buat <code>test/unit/notes_provider_test.dart</code> yang memeriksa urutan status (loading lalu loaded), penambahan catatan, dan pesan error saat offline.",
+      "<strong>Bagian E - Widget test.</strong> Buat <code>test/widget/login_page_test.dart</code> yang menguji: form kosong, format email salah, password kurang dari 8 karakter, form valid memanggil fungsi login dengan data yang benar, dan SnackBar saat login gagal.",
+      "Buat <code>test/widget/notes_page_test.dart</code> yang memastikan halaman catatan menampilkan loading, daftar catatan, dan banner mode offline.",
+      "Jalankan <code>flutter test --coverage</code>, buat laporan HTML (genhtml atau Coverage Gutters), dan ambil screenshot persentase coverage folder <code>lib/data</code> dan <code>lib/providers</code>."
+    ],
+    "expectedOutput": "Repositori berisi file DEBUGGING.md, folder test/ dengan minimal 20 test yang semuanya lulus (output “All tests passed!”), flutter analyze tanpa issue, dan screenshot laporan coverage dengan coverage lib/data dan lib/providers minimal 70%.",
+    "rubric": "Laporan debugging lengkap dan perbaikan benar (20%), unit test validator dan provider (20%), test repository dengan fake/mock termasuk skenario gagal (25%), widget test form login dan halaman catatan (25%), flutter analyze bersih dan laporan coverage (10%)."
+  },
+  "quiz": [
+    {
+      "question": "Saat membaca stack trace error Flutter, baris mana yang paling perlu Anda periksa terlebih dahulu?",
+      "options": [
+        "Baris paling bawah stack trace",
+        "Baris pertama yang berasal dari package proyek Anda sendiri (bukan package:flutter/)",
+        "Semua baris yang berasal dari framework.dart",
+        "Baris yang berisi kata <code>&lt;asynchronous suspension&gt;</code>"
+      ],
+      "correctIndex": 1,
+      "explanation": "Stack trace diurutkan dari pemanggilan terakhir. Baris dari package:flutter/ hampir tidak pernah menjadi penyebab; baris pertama dari kode Anda menunjukkan file dan nomor baris tempat masalah dimulai."
+    },
+    {
+      "question": "Sebuah ListView.builder diletakkan langsung di dalam Column dan muncul error “Vertical viewport was given unbounded height”. Perbaikan yang paling tepat adalah...",
+      "options": [
+        "Mengganti Column dengan Row",
+        "Membungkus ListView dengan Expanded agar tingginya mengikuti sisa ruang Column",
+        "Menambahkan operator ! pada itemCount",
+        "Memanggil setState setelah ListView dibangun"
+      ],
+      "correctIndex": 1,
+      "explanation": "Column memberi tinggi tak terbatas kepada anaknya, sedangkan ListView ingin setinggi mungkin. Expanded memberi ListView batas tinggi berupa sisa ruang Column."
+    },
+    {
+      "question": "Kode berikut sering memicu error “setState() called after dispose()”: final data = await ambilData(); setState(() =&gt; _data = data);. Apa perbaikannya?",
+      "options": [
+        "Menghapus kata await",
+        "Menambahkan if (!mounted) return; setelah await dan sebelum setState",
+        "Mengganti StatefulWidget menjadi StatelessWidget",
+        "Memanggil dispose() secara manual sebelum setState"
+      ],
+      "correctIndex": 1,
+      "explanation": "Selama menunggu Future, pengguna bisa saja meninggalkan halaman sehingga State sudah di-dispose. Properti mounted bernilai false pada kondisi itu, jadi setState tidak boleh dipanggil."
+    },
+    {
+      "question": "Mengapa pengukuran performa (mencari jank) di DevTools sebaiknya dilakukan dengan flutter run --profile, bukan mode debug?",
+      "options": [
+        "Karena mode debug tidak bisa membuka DevTools",
+        "Karena mode debug sengaja lebih lambat akibat banyak pemeriksaan tambahan, sehingga hasil pengukurannya menyesatkan",
+        "Karena mode profile otomatis memperbaiki jank",
+        "Karena mode profile tidak membutuhkan perangkat"
+      ],
+      "correctIndex": 1,
+      "explanation": "Mode debug memakai JIT dan banyak assertion sehingga lebih lambat dari aplikasi rilis. Mode profile mendekati performa rilis tetapi tetap bisa diprofil oleh DevTools."
+    },
+    {
+      "question": "Manakah cara yang BENAR untuk menguji bahwa fungsi biasa hitungIpk melempar ArgumentError?",
+      "options": [
+        "expect(hitungIpk([4], []), throwsArgumentError);",
+        "expect(() =&gt; hitungIpk([4], []), throwsArgumentError);",
+        "expect(hitungIpk, ArgumentError);",
+        "expect(throwsArgumentError, hitungIpk([4], []));"
+      ],
+      "correctIndex": 1,
+      "explanation": "Fungsi harus dibungkus closure () =&gt; agar expect yang menjalankannya dan bisa menangkap error. Tanpa closure, error terjadi sebelum expect dipanggil sehingga test gagal."
+    },
+    {
+      "question": "Apa tujuan utama membuat FakeRemoteDataSource saat menguji NoteRepository?",
+      "options": [
+        "Agar aplikasi rilis lebih cepat",
+        "Agar test tidak bergantung pada Supabase/internet dan kondisi seperti offline bisa disimulasikan dengan mudah",
+        "Agar data di Supabase terhapus setelah test",
+        "Agar tidak perlu menulis expect"
+      ],
+      "correctIndex": 1,
+      "explanation": "Fake menggantikan sumber data asli dengan implementasi di memori yang kita kendalikan. Test menjadi cepat, stabil, dan skenario gagal seperti koneksi putus bisa dibuat cukup dengan shouldFail = true."
+    },
+    {
+      "question": "Dalam widget test, setelah await tester.tap(find.byIcon(Icons.add)); teks di layar belum berubah. Apa yang terlupa?",
+      "options": [
+        "Memanggil await tester.pump() agar Flutter menggambar frame berikutnya",
+        "Memanggil setState dari dalam test",
+        "Menjalankan emulator",
+        "Menambahkan Key pada Text"
+      ],
+      "correctIndex": 0,
+      "explanation": "tap hanya mengirim sentuhan. Perubahan state baru terlihat setelah frame berikutnya digambar dengan pump() (atau pumpAndSettle() jika ada animasi)."
+    },
+    {
+      "question": "Perintah apa yang menghasilkan file coverage/lcov.info berisi data baris kode yang dijalankan oleh test?",
+      "options": [
+        "flutter analyze --coverage",
+        "flutter test --coverage",
+        "flutter build apk --coverage",
+        "dart fix --coverage"
+      ],
+      "correctIndex": 1,
+      "explanation": "flutter test --coverage menjalankan semua test sambil merekam baris yang dieksekusi ke coverage/lcov.info, yang kemudian bisa diubah menjadi laporan HTML dengan genhtml atau dibaca ekstensi Coverage Gutters."
+    }
+  ]
+}

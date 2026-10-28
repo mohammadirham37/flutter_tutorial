@@ -1,0 +1,153 @@
+<p class="lead"><strong><code>Card</code></strong> adalah panel bersudut membulat dengan bayangan/warna permukaan khas Material. <strong><code>ListTile</code></strong> adalah satu baris berisi ikon/gambar di kiri, judul, subjudul, dan widget di kanan. Keduanya sering dipakai bersama untuk daftar data seperti mata kuliah, pengumuman, atau kontak.</p>
+
+<h4>Anatomi ListTile</h4>
+<pre><code class="language-text">┌─────────────────────────────────────────────────────┐
+│ [leading]  title (judul)                 [trailing] │
+│            subtitle (keterangan)                    │
+└─────────────────────────────────────────────────────┘
+</code></pre>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">Card(
+  child: ListTile(
+    leading: const Icon(Icons.book),
+    title: const Text('Pemrograman Mobile'),
+    subtitle: const Text('3 SKS • Senin 07.30'),
+    trailing: const Icon(Icons.chevron_right),
+    onTap: () {
+      debugPrint('Mata kuliah dipilih');
+    },
+  ),
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/card-listtile-1.jpg" alt="Card berisi ListTile lengkap" loading="lazy">
+    <div class="screenshot-caption">Card berisi ListTile lengkap</div>
+  </div>
+</div>
+
+<h4>Varian Card di Material 3</h4>
+<p>Material 3 menyediakan tiga gaya: <code>Card()</code> (elevated, sedikit bayangan), <code>Card.filled()</code> (warna permukaan, tanpa bayangan), dan <code>Card.outlined()</code> (garis tepi).</p>
+
+<h4>Contoh lengkap: daftar mata kuliah</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.blue),
+      home: const DaftarMatkul(),
+    );
+  }
+}
+
+class DaftarMatkul extends StatelessWidget {
+  const DaftarMatkul({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mata Kuliah Semester 5')),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          // 1. Card biasa + ListTile lengkap
+          Card(
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: warna.primaryContainer,
+                child: const Text('PM'),
+              ),
+              title: const Text('Pemrograman Mobile'),
+              subtitle: const Text('3 SKS • Senin, 07.30 • Lab Komputer 2'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Membuka Pemrograman Mobile')),
+                );
+              },
+            ),
+          ),
+
+          // 2. Card.filled + subtitle dua baris
+          const Card.filled(
+            child: ListTile(
+              leading: Icon(Icons.storage),
+              title: Text('Basis Data Lanjut'),
+              subtitle: Text('3 SKS • Selasa, 10.00\nDosen: Dr. Budi Santoso'),
+              isThreeLine: true,
+            ),
+          ),
+
+          // 3. Card.outlined + trailing berupa teks
+          const Card.outlined(
+            child: ListTile(
+              leading: Icon(Icons.hub),
+              title: Text('Jaringan Komputer'),
+              subtitle: Text('2 SKS • Rabu, 13.00'),
+              trailing: Text('A', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            ),
+          ),
+
+          // 4. Card berisi konten bebas (bukan ListTile)
+          Card(
+            clipBehavior: Clip.antiAlias, // agar isi ikut terpotong sudutnya
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 100,
+                  color: warna.tertiaryContainer,
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.campaign, size: 48),
+                ),
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'Pengumuman: Kuliah pengganti Pemrograman Mobile '
+                    'dilaksanakan Sabtu pukul 08.00.',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/card-listtile-2.jpg" alt="Varian Card Material 3 dan Card berisi konten bebas" loading="lazy">
+    <div class="screenshot-caption">Varian Card Material 3 dan Card berisi konten bebas</div>
+  </div>
+</div>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><code>Theme.of(context).colorScheme</code> memberi akses ke warna tema (misal <code>primaryContainer</code>), jadi warna otomatis serasi.</li>
+  <li><code>onTap</code> membuat seluruh baris bisa ditekan dan memunculkan efek riak (<em>ripple</em>).</li>
+  <li><code>isThreeLine: true</code> memberi tinggi ekstra saat subtitle berisi dua baris.</li>
+  <li><code>clipBehavior: Clip.antiAlias</code> diperlukan agar <code>Container</code> berwarna di dalam Card tidak keluar dari sudut membulat.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Menaruh <code>Row</code> panjang di <code>title</code> sehingga overflow. Gunakan <code>Text</code> dengan <code>maxLines</code> dan <code>overflow</code>.</li>
+  <li>Menaruh widget lebar tanpa batas (misal <code>TextField</code> atau <code>Row</code> tanpa <code>Expanded</code>) di <code>trailing</code>. Slot <code>trailing</code> ukurannya terbatas.</li>
+  <li>Lupa <code>clipBehavior</code> sehingga gambar/warna di dalam Card menutupi sudut membulat.</li>
+</ul></div>

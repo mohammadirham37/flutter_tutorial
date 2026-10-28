@@ -1,0 +1,99 @@
+<p class="lead">Semua persiapan sudah selesai. Saatnya mengompilasi aplikasi menjadi file yang bisa dipasang: <strong>APK</strong> untuk dibagikan langsung, atau <strong>AAB</strong> (Android App Bundle) untuk diunggah ke Google Play.</p>
+
+<h4>APK atau AAB?</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th></th><th>APK</th><th>AAB</th></tr></thead>
+    <tbody>
+      <tr><td>Bisa langsung dipasang di HP?</td><td>Ya</td><td>Tidak</td></tr>
+      <tr><td>Untuk Google Play</td><td>Tidak diterima untuk aplikasi baru</td><td><strong>Wajib</strong></td></tr>
+      <tr><td>Cara kerja</td><td>Satu file berisi kode untuk CPU tertentu (atau semua CPU)</td><td>Play Store membuat APK yang pas untuk setiap HP pengunduh</td></tr>
+      <tr><td>Cocok untuk</td><td>Dibagikan ke dosen/teman, pengumpulan tugas</td><td>Publikasi di Play Store</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>1. Membersihkan dan memeriksa sebelum build</h4>
+<pre><code class="language-bash"># Pastikan kode bersih dan semua test lulus (Modul 15)
+flutter analyze
+flutter test
+
+# Opsional: hapus hasil build lama jika ada perilaku aneh
+flutter clean
+flutter pub get</code></pre>
+
+<h4>2. Build APK per arsitektur CPU</h4>
+<pre><code class="language-bash">flutter build apk --split-per-abi --dart-define-from-file=config/prod.json</code></pre>
+<p>Contoh output asli untuk aplikasi yang memakai Supabase dan beberapa package lain:</p>
+<pre><code class="language-text">Running Gradle task 'assembleRelease'...                           91.4s
+✓ Built build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk (13.2MB)
+✓ Built build/app/outputs/flutter-apk/app-arm64-v8a-release.apk (16.1MB)
+✓ Built build/app/outputs/flutter-apk/app-x86_64-release.apk (17.6MB)</code></pre>
+<p>Bandingkan dengan <code>flutter build apk</code> tanpa <code>--split-per-abi</code> pada proyek yang sama, yang menghasilkan satu <em>fat APK</em> berisi kode untuk semua CPU:</p>
+<pre><code class="language-text">✓ Built build/app/outputs/flutter-apk/app-release.apk (47.2MB)</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>File</th><th>Untuk perangkat</th></tr></thead>
+    <tbody>
+      <tr><td><code>app-arm64-v8a-release.apk</code></td><td>Hampir semua HP Android modern (pilih ini jika ragu)</td></tr>
+      <tr><td><code>app-armeabi-v7a-release.apk</code></td><td>HP Android lama/murah dengan CPU 32-bit</td></tr>
+      <tr><td><code>app-x86_64-release.apk</code></td><td>Emulator di laptop Intel/AMD, Chromebook</td></tr>
+      <tr><td><code>app-release.apk</code> (fat APK)</td><td>Semua perangkat, tetapi ukurannya hampir tiga kali lipat</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Flutter juga otomatis menambahkan <code>1000 × nomor ABI</code> ke <code>versionCode</code> setiap APK split, sehingga ketiga APK tidak bentrok nomor versinya.</p>
+
+<h4>3. Obfuscation dan split-debug-info</h4>
+<p>Kode Dart di APK bisa dibongkar untuk melihat nama class dan fungsi. <code>--obfuscate</code> mengacak nama-nama tersebut, dan <code>--split-debug-info</code> memisahkan simbol debug ke folder di laptop Anda sehingga APK lebih kecil. Keduanya selalu dipakai bersamaan.</p>
+<pre><code class="language-bash">flutter build apk --split-per-abi \
+  --obfuscate --split-debug-info=build/symbols \
+  --dart-define-from-file=config/prod.json</code></pre>
+<p>Folder <code>build/symbols/</code> berisi file simbol per arsitektur:</p>
+<pre><code class="language-text">build/symbols/
+├── app.android-arm.symbols
+├── app.android-arm64.symbols
+└── app.android-x64.symbols</code></pre>
+<p>Stack trace dari aplikasi yang di-obfuscate tidak bisa dibaca langsung. Simpan folder simbol untuk setiap versi yang dirilis, lalu terjemahkan stack trace dengan:</p>
+<pre><code class="language-bash"># stack_trace.txt = isi error yang disalin dari logcat/laporan crash
+flutter symbolize -i stack_trace.txt -d build/symbols/app.android-arm64.symbols</code></pre>
+<div class="callout callout-warning"><h4>⚠️ Efek samping obfuscation</h4><p>Nama class ikut diacak, sehingga kode yang bergantung pada nama tipe akan berubah perilaku, misalnya <code>runtimeType.toString()</code> dan <code>toString()</code> pada enum. Jangan menyimpan atau membandingkan data berdasarkan nilai-nilai tersebut; gunakan string tetap yang Anda tulis sendiri.</p></div>
+
+<h4>4. Build App Bundle untuk Google Play</h4>
+<pre><code class="language-bash">flutter build appbundle \
+  --obfuscate --split-debug-info=build/symbols \
+  --dart-define-from-file=config/prod.json</code></pre>
+<pre><code class="language-text">Running Gradle task 'bundleRelease'...                             19.8s
+✓ Built build/app/outputs/bundle/release/app-release.aab (45.1MB)</code></pre>
+<p>Ukuran AAB terlihat besar karena berisi semua arsitektur. Pengguna Play Store hanya mengunduh bagian yang sesuai dengan HP-nya, sehingga ukuran unduhannya mirip APK split.</p>
+
+<h4>5. Menguji build rilis di HP sungguhan</h4>
+<p>Build rilis <strong>wajib</strong> diuji sebelum dikumpulkan, karena beberapa bug hanya muncul di mode release (permission INTERNET, konfigurasi kosong, kode di dalam <code>assert</code>).</p>
+<pre><code class="language-bash"># Cara 1: jalankan langsung dalam mode release (HP tersambung USB, USB debugging aktif)
+flutter run --release --dart-define-from-file=config/prod.json
+
+# Cara 2: pasang APK yang sudah di-build ke perangkat yang tersambung
+flutter install --use-application-binary=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+
+# Cara 3: lewat adb
+adb install -r build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+
+# Melihat log aplikasi yang sedang berjalan
+flutter logs</code></pre>
+<p>Cara 4: kirim file APK ke HP (Google Drive, Telegram, kabel USB), buka dari aplikasi File, lalu izinkan “Instal dari sumber tidak dikenal” bila diminta.</p>
+<p>Daftar uji minimal untuk build rilis Catatan Kuliah:</p>
+<ol>
+  <li>Aplikasi terbuka tanpa layar abu-abu; ikon, nama, dan splash sesuai.</li>
+  <li>Register, login, dan logout berhasil (membuktikan INTERNET dan konfigurasi Supabase benar).</li>
+  <li>Tambah, ubah, dan hapus catatan berhasil.</li>
+  <li>Matikan internet (mode pesawat): catatan dari cache Hive tetap tampil.</li>
+  <li>Tutup paksa lalu buka lagi: sesi login dan data cache masih ada.</li>
+  <li>Putar layar dan ubah ukuran font sistem ke terbesar: tidak ada overflow.</li>
+</ol>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Mengirim <code>app-x86_64-release.apk</code> ke teman yang memakai HP biasa. Aplikasi tidak bisa dipasang (“App not installed”). Kirim <code>arm64-v8a</code>.</li>
+  <li>Memasang APK rilis di atas aplikasi debug yang sudah terpasang. Tanda tangannya berbeda sehingga gagal; hapus dulu aplikasi lama.</li>
+  <li>Mengumpulkan APK debug (<code>build/app/outputs/flutter-apk/app-debug.apk</code>). Ukurannya besar, lambat, dan menampilkan pita DEBUG.</li>
+  <li>Membuang folder <code>build/symbols</code> dengan <code>flutter clean</code> sebelum menyalinnya. Simpan di luar folder <code>build/</code> (misalnya <code>symbols/1.2.0+7/</code>, tetapi jangan di-commit).</li>
+</ul></div>

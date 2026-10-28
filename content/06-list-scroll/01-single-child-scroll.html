@@ -1,0 +1,149 @@
+<p class="lead">Layar HP itu pendek. Begitu isi halaman lebih tinggi dari layar, <code>Column</code> akan menampilkan garis kuning-hitam bertuliskan <em>"BOTTOM OVERFLOWED BY ... PIXELS"</em>. Solusi paling sederhana adalah <code>SingleChildScrollView</code>.</p>
+
+<h4>Konsep</h4>
+<ul>
+  <li><code>SingleChildScrollView</code> membuat <strong>satu</strong> anak (biasanya <code>Column</code>) bisa digulir.</li>
+  <li>Semua isi tetap dibuat sekaligus. Karena itu cocok untuk halaman yang isinya <strong>terbatas</strong>: profil, form, detail. Untuk ratusan data, gunakan <code>ListView.builder</code> (section berikutnya).</li>
+  <li><code>scrollDirection: Axis.horizontal</code> membuatnya bisa digulir ke samping, misalnya untuk baris chip.</li>
+</ul>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">// Column biasa + konten panjang = error "BOTTOM OVERFLOWED BY ... PIXELS"
+// Solusi: bungkus Column dengan SingleChildScrollView
+body: SingleChildScrollView(
+  padding: const EdgeInsets.all(16),
+  child: Column(
+    children: [
+      for (var i = 1; i &lt;= 30; i++) Text('Baris ke-$i', style: const TextStyle(fontSize: 20)),
+    ],
+  ),
+),
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/scroll-kecil.jpg" alt="30 baris teks yang bisa digulir tanpa overflow" loading="lazy">
+    <div class="screenshot-caption">30 baris teks yang bisa digulir tanpa overflow</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: halaman profil mahasiswa</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const ProfilMahasiswaScreen(),
+    );
+  }
+}
+
+class ProfilMahasiswaScreen extends StatelessWidget {
+  const ProfilMahasiswaScreen({super.key});
+
+  static const _prestasi = [
+    'Juara 1 Hackathon Fakultas',
+    'Finalis Gemastik',
+    'Asisten Praktikum Basis Data',
+    'Ketua Panitia Seminar Nasional',
+    'Penerima Beasiswa Prestasi',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Profil Mahasiswa')),
+      // Seluruh halaman bisa digulir vertikal
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Center(
+              child: CircleAvatar(radius: 48, child: Icon(Icons.person, size: 48)),
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: Text('Nadia Putri', style: Theme.of(context).textTheme.headlineSmall),
+            ),
+            const Center(child: Text('H1D024001 - S1 Informatika')),
+            const SizedBox(height: 24),
+
+            Text('Keahlian', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            // Baris chip yang bisa digulir HORIZONTAL
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final k in ['Flutter', 'Dart', 'Firebase', 'Laravel', 'Figma', 'Git', 'SQL'])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Chip(label: Text(k)),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            Text('Tentang Saya', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            const Text(
+              'Mahasiswa semester 5 yang tertarik pada pengembangan aplikasi mobile. '
+              'Aktif di komunitas developer kampus dan senang berbagi ilmu lewat '
+              'kegiatan mentoring. Saat ini sedang mengerjakan proyek aplikasi '
+              'presensi berbasis QR code untuk himpunan mahasiswa.',
+            ),
+            const SizedBox(height: 24),
+
+            Text('Prestasi', style: Theme.of(context).textTheme.titleMedium),
+            for (final p in _prestasi)
+              Card(
+                child: ListTile(leading: const Icon(Icons.emoji_events), title: Text(p)),
+              ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(onPressed: () {}, child: const Text('Unduh CV')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/profil-atas.jpg" alt="Bagian atas halaman profil" loading="lazy">
+    <div class="screenshot-caption">Bagian atas halaman profil</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/06-list-scroll/profil-bawah.jpg" alt="Setelah digulir ke bawah" loading="lazy">
+    <div class="screenshot-caption">Setelah digulir ke bawah</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan kode:</strong></p>
+<ul>
+  <li><code>SingleChildScrollView</code> luar membuat seluruh halaman bisa digulir vertikal. <code>padding</code> bisa langsung diberikan padanya.</li>
+  <li><code>SingleChildScrollView</code> dalam memakai <code>scrollDirection: Axis.horizontal</code> untuk baris chip keahlian yang lebih lebar dari layar.</li>
+  <li>Daftar prestasi dibuat dengan <code>for</code> di dalam <code>children</code>. Karena hanya 5 item, ini aman; tidak perlu ListView.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Memakai <code>Expanded</code> atau <code>Spacer</code> di dalam Column yang dibungkus SingleChildScrollView.</strong> Tinggi area gulir tidak terbatas sehingga Expanded tidak tahu harus seberapa besar, dan muncul error.</li>
+  <li><strong>Menaruh ListView di dalam SingleChildScrollView.</strong> Dua area gulir bertumpuk membuat error "unbounded height". Pilih salah satu.</li>
+  <li><strong>Memakai SingleChildScrollView untuk ribuan data.</strong> Semua item dibuat sekaligus dan aplikasi menjadi berat.</li>
+</ul></div>

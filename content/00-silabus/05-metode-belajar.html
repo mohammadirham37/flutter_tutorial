@@ -1,0 +1,59 @@
+<p>Pemrograman tidak bisa dikuasai hanya dengan membaca. Gunakan siklus belajar berikut untuk setiap modul:</p>
+
+<ol>
+  <li><strong>Baca konsep</strong> - pahami dulu masalah apa yang diselesaikan materi ini.</li>
+  <li><strong>Ketik ulang contoh kode</strong> - jangan copy-paste di percobaan pertama. Mengetik membuat Anda memperhatikan setiap tanda kurung, koma, dan titik koma.</li>
+  <li><strong>Jalankan dan amati</strong> - cocokkan hasil di layar dengan penjelasan materi.</li>
+  <li><strong>Ubah sedikit</strong> - ganti teks, warna, angka, atau tambahkan satu widget. Tanyakan "apa yang terjadi jika ...?" lalu buktikan.</li>
+  <li><strong>Sengaja buat error</strong> - hapus satu kurung atau ganti tipe data, lalu baca pesan error-nya. Ini latihan paling berharga untuk debugging.</li>
+  <li><strong>Kerjakan praktikum dan kuis</strong> - lalu commit hasilnya ke GitHub.</li>
+</ol>
+
+<h4>Cara menjalankan contoh kode</h4>
+<p>Ada dua jenis contoh kode di web ini, dan cara menjalankannya berbeda.</p>
+
+<p><strong>1. Dart murni (terutama Modul 02).</strong> Tidak butuh Flutter maupun emulator. Buka <a href="https://dartpad.dev" target="_blank" rel="noopener">dartpad.dev</a>, tempel kode, lalu klik <em>Run</em>. Coba sekarang:</p>
+<pre><code class="language-dart">void main() {
+  const nama = 'Mahasiswa UNSOED';
+  final modul = ['Dart', 'Widget', 'Layout', 'Supabase'];
+
+  print('Halo, $nama!');
+  for (final m in modul) {
+    print('Saya akan belajar $m');
+  }
+}</code></pre>
+<p>Hasil di panel <em>Console</em>:</p>
+<pre><code class="language-text">Halo, Mahasiswa UNSOED!
+Saya akan belajar Dart
+Saya akan belajar Widget
+Saya akan belajar Layout
+Saya akan belajar Supabase</code></pre>
+
+<p><strong>2. Aplikasi Flutter (Modul 01 dan seterusnya).</strong> Butuh proyek Flutter dan device (emulator, HP fisik, atau Chrome). Buat satu proyek "kelinci percobaan" khusus untuk mencoba contoh:</p>
+<pre><code class="language-bash"># Sekali saja: buat proyek latihan
+flutter create latihan_flutter
+cd latihan_flutter
+
+# Setiap mencoba contoh berlabel lib/main.dart:
+# 1. Ganti seluruh isi lib/main.dart dengan kode contoh
+# 2. Jalankan aplikasi
+flutter run
+
+# Jika contoh memakai package, tambahkan dulu (contoh: package http)
+flutter pub add http</code></pre>
+
+<h4>Alur kerja Git untuk tiap praktikum</h4>
+<p>Simpan setiap praktikum sebagai commit di repositori yang dibuat pada Praktikum 0:</p>
+<pre><code class="language-bash">git add .
+git commit -m "Praktikum 01: aplikasi Halo Kampus"
+git push origin main</code></pre>
+
+<div class="callout callout-warning">
+  <h4>⚠️ Kesalahan umum saat mencoba contoh</h4>
+  <ul>
+    <li><strong>Menempel kode di bawah kode lama</strong> sehingga ada dua fungsi <code>main()</code>. Hapus dulu seluruh isi file sebelum menempel.</li>
+    <li><strong>Lupa <code>flutter pub add</code></strong> sehingga muncul error <code>Target of URI doesn't exist</code>.</li>
+    <li><strong>Hanya menekan Hot Reload</strong> setelah mengganti seluruh <code>main.dart</code>. Gunakan Hot Restart (<kbd>R</kbd>), penjelasannya ada di Modul 01.</li>
+    <li><strong>Mengabaikan garis merah di editor.</strong> Jalankan <code>flutter analyze</code> dan perbaiki error sebelum <code>flutter run</code>.</li>
+  </ul>
+</div>

@@ -1,0 +1,273 @@
+<p class="lead">Aplikasi kampus biasanya punya 3–5 menu utama yang selalu terlihat di bawah layar. Di Material 3, komponennya adalah <code>NavigationBar</code> (pengganti <code>BottomNavigationBar</code> versi lama).</p>
+
+<h4>Konsep</h4>
+<ul>
+  <li><code>NavigationBar</code> <strong>bukan</strong> Navigator. Berpindah tab tidak melakukan <code>push</code>; kita hanya mengganti widget yang ditampilkan di <code>body</code> berdasarkan indeks.</li>
+  <li>Indeks tab aktif disimpan di <code>State</code> dan diubah dengan <code>setState</code> di <code>onDestinationSelected</code>.</li>
+  <li>Setiap item adalah <code>NavigationDestination</code> dengan <code>icon</code>, <code>selectedIcon</code> (opsional), dan <code>label</code>.</li>
+</ul>
+
+<h4>Contoh lengkap 1: NavigationBar dasar</h4>
+<p>Struktur aplikasi standar kampus biasanya menggunakan menu tab bawah untuk berpindah antar fitur utama:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const MainWrapperScreen(),
+    );
+  }
+}
+
+class MainWrapperScreen extends StatefulWidget {
+  const MainWrapperScreen({super.key});
+
+  @override
+  State&lt;MainWrapperScreen&gt; createState() =&gt; _MainWrapperScreenState();
+}
+
+class _MainWrapperScreenState extends State&lt;MainWrapperScreen&gt; {
+  int _currentIndex = 0;
+
+  // Daftar layar untuk masing-masing tab (urutannya = urutan destinations)
+  final List&lt;Widget&gt; _pages = const [
+    HalamanTab(judul: "Beranda", ikon: Icons.home),
+    HalamanTab(judul: "Jadwal Kuliah", ikon: Icons.calendar_month),
+    HalamanTab(judul: "Kartu Rencana Studi", ikon: Icons.assignment),
+    HalamanTab(judul: "Profil Mahasiswa", ikon: Icons.person),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Portal Akademik")),
+      body: _pages[_currentIndex], // Menampilkan halaman sesuai tab aktif
+      bottomNavigationBar: NavigationBar( // Komponen NavigationBar Material 3
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() =&gt; _currentIndex = index);
+        },
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: "Beranda"),
+          NavigationDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month), label: "Jadwal"),
+          NavigationDestination(icon: Icon(Icons.assignment_outlined), selectedIcon: Icon(Icons.assignment), label: "KRS"),
+          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: "Profil"),
+        ],
+      ),
+    );
+  }
+}
+
+// Halaman sederhana untuk tiap tab. Pada proyek nyata, ganti dengan
+// BerandaScreen, JadwalScreen, dst. di file terpisah.
+class HalamanTab extends StatelessWidget {
+  final String judul;
+  final IconData ikon;
+
+  const HalamanTab({super.key, required this.judul, required this.ikon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(ikon, size: 72, color: Colors.indigo),
+          const SizedBox(height: 12),
+          Text(judul, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/navbar-existing.jpg" alt="NavigationBar Material 3 dengan tab Jadwal aktif" loading="lazy">
+    <div class="screenshot-caption">NavigationBar Material 3 dengan tab Jadwal aktif</div>
+  </div>
+</div>
+
+<h4>Masalah: state tab hilang saat berpindah</h4>
+<p>Pada contoh di atas, <code>body: _pages[_currentIndex]</code> hanya memasang halaman aktif. Saat pindah tab, halaman lama <strong>dibuang</strong> dari pohon widget. Akibatnya isian form, posisi scroll, dan nilai di <code>State</code> tab tersebut hilang. Solusinya adalah <code>IndexedStack</code>:</p>
+<pre><code class="language-dart">// SEBELUM: hanya halaman aktif yang ada di pohon widget
+// body: _pages[_currentIndex],
+
+// SESUDAH: semua halaman tetap hidup, hanya satu yang terlihat
+body: IndexedStack(
+  index: _currentIndex,
+  children: _pages,
+),
+</code></pre>
+
+<p><code>IndexedStack</code> membangun <em>semua</em> anaknya sekali, lalu hanya menampilkan anak pada posisi <code>index</code>. Anak yang tersembunyi tetap hidup beserta State-nya.</p>
+
+<h4>Contoh lengkap 2: IndexedStack menjaga state tab</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.green),
+      home: const MainScreen(),
+    );
+  }
+}
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+
+  @override
+  State&lt;MainScreen&gt; createState() =&gt; _MainScreenState();
+}
+
+class _MainScreenState extends State&lt;MainScreen&gt; {
+  int _index = 0;
+
+  static const _judul = ['Presensi', 'Pengumuman', 'Akun'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(_judul[_index])),
+      // IndexedStack menjaga state setiap tab:
+      // angka presensi &amp; posisi scroll tidak hilang saat pindah tab
+      body: IndexedStack(
+        index: _index,
+        children: const [
+          PresensiTab(),
+          PengumumanTab(),
+          Center(child: Text('Halaman Akun')),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index,
+        onDestinationSelected: (i) =&gt; setState(() =&gt; _index = i),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.how_to_reg_outlined),
+            selectedIcon: Icon(Icons.how_to_reg),
+            label: 'Presensi',
+          ),
+          NavigationDestination(
+            icon: Badge(label: Text('3'), child: Icon(Icons.campaign_outlined)),
+            selectedIcon: Badge(label: Text('3'), child: Icon(Icons.campaign)),
+            label: 'Pengumuman',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Akun',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Tab 1: punya state lokal (jumlah kehadiran)
+class PresensiTab extends StatefulWidget {
+  const PresensiTab({super.key});
+
+  @override
+  State&lt;PresensiTab&gt; createState() =&gt; _PresensiTabState();
+}
+
+class _PresensiTabState extends State&lt;PresensiTab&gt; {
+  int _hadir = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Hadir: $_hadir pertemuan',
+              style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: () =&gt; setState(() =&gt; _hadir++),
+            child: const Text('Presensi Hari Ini'),
+          ),
+          const SizedBox(height: 8),
+          const Text('Tambah angka, pindah tab, lalu kembali ke sini.'),
+        ],
+      ),
+    );
+  }
+}
+
+// Tab 2: list panjang (posisi scroll ikut tersimpan)
+class PengumumanTab extends StatelessWidget {
+  const PengumumanTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      itemCount: 50,
+      itemBuilder: (context, i) =&gt; ListTile(
+        leading: const Icon(Icons.campaign),
+        title: Text('Pengumuman ke-${i + 1}'),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/navbar-presensi.jpg" alt="Tab Presensi setelah tombol ditekan 3 kali" loading="lazy">
+    <div class="screenshot-caption">Tab Presensi setelah tombol ditekan 3 kali</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/navbar-kembali.jpg" alt="Pindah ke tab Akun lalu kembali: angka tetap 3" loading="lazy">
+    <div class="screenshot-caption">Pindah ke tab Akun lalu kembali: angka tetap 3</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>PresensiTab</code> adalah <code>StatefulWidget</code> dengan variabel <code>_hadir</code>. Berkat <code>IndexedStack</code>, angkanya tidak kembali ke 0 setelah pindah tab.</li>
+  <li><code>PengumumanTab</code> berisi 50 item. Gulir ke bawah, pindah tab, lalu kembali: posisi scroll tetap.</li>
+  <li><code>Badge</code> menampilkan angka kecil di atas ikon, berguna untuk notifikasi belum dibaca.</li>
+  <li>Judul <code>AppBar</code> diambil dari list <code>_judul</code> sesuai tab aktif.</li>
+</ul>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Pendekatan</th><th>Kelebihan</th><th>Kekurangan</th></tr></thead>
+    <tbody>
+      <tr><td><code>_pages[index]</code></td><td>Hemat memori, tab dibangun saat dibuka</td><td>State tab hilang setiap pindah</td></tr>
+      <tr><td><code>IndexedStack</code></td><td>State tab terjaga</td><td>Semua tab dibangun di awal (hati-hati jika tiap tab memanggil API berat)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Jumlah <code>destinations</code> kurang dari 2. <code>NavigationBar</code> butuh minimal dua item.</li>
+  <li>Membuat list halaman di dalam <code>build()</code> tanpa <code>const</code>, lalu heran halaman ter-rebuild. Gunakan <code>const</code> jika halaman tidak butuh parameter.</li>
+  <li>Memakai <code>Navigator.push</code> untuk berpindah tab. Tab bukan tumpukan; cukup ubah indeks.</li>
+  <li>Masih memakai <code>BottomNavigationBar</code> lama di proyek baru. Untuk tampilan Material 3, pakai <code>NavigationBar</code>.</li>
+</ul>
+</div>

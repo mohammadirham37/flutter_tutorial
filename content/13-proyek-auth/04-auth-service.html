@@ -1,0 +1,111 @@
+<p class="lead">Kita mulai dari lapisan paling bawah, lalu naik ke atas: konfigurasi &rarr; service &rarr; provider &rarr; UI. Di section ini kita membuat tiga file yang tidak bergantung pada widget sama sekali.</p>
+
+<h4>File 1: <code>lib/config/env.dart</code></h4>
+<p>Membaca URL dan key yang disuntikkan lewat <code>--dart-define-from-file=env.json</code> (Modul 12 section 4).</p>
+<p class="code-file-label">📄 <code>lib/config/env.dart</code></p>
+<pre><code class="language-dart">/// Konfigurasi Supabase yang dibaca saat build lewat --dart-define.
+///
+/// Jalankan aplikasi dengan:
+///   flutter run --dart-define-from-file=env.json
+class Env {
+  static const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  static const String supabasePublishableKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+  );
+
+  /// true jika kedua nilai sudah diisi.
+  static bool get isConfigured =&gt;
+      supabaseUrl.isNotEmpty &amp;&amp; supabasePublishableKey.isNotEmpty;
+}
+</code></pre>
+
+<h4>File 2: <code>lib/utils/validators.dart</code></h4>
+<p>Validator dipakai oleh form Login dan Register. Kita kumpulkan di satu tempat agar aturannya konsisten (misalnya minimal 6 karakter mengikuti aturan default Supabase).</p>
+<p class="code-file-label">📄 <code>lib/utils/validators.dart</code></p>
+<pre><code class="language-dart">/// Kumpulan validator untuk TextFormField.
+/// Setiap fungsi mengembalikan null jika valid, atau pesan error jika tidak.
+class Validators {
+  static String? fullName(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return 'Nama lengkap wajib diisi';
+    if (text.length &lt; 3) return 'Nama minimal 3 karakter';
+    return null;
+  }
+
+  static String? email(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return 'Email wajib diisi';
+    final pola = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!pola.hasMatch(text)) return 'Format email tidak valid';
+    return null;
+  }
+
+  static String? password(String? value) {
+    final text = value ?? '';
+    if (text.isEmpty) return 'Password wajib diisi';
+    if (text.length &lt; 6) return 'Password minimal 6 karakter';
+    return null;
+  }
+}
+</code></pre>
+<ul>
+  <li>Setiap validator mengembalikan <code>null</code> jika valid, atau <code>String</code> pesan error jika tidak valid. Ini kontrak <code>validator</code> pada <code>TextFormField</code> (Modul 05).</li>
+  <li>Method dibuat <code>static</code> sehingga bisa langsung dipasang sebagai <em>tear-off</em>: <code>validator: Validators.email</code>.</li>
+  <li>Regex email sengaja dibuat sederhana. Validasi sesungguhnya tetap dilakukan Supabase (error <code>email_address_invalid</code>).</li>
+</ul>
+
+<h4>File 3: <code>lib/services/auth_service.dart</code></h4>
+<p><code>AuthService</code> adalah <strong>satu-satunya</strong> class yang memanggil <code>supabase.auth</code>. Class lain cukup memakai service ini.</p>
+<p class="code-file-label">📄 <code>lib/services/auth_service.dart</code></p>
+<pre><code class="language-dart">import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// Lapisan paling bawah untuk urusan autentikasi.
+/// Hanya class ini yang berbicara langsung dengan Supabase Auth.
+class AuthService {
+  AuthService(this._client);
+
+  final SupabaseClient _client;
+
+  GoTrueClient get _auth =&gt; _client.auth;
+
+  /// Stream yang memancarkan event setiap status login berubah
+  /// (initialSession, signedIn, signedOut, tokenRefreshed, ...).
+  Stream&lt;AuthState&gt; get authStateChanges =&gt; _auth.onAuthStateChange;
+
+  Session? get currentSession =&gt; _auth.currentSession;
+
+  User? get currentUser =&gt; _auth.currentUser;
+
+  /// Mendaftarkan akun baru. Nama lengkap dikirim sebagai metadata
+  /// (raw_user_meta_data) dan nanti disalin trigger ke tabel profiles.
+  Future&lt;AuthResponse&gt; signUp({
+    required String fullName,
+    required String email,
+    required String password,
+  }) {
+    return _auth.signUp(
+      email: email,
+      password: password,
+      data: {'full_name': fullName},
+    );
+  }
+
+  Future&lt;AuthResponse&gt; signIn({
+    required String email,
+    required String password,
+  }) {
+    return _auth.signInWithPassword(email: email, password: password);
+  }
+
+  Future&lt;void&gt; signOut() =&gt; _auth.signOut();
+}
+</code></pre>
+<p>Penjelasan:</p>
+<ul>
+  <li><strong>Constructor menerima <code>SupabaseClient</code></strong> (<em>dependency injection</em>), bukan memanggil <code>Supabase.instance.client</code> di dalam class. Dengan begitu kita bisa mengganti client saat testing.</li>
+  <li><code>authStateChanges</code> meneruskan stream <code>onAuthStateChange</code>. Stream ini yang nanti didengarkan oleh AuthGate.</li>
+  <li><code>signUp(... data: {'full_name': fullName})</code>: nama lengkap dikirim sebagai metadata, lalu trigger <code>handle_new_user</code> (section 3) menyalinnya ke tabel <code>profiles</code>.</li>
+  <li>Method mengembalikan <code>Future&lt;AuthResponse&gt;</code> apa adanya. Penanganan error <em>bukan</em> tugas service, melainkan tugas provider di section berikutnya.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Kenapa tidak langsung memanggil Supabase dari widget?</h4><p>Bisa saja, dan untuk demo kecil itu wajar. Tetapi jika suatu hari Anda pindah ke Firebase atau backend kampus sendiri, Anda hanya perlu mengganti isi <code>AuthService</code>. Provider dan semua layar tidak perlu disentuh.</p></div>

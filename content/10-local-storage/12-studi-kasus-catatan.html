@@ -1,0 +1,473 @@
+<p class="lead">Kita gabungkan semuanya menjadi aplikasi <strong>Catatan Kuliah</strong> yang sepenuhnya offline: tambah, edit, hapus (dengan urungkan), sematkan (pin), cari, dan filter kategori. Arsitekturnya sama seperti Modul 09, hanya sumber datanya SQLite: <strong>Model → Database → Provider → Screen</strong>.</p>
+
+<h4>Struktur Folder</h4>
+<pre><code class="language-text">lib/
+├── main.dart
+├── models/
+│   └── catatan.dart
+├── data/
+│   └── catatan_database.dart
+├── providers/
+│   └── catatan_provider.dart
+└── screens/
+    ├── catatan_list_screen.dart
+    └── catatan_form_screen.dart
+</code></pre>
+<pre><code class="language-bash">flutter pub add sqflite path provider
+</code></pre>
+
+<h4>1. Model</h4>
+<p class="code-file-label">📄 <code>lib/models/catatan.dart</code></p>
+<pre><code class="language-dart">class Catatan {
+  static const kategoriList = ['Kuliah', 'Tugas', 'Organisasi', 'Pribadi'];
+
+  final int? id;
+  final String judul;
+  final String isi;
+  final String kategori;
+  final bool disematkan;
+  final DateTime diubah;
+
+  const Catatan({
+    this.id,
+    required this.judul,
+    required this.isi,
+    this.kategori = 'Kuliah',
+    this.disematkan = false,
+    required this.diubah,
+  });
+
+  Map&lt;String, Object?&gt; toMap() =&gt; {
+        if (id != null) 'id': id,
+        'judul': judul,
+        'isi': isi,
+        'kategori': kategori,
+        'disematkan': disematkan ? 1 : 0,
+        'diubah': diubah.toIso8601String(),
+      };
+
+  factory Catatan.fromMap(Map&lt;String, Object?&gt; m) =&gt; Catatan(
+        id: m['id'] as int?,
+        judul: m['judul'] as String,
+        isi: m['isi'] as String,
+        kategori: m['kategori'] as String,
+        disematkan: m['disematkan'] == 1,
+        diubah: DateTime.parse(m['diubah'] as String),
+      );
+
+  Catatan copyWith({String? judul, String? isi, String? kategori, bool? disematkan, DateTime? diubah}) {
+    return Catatan(
+      id: id,
+      judul: judul ?? this.judul,
+      isi: isi ?? this.isi,
+      kategori: kategori ?? this.kategori,
+      disematkan: disematkan ?? this.disematkan,
+      diubah: diubah ?? this.diubah,
+    );
+  }
+}
+</code></pre>
+
+<h4>2. Lapisan Database</h4>
+<p class="code-file-label">📄 <code>lib/data/catatan_database.dart</code></p>
+<pre><code class="language-dart">import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+
+import '../models/catatan.dart';
+
+class CatatanDatabase {
+  CatatanDatabase._();
+  static final CatatanDatabase instance = CatatanDatabase._();
+
+  static const _tabel = 'catatan';
+  Database? _db;
+
+  Future&lt;Database&gt; get _database async =&gt; _db ??= await openDatabase(
+        join(await getDatabasesPath(), 'catatan_kuliah.db'),
+        version: 1,
+        onCreate: (db, version) =&gt; db.execute('''
+          CREATE TABLE $_tabel (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            judul TEXT NOT NULL,
+            isi TEXT NOT NULL,
+            kategori TEXT NOT NULL,
+            disematkan INTEGER NOT NULL DEFAULT 0,
+            diubah TEXT NOT NULL
+          )
+        '''),
+      );
+
+  /// Ambil catatan: yang disematkan di atas, lalu yang terbaru.
+  Future&lt;List&lt;Catatan&gt;&gt; getAll({String kata = '', String? kategori}) async {
+    final db = await _database;
+    final where = &lt;String&gt;[];
+    final args = &lt;Object?&gt;[];
+    if (kata.isNotEmpty) {
+      where.add('(judul LIKE ? OR isi LIKE ?)');
+      args.addAll(['%$kata%', '%$kata%']);
+    }
+    if (kategori != null) {
+      where.add('kategori = ?');
+      args.add(kategori);
+    }
+    final rows = await db.query(
+      _tabel,
+      where: where.isEmpty ? null : where.join(' AND '),
+      whereArgs: args.isEmpty ? null : args,
+      orderBy: 'disematkan DESC, diubah DESC',
+    );
+    return rows.map(Catatan.fromMap).toList();
+  }
+
+  Future&lt;int&gt; insert(Catatan c) async =&gt; (await _database).insert(_tabel, c.toMap());
+
+  Future&lt;void&gt; update(Catatan c) async {
+    final db = await _database;
+    await db.update(_tabel, c.toMap(), where: 'id = ?', whereArgs: [c.id]);
+  }
+
+  Future&lt;void&gt; delete(int id) async {
+    final db = await _database;
+    await db.delete(_tabel, where: 'id = ?', whereArgs: [id]);
+  }
+}
+</code></pre>
+
+<h4>3. Provider</h4>
+<p class="code-file-label">📄 <code>lib/providers/catatan_provider.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+
+import '../data/catatan_database.dart';
+import '../models/catatan.dart';
+
+class CatatanProvider extends ChangeNotifier {
+  final CatatanDatabase _db;
+  CatatanProvider(this._db);
+
+  List&lt;Catatan&gt; _items = [];
+  bool _loading = true;
+  String _kata = '';
+  String? _kategori;
+
+  List&lt;Catatan&gt; get items =&gt; List.unmodifiable(_items);
+  bool get loading =&gt; _loading;
+  String? get kategori =&gt; _kategori;
+  bool get sedangMemfilter =&gt; _kata.isNotEmpty || _kategori != null;
+
+  Future&lt;void&gt; muat() async {
+    _items = await _db.getAll(kata: _kata, kategori: _kategori);
+    _loading = false;
+    notifyListeners();
+  }
+
+  Future&lt;void&gt; cari(String kata) {
+    _kata = kata.trim();
+    return muat();
+  }
+
+  Future&lt;void&gt; pilihKategori(String? kategori) {
+    _kategori = kategori;
+    return muat();
+  }
+
+  Future&lt;void&gt; simpan(Catatan c) async {
+    final baru = c.copyWith(diubah: DateTime.now());
+    if (c.id == null) {
+      await _db.insert(baru);
+    } else {
+      await _db.update(baru);
+    }
+    await muat();
+  }
+
+  Future&lt;void&gt; toggleSemat(Catatan c) async {
+    await _db.update(c.copyWith(disematkan: !c.disematkan));
+    await muat();
+  }
+
+  Future&lt;void&gt; hapus(Catatan c) async {
+    _items.remove(c); // hilang dari layar seketika (dibutuhkan Dismissible)
+    notifyListeners();
+    await _db.delete(c.id!);
+  }
+
+  /// Urungkan hapus: masukkan lagi lengkap dengan id lamanya
+  Future&lt;void&gt; pulihkan(Catatan c) async {
+    await _db.insert(c);
+    await muat();
+  }
+}
+</code></pre>
+
+<h4>4. Layar Daftar</h4>
+<p class="code-file-label">📄 <code>lib/screens/catatan_list_screen.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../models/catatan.dart';
+import '../providers/catatan_provider.dart';
+import 'catatan_form_screen.dart';
+
+class CatatanListScreen extends StatelessWidget {
+  const CatatanListScreen({super.key});
+
+  void _bukaForm(BuildContext context, [Catatan? c]) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) =&gt; CatatanFormScreen(catatan: c)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prov = context.watch&lt;CatatanProvider&gt;();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Catatan Kuliah')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+            child: SearchBar(
+              hintText: 'Cari judul atau isi catatan',
+              leading: const Icon(Icons.search),
+              onChanged: context.read&lt;CatatanProvider&gt;().cari,
+            ),
+          ),
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                ChoiceChip(
+                  label: const Text('Semua'),
+                  selected: prov.kategori == null,
+                  onSelected: (_) =&gt; prov.pilihKategori(null),
+                ),
+                for (final k in Catatan.kategoriList)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: ChoiceChip(
+                      label: Text(k),
+                      selected: prov.kategori == k,
+                      onSelected: (v) =&gt; prov.pilihKategori(v ? k : null),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: prov.loading
+                ? const Center(child: CircularProgressIndicator())
+                : prov.items.isEmpty
+                    ? Center(
+                        child: Text(prov.sedangMemfilter
+                            ? 'Tidak ada catatan yang cocok.'
+                            : 'Belum ada catatan. Tekan + untuk menulis.'),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.only(bottom: 80),
+                        itemCount: prov.items.length,
+                        itemBuilder: (context, i) =&gt; _CatatanTile(
+                          catatan: prov.items[i],
+                          onTap: () =&gt; _bukaForm(context, prov.items[i]),
+                        ),
+                      ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () =&gt; _bukaForm(context),
+        icon: const Icon(Icons.edit_note),
+        label: const Text('Tulis'),
+      ),
+    );
+  }
+}
+
+class _CatatanTile extends StatelessWidget {
+  final Catatan catatan;
+  final VoidCallback onTap;
+  const _CatatanTile({required this.catatan, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final prov = context.read&lt;CatatanProvider&gt;();
+    final d = catatan.diubah;
+    return Dismissible(
+      key: ValueKey(catatan.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        color: Colors.red,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      onDismissed: (_) {
+        final messenger = ScaffoldMessenger.of(context);
+        prov.hapus(catatan);
+        messenger.showSnackBar(SnackBar(
+          content: Text('"${catatan.judul}" dihapus'),
+          action: SnackBarAction(label: 'URUNGKAN', onPressed: () =&gt; prov.pulihkan(catatan)),
+        ));
+      },
+      child: Card(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: ListTile(
+          onTap: onTap,
+          title: Text(catatan.judul, maxLines: 1, overflow: TextOverflow.ellipsis),
+          subtitle: Text(
+            '${catatan.kategori} • ${d.day}/${d.month}/${d.year}\n${catatan.isi}',
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+          isThreeLine: true,
+          trailing: IconButton(
+            tooltip: catatan.disematkan ? 'Lepas sematan' : 'Sematkan',
+            icon: Icon(catatan.disematkan ? Icons.push_pin : Icons.push_pin_outlined),
+            onPressed: () =&gt; prov.toggleSemat(catatan),
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>5. Layar Form (Tambah &amp; Edit)</h4>
+<p class="code-file-label">📄 <code>lib/screens/catatan_form_screen.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../models/catatan.dart';
+import '../providers/catatan_provider.dart';
+
+class CatatanFormScreen extends StatefulWidget {
+  final Catatan? catatan; // null = catatan baru
+  const CatatanFormScreen({super.key, this.catatan});
+
+  @override
+  State&lt;CatatanFormScreen&gt; createState() =&gt; _CatatanFormScreenState();
+}
+
+class _CatatanFormScreenState extends State&lt;CatatanFormScreen&gt; {
+  final _formKey = GlobalKey&lt;FormState&gt;();
+  late final TextEditingController _judul =
+      TextEditingController(text: widget.catatan?.judul);
+  late final TextEditingController _isi = TextEditingController(text: widget.catatan?.isi);
+  late String _kategori = widget.catatan?.kategori ?? Catatan.kategoriList.first;
+
+  @override
+  void dispose() {
+    _judul.dispose();
+    _isi.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _simpan() async {
+    if (!_formKey.currentState!.validate()) return;
+    final lama = widget.catatan;
+    final data = lama == null
+        ? Catatan(judul: _judul.text.trim(), isi: _isi.text.trim(), kategori: _kategori, diubah: DateTime.now())
+        : lama.copyWith(judul: _judul.text.trim(), isi: _isi.text.trim(), kategori: _kategori);
+    await context.read&lt;CatatanProvider&gt;().simpan(data);
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.catatan == null ? 'Catatan Baru' : 'Edit Catatan'),
+        actions: [IconButton(tooltip: 'Simpan', onPressed: _simpan, icon: const Icon(Icons.check))],
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: _judul,
+              decoration: const InputDecoration(labelText: 'Judul', border: OutlineInputBorder()),
+              validator: (v) =&gt; (v == null || v.trim().isEmpty) ? 'Judul wajib diisi' : null,
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField&lt;String&gt;(
+              initialValue: _kategori,
+              decoration: const InputDecoration(labelText: 'Kategori', border: OutlineInputBorder()),
+              items: [
+                for (final k in Catatan.kategoriList) DropdownMenuItem(value: k, child: Text(k)),
+              ],
+              onChanged: (v) =&gt; setState(() =&gt; _kategori = v ?? _kategori),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _isi,
+              minLines: 6,
+              maxLines: 12,
+              decoration: const InputDecoration(
+                labelText: 'Isi catatan',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =&gt; (v == null || v.trim().isEmpty) ? 'Isi wajib diisi' : null,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(onPressed: _simpan, icon: const Icon(Icons.save), label: const Text('Simpan')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>6. <code>main.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// CATATAN: sqflite hanya berjalan di Android, iOS, dan macOS.
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'data/catatan_database.dart';
+import 'providers/catatan_provider.dart';
+import 'screens/catatan_list_screen.dart';
+
+void main() {
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) =&gt; CatatanProvider(CatatanDatabase.instance)..muat(),
+      child: MaterialApp(
+        title: 'Catatan Kuliah',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(colorSchemeSeed: Colors.amber),
+        home: const CatatanListScreen(),
+      ),
+    ),
+  );
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/catatan-form.jpg" alt="Form catatan baru" loading="lazy">
+    <div class="screenshot-caption">Form catatan baru</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/catatan-list.jpg" alt="Daftar catatan" loading="lazy">
+    <div class="screenshot-caption">Dua catatan tersimpan di SQLite</div>
+  </div>
+</div>
+
+
+<p><strong>Penjelasan alur:</strong></p>
+<ul>
+  <li><strong>Pencarian &amp; filter</strong> tidak dilakukan di Dart, melainkan diteruskan ke SQL (<code>LIKE</code> dan <code>kategori = ?</code>) lewat <code>CatatanDatabase.getAll</code>.</li>
+  <li><strong>Urutan</strong> <code>disematkan DESC, diubah DESC</code> membuat catatan yang di-pin selalu di atas, lalu yang paling baru diubah.</li>
+  <li><strong>Hapus</strong> menghapus dari list lebih dulu (kebutuhan <code>Dismissible</code>) lalu dari database. URUNGKAN memasukkan kembali objek beserta id lamanya.</li>
+  <li><strong>Form</strong> memakai <code>late final</code> controller yang diinisialisasi dari <code>widget.catatan</code>, sehingga satu layar melayani tambah dan edit.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Lupa <code>..muat()</code> saat membuat provider: spinner tidak pernah hilang karena <code>_loading</code> tetap <code>true</code>.</li>
+  <li>Memanggil <code>Navigator.pop</code> sebelum <code>await simpan(...)</code> selesai, sehingga daftar belum ter-update saat kembali.</li>
+  <li>Memakai <code>value:</code> pada <code>DropdownButtonFormField</code>; versi Flutter terbaru memakai <code>initialValue:</code>.</li>
+</ul>
+</div>

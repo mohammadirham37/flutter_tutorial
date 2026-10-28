@@ -1,0 +1,272 @@
+<p class="lead"><code>go_router</code> adalah package routing resmi dari tim Flutter. Halaman diidentifikasi dengan <strong>URL</strong> (misalnya <code>/matkul/IF201</code>), sehingga mendukung deep link, tombol back browser di Flutter Web, dan <em>auth guard</em> terpusat.</p>
+
+<h4>Instalasi</h4>
+<pre><code class="language-bash">flutter pub add go_router
+</code></pre>
+
+<h4>Contoh kecil: rute dan path parameter</h4>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+// 1) Definisikan semua rute di SATU objek GoRouter
+final GoRouter router = GoRouter(
+  initialLocation: '/',
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) =&gt; const BerandaScreen(),
+    ),
+    GoRoute(
+      path: '/mahasiswa/:nim', // :nim = path parameter
+      builder: (context, state) {
+        final nim = state.pathParameters['nim']!;
+        return ProfilScreen(nim: nim);
+      },
+    ),
+  ],
+);
+
+// 2) Pakai MaterialApp.router, bukan MaterialApp biasa
+void main() =&gt; runApp(MaterialApp.router(routerConfig: router));
+
+
+// 3) Pindah halaman dengan URL
+onPressed: () =&gt; context.push('/mahasiswa/H1D023001'),
+</code></pre>
+
+<ul>
+  <li>Semua rute didaftarkan sekali di <code>GoRouter(routes: [...])</code>.</li>
+  <li><code>:nim</code> pada path adalah <strong>path parameter</strong>. Nilainya dibaca dengan <code>state.pathParameters['nim']</code>. Nilainya selalu <code>String</code>.</li>
+  <li><code>MaterialApp.router(routerConfig: router)</code> menggantikan <code>MaterialApp(home: ...)</code>.</li>
+</ul>
+
+<h4>context.go vs context.push</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Metode</th><th>Perilaku</th><th>Cocok untuk</th></tr></thead>
+    <tbody>
+      <tr><td><code>context.go('/x')</code></td><td>Pindah ke lokasi <code>/x</code>. Tumpukan disusun ulang mengikuti struktur rute (sub-rute berada di atas induknya).</td><td>Pindah menu utama, setelah login/logout</td></tr>
+      <tr><td><code>context.push('/x')</code></td><td>Menumpuk <code>/x</code> di atas halaman saat ini, seperti <code>Navigator.push</code>.</td><td>Membuka detail, lalu kembali</td></tr>
+      <tr><td><code>context.pop()</code></td><td>Kembali satu halaman (bisa membawa hasil).</td><td>Tombol kembali/batal</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Redirect sebagai auth guard</h4>
+<p>Fungsi <code>redirect</code> dipanggil sebelum setiap perpindahan halaman. Kembalikan path lain untuk membelokkan pengguna, atau <code>null</code> untuk membiarkan. Dengan <code>refreshListenable</code>, redirect juga dievaluasi ulang setiap kali status login berubah.</p>
+
+<h4>Contoh lengkap: login, sub-rute, path & query parameter</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Pastikan sudah menjalankan: flutter pub add go_router
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+// Penanda status login sederhana. ChangeNotifier dibahas tuntas di Modul 08;
+// di sini cukup tahu bahwa notifyListeners() memberi kabar ke GoRouter.
+class AuthState extends ChangeNotifier {
+  bool _sudahLogin = false;
+  bool get sudahLogin =&gt; _sudahLogin;
+
+  void login() {
+    _sudahLogin = true;
+    notifyListeners();
+  }
+
+  void logout() {
+    _sudahLogin = false;
+    notifyListeners();
+  }
+}
+
+final authState = AuthState();
+
+final GoRouter router = GoRouter(
+  initialLocation: '/',
+  // Router mengevaluasi ulang redirect setiap kali authState berubah
+  refreshListenable: authState,
+  // AUTH GUARD: dipanggil sebelum setiap perpindahan halaman
+  redirect: (context, state) {
+    final sedangDiLogin = state.matchedLocation == '/login';
+    if (!authState.sudahLogin &amp;&amp; !sedangDiLogin) return '/login'; // belum login
+    if (authState.sudahLogin &amp;&amp; sedangDiLogin) return '/'; // sudah login
+    return null; // null = boleh lanjut ke tujuan semula
+  },
+  routes: [
+    GoRoute(
+      path: '/login',
+      builder: (context, state) =&gt; const LoginScreen(),
+    ),
+    GoRoute(
+      path: '/',
+      builder: (context, state) =&gt; const BerandaScreen(),
+      routes: [
+        // Sub-rute: URL lengkapnya menjadi /matkul/IF201
+        GoRoute(
+          path: 'matkul/:kode',
+          builder: (context, state) {
+            final kode = state.pathParameters['kode']!;
+            // Query parameter opsional: /matkul/IF201?tab=nilai
+            final tab = state.uri.queryParameters['tab'] ?? 'info';
+            return DetailMatkulScreen(kode: kode, tab: tab);
+          },
+        ),
+        GoRoute(
+          path: 'tentang',
+          builder: (context, state) =&gt; const TentangScreen(),
+        ),
+      ],
+    ),
+  ],
+  // Halaman jika URL tidak dikenal
+  errorBuilder: (context, state) =&gt; Scaffold(
+    body: Center(child: Text('Halaman ${state.uri} tidak ditemukan')),
+  ),
+);
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      routerConfig: router,
+    );
+  }
+}
+
+class LoginScreen extends StatelessWidget {
+  const LoginScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: Center(
+        child: FilledButton(
+          // Tidak perlu context.go('/'): redirect otomatis memindahkan
+          // pengguna ke '/' setelah authState berubah.
+          onPressed: authState.login,
+          child: const Text('Masuk'),
+        ),
+      ),
+    );
+  }
+}
+
+class BerandaScreen extends StatelessWidget {
+  const BerandaScreen({super.key});
+
+  static const kodeMatkul = ['IF201', 'IF202', 'IF203'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Beranda'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: authState.logout, // redirect akan membawa ke /login
+          ),
+        ],
+      ),
+      body: ListView(
+        children: [
+          for (final kode in kodeMatkul)
+            ListTile(
+              title: Text('Mata kuliah $kode'),
+              // push: tumpuk di atas Beranda (ada tombol back)
+              onTap: () =&gt; context.push('/matkul/$kode'),
+            ),
+          ListTile(
+            title: const Text('Buka nilai IF201 (query parameter)'),
+            onTap: () =&gt; context.push('/matkul/IF201?tab=nilai'),
+          ),
+          ListTile(
+            title: const Text('Tentang (pakai context.go)'),
+            // go: pindah ke lokasi /tentang; tumpukan disusun ulang
+            // sesuai struktur rute -&gt; [Beranda, Tentang]
+            onTap: () =&gt; context.go('/tentang'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DetailMatkulScreen extends StatelessWidget {
+  final String kode;
+  final String tab;
+
+  const DetailMatkulScreen({super.key, required this.kode, required this.tab});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(kode)),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Tab aktif: $tab'),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () =&gt; context.pop(), // sama seperti Navigator.pop
+              child: const Text('Kembali'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class TentangScreen extends StatelessWidget {
+  const TentangScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Tentang')),
+      body: const Center(child: Text('Contoh go_router')),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/gorouter-login.jpg" alt="Belum login: redirect ke /login" loading="lazy">
+    <div class="screenshot-caption">Belum login: redirect ke /login</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/gorouter-detail.jpg" alt="Path parameter dan query parameter terbaca" loading="lazy">
+    <div class="screenshot-caption">Path parameter dan query parameter terbaca</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li>Saat aplikasi dibuka, <code>initialLocation</code> adalah <code>/</code>, tetapi <code>redirect</code> melihat pengguna belum login dan membelokkan ke <code>/login</code>.</li>
+  <li>Tombol Masuk hanya mengubah <code>authState</code>. Karena <code>refreshListenable: authState</code>, router menjalankan redirect lagi dan memindahkan pengguna ke <code>/</code>. Logout bekerja dengan cara yang sama.</li>
+  <li><code>matkul/:kode</code> ditulis <strong>tanpa garis miring awal</strong> karena merupakan sub-rute dari <code>/</code>. URL lengkapnya <code>/matkul/IF201</code>.</li>
+  <li><code>state.uri.queryParameters['tab']</code> membaca bagian <code>?tab=nilai</code>. Query parameter cocok untuk data opsional.</li>
+  <li><code>errorBuilder</code> menampilkan halaman ketika URL tidak cocok dengan rute mana pun.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Hubungan dengan Modul 08 dan 13–14</h4><p>Pada contoh ini <code>authState</code> adalah variabel global agar contoh tetap singkat. Setelah mempelajari Provider, status login akan disimpan di <code>AuthProvider</code>. Proyek CRUD + Auth memakai pola yang setara: sebuah auth gate yang menampilkan Login atau Home berdasarkan sesi.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Menulis sub-rute dengan garis miring awal (<code>'/matkul/:kode'</code> di dalam <code>routes</code> milik rute lain). go_router akan menolak konfigurasi tersebut.</li>
+  <li>Redirect yang tidak pernah mengembalikan <code>null</code>, misalnya selalu <code>return '/login'</code>, menyebabkan <em>redirect loop</em>.</li>
+  <li>Mencampur <code>MaterialApp(home: ...)</code> dengan <code>routerConfig</code>. Gunakan <code>MaterialApp.router</code>.</li>
+  <li>Membuat objek <code>GoRouter</code> di dalam <code>build()</code>. Setiap rebuild akan membuat router baru dan posisi halaman hilang. Buat sekali saja (variabel top-level atau di State).</li>
+</ul>
+</div>

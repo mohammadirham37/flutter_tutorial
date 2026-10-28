@@ -1,0 +1,371 @@
+<p class="lead">Sekarang kita membuat operasi <strong>CRUD</strong> (Create, Read, Update, Delete) lengkap. sqflite menyediakan method siap pakai sehingga kita jarang menulis SQL mentah: <code>insert</code>, <code>query</code>, <code>update</code>, dan <code>delete</code>.</p>
+
+<h4>Peta Method sqflite</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Operasi</th><th>Method</th><th>Nilai kembali</th><th>SQL yang dihasilkan</th></tr></thead>
+    <tbody>
+      <tr><td>Create</td><td><code>db.insert('tugas', map)</code></td><td><code>int</code> id baris baru</td><td><code>INSERT INTO tugas (...) VALUES (...)</code></td></tr>
+      <tr><td>Read</td><td><code>db.query('tugas', where: ..., orderBy: ...)</code></td><td><code>List&lt;Map&gt;</code></td><td><code>SELECT * FROM tugas WHERE ...</code></td></tr>
+      <tr><td>Update</td><td><code>db.update('tugas', map, where: 'id = ?', whereArgs: [id])</code></td><td><code>int</code> jumlah baris berubah</td><td><code>UPDATE tugas SET ... WHERE id = ?</code></td></tr>
+      <tr><td>Delete</td><td><code>db.delete('tugas', where: 'id = ?', whereArgs: [id])</code></td><td><code>int</code> jumlah baris terhapus</td><td><code>DELETE FROM tugas WHERE id = ?</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Langkah 1: DatabaseHelper (Singleton + Tabel + CRUD Map)</h4>
+<p>Buat folder <code>lib/data/</code> lalu file <code>database_helper.dart</code>. Versi ini masih bekerja dengan <code>Map</code> agar alurnya mudah dilihat.</p>
+
+<p class="code-file-label">📄 <code>lib/data/database_helper.dart</code></p>
+<pre><code class="language-dart">// lib/data/database_helper.dart
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+
+class DatabaseHelper {
+  static final DatabaseHelper instance = DatabaseHelper._init();
+  static Database? _database;
+
+  DatabaseHelper._init();
+
+  Future&lt;Database&gt; get database async {
+    if (_database != null) return _database!;
+    _database = await _initDB('tugas_kampus.db');
+    return _database!;
+  }
+
+  Future&lt;Database&gt; _initDB(String filePath) async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, filePath);
+
+    return await openDatabase(
+      path,
+      version: 1,
+      onCreate: (db, version) async {
+        await db.execute('''
+          CREATE TABLE tugas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            judul TEXT NOT NULL,
+            matkul TEXT NOT NULL,
+            tenggat TEXT NOT NULL,
+            isSelesai INTEGER NOT NULL
+          )
+        ''');
+      },
+    );
+  }
+
+  // CREATE (Insert)
+  Future&lt;int&gt; tambahTugas(Map&lt;String, dynamic&gt; row) async {
+    final db = await instance.database;
+    return await db.insert('tugas', row);
+  }
+
+  // READ (Query All)
+  Future&lt;List&lt;Map&lt;String, dynamic&gt;&gt;&gt; ambilSemuaTugas() async {
+    final db = await instance.database;
+    return await db.query('tugas', orderBy: 'id DESC');
+  }
+
+  // UPDATE
+  Future&lt;int&gt; updateStatus(int id, bool isSelesai) async {
+    final db = await instance.database;
+    return await db.update(
+      'tugas',
+      {'isSelesai': isSelesai ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // DELETE
+  Future&lt;int&gt; hapusTugas(int id) async {
+    final db = await instance.database;
+    return await db.delete('tugas', where: 'id = ?', whereArgs: [id]);
+  }
+}</code></pre>
+<p><strong>Penjelasan:</strong> <code>where: 'id = ?'</code> berisi tanda tanya sebagai tempat nilai, dan nilainya diberikan lewat <code>whereArgs</code>. Jangan pernah menyambung nilai langsung ke string SQL (lihat section Query Lanjutan tentang SQL injection). Tanpa <code>where</code>, <code>update</code> dan <code>delete</code> akan mengenai <strong>semua baris</strong>.</p>
+
+<h4>Langkah 2: DAO Bertipe dengan Model <code>Tugas</code></h4>
+<p>DAO (<em>Data Access Object</em>) membungkus helper agar UI bekerja dengan objek <code>Tugas</code> (section 6), bukan Map.</p>
+<p class="code-file-label">📄 <code>lib/data/tugas_dao.dart</code></p>
+<pre><code class="language-dart">import 'package:sqflite/sqflite.dart';
+
+import '../models/tugas.dart';
+import 'database_helper.dart';
+
+class TugasDao {
+  Future&lt;Database&gt; get _db =&gt; DatabaseHelper.instance.database;
+
+  // CREATE: kembalikan objek lengkap dengan id dari database
+  Future&lt;Tugas&gt; insert(Tugas tugas) async {
+    final db = await _db;
+    final id = await db.insert('tugas', tugas.toMap());
+    return tugas.copyWith(id: id);
+  }
+
+  // READ semua: belum selesai di atas, lalu tenggat terdekat
+  Future&lt;List&lt;Tugas&gt;&gt; getAll() async {
+    final db = await _db;
+    final rows = await db.query('tugas', orderBy: 'isSelesai ASC, tenggat ASC');
+    return rows.map(Tugas.fromMap).toList();
+  }
+
+  // READ satu
+  Future&lt;Tugas?&gt; getById(int id) async {
+    final db = await _db;
+    final rows = await db.query('tugas', where: 'id = ?', whereArgs: [id], limit: 1);
+    return rows.isEmpty ? null : Tugas.fromMap(rows.first);
+  }
+
+  // UPDATE seluruh kolom
+  Future&lt;int&gt; update(Tugas tugas) async {
+    final db = await _db;
+    return db.update('tugas', tugas.toMap(), where: 'id = ?', whereArgs: [tugas.id]);
+  }
+
+  // DELETE
+  Future&lt;int&gt; delete(int id) async {
+    final db = await _db;
+    return db.delete('tugas', where: 'id = ?', whereArgs: [id]);
+  }
+}
+</code></pre>
+<p><code>rows.map(Tugas.fromMap)</code> adalah <em>tear-off</em>: mengoper constructor sebagai fungsi, sama dengan <code>rows.map((r) =&gt; Tugas.fromMap(r))</code>.</p>
+
+<h4>Langkah 3: Contoh Lengkap Aplikasi Tugas Kuliah</h4>
+<p>Fitur: tambah dan edit lewat dialog, centang selesai (UPDATE), geser untuk hapus (DELETE), dan data tetap ada setelah aplikasi ditutup.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Pastikan sudah: flutter pub add sqflite path, serta membuat
+// lib/models/tugas.dart, lib/data/database_helper.dart, lib/data/tugas_dao.dart
+// CATATAN: sqflite hanya berjalan di Android, iOS, dan macOS. TIDAK bisa di Chrome (web).
+import 'package:flutter/material.dart';
+
+import 'data/tugas_dao.dart';
+import 'models/tugas.dart';
+
+void main() {
+  runApp(MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: ThemeData(colorSchemeSeed: Colors.deepPurple),
+    home: const DaftarTugasScreen(),
+  ));
+}
+
+class DaftarTugasScreen extends StatefulWidget {
+  const DaftarTugasScreen({super.key});
+
+  @override
+  State&lt;DaftarTugasScreen&gt; createState() =&gt; _DaftarTugasScreenState();
+}
+
+class _DaftarTugasScreenState extends State&lt;DaftarTugasScreen&gt; {
+  final _dao = TugasDao();
+  List&lt;Tugas&gt; _daftar = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _muat();
+  }
+
+  Future&lt;void&gt; _muat() async {
+    final data = await _dao.getAll();
+    if (!mounted) return;
+    setState(() {
+      _daftar = data;
+      _loading = false;
+    });
+  }
+
+  /// Buka dialog tambah (tugas == null) atau edit (tugas != null)
+  Future&lt;void&gt; _bukaForm([Tugas? tugas]) async {
+    final hasil = await showDialog&lt;Tugas&gt;(
+      context: context,
+      builder: (_) =&gt; TugasDialog(tugas: tugas),
+    );
+    if (hasil == null) return; // dibatalkan
+
+    if (hasil.id == null) {
+      await _dao.insert(hasil);
+    } else {
+      await _dao.update(hasil);
+    }
+    await _muat();
+  }
+
+  Future&lt;void&gt; _toggle(Tugas t, bool selesai) async {
+    await _dao.update(t.copyWith(isSelesai: selesai));
+    await _muat();
+  }
+
+  Future&lt;void&gt; _hapus(Tugas t) async {
+    await _dao.delete(t.id!);
+    setState(() =&gt; _daftar.remove(t));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('"${t.judul}" dihapus'),
+        action: SnackBarAction(
+          label: 'URUNGKAN',
+          onPressed: () async {
+            await _dao.insert(t); // id lama ikut disimpan kembali
+            await _muat();
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selesai = _daftar.where((t) =&gt; t.isSelesai).length;
+    return Scaffold(
+      appBar: AppBar(title: Text('Tugas Kuliah ($selesai/${_daftar.length} selesai)')),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _daftar.isEmpty
+              ? const Center(child: Text('Belum ada tugas. Tekan tombol + untuk menambah.'))
+              : ListView.builder(
+                  itemCount: _daftar.length,
+                  itemBuilder: (context, index) {
+                    final t = _daftar[index];
+                    final telat = !t.isSelesai &amp;&amp; t.sisaHari &lt; 0;
+                    return Dismissible(
+                      key: ValueKey(t.id),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        color: Colors.red,
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        child: const Icon(Icons.delete, color: Colors.white),
+                      ),
+                      onDismissed: (_) =&gt; _hapus(t),
+                      child: CheckboxListTile(
+                        value: t.isSelesai,
+                        onChanged: (v) =&gt; _toggle(t, v ?? false),
+                        title: Text(
+                          t.judul,
+                          style: TextStyle(
+                            decoration: t.isSelesai ? TextDecoration.lineThrough : null,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${t.matkul} • ${telat ? 'TERLAMBAT' : '${t.sisaHari} hari lagi'}',
+                          style: TextStyle(color: telat ? Colors.red : null),
+                        ),
+                        secondary: IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: () =&gt; _bukaForm(t),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Tambah tugas',
+        onPressed: () =&gt; _bukaForm(),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+/// Dialog form. Controller dimiliki State dialog sendiri sehingga
+/// di-dispose otomatis SETELAH animasi tutup dialog selesai.
+class TugasDialog extends StatefulWidget {
+  final Tugas? tugas;
+  const TugasDialog({super.key, this.tugas});
+
+  @override
+  State&lt;TugasDialog&gt; createState() =&gt; _TugasDialogState();
+}
+
+class _TugasDialogState extends State&lt;TugasDialog&gt; {
+  late final _judulCtrl = TextEditingController(text: widget.tugas?.judul);
+  late final _matkulCtrl =
+      TextEditingController(text: widget.tugas?.matkul ?? 'Pemrograman Mobile');
+  late DateTime _tenggat =
+      widget.tugas?.tenggat ?? DateTime.now().add(const Duration(days: 7));
+
+  @override
+  void dispose() {
+    _judulCtrl.dispose();
+    _matkulCtrl.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _pilihTanggal() async {
+    final dipilih = await showDatePicker(
+      context: context,
+      initialDate: _tenggat,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+    );
+    if (dipilih != null) setState(() =&gt; _tenggat = dipilih);
+  }
+
+  void _simpan() {
+    final judul = _judulCtrl.text.trim();
+    if (judul.isEmpty) return;
+    final lama = widget.tugas;
+    final data = lama == null
+        ? Tugas(judul: judul, matkul: _matkulCtrl.text.trim(), tenggat: _tenggat)
+        : lama.copyWith(judul: judul, matkul: _matkulCtrl.text.trim(), tenggat: _tenggat);
+    Navigator.pop(context, data); // kirim hasil ke pemanggil showDialog
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.tugas == null ? 'Tugas Baru' : 'Edit Tugas'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(controller: _judulCtrl, decoration: const InputDecoration(labelText: 'Judul')),
+          TextField(controller: _matkulCtrl, decoration: const InputDecoration(labelText: 'Mata kuliah')),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.event),
+            label: Text('Tenggat: ${_tenggat.day}/${_tenggat.month}/${_tenggat.year}'),
+            onPressed: _pilihTanggal,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () =&gt; Navigator.pop(context), child: const Text('Batal')),
+        FilledButton(onPressed: _simpan, child: const Text('Simpan')),
+      ],
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/tugas-form.jpg" alt="Dialog tugas baru" loading="lazy">
+    <div class="screenshot-caption">Dialog tambah tugas</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/tugas-list.jpg" alt="Daftar tugas" loading="lazy">
+    <div class="screenshot-caption">Dua tugas tersimpan, satu sudah dicentang selesai</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan baris penting:</strong></p>
+<ul>
+  <li>Setelah setiap perubahan kita memanggil <code>_muat()</code> agar list selalu sama dengan isi database (<em>single source of truth</em>).</li>
+  <li>Form dibuat sebagai widget terpisah <code>TugasDialog</code> yang mengembalikan objek <code>Tugas</code> lewat <code>Navigator.pop(context, data)</code>. Controller dimiliki dialog sehingga di-dispose setelah dialog benar-benar tertutup.</li>
+  <li>Fitur URUNGKAN memasukkan kembali objek lama <strong>beserta id-nya</strong>, sehingga posisinya tetap sama.</li>
+  <li>Pada <code>Dismissible</code>, item dihapus dari list dulu (<code>_daftar.remove</code>) karena Flutter mewajibkan item yang sudah di-dismiss segera hilang dari tree.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li><code>db.update('tugas', map)</code> tanpa <code>where</code>: seluruh tugas ikut berubah.</li>
+  <li>Lupa memuat ulang data setelah insert/update sehingga layar tidak berubah walaupun database sudah berubah.</li>
+  <li>Membuat <code>TextEditingController</code> di method lalu langsung <code>dispose()</code> setelah <code>showDialog</code> selesai: dialog masih beranimasi menutup sehingga muncul error <em>_dependents.isEmpty</em>. Simpan controller di State widget dialog.</li>
+  <li>Error <em>A dismissed Dismissible widget is still part of the tree</em>: item belum dihapus dari list setelah digeser.</li>
+  <li>Error <em>UNIQUE constraint failed</em>: menyisipkan id/NIM yang sudah ada. Tangani dengan <code>try/catch</code> atau <code>conflictAlgorithm</code>.</li>
+</ul>
+</div>

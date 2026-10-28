@@ -1,0 +1,226 @@
+<p class="lead">Ketika aplikasi Flutter tumbuh besar dan memiliki puluhan halaman, mengandalkan <code>setState()</code> saja akan menimbulkan masalah serius yang disebut <strong>Prop Drilling</strong>.</p>
+
+<h4>Dua jenis state</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Jenis</th><th>Contoh</th><th>Alat yang cocok</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Ephemeral state</strong> (state lokal)</td><td>Tab aktif, isi TextField, checkbox "ingat saya", animasi</td><td><code>setState</code> di <code>StatefulWidget</code></td></tr>
+      <tr><td><strong>App state</strong> (state bersama)</td><td>User yang login, isi keranjang/KRS, daftar todo, tema gelap</td><td>State management, misalnya <strong>Provider</strong></td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Aturan praktis: jika data hanya dipakai satu widget, <code>setState</code> sudah cukup. Jika data dipakai oleh beberapa widget yang berjauhan atau beberapa halaman, saatnya memakai Provider.</p>
+
+<div class="architecture-diagram p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl my-6">
+  <div class="font-bold text-center text-slate-800 dark:text-slate-100 mb-4">Masalah Prop Drilling vs Solusi Provider</div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+    <div class="p-4 border border-rose-300 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/30 rounded-lg">
+      <div class="font-bold text-rose-600 mb-2">❌ Tanpa State Management (Prop Drilling)</div>
+      <p class="text-xs text-slate-600 dark:text-slate-300">Jika Widget Anak di tingkat ke-5 membutuhkan data Mahasiswa yang ada di Root, data tersebut harus dioper satu per satu melewati Widget Tingkat 1 -> 2 -> 3 -> 4 -> 5 lewat konstruktor! Widget perantara terpaksa memegang data yang tidak mereka gunakan.</p>
+    </div>
+    <div class="p-4 border border-emerald-300 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/30 rounded-lg">
+      <div class="font-bold text-emerald-600 mb-2">✅ Dengan Provider (Dependency Injection)</div>
+      <p class="text-xs text-slate-600 dark:text-slate-300">Data state diletakkan di atas pohon aplikasi (Root/Scope). Widget manapun di kedalaman berapa pun dapat langsung mengakses data dan mendengarkan perubahannya hanya dengan <code>context.watch()</code> tanpa melalui widget perantara!</p>
+    </div>
+  </div>
+</div>
+
+<h4>Contoh kecil: data dititipkan dari level ke level</h4>
+<pre><code class="language-dart">// Level 1 punya data
+class HomePage extends StatelessWidget {
+  final int jumlahKeranjang;
+  const HomePage({super.key, required this.jumlahKeranjang});
+
+  @override
+  Widget build(BuildContext context) =&gt; Header(jumlahKeranjang: jumlahKeranjang);
+}
+
+// Level 2 TIDAK memakai data, hanya meneruskan
+class Header extends StatelessWidget {
+  final int jumlahKeranjang;
+  const Header({super.key, required this.jumlahKeranjang});
+
+  @override
+  Widget build(BuildContext context) =&gt; IkonKeranjang(jumlah: jumlahKeranjang);
+}
+
+// Level 3 yang benar-benar butuh data
+class IkonKeranjang extends StatelessWidget {
+  final int jumlah;
+  const IkonKeranjang({super.key, required this.jumlah});
+
+  @override
+  Widget build(BuildContext context) =&gt; Text('🛒 $jumlah');
+}
+</code></pre>
+<p><code>Header</code> sama sekali tidak memakai <code>jumlahKeranjang</code>, tetapi tetap wajib menerimanya hanya untuk diteruskan ke <code>IkonKeranjang</code>.</p>
+
+<h4>Contoh lengkap: katalog dan keranjang tanpa Provider</h4>
+<p>Jalankan kode ini dan hitung berapa constructor yang menerima data "titipan".</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Contoh TANPA Provider: perhatikan berapa banyak data yang "dititipkan"
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const KatalogPage(),
+    );
+  }
+}
+
+// Pemilik state: semua data keranjang ada di sini
+class KatalogPage extends StatefulWidget {
+  const KatalogPage({super.key});
+
+  @override
+  State&lt;KatalogPage&gt; createState() =&gt; _KatalogPageState();
+}
+
+class _KatalogPageState extends State&lt;KatalogPage&gt; {
+  final List&lt;String&gt; _keranjang = [];
+
+  void _tambah(String matkul) =&gt; setState(() =&gt; _keranjang.add(matkul));
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // Titipan 1: jumlah dioper ke AppBarKatalog
+      appBar: AppBarKatalog(jumlah: _keranjang.length, isi: _keranjang),
+      // Titipan 2: callback dioper ke DaftarMatkul -&gt; ItemMatkul
+      body: DaftarMatkul(onTambah: _tambah),
+    );
+  }
+}
+
+class AppBarKatalog extends StatelessWidget implements PreferredSizeWidget {
+  final int jumlah;
+  final List&lt;String&gt; isi;
+
+  const AppBarKatalog({super.key, required this.jumlah, required this.isi});
+
+  @override
+  Size get preferredSize =&gt; const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(
+      title: const Text('Katalog (tanpa Provider)'),
+      // Titipan 3: data dioper lagi ke TombolKeranjang
+      actions: [TombolKeranjang(jumlah: jumlah, isi: isi)],
+    );
+  }
+}
+
+class TombolKeranjang extends StatelessWidget {
+  final int jumlah;
+  final List&lt;String&gt; isi;
+
+  const TombolKeranjang({super.key, required this.jumlah, required this.isi});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'Keranjang',
+      icon: Badge(label: Text('$jumlah'), child: const Icon(Icons.shopping_cart)),
+      onPressed: () {
+        // Titipan 4: data dioper ke halaman lain lewat constructor
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) =&gt; KeranjangPage(isi: isi)),
+        );
+      },
+    );
+  }
+}
+
+class DaftarMatkul extends StatelessWidget {
+  final ValueChanged&lt;String&gt; onTambah; // tidak dipakai di sini, hanya diteruskan
+
+  const DaftarMatkul({super.key, required this.onTambah});
+
+  static const matkul = ['Pemrograman Mobile', 'Basis Data', 'Jaringan Komputer'];
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: [
+        for (final m in matkul) ItemMatkul(nama: m, onTambah: onTambah),
+      ],
+    );
+  }
+}
+
+class ItemMatkul extends StatelessWidget {
+  final String nama;
+  final ValueChanged&lt;String&gt; onTambah;
+
+  const ItemMatkul({super.key, required this.nama, required this.onTambah});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      title: Text(nama),
+      trailing: IconButton(
+        tooltip: 'Tambah $nama',
+        icon: const Icon(Icons.add_circle_outline),
+        onPressed: () =&gt; onTambah(nama), // akhirnya dipakai di level terdalam
+      ),
+    );
+  }
+}
+
+class KeranjangPage extends StatelessWidget {
+  final List&lt;String&gt; isi;
+
+  const KeranjangPage({super.key, required this.isi});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Keranjang')),
+      // Masalah tambahan: halaman ini tidak bisa MENGHAPUS item
+      // tanpa menitipkan callback lagi dari KatalogPage.
+      body: ListView(children: [for (final m in isi) ListTile(title: Text(m))]),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/drilling-katalog.jpg" alt="Katalog: badge menerima jumlah lewat constructor" loading="lazy">
+    <div class="screenshot-caption">Katalog: badge menerima jumlah lewat constructor</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/drilling-keranjang.jpg" alt="Keranjang menerima isi lewat constructor" loading="lazy">
+    <div class="screenshot-caption">Keranjang menerima isi lewat constructor</div>
+  </div>
+</div>
+
+<p><strong>Analisis masalah:</strong></p>
+<ul>
+  <li><code>AppBarKatalog</code> dan <code>DaftarMatkul</code> hanya menjadi "kurir": menerima data/callback lalu meneruskannya.</li>
+  <li>Menambah fitur hapus di <code>KeranjangPage</code> berarti menambah callback baru yang harus melewati beberapa widget lagi.</li>
+  <li><code>KeranjangPage</code> menerima <em>salinan referensi</em> list saat dibuka. Jika list berubah, halaman itu tidak tahu harus rebuild karena tidak ada yang memanggil <code>setState</code> di sana.</li>
+  <li>Setiap <code>setState</code> di <code>KatalogPage</code> membangun ulang seluruh halaman, termasuk bagian yang tidak berubah.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Apa yang akan kita pelajari</h4><p>Di section berikutnya kita membangun solusinya selangkah demi selangkah: <code>ChangeNotifier</code> (tempat state), <code>ChangeNotifierProvider</code> (cara menyediakan state ke pohon widget), lalu <code>watch</code>/<code>read</code>/<code>select</code> (cara membaca state dari widget mana pun).</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Langsung memakai Provider untuk <em>semua</em> state. Isi TextField atau tab aktif tetap lebih sederhana dengan <code>setState</code>.</li>
+  <li>Menyimpan state bersama di variabel global biasa. UI tidak akan otomatis rebuild ketika nilainya berubah.</li>
+</ul>
+</div>

@@ -1,0 +1,147 @@
+<p class="lead"><strong>Drawer</strong> adalah panel menu yang muncul dari sisi kiri layar. Cocok untuk menu sekunder yang jumlahnya banyak (Jadwal, Transkrip, Pengaturan, Bantuan) dan tidak muat di <code>NavigationBar</code>.</p>
+
+<h4>Konsep</h4>
+<ul>
+  <li>Pasang drawer di parameter <code>drawer:</code> milik <code>Scaffold</code>. <code>AppBar</code> otomatis menampilkan ikon hamburger (≡).</li>
+  <li>Drawer yang terbuka sebenarnya juga sebuah route di tumpukan. Karena itu, menutupnya cukup dengan <code>Navigator.pop(context)</code>.</li>
+  <li>Saat memilih menu yang membuka halaman baru: <strong>tutup drawer dulu</strong>, baru <code>push</code>. Jika tidak, saat pengguna kembali, drawer masih terbuka.</li>
+</ul>
+
+<h4>Contoh lengkap: Drawer dengan header akun</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const DashboardScreen(),
+    );
+  }
+}
+
+class DashboardScreen extends StatelessWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // Ikon hamburger (≡) muncul otomatis di AppBar karena ada drawer
+      appBar: AppBar(title: const Text('Dashboard')),
+      drawer: const MenuDrawer(),
+      body: const Center(child: Text('Geser dari kiri atau tekan ikon ≡')),
+    );
+  }
+}
+
+class MenuDrawer extends StatelessWidget {
+  const MenuDrawer({super.key});
+
+  // Tutup drawer DULU, baru buka halaman baru
+  void _buka(BuildContext context, Widget halaman) {
+    Navigator.pop(context); // menutup drawer (drawer juga sebuah rute!)
+    Navigator.push(context, MaterialPageRoute(builder: (_) =&gt; halaman));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const UserAccountsDrawerHeader(
+            accountName: Text('Rizky Maulana'),
+            accountEmail: Text('rizky@mhs.unsoed.ac.id'),
+            currentAccountPicture: CircleAvatar(child: Text('RM')),
+          ),
+          ListTile(
+            leading: const Icon(Icons.schedule),
+            title: const Text('Jadwal Kuliah'),
+            onTap: () =&gt; _buka(context, const HalamanMenu(judul: 'Jadwal Kuliah')),
+          ),
+          ListTile(
+            leading: const Icon(Icons.grade),
+            title: const Text('Transkrip Nilai'),
+            onTap: () =&gt; _buka(context, const HalamanMenu(judul: 'Transkrip Nilai')),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Pengaturan'),
+            onTap: () =&gt; _buka(context, const HalamanMenu(judul: 'Pengaturan')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class HalamanMenu extends StatelessWidget {
+  final String judul;
+
+  const HalamanMenu({super.key, required this.judul});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(judul)),
+      body: Center(child: Text('Isi halaman $judul')),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/drawer-terbuka.jpg" alt="Drawer terbuka dengan header akun" loading="lazy">
+    <div class="screenshot-caption">Drawer terbuka dengan header akun</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/drawer-halaman.jpg" alt="Drawer ditutup lalu halaman baru di-push" loading="lazy">
+    <div class="screenshot-caption">Drawer ditutup lalu halaman baru di-push</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>UserAccountsDrawerHeader</code> adalah header siap pakai dengan nama, email, dan foto profil.</li>
+  <li><code>ListView</code> dengan <code>padding: EdgeInsets.zero</code> agar header menempel sampai atas layar.</li>
+  <li>Fungsi <code>_buka</code> memanggil <code>pop</code> (menutup drawer) lalu <code>push</code> halaman tujuan.</li>
+</ul>
+
+<h4>Alternatif Material 3: NavigationDrawer</h4>
+<p>Jika menu drawer dipakai untuk berganti "halaman utama" (seperti tab), gunakan <code>NavigationDrawer</code> yang punya penanda menu aktif bawaan:</p>
+<pre><code class="language-dart">// Alternatif Material 3: NavigationDrawer
+drawer: NavigationDrawer(
+  selectedIndex: _menu,
+  onDestinationSelected: (i) {
+    setState(() =&gt; _menu = i);
+    Navigator.pop(context); // tutup drawer
+  },
+  children: const [
+    Padding(
+      padding: EdgeInsets.fromLTRB(28, 16, 16, 10),
+      child: Text('Portal Akademik'),
+    ),
+    NavigationDrawerDestination(icon: Icon(Icons.home), label: Text('Beranda')),
+    NavigationDrawerDestination(icon: Icon(Icons.grade), label: Text('Nilai')),
+  ],
+),
+</code></pre>
+
+<div class="callout callout-tip"><h4>💡 Kapan pakai apa?</h4><p><code>NavigationBar</code> untuk 3–5 menu utama yang sering dipakai. <code>Drawer</code> untuk menu tambahan. Keduanya boleh dipakai bersamaan dalam satu <code>Scaffold</code>.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Menulis <code>Scaffold.of(context).openDrawer()</code> dengan <code>context</code> milik widget yang membuat <code>Scaffold</code> itu sendiri. Context tersebut berada di atas <code>Scaffold</code>, sehingga error. Bungkus tombol dengan <code>Builder</code> atau pisahkan menjadi widget sendiri.</li>
+  <li>Lupa menutup drawer sebelum <code>push</code>.</li>
+</ul>
+</div>

@@ -1,0 +1,439 @@
+<p class="lead">Saatnya menggabungkan semua yang sudah dipelajari menjadi satu aplikasi utuh: <strong>Aplikasi Posts</strong> dengan fitur daftar, detail, tambah, edit, dan hapus, memakai ApiClient, Repository, dan Provider.</p>
+
+<h4>Struktur Folder</h4>
+<pre><code class="language-text">lib/
+├── main.dart
+├── core/
+│   ├── api_exception.dart        (dari section 9, tanpa perubahan)
+│   └── api_client.dart           (dari section 9, tanpa perubahan)
+├── models/
+│   └── post.dart                 (dari section 3, tanpa perubahan)
+├── repositories/
+│   └── post_repository.dart      (dari section 9, tanpa perubahan)
+├── providers/
+│   └── post_crud_provider.dart   (BARU)
+└── screens/
+    ├── post_list_screen.dart     (BARU)
+    ├── post_detail_screen.dart   (BARU)
+    └── post_form_screen.dart     (BARU: dipakai untuk tambah dan edit)
+</code></pre>
+<p>Persiapan: <code>flutter pub add http provider</code>, lalu salin empat file "dari section" di atas. Kita hanya menulis file yang BARU.</p>
+
+<div class="callout callout-info"><h4>ℹ️ Menyiasati JSONPlaceholder</h4><p>Karena server palsu selalu memberi <code>id: 101</code> untuk post baru dan tidak menyimpan perubahan, provider kita (1) memberi id unik lokal untuk post baru, dan (2) tidak mengirim PUT untuk post buatan sendiri (id &gt; 100) karena server akan membalas 500. Di backend sungguhan, dua siasat ini tidak diperlukan.</p></div>
+
+<h4>1. Provider CRUD</h4>
+<p class="code-file-label">📄 <code>lib/providers/post_crud_provider.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+
+import '../models/post.dart';
+import '../repositories/post_repository.dart';
+
+enum LoadStatus { initial, loading, success, error }
+
+class PostCrudProvider extends ChangeNotifier {
+  final PostRepository _repo;
+  PostCrudProvider(this._repo);
+
+  List&lt;Post&gt; _posts = [];
+  LoadStatus _status = LoadStatus.initial;
+  String? _error;
+  bool _saving = false; // true saat POST/PUT/DELETE berjalan
+
+  List&lt;Post&gt; get posts =&gt; List.unmodifiable(_posts);
+  LoadStatus get status =&gt; _status;
+  String? get error =&gt; _error;
+  bool get saving =&gt; _saving;
+
+  Post? findById(int id) {
+    for (final p in _posts) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
+  // READ
+  Future&lt;void&gt; load() async {
+    _status = LoadStatus.loading;
+    _error = null;
+    notifyListeners();
+    try {
+      _posts = await _repo.getAll();
+      _status = LoadStatus.success;
+    } catch (e) {
+      _error = '$e';
+      _status = LoadStatus.error;
+    }
+    notifyListeners();
+  }
+
+  // CREATE
+  Future&lt;void&gt; add(String title, String body) async {
+    await _runSaving(() async {
+      final created = await _repo.create(Post(userId: 1, title: title, body: body));
+      // JSONPlaceholder selalu memberi id 101, jadi buat id unik lokal
+      final nextId = _posts.fold&lt;int&gt;(100, (max, p) =&gt; p.id! &gt; max ? p.id! : max) + 1;
+      _posts.insert(0, created.copyWith(id: nextId));
+    });
+  }
+
+  // UPDATE
+  Future&lt;void&gt; edit(Post post) async {
+    await _runSaving(() async {
+      // Post buatan sendiri (id &gt; 100) tidak dikenal server palsu, cukup ubah lokal
+      final saved = post.id! &gt; 100 ? post : await _repo.update(post);
+      final i = _posts.indexWhere((p) =&gt; p.id == post.id);
+      if (i != -1) _posts[i] = saved;
+    });
+  }
+
+  // DELETE
+  Future&lt;void&gt; remove(int id) async {
+    await _runSaving(() async {
+      if (id &lt;= 100) await _repo.delete(id);
+      _posts.removeWhere((p) =&gt; p.id == id);
+    });
+  }
+
+  // Pembantu: set flag saving, jalankan aksi, lempar ulang error ke UI
+  Future&lt;void&gt; _runSaving(Future&lt;void&gt; Function() action) async {
+    _saving = true;
+    notifyListeners();
+    try {
+      await action();
+    } finally {
+      _saving = false;
+      notifyListeners();
+    }
+  }
+}
+</code></pre>
+<p><strong>Penjelasan:</strong> method <code>add</code>, <code>edit</code>, dan <code>remove</code> tidak menangkap error. Error dibiarkan naik ke layar form/detail agar layar itu bisa menampilkan SnackBar dan <strong>tidak menutup</strong> form jika gagal. <code>try/finally</code> di <code>_runSaving</code> memastikan flag <code>saving</code> kembali <code>false</code> walaupun terjadi error.</p>
+
+<h4>2. Layar Daftar</h4>
+<p class="code-file-label">📄 <code>lib/screens/post_list_screen.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/post_crud_provider.dart';
+import 'post_detail_screen.dart';
+import 'post_form_screen.dart';
+
+class PostListScreen extends StatelessWidget {
+  const PostListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final prov = context.watch&lt;PostCrudProvider&gt;();
+
+    Widget body;
+    switch (prov.status) {
+      case LoadStatus.initial:
+      case LoadStatus.loading:
+        body = const Center(child: CircularProgressIndicator());
+      case LoadStatus.error:
+        body = Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.cloud_off, size: 56),
+              const SizedBox(height: 8),
+              Text(prov.error ?? 'Terjadi kesalahan'),
+              TextButton(onPressed: prov.load, child: const Text('Coba Lagi')),
+            ],
+          ),
+        );
+      case LoadStatus.success:
+        body = prov.posts.isEmpty
+            ? const Center(child: Text('Belum ada post.'))
+            : RefreshIndicator(
+                onRefresh: prov.load,
+                child: ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  itemCount: prov.posts.length,
+                  separatorBuilder: (_, _) =&gt; const Divider(height: 1),
+                  itemBuilder: (context, i) {
+                    final post = prov.posts[i];
+                    return ListTile(
+                      leading: CircleAvatar(child: Text('${post.id}')),
+                      title: Text(post.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(post.body, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      onTap: () =&gt; Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) =&gt; PostDetailScreen(postId: post.id!)),
+                      ),
+                    );
+                  },
+                ),
+              );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Aplikasi Posts')),
+      body: body,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () =&gt; Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) =&gt; const PostFormScreen()),
+        ),
+        icon: const Icon(Icons.add),
+        label: const Text('Post Baru'),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>3. Layar Detail (dengan Edit &amp; Hapus)</h4>
+<p class="code-file-label">📄 <code>lib/screens/post_detail_screen.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/post_crud_provider.dart';
+import 'post_form_screen.dart';
+
+class PostDetailScreen extends StatelessWidget {
+  final int postId;
+  const PostDetailScreen({super.key, required this.postId});
+
+  Future&lt;void&gt; _konfirmasiHapus(BuildContext context) async {
+    final yakin = await showDialog&lt;bool&gt;(
+      context: context,
+      builder: (ctx) =&gt; AlertDialog(
+        title: const Text('Hapus post?'),
+        content: const Text('Post yang dihapus tidak bisa dikembalikan.'),
+        actions: [
+          TextButton(onPressed: () =&gt; Navigator.pop(ctx, false), child: const Text('Batal')),
+          FilledButton(onPressed: () =&gt; Navigator.pop(ctx, true), child: const Text('Hapus')),
+        ],
+      ),
+    );
+    if (yakin != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      await context.read&lt;PostCrudProvider&gt;().remove(postId);
+      navigator.pop(); // kembali ke daftar
+      messenger.showSnackBar(const SnackBar(content: Text('Post dihapus')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Gagal menghapus: $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prov = context.watch&lt;PostCrudProvider&gt;();
+    final post = prov.findById(postId);
+
+    // Post bisa saja sudah terhapus ketika layar ini masih terbuka
+    if (post == null) {
+      return Scaffold(appBar: AppBar(), body: const Center(child: Text('Post tidak ditemukan')));
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Post #${post.id}'),
+        actions: [
+          IconButton(
+            tooltip: 'Edit',
+            icon: const Icon(Icons.edit),
+            onPressed: () =&gt; Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) =&gt; PostFormScreen(post: post)),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Hapus',
+            icon: const Icon(Icons.delete_outline),
+            onPressed: prov.saving ? null : () =&gt; _konfirmasiHapus(context),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Text(post.title, style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 4),
+          Text('Penulis: user ${post.userId}', style: Theme.of(context).textTheme.labelMedium),
+          const Divider(height: 32),
+          Text(post.body, style: Theme.of(context).textTheme.bodyLarge),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>4. Satu Form untuk Tambah dan Edit</h4>
+<p>Jika parameter <code>post</code> bernilai <code>null</code>, form berada dalam mode <strong>tambah</strong>; jika diisi, mode <strong>edit</strong> dan field terisi data lama.</p>
+<p class="code-file-label">📄 <code>lib/screens/post_form_screen.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../models/post.dart';
+import '../providers/post_crud_provider.dart';
+
+class PostFormScreen extends StatefulWidget {
+  final Post? post; // null = tambah, ada isi = edit
+  const PostFormScreen({super.key, this.post});
+
+  @override
+  State&lt;PostFormScreen&gt; createState() =&gt; _PostFormScreenState();
+}
+
+class _PostFormScreenState extends State&lt;PostFormScreen&gt; {
+  final _formKey = GlobalKey&lt;FormState&gt;();
+  late final TextEditingController _titleCtrl;
+  late final TextEditingController _bodyCtrl;
+
+  bool get _isEdit =&gt; widget.post != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtrl = TextEditingController(text: widget.post?.title ?? '');
+    _bodyCtrl = TextEditingController(text: widget.post?.body ?? '');
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _bodyCtrl.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _simpan() async {
+    if (!_formKey.currentState!.validate()) return;
+    final prov = context.read&lt;PostCrudProvider&gt;();
+    final title = _titleCtrl.text.trim();
+    final body = _bodyCtrl.text.trim();
+
+    try {
+      if (_isEdit) {
+        await prov.edit(widget.post!.copyWith(title: title, body: body));
+      } else {
+        await prov.add(title, body);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_isEdit ? 'Perubahan disimpan' : 'Post ditambahkan')),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      // Form TIDAK ditutup agar isian pengguna tidak hilang
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final saving = context.watch&lt;PostCrudProvider&gt;().saving;
+    return Scaffold(
+      appBar: AppBar(title: Text(_isEdit ? 'Edit Post' : 'Post Baru')),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: _titleCtrl,
+              decoration: const InputDecoration(labelText: 'Judul', border: OutlineInputBorder()),
+              validator: (v) =&gt; (v == null || v.trim().length &lt; 3) ? 'Judul minimal 3 karakter' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _bodyCtrl,
+              maxLines: 5,
+              decoration: const InputDecoration(labelText: 'Isi', border: OutlineInputBorder()),
+              validator: (v) =&gt; (v == null || v.trim().isEmpty) ? 'Isi tidak boleh kosong' : null,
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: saving ? null : _simpan,
+              icon: saving
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.save),
+              label: Text(saving ? 'Menyimpan...' : 'Simpan'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>5. <code>main.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'core/api_client.dart';
+import 'providers/post_crud_provider.dart';
+import 'repositories/post_repository.dart';
+import 'screens/post_list_screen.dart';
+
+void main() {
+  final api = ApiClient(baseUrl: 'https://jsonplaceholder.typicode.com');
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) =&gt; PostCrudProvider(RemotePostRepository(api))..load(),
+      child: const PostsApp(),
+    ),
+  );
+}
+
+class PostsApp extends StatelessWidget {
+  const PostsApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Aplikasi Posts',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const PostListScreen(),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/posts-list.jpg" alt="Daftar post" loading="lazy">
+    <div class="screenshot-caption">Layar daftar</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/posts-detail.jpg" alt="Detail post" loading="lazy">
+    <div class="screenshot-caption">Layar detail dengan tombol edit dan hapus</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/posts-form.jpg" alt="Form post baru" loading="lazy">
+    <div class="screenshot-caption">Form tambah post</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/posts-created.jpg" alt="Post baru di daftar" loading="lazy">
+    <div class="screenshot-caption">Setelah disimpan: post baru muncul paling atas</div>
+  </div>
+</div>
+
+
+
+<h4>Alur Data Saat Menambah Post</h4>
+<pre><code class="language-text">PostFormScreen._simpan()
+   └─&gt; PostCrudProvider.add()          saving = true, notifyListeners (tombol jadi "Menyimpan...")
+         └─&gt; RemotePostRepository.create()
+               └─&gt; ApiClient.post('/posts', json)   -&gt; 201 Created
+         &lt;─ Post baru dimasukkan ke _posts, saving = false, notifyListeners
+   &lt;─ SnackBar "Post ditambahkan", Navigator.pop
+PostListScreen (context.watch) otomatis rebuild dan post baru muncul paling atas
+</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum pada Proyek CRUD</h4>
+<ul>
+  <li>Menutup form (<code>Navigator.pop</code>) sebelum <code>await</code> selesai, sehingga error tidak pernah terlihat.</li>
+  <li>Mengirim objek yang sama ke halaman detail lalu mengeditnya: detail tidak berubah. Kirim <code>id</code> lalu cari data terbaru dari provider (seperti <code>findById</code>).</li>
+  <li>Menekan tombol Simpan berkali-kali sehingga data dobel. Nonaktifkan tombol saat <code>saving</code>.</li>
+  <li>Memakai <code>context</code> setelah <code>await</code> tanpa cek <code>mounted</code>/<code>context.mounted</code>.</li>
+</ul>
+</div>

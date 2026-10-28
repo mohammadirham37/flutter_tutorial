@@ -1,0 +1,173 @@
+<p class="lead"><code>MaterialPageRoute</code> adalah "bungkus" untuk halaman tujuan. Ia menentukan <em>bagaimana</em> halaman muncul: animasi transisi, apakah berupa dialog layar penuh, dan nama rutenya.</p>
+
+<h4>Parameter penting</h4>
+<pre><code class="language-dart">MaterialPageRoute(
+  builder: (context) =&gt; const FormScreen(), // WAJIB: membangun halaman tujuan
+  settings: const RouteSettings(name: '/form'), // opsional: nama rute (untuk debug/analytics)
+  fullscreenDialog: true, // opsional: animasi dari bawah + tombol X
+  maintainState: true, // default true: halaman tetap hidup saat tertutup halaman lain
+);
+</code></pre>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Parameter</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>builder</code></td><td>Fungsi yang mengembalikan widget halaman. Dipanggil saat route dibangun.</td></tr>
+      <tr><td><code>settings</code></td><td>Berisi <code>name</code> dan <code>arguments</code>. Berguna untuk named routes dan debugging.</td></tr>
+      <tr><td><code>fullscreenDialog</code></td><td>Jika <code>true</code>, halaman masuk dari bawah dan tombol back menjadi ikon X. Cocok untuk form "Tambah ...".</td></tr>
+      <tr><td><code>maintainState</code></td><td>Jika <code>true</code> (default), halaman di bawah tetap disimpan di memori sehingga isian form dan posisi scroll tidak hilang.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh lengkap: tiga gaya transisi</h4>
+<p>Contoh berikut membandingkan rute biasa, <code>fullscreenDialog</code>, dan <code>PageRouteBuilder</code> untuk animasi kustom (fade).</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const PengumumanScreen(),
+    );
+  }
+}
+
+class PengumumanScreen extends StatelessWidget {
+  const PengumumanScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pengumuman')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // 1. Rute biasa: animasi geser standar platform
+          FilledButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  settings: const RouteSettings(name: '/detail'),
+                  builder: (context) =&gt; const DetailPengumumanScreen(),
+                ),
+              );
+            },
+            child: const Text('Rute biasa (geser)'),
+          ),
+          const SizedBox(height: 12),
+          // 2. fullscreenDialog: muncul dari bawah, tombol kembali berubah jadi X
+          FilledButton.tonal(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (context) =&gt; const TulisPengumumanScreen(),
+                ),
+              );
+            },
+            child: const Text('fullscreenDialog (dari bawah)'),
+          ),
+          const SizedBox(height: 12),
+          // 3. PageRouteBuilder: animasi kustom (fade)
+          OutlinedButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                PageRouteBuilder(
+                  transitionDuration: const Duration(milliseconds: 400),
+                  pageBuilder: (context, animation, secondaryAnimation) =&gt;
+                      const DetailPengumumanScreen(),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                ),
+              );
+            },
+            child: const Text('PageRouteBuilder (fade)'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DetailPengumumanScreen extends StatelessWidget {
+  const DetailPengumumanScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // ModalRoute.of(context) memberi akses ke rute yang sedang aktif
+    final namaRute = ModalRoute.of(context)?.settings.name ?? '(tanpa nama)';
+    return Scaffold(
+      appBar: AppBar(title: const Text('Detail Pengumuman')),
+      body: Center(child: Text('Nama rute: $namaRute')),
+    );
+  }
+}
+
+class TulisPengumumanScreen extends StatelessWidget {
+  const TulisPengumumanScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Tulis Pengumuman')),
+      body: const Padding(
+        padding: EdgeInsets.all(16),
+        child: TextField(
+          maxLines: 5,
+          decoration: InputDecoration(
+            border: OutlineInputBorder(),
+            hintText: 'Isi pengumuman...',
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/route-menu.jpg" alt="Tiga tombol untuk tiga jenis rute" loading="lazy">
+    <div class="screenshot-caption">Tiga tombol untuk tiga jenis rute</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/route-detail.jpg" alt="Rute biasa: nama rute terbaca dari settings" loading="lazy">
+    <div class="screenshot-caption">Rute biasa: nama rute terbaca dari settings</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/07-navigasi/route-fullscreen.jpg" alt="fullscreenDialog: tombol kembali berupa ikon X" loading="lazy">
+    <div class="screenshot-caption">fullscreenDialog: tombol kembali berupa ikon X</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>MaterialPageRoute</code> otomatis menyesuaikan animasi dengan platform (Android: zoom/geser, iOS: geser dari kanan).</li>
+  <li><code>ModalRoute.of(context)?.settings.name</code> membaca nama rute dari dalam halaman tujuan. Rute ketiga tidak diberi <code>settings</code>, jadi namanya <code>null</code>.</li>
+  <li><code>PageRouteBuilder</code> memberi kendali penuh: <code>pageBuilder</code> membangun halaman, <code>transitionsBuilder</code> membungkusnya dengan animasi. Nilai <code>animation</code> bergerak dari 0.0 ke 1.0.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Tips</h4><p>Untuk aplikasi kuliah, <code>MaterialPageRoute</code> sudah cukup di 95% kasus. Pakai <code>PageRouteBuilder</code> hanya jika desain memang meminta animasi khusus.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Menulis <code>builder: (context) =&gt; HalamanB</code> (tanpa tanda kurung). Yang benar adalah memanggil constructor: <code>HalamanB()</code>.</li>
+  <li>Mengira <code>fullscreenDialog</code> sama dengan <code>showDialog</code>. <code>fullscreenDialog</code> tetap halaman penuh, hanya gaya animasinya yang berbeda.</li>
+</ul>
+</div>

@@ -1,0 +1,447 @@
+<p class="lead">Studi kasus penutup: aplikasi <strong>Tugas Kuliah</strong> (todo) dengan fitur tambah, centang selesai, hapus (geser), filter, dan halaman statistik. Satu <code>TodoProvider</code> dipakai bersama oleh tiga halaman.</p>
+
+<h4>Struktur folder</h4>
+<pre><code class="language-text">lib/
+├── main.dart
+├── models/todo.dart
+├── providers/todo_provider.dart
+└── screens/
+    ├── todo_list_screen.dart
+    ├── tambah_todo_screen.dart
+    └── statistik_screen.dart
+</code></pre>
+
+<h4>Langkah 1: model</h4>
+<p class="code-file-label">📄 <code>lib/models/todo.dart</code></p>
+<pre><code class="language-dart">// lib/models/todo.dart
+class Todo {
+  final String id;
+  final String judul;
+  final String matkul;
+  final bool selesai;
+
+  const Todo({
+    required this.id,
+    required this.judul,
+    required this.matkul,
+    this.selesai = false,
+  });
+
+  // Membuat salinan dengan sebagian field diubah (objek tetap immutable)
+  Todo copyWith({String? judul, String? matkul, bool? selesai}) {
+    return Todo(
+      id: id,
+      judul: judul ?? this.judul,
+      matkul: matkul ?? this.matkul,
+      selesai: selesai ?? this.selesai,
+    );
+  }
+}
+
+enum FilterTodo { semua, aktif, selesai }
+</code></pre>
+<p><code>copyWith</code> membuat salinan objek dengan sebagian field diganti. Objek <code>Todo</code> tidak pernah diubah langsung; yang diganti adalah elemen di list.</p>
+
+<h4>Langkah 2: provider</h4>
+<p class="code-file-label">📄 <code>lib/providers/todo_provider.dart</code></p>
+<pre><code class="language-dart">// lib/providers/todo_provider.dart
+import 'package:flutter/foundation.dart';
+
+import '../models/todo.dart';
+
+class TodoProvider extends ChangeNotifier {
+  final List&lt;Todo&gt; _todos = [
+    const Todo(id: '1', judul: 'Laporan praktikum Flutter', matkul: 'Pemrograman Mobile'),
+    const Todo(id: '2', judul: 'Normalisasi tabel KRS', matkul: 'Basis Data', selesai: true),
+  ];
+  FilterTodo _filter = FilterTodo.semua;
+
+  // ---------- GETTER (data turunan dihitung, tidak disimpan) ----------
+  FilterTodo get filter =&gt; _filter;
+  int get jumlahTotal =&gt; _todos.length;
+  int get jumlahSelesai =&gt; _todos.where((t) =&gt; t.selesai).length;
+  int get jumlahAktif =&gt; jumlahTotal - jumlahSelesai;
+  double get progres =&gt; jumlahTotal == 0 ? 0 : jumlahSelesai / jumlahTotal;
+
+  List&lt;Todo&gt; get todosTampil {
+    switch (_filter) {
+      case FilterTodo.semua:
+        return List.unmodifiable(_todos);
+      case FilterTodo.aktif:
+        return _todos.where((t) =&gt; !t.selesai).toList();
+      case FilterTodo.selesai:
+        return _todos.where((t) =&gt; t.selesai).toList();
+    }
+  }
+
+  Todo? cariById(String id) {
+    for (final t in _todos) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
+  // ---------- AKSI (mengubah state + notifyListeners) ----------
+  void tambah(String judul, String matkul) {
+    final id = DateTime.now().microsecondsSinceEpoch.toString();
+    _todos.insert(0, Todo(id: id, judul: judul, matkul: matkul));
+    notifyListeners();
+  }
+
+  void toggle(String id) {
+    final i = _todos.indexWhere((t) =&gt; t.id == id);
+    if (i == -1) return;
+    _todos[i] = _todos[i].copyWith(selesai: !_todos[i].selesai);
+    notifyListeners();
+  }
+
+  void hapus(String id) {
+    _todos.removeWhere((t) =&gt; t.id == id);
+    notifyListeners();
+  }
+
+  void hapusYangSelesai() {
+    _todos.removeWhere((t) =&gt; t.selesai);
+    notifyListeners();
+  }
+
+  void ubahFilter(FilterTodo f) {
+    if (f == _filter) return;
+    _filter = f;
+    notifyListeners();
+  }
+}
+</code></pre>
+<ul>
+  <li>Data turunan (<code>jumlahAktif</code>, <code>progres</code>, <code>todosTampil</code>) dihitung dari <code>_todos</code>, tidak disimpan terpisah, sehingga tidak mungkin "tidak sinkron".</li>
+  <li>Setiap aksi diakhiri <code>notifyListeners()</code>.</li>
+</ul>
+
+<h4>Langkah 3: main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'providers/todo_provider.dart';
+import 'screens/todo_list_screen.dart';
+
+void main() {
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) =&gt; TodoProvider(),
+      child: const TodoApp(),
+    ),
+  );
+}
+
+class TodoApp extends StatelessWidget {
+  const TodoApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Tugas Kuliah',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const TodoListScreen(),
+    );
+  }
+}
+</code></pre>
+
+<h4>Langkah 4: halaman daftar</h4>
+<p class="code-file-label">📄 <code>lib/screens/todo_list_screen.dart</code></p>
+<pre><code class="language-dart">// lib/screens/todo_list_screen.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../models/todo.dart';
+import '../providers/todo_provider.dart';
+import 'statistik_screen.dart';
+import 'tambah_todo_screen.dart';
+
+class TodoListScreen extends StatelessWidget {
+  const TodoListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Tugas Kuliah'),
+        actions: [
+          // Hanya badge ini yang rebuild saat jumlah aktif berubah
+          Selector&lt;TodoProvider, int&gt;(
+            selector: (_, p) =&gt; p.jumlahAktif,
+            builder: (context, aktif, child) =&gt; IconButton(
+              tooltip: 'Statistik',
+              icon: Badge(label: Text('$aktif'), child: const Icon(Icons.insights)),
+              onPressed: () =&gt; Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) =&gt; const StatistikScreen()),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: const Column(
+        children: [
+          _FilterBar(),
+          Expanded(child: _DaftarTodo()),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.add),
+        label: const Text('Tugas Baru'),
+        onPressed: () =&gt; Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) =&gt; const TambahTodoScreen()),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterBar extends StatelessWidget {
+  const _FilterBar();
+
+  @override
+  Widget build(BuildContext context) {
+    final filter = context.select((TodoProvider p) =&gt; p.filter);
+
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: SegmentedButton&lt;FilterTodo&gt;(
+        segments: const [
+          ButtonSegment(value: FilterTodo.semua, label: Text('Semua')),
+          ButtonSegment(value: FilterTodo.aktif, label: Text('Aktif')),
+          ButtonSegment(value: FilterTodo.selesai, label: Text('Selesai')),
+        ],
+        selected: {filter},
+        onSelectionChanged: (pilihan) =&gt;
+            context.read&lt;TodoProvider&gt;().ubahFilter(pilihan.first),
+      ),
+    );
+  }
+}
+
+class _DaftarTodo extends StatelessWidget {
+  const _DaftarTodo();
+
+  @override
+  Widget build(BuildContext context) {
+    final todos = context.watch&lt;TodoProvider&gt;().todosTampil;
+
+    if (todos.isEmpty) {
+      return const Center(child: Text('Tidak ada tugas di filter ini'));
+    }
+
+    return ListView.builder(
+      itemCount: todos.length,
+      itemBuilder: (context, i) {
+        final t = todos[i];
+        return Dismissible(
+          key: ValueKey(t.id),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            color: Colors.red,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 20),
+            child: const Icon(Icons.delete, color: Colors.white),
+          ),
+          onDismissed: (_) {
+            context.read&lt;TodoProvider&gt;().hapus(t.id);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('"${t.judul}" dihapus')),
+            );
+          },
+          child: CheckboxListTile(
+            value: t.selesai,
+            onChanged: (_) =&gt; context.read&lt;TodoProvider&gt;().toggle(t.id),
+            title: Text(
+              t.judul,
+              style: TextStyle(
+                decoration: t.selesai ? TextDecoration.lineThrough : null,
+              ),
+            ),
+            subtitle: Text(t.matkul),
+          ),
+        );
+      },
+    );
+  }
+}
+</code></pre>
+
+<h4>Langkah 5: halaman tambah</h4>
+<p class="code-file-label">📄 <code>lib/screens/tambah_todo_screen.dart</code></p>
+<pre><code class="language-dart">// lib/screens/tambah_todo_screen.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/todo_provider.dart';
+
+class TambahTodoScreen extends StatefulWidget {
+  const TambahTodoScreen({super.key});
+
+  @override
+  State&lt;TambahTodoScreen&gt; createState() =&gt; _TambahTodoScreenState();
+}
+
+class _TambahTodoScreenState extends State&lt;TambahTodoScreen&gt; {
+  final _formKey = GlobalKey&lt;FormState&gt;();
+  final _judulController = TextEditingController();
+  String _matkul = 'Pemrograman Mobile';
+
+  static const daftarMatkul = ['Pemrograman Mobile', 'Basis Data', 'Jaringan Komputer'];
+
+  @override
+  void dispose() {
+    _judulController.dispose();
+    super.dispose();
+  }
+
+  void _simpan() {
+    if (!_formKey.currentState!.validate()) return;
+    // Tidak perlu mengembalikan data lewat pop: provider yang menyimpan
+    context.read&lt;TodoProvider&gt;().tambah(_judulController.text.trim(), _matkul);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Tugas Baru')),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: _judulController,
+              decoration: const InputDecoration(
+                labelText: 'Judul tugas',
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =&gt;
+                  (v == null || v.trim().isEmpty) ? 'Judul wajib diisi' : null,
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField&lt;String&gt;(
+              initialValue: _matkul,
+              decoration: const InputDecoration(
+                labelText: 'Mata kuliah',
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                for (final m in daftarMatkul) DropdownMenuItem(value: m, child: Text(m)),
+              ],
+              onChanged: (v) =&gt; setState(() =&gt; _matkul = v ?? _matkul),
+            ),
+            const SizedBox(height: 24),
+            FilledButton(onPressed: _simpan, child: const Text('Simpan')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Langkah 6: halaman statistik</h4>
+<p class="code-file-label">📄 <code>lib/screens/statistik_screen.dart</code></p>
+<pre><code class="language-dart">// lib/screens/statistik_screen.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/todo_provider.dart';
+
+class StatistikScreen extends StatelessWidget {
+  const StatistikScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.watch&lt;TodoProvider&gt;();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Statistik')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('${(p.progres * 100).round()}% selesai',
+                style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(value: p.progres, minHeight: 10),
+            const SizedBox(height: 16),
+            Card(
+              child: Column(
+                children: [
+                  ListTile(title: const Text('Total tugas'), trailing: Text('${p.jumlahTotal}')),
+                  ListTile(title: const Text('Aktif'), trailing: Text('${p.jumlahAktif}')),
+                  ListTile(title: const Text('Selesai'), trailing: Text('${p.jumlahSelesai}')),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.cleaning_services),
+              label: const Text('Hapus semua yang selesai'),
+              onPressed: p.jumlahSelesai == 0
+                  ? null
+                  : () =&gt; context.read&lt;TodoProvider&gt;().hapusYangSelesai(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Hasil</h4>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/todo-list.jpg" alt="Daftar tugas awal" loading="lazy">
+    <div class="screenshot-caption">Daftar tugas awal</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/todo-setelah.jpg" alt="Tugas baru muncul, badge aktif bertambah" loading="lazy">
+    <div class="screenshot-caption">Tugas baru muncul, badge aktif bertambah</div>
+  </div>
+</div>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/todo-filter.jpg" alt="Filter Selesai setelah satu tugas dicentang" loading="lazy">
+    <div class="screenshot-caption">Filter Selesai setelah satu tugas dicentang</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/todo-statistik.jpg" alt="Halaman statistik membaca provider yang sama" loading="lazy">
+    <div class="screenshot-caption">Halaman statistik membaca provider yang sama</div>
+  </div>
+</div>
+
+<p><strong>Ringkasan teknik yang dipakai:</strong></p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Bagian</th><th>Teknik</th><th>Alasan</th></tr></thead>
+    <tbody>
+      <tr><td>Badge statistik di AppBar</td><td><code>Selector&lt;TodoProvider, int&gt;</code></td><td>Hanya ikon yang rebuild saat jumlah aktif berubah</td></tr>
+      <tr><td>Filter</td><td><code>context.select</code> pada <code>filter</code></td><td>Tombol filter tidak rebuild saat todo dicentang</td></tr>
+      <tr><td>Daftar todo</td><td><code>context.watch</code></td><td>Butuh seluruh daftar terkini</td></tr>
+      <tr><td>Tambah tugas</td><td><code>context.read</code> lalu <code>Navigator.pop</code></td><td>Tidak perlu mengembalikan data lewat pop; provider yang menyimpan</td></tr>
+      <tr><td>Hapus</td><td><code>Dismissible</code> + <code>ValueKey(t.id)</code></td><td>Key unik agar Flutter tidak salah menghapus item</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-info"><h4>ℹ️ Bandingkan dengan Modul 07</h4><p>Di studi kasus Modul 07, data KRS harus dioper lewat constructor dan callback, dan halaman tambah mengembalikan hasil lewat <code>Navigator.pop</code>. Di sini, ketiga halaman cukup membaca <code>TodoProvider</code>. Pola yang sama dipakai di proyek CRUD Modul 13–14, dengan tambahan status loading/error dari section 7 dan auth gate dari section 9.</p></div>
+
+<div class="callout callout-tip"><h4>💡 Tantangan tambahan</h4>
+<ul>
+  <li>Tambahkan halaman edit yang memakai <code>cariById</code> dan method baru <code>ubah(id, judul)</code>.</li>
+  <li>Tambahkan tombol "Urungkan" pada SnackBar hapus.</li>
+  <li>Simpan todo ke penyimpanan lokal (Modul 10/11) dengan memanggil service dari provider.</li>
+</ul>
+</div>

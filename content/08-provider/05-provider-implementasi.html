@@ -1,0 +1,244 @@
+<p class="lead">Sekarang kita gabungkan tiga pilar Provider dalam satu contoh nyata: pengisian KRS dengan batas maksimal 24 SKS.</p>
+
+<p>Untuk mengimplementasikan package <code>provider</code> (dari pub.dev), kita menggunakan 3 pilar utama:</p>
+<ol>
+  <li><strong>ChangeNotifier</strong>: tempat state dan logika bisnis.</li>
+  <li><strong>ChangeNotifierProvider</strong>: menyediakan state ke pohon widget.</li>
+  <li><strong>watch / read</strong>: membaca state dari widget.</li>
+</ol>
+
+<p>Pasang package terlebih dahulu: <code>flutter pub add provider</code>.</p>
+
+<h4>Langkah 1: Membuat Model State dengan ChangeNotifier</h4>
+<p>Buat folder <code>lib/providers/</code> lalu file <code>krs_provider.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/providers/krs_provider.dart</code></p>
+<pre><code class="language-dart">// lib/providers/krs_provider.dart
+import 'package:flutter/foundation.dart';
+
+class MataKuliah {
+  final String nama;
+  final int sks;
+
+  const MataKuliah(this.nama, this.sks);
+}
+
+class KrsProvider with ChangeNotifier {
+  // Data privat di dalam store
+  final List&lt;MataKuliah&gt; _matkulTerpilih = [];
+  final int batasMaksimalSks = 24;
+
+  // Getter publik (read-only agar tidak bisa diubah langsung dari luar)
+  List&lt;MataKuliah&gt; get matkulTerpilih =&gt; List.unmodifiable(_matkulTerpilih);
+  int get totalSks =&gt; _matkulTerpilih.fold(0, (total, mk) =&gt; total + mk.sks);
+
+  // Logika bisnis untuk menambah mata kuliah
+  bool tambahMatkul(MataKuliah matkul) {
+    if (totalSks + matkul.sks &gt; batasMaksimalSks) {
+      return false; // Melebihi batas kuota SKS!
+    }
+
+    _matkulTerpilih.add(matkul);
+
+    // SANGAT PENTING: Beritahu seluruh widget yang mendengarkan agar me-rebuild UI!
+    notifyListeners();
+    return true;
+  }
+
+  void hapusMatkul(int index) {
+    _matkulTerpilih.removeAt(index);
+    notifyListeners();
+  }
+}
+</code></pre>
+
+<p>Perhatikan bahwa <code>tambahMatkul</code> mengembalikan <code>bool</code>. Provider yang memutuskan boleh/tidaknya (aturan bisnis), sedangkan UI hanya menampilkan pesan.</p>
+
+<h4>Langkah 2: Mendaftarkan Provider di Root Aplikasi (main.dart)</h4>
+<pre><code class="language-dart">// Potongan inti dari lib/main.dart (kode lengkap ada di Langkah 3)
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'providers/krs_provider.dart';
+
+void main() {
+  runApp(
+    // Membungkus aplikasi dengan ChangeNotifierProvider
+    ChangeNotifierProvider(
+      create: (context) =&gt; KrsProvider(),
+      child: const MyApp(),
+    ),
+  );
+}
+</code></pre>
+
+<h4>Langkah 3: Mengonsumsi State di Widget (context.watch vs context.read)</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead>
+      <tr>
+        <th>Metode Akses</th>
+        <th>Tujuan &amp; Sifat Reaktif</th>
+        <th>Tempat Penggunaan</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>context.watch&lt;T&gt;()</code></td>
+        <td>Membaca data DAN ikut me-render ulang widget setiap ada perubahan (<code>notifyListeners</code>).</td>
+        <td>Di dalam method <code>build()</code> saat menampilkan teks/angka.</td>
+      </tr>
+      <tr>
+        <td><code>context.read&lt;T&gt;()</code></td>
+        <td>Hanya membaca fungsi/method SATU KALI tanpa mendaftar untuk re-render.</td>
+        <td>Di dalam event handler seperti tombol <code>onPressed: () {}</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>Kode lengkap <code>lib/main.dart</code> yang siap dijalankan (katalog mata kuliah + ringkasan SKS):</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Pastikan sudah: (1) flutter pub add provider, (2) membuat lib/providers/krs_provider.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'providers/krs_provider.dart';
+
+void main() {
+  runApp(
+    // Membungkus aplikasi dengan ChangeNotifierProvider di root
+    ChangeNotifierProvider(
+      create: (context) =&gt; KrsProvider(),
+      child: const MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: KatalogKrsScreen(),
+    );
+  }
+}
+
+class KatalogKrsScreen extends StatelessWidget {
+  const KatalogKrsScreen({super.key});
+
+  static const List&lt;MataKuliah&gt; katalog = [
+    MataKuliah("Pemrograman Mobile", 4),
+    MataKuliah("Basis Data Lanjut", 3),
+    MataKuliah("Kecerdasan Buatan", 3),
+    MataKuliah("Jaringan Komputer", 3),
+    MataKuliah("Rekayasa Perangkat Lunak", 3),
+    MataKuliah("Keamanan Siber", 3),
+    MataKuliah("Etika Profesi", 2),
+    MataKuliah("Kerja Praktik", 4),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Pengisian KRS")),
+      body: Column(
+        children: [
+          const RingkasanKrsWidget(),
+          Expanded(
+            child: ListView.builder(
+              itemCount: katalog.length,
+              itemBuilder: (context, index) {
+                final mk = katalog[index];
+                return ListTile(
+                  title: Text(mk.nama),
+                  subtitle: Text("${mk.sks} SKS"),
+                  trailing: IconButton(
+                    tooltip: "Ambil ${mk.nama}",
+                    icon: const Icon(Icons.add_circle, color: Colors.indigo),
+                    onPressed: () {
+                      // 2. Di event handler gunakan read: hanya memanggil method, tanpa rebuild
+                      final berhasil = context.read&lt;KrsProvider&gt;().tambahMatkul(mk);
+                      if (!berhasil) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Kuota maksimal 24 SKS terlampaui!"),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Contoh Widget Tampilan KRS Menggunakan Provider
+class RingkasanKrsWidget extends StatelessWidget {
+  const RingkasanKrsWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // 1. Menggunakan watch untuk mendengarkan perubahan angka SKS
+    final krs = context.watch&lt;KrsProvider&gt;();
+
+    return Card(
+      margin: const EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Text("Total SKS Diambil: ${krs.totalSks} / ${krs.batasMaksimalSks} SKS"),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: krs.totalSks / krs.batasMaksimalSks,
+              color: krs.totalSks &gt;= 20 ? Colors.orange : Colors.blue,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (var i = 0; i &lt; krs.matkulTerpilih.length; i++)
+                  InputChip(
+                    label: Text(krs.matkulTerpilih[i].nama),
+                    onDeleted: () =&gt; context.read&lt;KrsProvider&gt;().hapusMatkul(i),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-provider/krs-katalog.jpg" alt="Ringkasan SKS ikut berubah saat mata kuliah diambil" loading="lazy">
+    <div class="screenshot-caption">Ringkasan SKS ikut berubah saat mata kuliah diambil</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>KatalogKrsScreen</code> tidak memakai <code>watch</code>, sehingga daftar katalog tidak ikut rebuild ketika SKS bertambah.</li>
+  <li><code>RingkasanKrsWidget</code> memakai <code>watch</code> sehingga total SKS, progress bar, dan chip selalu sinkron.</li>
+  <li><code>InputChip.onDeleted</code> memanggil <code>hapusMatkul</code> lewat <code>read</code>.</li>
+  <li><code>List.unmodifiable</code> di getter mencegah UI menambah item langsung tanpa melewati <code>tambahMatkul</code> (yang memeriksa kuota).</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Memeriksa batas SKS di UI, bukan di provider. Jika ada dua tombol tambah di dua halaman, aturannya harus ditulis dua kali.</li>
+  <li>Mengembalikan <code>_matkulTerpilih</code> langsung dari getter. UI bisa memanggil <code>.add()</code> dan melewati pengecekan kuota.</li>
+</ul>
+</div>

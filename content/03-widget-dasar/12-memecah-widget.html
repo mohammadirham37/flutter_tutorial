@@ -1,0 +1,292 @@
+<p class="lead">Method <code>build()</code> yang panjangnya ratusan baris sulit dibaca dan sulit diperbaiki. Solusinya: <strong>pecah menjadi widget-widget kecil</strong>. Data dikirim ke widget kecil lewat <strong>parameter konstruktor</strong>, dan widget kecil mengabari induknya lewat <strong>callback</strong> (fungsi yang dikirim sebagai parameter).</p>
+
+<h4>Langkah 1: kenali bagian yang berulang</h4>
+<p>Perhatikan kode "sebelum" berikut. Ada tiga blok <code>Container</code> yang hampir sama, hanya berbeda ikon, label, dan nilai:</p>
+<pre><code class="language-dart">// SEBELUM: kode berulang
+Row(
+  children: [
+    Container(
+      padding: const EdgeInsets.all(12),
+      color: Colors.blue.shade50,
+      child: const Column(children: [Icon(Icons.star), Text('IPK'), Text('3.85')]),
+    ),
+    Container(
+      padding: const EdgeInsets.all(12),
+      color: Colors.blue.shade50,
+      child: const Column(children: [Icon(Icons.book), Text('SKS'), Text('98')]),
+    ),
+    Container(
+      padding: const EdgeInsets.all(12),
+      color: Colors.blue.shade50,
+      child: const Column(children: [Icon(Icons.event), Text('Semester'), Text('5')]),
+    ),
+  ],
+)
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/memecah-widget-1.jpg" alt="Kode berulang: tiga kotak statistik" loading="lazy">
+    <div class="screenshot-caption">Kode berulang: tiga kotak statistik</div>
+  </div>
+</div>
+
+<h4>Langkah 2: jadikan class dengan parameter</h4>
+<pre><code class="language-dart">// SESUDAH: satu class, dipakai tiga kali
+class KotakStatistik extends StatelessWidget {
+  final IconData ikon;
+  final String label;
+  final String nilai;
+
+  const KotakStatistik({
+    super.key,
+    required this.ikon,
+    required this.label,
+    required this.nilai,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      color: Colors.blue.shade50,
+      child: Column(children: [Icon(ikon), Text(label), Text(nilai)]),
+    );
+  }
+}
+
+// Pemakaian:
+// Row(children: [
+//   KotakStatistik(ikon: Icons.star, label: 'IPK', nilai: '3.85'),
+//   KotakStatistik(ikon: Icons.book, label: 'SKS', nilai: '98'),
+//   KotakStatistik(ikon: Icons.event, label: 'Semester', nilai: '5'),
+// ])
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/memecah-widget-2.jpg" alt="Hasil yang sama memakai class KotakStatistik" loading="lazy">
+    <div class="screenshot-caption">Hasil yang sama memakai class KotakStatistik</div>
+  </div>
+</div>
+<div class="callout callout-tip"><h4>💡 Refactor otomatis di VS Code</h4><p>Letakkan kursor pada nama widget (misalnya <code>Container</code>), tekan <kbd>Ctrl</kbd>+<kbd>.</kbd> (macOS: <kbd>Cmd</kbd>+<kbd>.</kbd>), lalu pilih <strong>Extract Widget</strong>. VS Code membuatkan class baru untukmu.</p></div>
+
+<h4>Langkah 3: callback, agar anak bisa "melapor" ke induk</h4>
+<p>Widget kecil sebaiknya tidak menyimpan state yang juga dibutuhkan induk. Biarkan induk yang menyimpan state, lalu kirim fungsi ke anak. Tipe yang paling sering dipakai:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Tipe</th><th>Artinya</th><th>Contoh pemakaian</th></tr></thead>
+    <tbody>
+      <tr><td><code>VoidCallback</code></td><td>Fungsi tanpa parameter, tanpa nilai kembali</td><td>Tombol "Hapus" ditekan</td></tr>
+      <tr><td><code>ValueChanged&lt;T&gt;</code></td><td>Fungsi yang menerima satu nilai bertipe <code>T</code></td><td>Checkbox berubah menjadi <code>true</code>/<code>false</code></td></tr>
+      <tr><td><code>void Function(String, int)</code></td><td>Fungsi dengan parameter bebas</td><td>Mengirim nama dan jumlah sekaligus</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<pre><code class="language-dart">class TombolSuka extends StatelessWidget {
+  final bool disukai;
+  final VoidCallback onTekan; // induk yang menentukan apa yang terjadi
+
+  const TombolSuka({super.key, required this.disukai, required this.onTekan});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onTekan, // teruskan ke induk
+      icon: Icon(
+        disukai ? Icons.favorite : Icons.favorite_border,
+        color: disukai ? Colors.red : null,
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/memecah-widget-3.jpg" alt="TombolSuka dalam keadaan belum dan sudah disukai" loading="lazy">
+    <div class="screenshot-caption">TombolSuka dalam keadaan belum dan sudah disukai</div>
+  </div>
+</div>
+
+<h4>Contoh lengkap: daftar tugas kuliah yang dipecah menjadi widget kecil</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const HalamanTugas(),
+    );
+  }
+}
+
+/// Model data sederhana untuk satu tugas.
+class Tugas {
+  final String judul;
+  final String matkul;
+  bool selesai;
+
+  Tugas({required this.judul, required this.matkul, this.selesai = false});
+}
+
+/// INDUK: satu-satunya tempat state disimpan.
+class HalamanTugas extends StatefulWidget {
+  const HalamanTugas({super.key});
+
+  @override
+  State&lt;HalamanTugas&gt; createState() =&gt; _HalamanTugasState();
+}
+
+class _HalamanTugasState extends State&lt;HalamanTugas&gt; {
+  final List&lt;Tugas&gt; _daftar = [
+    Tugas(judul: 'Laporan Praktikum 3', matkul: 'Pemrograman Mobile'),
+    Tugas(judul: 'ERD Sistem Akademik', matkul: 'Basis Data'),
+    Tugas(judul: 'Resume Bab 4', matkul: 'Jaringan Komputer', selesai: true),
+  ];
+
+  void _ubahStatus(int index, bool nilai) {
+    setState(() =&gt; _daftar[index].selesai = nilai);
+  }
+
+  void _hapus(int index) {
+    setState(() =&gt; _daftar.removeAt(index));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final jumlahSelesai = _daftar.where((t) =&gt; t.selesai).length;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Tugas Kuliah')),
+      body: Column(
+        children: [
+          // Widget kecil 1: hanya menerima data
+          RingkasanTugas(selesai: jumlahSelesai, total: _daftar.length),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _daftar.length,
+              itemBuilder: (context, index) {
+                // Widget kecil 2: menerima data + 2 callback
+                return ItemTugas(
+                  tugas: _daftar[index],
+                  onCentang: (nilai) =&gt; _ubahStatus(index, nilai),
+                  onHapus: () =&gt; _hapus(index),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ANAK 1: StatelessWidget yang hanya menampilkan ringkasan.
+class RingkasanTugas extends StatelessWidget {
+  final int selesai;
+  final int total;
+
+  const RingkasanTugas({super.key, required this.selesai, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    final progres = total == 0 ? 0.0 : selesai / total;
+    return Card(
+      margin: const EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('$selesai dari $total tugas selesai',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(value: progres),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// ANAK 2: menampilkan satu tugas dan melapor ke induk lewat callback.
+class ItemTugas extends StatelessWidget {
+  final Tugas tugas;
+  final ValueChanged&lt;bool&gt; onCentang;
+  final VoidCallback onHapus;
+
+  const ItemTugas({
+    super.key,
+    required this.tugas,
+    required this.onCentang,
+    required this.onHapus,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Checkbox(
+        value: tugas.selesai,
+        // Checkbox memberi bool? (bisa null), kita ubah jadi bool
+        onChanged: (nilai) =&gt; onCentang(nilai ?? false),
+      ),
+      title: Text(
+        tugas.judul,
+        style: TextStyle(
+          decoration: tugas.selesai ? TextDecoration.lineThrough : null,
+        ),
+      ),
+      subtitle: Text(tugas.matkul),
+      trailing: IconButton(
+        icon: const Icon(Icons.delete_outline),
+        tooltip: 'Hapus',
+        onPressed: onHapus,
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/memecah-widget-4.jpg" alt="Daftar tugas yang dipecah menjadi widget kecil" loading="lazy">
+    <div class="screenshot-caption">Daftar tugas yang dipecah menjadi widget kecil</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/03-widget-dasar/memecah-widget-hapus.jpg" alt="Setelah tombol hapus pada item pertama ditekan" loading="lazy">
+    <div class="screenshot-caption">Setelah tombol hapus pada item pertama ditekan</div>
+  </div>
+</div>
+
+<h4>Penjelasan alur data</h4>
+<pre><code class="language-text">_HalamanTugasState (punya state _daftar)
+   │  data turun lewat parameter (selesai, total, tugas)
+   ▼
+RingkasanTugas     ItemTugas
+                      │  kejadian naik lewat callback (onCentang, onHapus)
+                      ▼
+               _ubahStatus / _hapus  →  setState  →  build ulang
+</code></pre>
+<ul>
+  <li><strong>Data turun, kejadian naik.</strong> Ini pola paling penting dalam Flutter. Anak tidak mengubah data sendiri, ia memanggil callback dan induk yang memutuskan.</li>
+  <li><code>RingkasanTugas</code> dan <code>ItemTugas</code> adalah StatelessWidget walaupun tampilannya berubah, karena state disimpan di induk.</li>
+  <li><code>(nilai) =&gt; _ubahStatus(index, nilai)</code> adalah fungsi anonim yang "mengingat" <code>index</code> item tersebut.</li>
+</ul>
+
+<h4>Widget class vs method helper</h4>
+<p>Kamu mungkin melihat kode yang memecah UI dengan method seperti <code>Widget _buildHeader() { ... }</code>. Cara ini boleh untuk potongan kecil, tetapi <strong>class widget lebih disarankan</strong> karena bisa <code>const</code>, punya <code>context</code> sendiri, dan Flutter bisa melewati build-nya jika datanya tidak berubah.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Menyimpan salinan state di anak</strong> (misalnya anak punya <code>bool _selesai</code> sendiri). Data induk dan anak jadi tidak sinkron.</li>
+  <li><strong>Memanggil callback saat build</strong>: <code>onPressed: onHapus()</code> (dengan kurung) langsung menjalankan fungsi saat build. Yang benar <code>onPressed: onHapus</code> tanpa kurung.</li>
+  <li><strong>Memecah terlalu kecil</strong> sampai setiap <code>Text</code> jadi class. Pecah berdasarkan bagian yang bermakna: header, kartu, item daftar.</li>
+</ul></div>

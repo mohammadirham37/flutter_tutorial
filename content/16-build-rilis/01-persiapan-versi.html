@@ -1,0 +1,81 @@
+<p class="lead">Selama ini aplikasi selalu dijalankan dalam mode <em>debug</em>. Pengguna sungguhan tidak pernah melihat mode itu: mereka memasang build <strong>release</strong> yang lebih kecil, lebih cepat, dan sudah ditandatangani. Modul ini membahas semua langkah dari kode yang “jalan di laptop” sampai APK/AAB yang siap dibagikan, lalu ditutup dengan panduan Capstone Project.</p>
+
+<h4>Tiga mode build Flutter</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Mode</th><th>Perintah</th><th>Ciri</th><th>Dipakai untuk</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Debug</strong></td><td><code>flutter run</code></td><td>Hot reload, assert aktif, pita DEBUG, lambat, ukuran besar</td><td>Pengembangan sehari-hari</td></tr>
+      <tr><td><strong>Profile</strong></td><td><code>flutter run --profile</code></td><td>Performa mendekati rilis, DevTools tetap bisa dipakai</td><td>Mengukur performa (Modul 15)</td></tr>
+      <tr><td><strong>Release</strong></td><td><code>flutter run --release</code>, <code>flutter build apk</code></td><td>Kode dikompilasi AOT, assert dan <code>kDebugMode</code> mati, tanpa hot reload</td><td>Dibagikan ke pengguna</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Peta jalan rilis</h4>
+<ol>
+  <li>Atur nomor versi (bagian ini).</li>
+  <li>Atur nama aplikasi dan package id (bagian 2).</li>
+  <li>Pasang ikon dan splash screen (bagian 3).</li>
+  <li>Periksa permission di <code>AndroidManifest.xml</code> (bagian 4).</li>
+  <li>Keluarkan kunci Supabase dari kode dengan <code>--dart-define-from-file</code> (bagian 5).</li>
+  <li>Buat keystore dan konfigurasi signing (bagian 6).</li>
+  <li>Build APK/AAB dengan obfuscation lalu uji di HP sungguhan (bagian 7).</li>
+  <li>Unggah ke Play Console untuk internal testing (bagian 8).</li>
+</ol>
+
+<h4>Versi aplikasi: version: x.y.z+build</h4>
+<p>Nomor versi diatur di satu tempat saja, yaitu baris <code>version</code> di <code>pubspec.yaml</code>:</p>
+<p class="code-file-label">📄 <code>pubspec.yaml</code> (potongan)</p>
+<pre><code class="language-yaml">name: catatan_kuliah
+description: "Aplikasi catatan kuliah dengan Supabase dan cache offline."
+publish_to: 'none'
+
+# format: versionName+versionCode
+version: 1.2.0+7</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Bagian</th><th>Contoh</th><th>Di Android menjadi</th><th>Dilihat oleh</th><th>Aturan</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Nama versi</strong> (sebelum <code>+</code>)</td><td><code>1.2.0</code></td><td><code>versionName</code></td><td>Pengguna (di Play Store dan pengaturan HP)</td><td>Bebas, biasanya mengikuti semantic versioning</td></tr>
+      <tr><td><strong>Nomor build</strong> (setelah <code>+</code>)</td><td><code>7</code></td><td><code>versionCode</code></td><td>Sistem Android dan Play Store</td><td>Bilangan bulat, <strong>wajib naik</strong> setiap unggahan baru</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Semantic versioning (<code>MAYOR.MINOR.PATCH</code>) memudahkan pengguna dan tim memahami besarnya perubahan:</p>
+<ul>
+  <li><strong>PATCH</strong> (<code>1.2.0 → 1.2.1</code>): perbaikan bug tanpa fitur baru.</li>
+  <li><strong>MINOR</strong> (<code>1.2.1 → 1.3.0</code>): fitur baru, misalnya fitur pencarian catatan.</li>
+  <li><strong>MAYOR</strong> (<code>1.3.0 → 2.0.0</code>): perubahan besar, misalnya struktur database berubah total.</li>
+</ul>
+<p>Nilai <code>versionCode</code> dan <code>versionName</code> otomatis dibaca oleh Gradle dari <code>pubspec.yaml</code>. Di <code>android/app/build.gradle.kts</code> hasil <code>flutter create</code> sudah ada baris berikut, jadi <strong>jangan</strong> mengubah angka di sana:</p>
+<p class="code-file-label">📄 <code>android/app/build.gradle.kts</code> (potongan bawaan)</p>
+<pre><code class="language-kotlin">defaultConfig {
+    applicationId = "id.ac.unsoed.catatan_kuliah"
+    minSdk = flutter.minSdkVersion
+    targetSdk = flutter.targetSdkVersion
+    versionCode = flutter.versionCode
+    versionName = flutter.versionName
+}</code></pre>
+<p>Versi juga bisa ditimpa sekali jalan dari terminal, misalnya oleh CI:</p>
+<pre><code class="language-bash">flutter build apk --build-name=1.2.1 --build-number=8</code></pre>
+
+<h4>Menampilkan versi di dalam aplikasi</h4>
+<p>Halaman “Tentang” atau footer halaman Profil biasanya menampilkan versi aplikasi. Ini membantu saat pengguna melapor bug (“saya pakai versi berapa?”). Gunakan package <code>package_info_plus</code>:</p>
+<pre><code class="language-bash">flutter pub add package_info_plus</code></pre>
+<p class="code-file-label">📄 <code>lib/utils/versi.dart</code></p>
+<pre><code class="language-dart">// lib/utils/versi.dart
+import 'package:package_info_plus/package_info_plus.dart';
+
+/// Contoh hasil: "1.2.0 (build 7)"
+Future&lt;String&gt; versiAplikasi() async {
+  final info = await PackageInfo.fromPlatform();
+  return '${info.version} (build ${info.buildNumber})';
+}</code></pre>
+<p>Panggil <code>versiAplikasi()</code> di <code>initState</code> halaman Profil lalu tampilkan hasilnya dengan <code>FutureBuilder</code> atau <code>setState</code>, seperti pola di Modul 09.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Mengunggah build baru ke Play Console dengan nomor build yang sama. Play Console menolak: <em>“Version code 7 has already been used”</em>. Naikkan angka setelah <code>+</code>.</li>
+  <li>Menurunkan nomor build. Android menolak memasang APK dengan <code>versionCode</code> lebih kecil di atas versi yang sudah terpasang.</li>
+  <li>Mengubah <code>versionCode = 7</code> langsung di <code>build.gradle.kts</code>. Hapus angka manual itu; pubspec adalah satu-satunya sumber versi.</li>
+</ul></div>

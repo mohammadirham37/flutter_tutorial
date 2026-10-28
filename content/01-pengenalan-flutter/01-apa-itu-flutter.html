@@ -1,0 +1,61 @@
+<p class="lead"><strong>Flutter</strong> adalah UI Toolkit open-source yang dikembangkan oleh Google untuk membangun aplikasi yang dikompilasi secara native (secara native-compiled) untuk mobile (Android, iOS), web, dan desktop (macOS, Windows, Linux) hanya dari <strong>satu basis kode (single codebase)</strong>.</p>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 my-6">
+  <div class="card p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+    <div class="font-bold text-indigo-600 mb-1">🚀 Fast Development</div>
+    <p class="text-sm text-slate-600 dark:text-slate-300">Fitur <em>Stateful Hot Reload</em> menyuntikkan perubahan kode ke dalam VM Dart dalam hitungan sub-detik tanpa kehilangan status antarmuka aplikasi.</p>
+  </div>
+  <div class="card p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+    <div class="font-bold text-emerald-600 mb-1">🎨 Expressive & Flexible UI</div>
+    <p class="text-sm text-slate-600 dark:text-slate-300">Flutter mengontrol setiap piksel di layar menggunakan engine render grafis berkinerja tinggi (Skia & Impeller), menjamin tampilan 100% konsisten di semua platform.</p>
+  </div>
+  <div class="card p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+    <div class="font-bold text-amber-600 mb-1">⚡ Native Performance</div>
+    <p class="text-sm text-slate-600 dark:text-slate-300">Kode Dart dikompilasi langsung ke kode mesin native ARM (AOT - Ahead-Of-Time compilation) tanpa perantara JavaScript bridge yang lambat.</p>
+  </div>
+</div>
+
+<h4>Perbandingan Pendekatan Pengembangan Mobile</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead>
+      <tr>
+        <th>Karakteristik</th>
+        <th>Native (Kotlin / Swift)</th>
+        <th>Hybrid (Cordova / Ionic)</th>
+        <th>Reactive Bridge (React Native)</th>
+        <th>Flutter (Direct Rendering)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Bahasa</strong></td>
+        <td>Kotlin / Java (Android), Swift (iOS)</td>
+        <td>HTML, CSS, JavaScript</td>
+        <td>JavaScript / TypeScript</td>
+        <td><strong>Dart</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Jumlah Codebase</strong></td>
+        <td>Dua (terpisah Android & iOS)</td>
+        <td>Satu</td>
+        <td>Satu (dengan kode native jika perlu)</td>
+        <td><strong>Satu (Single Codebase)</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Mekanisme Render</strong></td>
+        <td>Widget bawaan OS</td>
+        <td>WebView browser container</td>
+        <td>Bridge JS memanggil Native Widget</td>
+        <td><strong>Render mandiri via Impeller/Skia Engine</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Performa</strong></td>
+        <td>Sangat Tinggi (100%)</td>
+        <td>Rendah - Sedang (terbebani WebView)</td>
+        <td>Tinggi (ada bottleneck bridge)</td>
+        <td><strong>Sangat Tinggi (mendekati 60-120 FPS konsisten)</strong></td>
+      </tr>
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,183 @@
+{
+  "id": "modul-supabase",
+  "badge": "Supabase BaaS",
+  "category": "Backend",
+  "title": "Backend as a Service dengan Supabase",
+  "duration": "Pertemuan 12 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 08: State Management Provider",
+    "Modul 09: REST API & JSON",
+    "Modul 11: Hive",
+    "Mata kuliah Basis Data (SQL dasar)"
+  ],
+  "summary": "Mengenal Supabase sebagai backend siap pakai berbasis PostgreSQL. Mahasiswa membuat project, menyimpan kunci dengan aman, membuat tabel lewat SQL Editor, mengamankan data dengan Row Level Security, lalu melakukan query CRUD, autentikasi, Realtime, dan Storage dari Flutter.",
+  "learningOutcomes": [
+    "Menjelaskan komponen Supabase (Database, Auth, RLS, Realtime, Storage) dan membandingkannya dengan Firebase.",
+    "Membuat project Supabase, menemukan Project URL dan publishable key, serta membedakannya dengan secret key.",
+    "Mengonfigurasi supabase_flutter dengan Supabase.initialize dan --dart-define-from-file tanpa membocorkan kunci ke repository.",
+    "Membuat tabel dengan SQL (tipe data, default, constraint, uuid, foreign key ke auth.users).",
+    "Menulis policy Row Level Security memakai auth.uid() dan menjelaskan perbedaan using dan with check.",
+    "Melakukan select (filter, order, limit, range), insert, update, delete, upsert, single dan maybeSingle dari Flutter.",
+    "Menangani PostgrestException, AuthException, dan kegagalan jaringan dengan pesan yang ramah pengguna.",
+    "Menggunakan signUp, signInWithPassword, signOut, currentSession, dan onAuthStateChange."
+  ],
+  "sections": [
+    {
+      "id": "supabase-pengenalan",
+      "title": "1. Apa itu Supabase? (vs Firebase)",
+      "file": "01-pengenalan-supabase.html"
+    },
+    {
+      "id": "supabase-membuat-project",
+      "title": "2. Membuat Project & Menemukan API Key",
+      "file": "02-membuat-project.html"
+    },
+    {
+      "id": "supabase-instalasi",
+      "title": "3. Instalasi supabase_flutter & Supabase.initialize",
+      "file": "03-instalasi.html"
+    },
+    {
+      "id": "supabase-keamanan-kunci",
+      "title": "4. Keamanan Kunci: env.json & --dart-define",
+      "file": "04-keamanan-kunci.html"
+    },
+    {
+      "id": "supabase-sql-editor",
+      "title": "5. Membuat Tabel dengan SQL Editor",
+      "file": "05-sql-editor.html"
+    },
+    {
+      "id": "supabase-rls",
+      "title": "6. Row Level Security (RLS) & Policy",
+      "file": "06-row-level-security.html"
+    },
+    {
+      "id": "supabase-query",
+      "title": "7. Query Dasar: Select, Insert, Update, Delete, Upsert",
+      "file": "07-query-dasar.html"
+    },
+    {
+      "id": "supabase-error",
+      "title": "8. Menangani Error Supabase",
+      "file": "08-error-handling.html"
+    },
+    {
+      "id": "supabase-auth",
+      "title": "9. Dasar Supabase Auth",
+      "file": "09-auth-dasar.html"
+    },
+    {
+      "id": "supabase-realtime-storage",
+      "title": "10. Sekilas Realtime & Storage",
+      "file": "10-realtime-storage.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 12: Katalog Mata Kuliah di Supabase",
+    "objective": "Membangun aplikasi Flutter yang membaca dan menambah data mata kuliah di Supabase dengan konfigurasi kunci yang aman dan RLS yang benar.",
+    "instructions": [
+      "Buat project Supabase baru (region Singapore). Catat Project URL dan publishable key ke file <code>env.json</code>, lalu tambahkan <code>env.json</code> ke <code>.gitignore</code> dan buat <code>env.example.json</code>.",
+      "Jalankan SQL pembuatan tabel <code>mata_kuliah</code> beserta data awal minimal 8 baris (section 5).",
+      "Aktifkan RLS dan buat policy: SELECT untuk <code>anon, authenticated</code>, INSERT hanya untuk <code>authenticated</code> (section 6).",
+      "Pasang <code>supabase_flutter</code> dengan <code>flutter pub add supabase_flutter</code>, inisialisasi memakai <code>Env</code> dan jalankan dengan <code>--dart-define-from-file=env.json</code>.",
+      "Tampilkan daftar mata kuliah urut per semester dengan FutureBuilder + RefreshIndicator (contoh lengkap section 7).",
+      "Tambahkan ChoiceChip filter semester (1–8) yang memakai <code>.eq('semester', n)</code> saat dipilih.",
+      "Tambahkan tombol 'Muat lebih banyak' yang memakai <code>.range()</code> dengan 3 data per halaman.",
+      "Tangani error: matikan internet lalu refresh, dan pastikan pesan Bahasa Indonesia muncul (bukan layar merah).",
+      "Bonus: tambah form insert mata kuliah baru. Uji saat belum login (harus gagal 42501) dan tampilkan pesan yang sesuai."
+    ],
+    "expectedOutput": "Aplikasi menampilkan data mata kuliah dari Supabase, bisa difilter per semester dan dipaginasi, menampilkan pesan error yang jelas saat offline, dan repository Git tidak memuat env.json.",
+    "rubric": "Setup project, env.json & .gitignore (15%), SQL tabel + constraint benar (15%), RLS & policy tepat (20%), Query select/filter/order/range berjalan (25%), Penanganan loading/error/empty state (15%), Kerapian kode & model fromJson (10%). Bonus insert dengan penanganan 42501: +10%."
+  },
+  "quiz": [
+    {
+      "question": "Kunci Supabase manakah yang BOLEH dipasang di dalam aplikasi Flutter?",
+      "options": [
+        "Secret key (sb_secret_...)",
+        "service_role key",
+        "Publishable key (sb_publishable_...) atau anon key lama",
+        "Password database Postgres"
+      ],
+      "correctIndex": 2,
+      "explanation": "Publishable key (atau anon key versi lama) memang dirancang untuk aplikasi klien. Data tetap aman karena dilindungi RLS. Secret/service_role key melewati RLS sehingga tidak boleh ada di aplikasi."
+    },
+    {
+      "question": "RLS pada tabel notes sudah aktif tetapi belum ada satu pun policy. Apa yang terjadi saat aplikasi menjalankan supabase.from('notes').select()?",
+      "options": [
+        "Muncul error 404",
+        "Semua baris dikembalikan",
+        "Hasilnya list kosong [] tanpa error",
+        "Aplikasi crash"
+      ],
+      "correctIndex": 2,
+      "explanation": "Saat RLS aktif, akses ditolak secara default. Untuk SELECT, penolakan berupa 'tidak ada baris yang lolos', sehingga hasilnya list kosong tanpa exception."
+    },
+    {
+      "question": "Apa fungsi auth.uid() di dalam policy RLS?",
+      "options": [
+        "Membuat UUID acak baru",
+        "Mengembalikan id user yang sedang login berdasarkan token pada request",
+        "Mengembalikan id baris yang sedang diproses",
+        "Mengembalikan email user"
+      ],
+      "correctIndex": 1,
+      "explanation": "auth.uid() membaca token sesi yang dikirim supabase_flutter dan mengembalikan id user tersebut (null untuk anon). Policy seperti (select auth.uid()) = user_id membatasi akses hanya ke baris miliknya."
+    },
+    {
+      "question": "Pada policy UPDATE, apa beda klausa using dan with check?",
+      "options": [
+        "Keduanya sama saja",
+        "using mengecek baris lama yang boleh diubah, with check mengecek data hasil perubahan",
+        "using untuk insert, with check untuk delete",
+        "with check hanya dipakai di SELECT"
+      ],
+      "correctIndex": 1,
+      "explanation": "using memfilter baris yang sudah ada (mana yang boleh disentuh), sedangkan with check memvalidasi baris baru/hasil update, misalnya agar user_id tidak bisa diganti ke milik user lain."
+    },
+    {
+      "question": "Query mana yang mengembalikan null (bukan error) jika tidak ada baris yang cocok?",
+      "options": [
+        ".select().single()",
+        ".select().maybeSingle()",
+        ".select().limit(1)",
+        ".select().range(0, 0)"
+      ],
+      "correctIndex": 1,
+      "explanation": "maybeSingle() mengembalikan Map? (null jika 0 baris). single() melempar PostgrestException bila jumlah baris bukan tepat 1, sedangkan limit/range mengembalikan list."
+    },
+    {
+      "question": "Untuk menampilkan halaman ke-2 (indeks halaman 1) dengan 10 data per halaman, pemanggilan range yang benar adalah...",
+      "options": [
+        ".range(10, 20)",
+        ".range(1, 10)",
+        ".range(10, 19)",
+        ".range(11, 20)"
+      ],
+      "correctIndex": 2,
+      "explanation": "range memakai indeks mulai 0 dan inklusif di kedua ujung. Halaman 1 dimulai dari 1 x 10 = 10 sampai 10 + 10 - 1 = 19."
+    },
+    {
+      "question": "Insert ke tabel notes menghasilkan PostgrestException code 42501 'new row violates row-level security policy'. Penyebab paling mungkin adalah...",
+      "options": [
+        "Internet mati",
+        "User belum login atau user_id yang dikirim tidak sama dengan auth.uid() sehingga with check gagal",
+        "Nama kolom salah ketik",
+        "Supabase.initialize belum dipanggil"
+      ],
+      "correctIndex": 1,
+      "explanation": "42501 berarti ditolak oleh policy. Pada insert, with check ((select auth.uid()) = user_id) gagal jika user anon (auth.uid() null) atau user_id berisi id lain."
+    },
+    {
+      "question": "Dengan pengaturan 'Confirm email' AKTIF di dashboard, apa hasil signUp yang berhasil?",
+      "options": [
+        "AuthResponse dengan session terisi sehingga user langsung login",
+        "AuthResponse dengan user terisi tetapi session null sampai user mengeklik link konfirmasi",
+        "Selalu melempar AuthException",
+        "User otomatis terhapus setelah 1 jam"
+      ],
+      "correctIndex": 1,
+      "explanation": "Saat konfirmasi email wajib, akun dibuat tetapi belum ada sesi. Aplikasi harus memberi tahu user untuk mengecek email, lalu login setelah konfirmasi."
+    }
+  ]
+}

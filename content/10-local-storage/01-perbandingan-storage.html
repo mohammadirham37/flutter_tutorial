@@ -1,0 +1,110 @@
+<p class="lead">Semua variabel di aplikasi Flutter disimpan di <strong>memori (RAM)</strong>. Begitu aplikasi ditutup, isinya hilang. Agar data bertahan (tema pilihan pengguna, status login, catatan kuliah), data harus ditulis ke <strong>penyimpanan lokal</strong> di HP. Proses ini disebut <em>persistensi</em>.</p>
+
+<h4>Membuktikan Masalahnya</h4>
+<p>Jalankan contoh berikut, tekan tombol beberapa kali, lalu tutup aplikasi sepenuhnya (swipe dari recent apps) dan buka lagi. Angkanya kembali ke 0.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: CounterHilang()));
+
+class CounterHilang extends StatefulWidget {
+  const CounterHilang({super.key});
+
+  @override
+  State&lt;CounterHilang&gt; createState() =&gt; _CounterHilangState();
+}
+
+class _CounterHilangState extends State&lt;CounterHilang&gt; {
+  int _counter = 0; // hanya ada di RAM
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Data di Memori Saja')),
+      body: Center(
+        child: Text('$_counter', style: Theme.of(context).textTheme.displayLarge),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () =&gt; setState(() =&gt; _counter++),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/10-local-storage/counter-hilang.jpg" alt="Counter bernilai 3" loading="lazy">
+    <div class="screenshot-caption">Counter di memori: kembali ke 0 setelah aplikasi ditutup</div>
+  </div>
+</div>
+
+
+<p>Di section berikutnya, contoh yang sama kita perbaiki dengan SharedPreferences sehingga angka tetap tersimpan.</p>
+
+<h4>Pilihan Penyimpanan Lokal di Flutter</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead>
+      <tr>
+        <th>Kategori</th>
+        <th>Package Populer</th>
+        <th>Struktur Data</th>
+        <th>Kasus Penggunaan Ideal</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Key-Value Store</strong></td>
+        <td><code>shared_preferences</code></td>
+        <td>Key-Value sederhana (String, int, double, bool, List&lt;String&gt;)</td>
+        <td>Onboarding status, tema gelap/terang, bahasa, sesi login sederhana</td>
+      </tr>
+      <tr>
+        <td><strong>Relational Database</strong></td>
+        <td><code>sqflite</code></td>
+        <td>Tabel SQL, kolom, relasi Foreign Key</td>
+        <td>Data banyak dan terstruktur: catatan, transaksi keuangan, tugas berelasi mata kuliah</td>
+      </tr>
+      <tr>
+        <td><strong>NoSQL Fast Store</strong></td>
+        <td><code>hive_ce</code> (Modul 11)</td>
+        <td>Box berisi objek Dart</td>
+        <td>Objek tanpa relasi rumit, baca-tulis sangat cepat tanpa SQL</td>
+      </tr>
+      <tr>
+        <td><strong>Penyimpanan Aman</strong></td>
+        <td><code>flutter_secure_storage</code></td>
+        <td>Key-Value terenkripsi (Keychain/Keystore)</td>
+        <td>Token akses, refresh token, PIN</td>
+      </tr>
+      <tr>
+        <td><strong>File</strong></td>
+        <td><code>path_provider</code> + <code>dart:io</code></td>
+        <td>File bebas (teks, JSON, gambar)</td>
+        <td>Ekspor laporan, cache gambar, file unduhan</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Cara Memilih</h4>
+<pre><code class="language-text">Apakah datanya hanya beberapa nilai pengaturan (tema, flag, nama pengguna)?
+ ├─ Ya  ──&gt; SharedPreferences
+ └─ Tidak
+     Apakah datanya rahasia (token, password)?
+      ├─ Ya  ──&gt; flutter_secure_storage
+      └─ Tidak
+          Apakah datanya banyak, perlu dicari/difilter/diurutkan, atau saling berelasi?
+           ├─ Ya  ──&gt; SQLite (sqflite)  atau Hive untuk data tanpa relasi
+           └─ Tidak, berupa dokumen/gambar ──&gt; File (path_provider)
+Perlu dipakai bersama banyak perangkat/pengguna? ──&gt; database cloud (Supabase, Modul 12)
+</code></pre>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Menyimpan ratusan data (mis. daftar transaksi) di SharedPreferences sebagai satu String JSON raksasa. Lambat dan sulit dicari; gunakan database.</li>
+  <li>Menganggap penyimpanan lokal sebagai backup. Data lokal hilang saat aplikasi di-uninstall atau "Clear data".</li>
+  <li>Menyimpan password asli di penyimpanan lokal. Jangan pernah; simpan token saja dan gunakan penyimpanan aman.</li>
+</ul>
+</div>

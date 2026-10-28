@@ -1,0 +1,448 @@
+<p class="lead">Saatnya menggabungkan semua yang sudah dipelajari menjadi satu halaman utuh: <strong>Dashboard Portal Mahasiswa</strong>. Halaman ini memakai Stack, Row, Column, Expanded, Wrap, AspectRatio, Spacer, SafeArea, SingleChildScrollView, dan LayoutBuilder sekaligus.</p>
+
+<h4>Langkah 1: rancang dulu di atas kertas</h4>
+<p>Sebelum menulis kode, pecah halaman menjadi kotak-kotak. Setiap kotak nantinya menjadi satu widget.</p>
+<pre><code class="language-text">Scaffold
+└── SafeArea (bagian bawah)
+    └── SingleChildScrollView
+        └── Column
+            ├── HeaderDashboard      ← Stack: banner gradasi + avatar + sapaan
+            ├── RingkasanAkademik    ← Row + 3 x Expanded(KartuStatistik)
+            ├── JudulBagian "Menu"
+            ├── MenuCepat            ← LayoutBuilder + Wrap (jumlah per baris menyesuaikan)
+            ├── JudulBagian "Jadwal Hari Ini"
+            ├── KartuJadwal x 3      ← Row: jam | garis | detail(Expanded)
+            ├── JudulBagian "Pengumuman"
+            └── BannerPengumuman     ← AspectRatio 16:7 + Stack
+</code></pre>
+
+<h4>Langkah 2: kode lengkap</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const PortalApp());
+}
+
+class PortalApp extends StatelessWidget {
+  const PortalApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Portal Mahasiswa',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: const Color(0xFF1E3A8A)),
+      home: const DashboardMahasiswa(),
+    );
+  }
+}
+
+// ======================= HALAMAN =======================
+
+class DashboardMahasiswa extends StatelessWidget {
+  const DashboardMahasiswa({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: SafeArea(
+        top: false, // header boleh sampai ke belakang status bar
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              HeaderDashboard(nama: 'Nadia Putri', nim: 'H1D021001'),
+              RingkasanAkademik(),
+              JudulBagian(judul: 'Menu'),
+              MenuCepat(),
+              JudulBagian(judul: 'Jadwal Hari Ini'),
+              KartuJadwal(jam: '07.30', matkul: 'Pemrograman Mobile', ruang: 'Lab Komputer 2', sedangBerlangsung: true),
+              KartuJadwal(jam: '10.00', matkul: 'Basis Data Lanjut', ruang: 'Ruang E201'),
+              KartuJadwal(jam: '13.00', matkul: 'Rekayasa Perangkat Lunak Berorientasi Objek', ruang: 'Ruang E305'),
+              JudulBagian(judul: 'Pengumuman'),
+              BannerPengumuman(),
+              SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ======================= HEADER (Stack) =======================
+
+class HeaderDashboard extends StatelessWidget {
+  final String nama;
+  final String nim;
+
+  const HeaderDashboard({super.key, required this.nama, required this.nim});
+
+  @override
+  Widget build(BuildContext context) {
+    final atas = MediaQuery.paddingOf(context).top; // tinggi status bar
+
+    return Stack(
+      children: [
+        // Lapisan 1: latar gradasi (anak non-Positioned menentukan ukuran Stack)
+        Container(
+          padding: EdgeInsets.fromLTRB(20, atas + 16, 20, 56),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+          ),
+          child: Row(
+            children: [
+              const CircleAvatar(radius: 28, child: Icon(Icons.person, size: 32)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Selamat pagi,', style: TextStyle(color: Colors.white70)),
+                    Text(
+                      nama,
+                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(nim, style: const TextStyle(color: Colors.white70)),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () {},
+                tooltip: 'Notifikasi',
+                icon: const Badge(
+                  label: Text('3'),
+                  child: Icon(Icons.notifications_outlined, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Lapisan 2: lingkaran dekorasi transparan
+        Positioned(
+          right: -30,
+          bottom: -30,
+          child: Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.08),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ======================= RINGKASAN (Row + Expanded) =======================
+
+class RingkasanAkademik extends StatelessWidget {
+  const RingkasanAkademik({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Transform.translate menggeser kartu ke atas agar menumpuk di tepi header
+    return Transform.translate(
+      offset: const Offset(0, -32),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Expanded(child: KartuStatistik(nilai: '3.85', label: 'IPK', ikon: Icons.star)),
+            SizedBox(width: 8),
+            Expanded(child: KartuStatistik(nilai: '98', label: 'Total SKS', ikon: Icons.menu_book)),
+            SizedBox(width: 8),
+            Expanded(child: KartuStatistik(nilai: '5', label: 'Semester', ikon: Icons.event)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class KartuStatistik extends StatelessWidget {
+  final String nilai;
+  final String label;
+  final IconData ikon;
+
+  const KartuStatistik({super.key, required this.nilai, required this.label, required this.ikon});
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme;
+    return Card(
+      elevation: 3,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        child: Column(
+          children: [
+            Icon(ikon, color: warna.primary),
+            const SizedBox(height: 6),
+            Text(nilai, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            // FittedBox mengecilkan teks jika kartu terlalu sempit
+            FittedBox(child: Text(label, style: const TextStyle(color: Colors.grey))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ======================= JUDUL BAGIAN (Row + Spacer) =======================
+
+class JudulBagian extends StatelessWidget {
+  final String judul;
+
+  const JudulBagian({super.key, required this.judul});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
+      child: Row(
+        children: [
+          Text(judul, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          const Spacer(),
+          TextButton(onPressed: () {}, child: const Text('Lihat semua')),
+        ],
+      ),
+    );
+  }
+}
+
+// ======================= MENU CEPAT (LayoutBuilder + Wrap) =======================
+
+class MenuCepat extends StatelessWidget {
+  const MenuCepat({super.key});
+
+  static const _menu = [
+    (Icons.edit_note, 'KRS'),
+    (Icons.calendar_month, 'Jadwal'),
+    (Icons.grade, 'Transkrip'),
+    (Icons.payments, 'Tagihan UKT'),
+    (Icons.local_library, 'Perpustakaan'),
+    (Icons.campaign, 'Pengumuman'),
+    (Icons.event_available, 'Presensi'),
+    (Icons.support_agent, 'Layanan'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // HP: 4 per baris. Layar lebar: 8 per baris.
+          final perBaris = constraints.maxWidth &gt;= 600 ? 8 : 4;
+          final lebarItem = constraints.maxWidth / perBaris;
+          return Wrap(
+            runSpacing: 12,
+            children: [
+              for (final (ikon, label) in _menu)
+                SizedBox(width: lebarItem, child: ItemMenu(ikon: ikon, label: label)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class ItemMenu extends StatelessWidget {
+  final IconData ikon;
+  final String label;
+
+  const ItemMenu({super.key, required this.ikon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: () {},
+      borderRadius: BorderRadius.circular(12),
+      child: Column(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: warna.primaryContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(ikon, color: warna.onPrimaryContainer),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ======================= JADWAL (Row + Expanded) =======================
+
+class KartuJadwal extends StatelessWidget {
+  final String jam;
+  final String matkul;
+  final String ruang;
+  final bool sedangBerlangsung;
+
+  const KartuJadwal({
+    super.key,
+    required this.jam,
+    required this.matkul,
+    required this.ruang,
+    this.sedangBerlangsung = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme;
+    return Card.outlined(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 52,
+              child: Text(jam, style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            Container(
+              width: 4,
+              height: 44,
+              decoration: BoxDecoration(
+                color: sedangBerlangsung ? Colors.green : warna.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(matkul, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Row(
+                    children: [
+                      const Icon(Icons.room, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(ruang, style: const TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (sedangBerlangsung) const Chip(label: Text('Berlangsung')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ======================= PENGUMUMAN (AspectRatio + Stack) =======================
+
+class BannerPengumuman extends StatelessWidget {
+  const BannerPengumuman({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: AspectRatio(
+          aspectRatio: 16 / 7,
+          child: Stack(
+            fit: StackFit.expand, // anak non-Positioned memenuhi Stack
+            children: [
+              Container(color: Colors.orange.shade300),
+              const Positioned(
+                right: -10,
+                bottom: -10,
+                child: Icon(Icons.school, size: 140, color: Colors.white24),
+              ),
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text('Pendaftaran Wisuda Periode II',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text('Batas akhir 30 November 2026'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/studi-kasus-dashboard-1.jpg" alt="Dashboard portal mahasiswa (bagian atas)" loading="lazy">
+    <div class="screenshot-caption">Dashboard portal mahasiswa (bagian atas)</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/04-layouting/studi-kasus-dashboard-scroll.jpg" alt="Dashboard setelah digulir ke bawah" loading="lazy">
+    <div class="screenshot-caption">Dashboard setelah digulir ke bawah</div>
+  </div>
+</div>
+
+<h4>Langkah 3: bedah kode per bagian</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Bagian</th><th>Teknik layout</th><th>Kenapa?</th></tr></thead>
+    <tbody>
+      <tr><td><code>DashboardMahasiswa</code></td><td><code>SafeArea(top: false)</code> + <code>SingleChildScrollView</code></td><td>Header boleh sampai ke status bar, tetapi bagian bawah aman. Seluruh halaman bisa digulir sehingga tidak overflow di HP kecil atau landscape.</td></tr>
+      <tr><td><code>HeaderDashboard</code></td><td><code>Stack</code> + <code>Positioned</code> + <code>Expanded</code></td><td>Lingkaran dekorasi ditumpuk di atas gradasi. Nama panjang tidak mendorong ikon notifikasi keluar.</td></tr>
+      <tr><td><code>RingkasanAkademik</code></td><td>3 x <code>Expanded</code> + <code>Transform.translate</code></td><td>Tiga kartu selalu sama lebar, dan digeser ke atas agar menumpuk di tepi header.</td></tr>
+      <tr><td><code>JudulBagian</code></td><td><code>Row</code> + <code>Spacer</code></td><td>Judul di kiri, "Lihat semua" di kanan.</td></tr>
+      <tr><td><code>MenuCepat</code></td><td><code>LayoutBuilder</code> + <code>Wrap</code></td><td>Lebar item dihitung dari ruang yang tersedia: 4 per baris di HP, 8 di tablet.</td></tr>
+      <tr><td><code>KartuJadwal</code></td><td><code>Row</code>: lebar tetap | garis | <code>Expanded</code></td><td>Kolom jam rapi sejajar; nama mata kuliah panjang dipotong dengan ellipsis.</td></tr>
+      <tr><td><code>BannerPengumuman</code></td><td><code>AspectRatio</code> + <code>Stack(fit: StackFit.expand)</code></td><td>Proporsi banner tetap di semua ukuran layar.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<ul>
+  <li><code>static const _menu = [(Icons.edit_note, 'KRS'), ...]</code> memakai <strong>record</strong> Dart 3, lalu dibongkar dengan <code>for (final (ikon, label) in _menu)</code> (lihat Modul 02).</li>
+  <li><code>FittedBox</code> mengecilkan label statistik secara otomatis jika kartu terlalu sempit, sebagai pengaman tambahan dari overflow.</li>
+  <li><code>Badge</code> adalah widget Material 3 untuk angka kecil di pojok ikon.</li>
+</ul>
+
+<h4>Langkah 4: uji ketahanan layout</h4>
+<ol>
+  <li>Putar emulator ke landscape: halaman tetap bisa digulir tanpa garis kuning-hitam.</li>
+  <li>Jalankan di Chrome (<code>flutter run -d chrome</code>) dan lebarkan jendela: menu cepat berubah menjadi 8 per baris.</li>
+  <li>Ganti nama di <code>HeaderDashboard</code> dengan nama yang sangat panjang: nama terpotong dengan "...".</li>
+  <li>Perbesar ukuran font di pengaturan HP (Settings → Display → Font size): periksa apakah ada yang terpotong.</li>
+</ol>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum pada studi kasus</h4>
+<ul>
+  <li><strong>Menulis semua bagian di satu method <code>build</code></strong> sampai ratusan baris. Pecah seperti contoh: satu bagian = satu class.</li>
+  <li><strong>Memakai <code>Expanded</code> di dalam Column halaman</strong> padahal Column berada di <code>SingleChildScrollView</code>. Tinggi tak terbatas tidak bisa dibagi dan akan error.</li>
+  <li><strong>Lupa <code>maxLines</code> + <code>ellipsis</code></strong> pada teks yang datanya berasal dari server. Panjang data asli sering di luar dugaan.</li>
+</ul></div>

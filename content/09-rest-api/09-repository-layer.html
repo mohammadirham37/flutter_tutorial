@@ -1,0 +1,318 @@
+<p class="lead">Jika kode <code>http.get</code>, <code>jsonDecode</code>, dan pengecekan error ditulis langsung di dalam widget, file UI cepat membengkak dan kode yang sama tersebar di mana-mana. Solusinya adalah membagi kode menjadi <strong>lapisan (layer)</strong> yang masing-masing punya satu tugas.</p>
+
+<h4>Pembagian Lapisan</h4>
+<pre><code class="language-text">┌───────────────────────────┐
+│ UI (Widget / Screen)      │  menampilkan data, menerima input
+└────────────┬──────────────┘
+             │ memanggil
+┌────────────▼──────────────┐
+│ Provider (Modul 08)       │  menyimpan state: loading / error / data
+└────────────┬──────────────┘
+             │ memanggil
+┌────────────▼──────────────┐
+│ Repository                │  "ambil semua post", "hapus post 3" (bahasa bisnis)
+└────────────┬──────────────┘
+             │ memanggil
+┌────────────▼──────────────┐
+│ ApiClient                 │  URL, header, JSON, status code, exception
+└────────────┬──────────────┘
+             ▼
+        Server REST API
+</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Lapisan</th><th>Tahu tentang</th><th>Tidak boleh tahu tentang</th></tr></thead>
+    <tbody>
+      <tr><td>ApiClient</td><td>HTTP, header, JSON mentah, status code</td><td>Model <code>Post</code>, widget</td></tr>
+      <tr><td>Repository</td><td>Endpoint, model, <code>fromJson</code>/<code>toJson</code></td><td>Widget, <code>BuildContext</code></td></tr>
+      <tr><td>UI / Provider</td><td>Model dan method repository</td><td><code>http</code>, <code>jsonDecode</code>, URL</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>1. ApiClient: Satu Pintu untuk Semua Request</h4>
+<p>File ini memakai <code>ApiException</code> dari section sebelumnya (salin ke <code>lib/core/api_exception.dart</code>).</p>
+<p class="code-file-label">📄 <code>lib/core/api_exception.dart</code></p>
+<pre><code class="language-dart">class ApiException implements Exception {
+  final String message;
+  final int? statusCode;
+
+  const ApiException(this.message, {this.statusCode});
+
+  factory ApiException.fromStatus(int code) {
+    final pesan = switch (code) {
+      400 =&gt; 'Data yang dikirim tidak valid.',
+      401 =&gt; 'Sesi berakhir, silakan login ulang.',
+      403 =&gt; 'Anda tidak punya akses ke data ini.',
+      404 =&gt; 'Data tidak ditemukan.',
+      422 =&gt; 'Validasi gagal, periksa kembali isian.',
+      &gt;= 500 =&gt; 'Server sedang bermasalah. Coba beberapa saat lagi.',
+      _ =&gt; 'Terjadi kesalahan (kode $code).',
+    };
+    return ApiException(pesan, statusCode: code);
+  }
+
+  @override
+  String toString() =&gt; message;
+}
+</code></pre>
+
+<p class="code-file-label">📄 <code>lib/core/api_client.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:http/http.dart' as http;
+
+import 'api_exception.dart';
+
+class ApiClient {
+  final String baseUrl;
+  final http.Client _http;
+  final Duration timeout;
+  String? token; // diisi setelah login (opsional)
+
+  ApiClient({
+    required this.baseUrl,
+    http.Client? httpClient,
+    this.timeout = const Duration(seconds: 15),
+  }) : _http = httpClient ?? http.Client();
+
+  Map&lt;String, String&gt; get _headers =&gt; {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json; charset=UTF-8',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+
+  Uri _uri(String path, [Map&lt;String, String&gt;? query]) =&gt;
+      Uri.parse('$baseUrl$path').replace(queryParameters: query);
+
+  Future&lt;dynamic&gt; get(String path, {Map&lt;String, String&gt;? query}) =&gt;
+      _send(() =&gt; _http.get(_uri(path, query), headers: _headers));
+
+  Future&lt;dynamic&gt; post(String path, Object body) =&gt;
+      _send(() =&gt; _http.post(_uri(path), headers: _headers, body: jsonEncode(body)));
+
+  Future&lt;dynamic&gt; put(String path, Object body) =&gt;
+      _send(() =&gt; _http.put(_uri(path), headers: _headers, body: jsonEncode(body)));
+
+  Future&lt;dynamic&gt; patch(String path, Object body) =&gt;
+      _send(() =&gt; _http.patch(_uri(path), headers: _headers, body: jsonEncode(body)));
+
+  Future&lt;dynamic&gt; delete(String path) =&gt;
+      _send(() =&gt; _http.delete(_uri(path), headers: _headers));
+
+  // Semua request lewat sini: timeout, cek status, decode, terjemahkan error
+  Future&lt;dynamic&gt; _send(Future&lt;http.Response&gt; Function() request) async {
+    try {
+      final res = await request().timeout(timeout);
+      if (res.statusCode &lt; 200 || res.statusCode &gt;= 300) {
+        throw ApiException.fromStatus(res.statusCode);
+      }
+      if (res.body.isEmpty) return null; // mis. 204 No Content
+      return jsonDecode(utf8.decode(res.bodyBytes));
+    } on SocketException {
+      throw const ApiException('Tidak ada koneksi internet.');
+    } on TimeoutException {
+      throw const ApiException('Server tidak merespons. Coba lagi.');
+    } on http.ClientException {
+      throw const ApiException('Gagal menghubungi server.');
+    } on FormatException {
+      throw const ApiException('Format data dari server tidak valid.');
+    }
+  }
+}
+</code></pre>
+<p><strong>Penjelasan:</strong> lima method publik hanya berbeda pada fungsi <code>http</code> yang dipanggil. Semua logika berat ada di <code>_send</code>, sehingga cukup ditulis sekali. <code>Uri.replace(queryParameters: null)</code> tidak menambah apa pun jika query kosong.</p>
+
+<h4>2. Repository: Bahasa Bisnis</h4>
+<p>Repository dibuat sebagai <code>abstract class</code> (kontrak) plus implementasinya. Keuntungannya: UI bisa diuji dengan repository palsu (<em>fake</em>) tanpa internet, dan backend bisa diganti (mis. ke Supabase) tanpa mengubah UI.</p>
+<p class="code-file-label">📄 <code>lib/repositories/post_repository.dart</code></p>
+<pre><code class="language-dart">import '../core/api_client.dart';
+import '../models/post.dart';
+
+/// Kontrak: apa saja yang bisa dilakukan terhadap data Post.
+abstract class PostRepository {
+  Future&lt;List&lt;Post&gt;&gt; getAll();
+  Future&lt;Post&gt; getById(int id);
+  Future&lt;Post&gt; create(Post post);
+  Future&lt;Post&gt; update(Post post);
+  Future&lt;void&gt; delete(int id);
+}
+
+/// Implementasi yang memakai REST API JSONPlaceholder.
+class RemotePostRepository implements PostRepository {
+  final ApiClient _api;
+  RemotePostRepository(this._api);
+
+  @override
+  Future&lt;List&lt;Post&gt;&gt; getAll() async {
+    final data = await _api.get('/posts', query: {'_limit': '20'}) as List&lt;dynamic&gt;;
+    return data.map((e) =&gt; Post.fromJson(e as Map&lt;String, dynamic&gt;)).toList();
+  }
+
+  @override
+  Future&lt;Post&gt; getById(int id) async {
+    final data = await _api.get('/posts/$id') as Map&lt;String, dynamic&gt;;
+    return Post.fromJson(data);
+  }
+
+  @override
+  Future&lt;Post&gt; create(Post post) async {
+    final data = await _api.post('/posts', post.toJson()) as Map&lt;String, dynamic&gt;;
+    return Post.fromJson(data);
+  }
+
+  @override
+  Future&lt;Post&gt; update(Post post) async {
+    final data = await _api.put('/posts/${post.id}', post.toJson()) as Map&lt;String, dynamic&gt;;
+    return Post.fromJson(data);
+  }
+
+  @override
+  Future&lt;void&gt; delete(int id) =&gt; _api.delete('/posts/$id');
+}
+
+/// Implementasi palsu di memori: untuk testing atau saat server belum siap.
+class FakePostRepository implements PostRepository {
+  final List&lt;Post&gt; _data = [
+    const Post(id: 1, userId: 1, title: 'Post palsu pertama', body: 'Tanpa internet'),
+    const Post(id: 2, userId: 1, title: 'Post palsu kedua', body: 'Cocok untuk testing'),
+  ];
+
+  @override
+  Future&lt;List&lt;Post&gt;&gt; getAll() async {
+    await Future.delayed(const Duration(milliseconds: 500)); // simulasi jaringan
+    return List.of(_data);
+  }
+
+  @override
+  Future&lt;Post&gt; getById(int id) async =&gt; _data.firstWhere((p) =&gt; p.id == id);
+
+  @override
+  Future&lt;Post&gt; create(Post post) async {
+    final baru = post.copyWith(id: _data.length + 1);
+    _data.add(baru);
+    return baru;
+  }
+
+  @override
+  Future&lt;Post&gt; update(Post post) async {
+    final i = _data.indexWhere((p) =&gt; p.id == post.id);
+    _data[i] = post;
+    return post;
+  }
+
+  @override
+  Future&lt;void&gt; delete(int id) async =&gt; _data.removeWhere((p) =&gt; p.id == id);
+}
+</code></pre>
+
+<h4>3. Memakai Repository di UI</h4>
+<p>Perhatikan: file UI berikut <strong>tidak</strong> mengimpor <code>http</code> maupun <code>dart:convert</code>. Ubah variabel <code>pakaiDataPalsu</code> menjadi <code>true</code> untuk mencoba tanpa internet.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Butuh: lib/models/post.dart, lib/core/api_exception.dart,
+// lib/core/api_client.dart, lib/repositories/post_repository.dart
+import 'package:flutter/material.dart';
+
+import 'core/api_client.dart';
+import 'models/post.dart';
+import 'repositories/post_repository.dart';
+
+const pakaiDataPalsu = false;
+
+void main() {
+  final PostRepository repo = pakaiDataPalsu
+      ? FakePostRepository()
+      : RemotePostRepository(ApiClient(baseUrl: 'https://jsonplaceholder.typicode.com'));
+  runApp(MaterialApp(home: PostScreen(repository: repo)));
+}
+
+class PostScreen extends StatefulWidget {
+  final PostRepository repository;
+  const PostScreen({super.key, required this.repository});
+
+  @override
+  State&lt;PostScreen&gt; createState() =&gt; _PostScreenState();
+}
+
+class _PostScreenState extends State&lt;PostScreen&gt; {
+  List&lt;Post&gt; _posts = [];
+  String? _error;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future&lt;void&gt; _load() async {
+    try {
+      final posts = await widget.repository.getAll();
+      if (mounted) setState(() =&gt; _posts = posts);
+    } catch (e) {
+      if (mounted) setState(() =&gt; _error = '$e');
+    } finally {
+      if (mounted) setState(() =&gt; _loading = false);
+    }
+  }
+
+  Future&lt;void&gt; _hapus(Post post) async {
+    try {
+      await widget.repository.delete(post.id!);
+      setState(() =&gt; _posts.remove(post));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(pakaiDataPalsu ? 'Repository Palsu' : 'Repository REST')),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(child: Text(_error!))
+              : ListView(
+                  children: [
+                    for (final post in _posts)
+                      ListTile(
+                        title: Text(post.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text('id ${post.id}'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () =&gt; _hapus(post),
+                        ),
+                      ),
+                  ],
+                ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/repository.jpg" alt="Daftar post lewat repository" loading="lazy">
+    <div class="screenshot-caption">UI memakai RemotePostRepository tanpa kode HTTP</div>
+  </div>
+</div>
+
+
+<div class="callout callout-tip"><h4>💡 Kenapa Repot Membuat Lapisan?</h4>
+<ul>
+  <li><strong>Mudah diganti</strong>: pindah dari REST ke Supabase (Modul 12) cukup membuat <code>SupabasePostRepository</code> baru.</li>
+  <li><strong>Mudah diuji</strong>: Modul 15 (Testing) memakai <code>FakePostRepository</code> agar tes tidak bergantung internet.</li>
+  <li><strong>Mudah dibaca</strong>: <code>repository.delete(3)</code> jauh lebih jelas daripada 10 baris kode HTTP.</li>
+</ul>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Mengimpor <code>package:flutter/material.dart</code> di repository atau ApiClient. Lapisan data tidak boleh bergantung pada UI.</li>
+  <li>Membuat <code>http.Client()</code> baru di setiap method tanpa ditutup. Buat sekali dan gunakan ulang.</li>
+  <li>Menangkap error di repository lalu mengembalikan list kosong. UI jadi tidak tahu bahwa terjadi error; biarkan exception naik ke Provider/UI.</li>
+</ul>
+</div>
