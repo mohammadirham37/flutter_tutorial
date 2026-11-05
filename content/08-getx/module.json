@@ -1,0 +1,205 @@
+{
+  "id": "modul-08",
+  "badge": "State Management",
+  "category": "Arsitektur",
+  "title": "Manajemen State Terstruktur dengan GetX & Pola MVC",
+  "duration": "Pertemuan 8 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 07: Navigasi & Routing"
+  ],
+  "summary": "Memahami batasan setState() dan bahaya 'prop drilling' pada aplikasi skala besar. Menguasai GetX dengan pola MVC (Model-View-Controller): GetxController, state reaktif .obs dan Obx, dependency injection Get.put/Get.find/Get.lazyPut, GetBuilder, lifecycle onInit/onClose, Bindings, pola state async (isLoading/error/data), komunikasi antar controller dengan workers, struktur folder models/services/controllers/views, auth gate, serta kesalahan umum dan cara memperbaikinya.",
+  "learningOutcomes": [
+    "Menganalisis perbedaan Ephemeral State (State Lokal) vs App State (State Global).",
+    "Menjelaskan pembagian tanggung jawab Model, View, dan Controller pada pola MVC.",
+    "Membuat GetxController dengan state reaktif .obs dan menampilkannya lewat Obx.",
+    "Menyediakan dan mengambil controller dengan Get.put, Get.find, Get.lazyPut, dan Bindings.",
+    "Mengoptimalkan rebuild dengan Obx kecil, GetX, dan GetBuilder + update().",
+    "Memanfaatkan lifecycle onInit/onClose dan menerapkan pola state async isLoading/error/data.",
+    "Menghubungkan beberapa controller dan bereaksi terhadap perubahan state dengan worker ever dan debounce.",
+    "Menyusun struktur folder models/services/controllers/views dan auth gate berbasis GetX.",
+    "Mengenali dan memperbaiki kesalahan umum: Obx tanpa observable, lupa .value, Get.find sebelum Get.put, mengubah isi objek di RxList tanpa refresh."
+  ],
+  "sections": [
+    {
+      "id": "getx-masalah-setstate",
+      "title": "1. Masalah 'Prop Drilling' & Kapan Butuh State Management?",
+      "file": "01-masalah-setstate.html"
+    },
+    {
+      "id": "getx-mvc-pengenalan",
+      "title": "2. Mengenal GetX & Pola MVC",
+      "file": "02-getx-dan-mvc.html"
+    },
+    {
+      "id": "getx-reaktif-obs-obx",
+      "title": "3. GetxController, .obs & Obx: State Reaktif dari Nol",
+      "file": "03-reactive-obs-obx.html"
+    },
+    {
+      "id": "getx-dependency-injection",
+      "title": "4. Dependency Injection: Get.put, Get.find & Get.lazyPut",
+      "file": "04-dependency-injection.html"
+    },
+    {
+      "id": "getx-obx-getx-getbuilder",
+      "title": "5. Obx, GetX & GetBuilder: Mengatur Rebuild",
+      "file": "05-obx-getx-getbuilder.html"
+    },
+    {
+      "id": "getx-mvc-krs",
+      "title": "6. Menyusun MVC: Contoh KRS (Model, View, Controller)",
+      "file": "06-mvc-krs.html"
+    },
+    {
+      "id": "getx-lifecycle-bindings",
+      "title": "7. Lifecycle Controller & Bindings",
+      "file": "07-lifecycle-bindings.html"
+    },
+    {
+      "id": "getx-async-state",
+      "title": "8. State Async: isLoading, error, data",
+      "file": "08-async-state.html"
+    },
+    {
+      "id": "getx-antar-controller",
+      "title": "9. Komunikasi Antar Controller & Workers",
+      "file": "09-antar-controller-workers.html"
+    },
+    {
+      "id": "getx-struktur-folder",
+      "title": "10. Struktur Folder MVC & Auth Gate",
+      "file": "10-struktur-folder.html"
+    },
+    {
+      "id": "getx-kesalahan-umum",
+      "title": "11. Kesalahan Umum & Cara Memperbaikinya",
+      "file": "11-kesalahan-umum.html"
+    },
+    {
+      "id": "getx-studi-kasus",
+      "title": "12. Studi Kasus: Aplikasi Tugas Kuliah Multi-Halaman",
+      "file": "12-studi-kasus.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 8: Sistem Pengambilan SKS & Keranjang Rencana Studi (GetX MVC)",
+    "objective": "Menerapkan GetX dengan pola MVC untuk sinkronisasi state keranjang KRS antar beberapa layar secara real-time, lengkap dengan pemuatan data async dan struktur folder yang rapi.",
+    "instructions": [
+      "Tambahkan package <code>get</code> ke dalam proyek menggunakan perintah: <code>flutter pub add get</code>, lalu ganti <code>MaterialApp</code> menjadi <code>GetMaterialApp</code>.",
+      "Susun folder <code>lib/models</code>, <code>lib/services</code>, <code>lib/controllers</code>, <code>lib/bindings</code>, <code>lib/views</code>, dan <code>lib/widgets</code>.",
+      "Buat model <code>MataKuliah</code> dan <code>MatkulService</code> yang mengembalikan daftar mata kuliah setelah <code>Future.delayed</code> 2 detik.",
+      "Buat <code>KatalogController</code> dengan pola <code>isLoading</code> / <code>error</code> / <code>data</code> berbasis <code>.obs</code>. Panggil pemuatan data di <code>onInit()</code>. Tampilkan loading, error + tombol Coba Lagi, dan <code>RefreshIndicator</code>.",
+      "Buat <code>KrsController</code> yang mencatat mata kuliah yang dipilih (<code>RxList</code>), total SKS (getter), dan sisa kuota SKS. Getter list harus mengembalikan <code>List.unmodifiable</code>.",
+      "Daftarkan kedua controller dalam satu <code>AppBinding extends Bindings</code> dan pasang di <code>GetMaterialApp(initialBinding: AppBinding())</code>.",
+      "Buat View 1 (Katalog Matkul): menampilkan daftar mata kuliah dengan tombol '+ Ambil Matkul' yang memanggil <code>Get.find&lt;KrsController&gt;().tambahMatkul(...)</code>.",
+      "Cegah penambahan jika kuota melebihi 24 SKS atau mata kuliah sudah diambil. Controller mengembalikan hasil, View yang menampilkan SnackBar peringatan.",
+      "Buat View 2 (Kartu Rencana Studi): menampilkan daftar mata kuliah yang sudah diambil, tombol hapus dengan dialog konfirmasi, dan total kalkulasi SKS.",
+      "Pasang badge angka di ikon tab bar yang otomatis bertambah saat mata kuliah baru diambil. Gunakan <code>Obx</code> kecil yang hanya membungkus badge agar hanya badge yang rebuild.",
+      "Pastikan controller tidak mengimpor <code>material.dart</code> dan tidak memegang <code>BuildContext</code>.",
+      "Bonus: tambahkan <code>AuthController</code> sederhana dan <code>AuthGate</code> berbasis <code>Obx</code> yang menampilkan layar login sebelum katalog."
+    ],
+    "expectedOutput": "Dua atau lebih halaman yang saling terhubung secara reaktif tanpa perlu restart halaman; saat mata kuliah diambil di halaman 1, angka di halaman 2 dan badge tab langsung bertambah. Katalog menampilkan loading, error, dan data dengan benar.",
+    "rubric": "Desain GetxController dan state reaktif .obs (25%), Penggunaan Obx dan dependency injection Get.put/Get.find/Bindings yang tepat (25%), Pola async isLoading/error/data di onInit (20%), Pencegahan over-quota 24 SKS dan feedback UI di View (15%), Struktur folder MVC models/services/controllers/views (15%). Bonus AuthGate +10%."
+  },
+  "quiz": [
+    {
+      "question": "Dalam pola MVC dengan GetX, di lapisan mana logika 'tolak penambahan jika total SKS melebihi 24' sebaiknya ditulis?",
+      "options": [
+        "Controller (KrsController)",
+        "View (KatalogView)",
+        "Model (MataKuliah)",
+        "main.dart"
+      ],
+      "correctIndex": 0,
+      "explanation": "Aturan bisnis tinggal di controller supaya berlaku sama untuk semua View yang memanggilnya dan bisa diuji dengan unit test. View hanya menampilkan hasilnya, misalnya lewat SnackBar."
+    },
+    {
+      "question": "Apa yang terjadi ketika nilai <code>count.value</code> pada <code>final count = 0.obs;</code> diubah?",
+      "options": [
+        "Semua Obx yang membaca count otomatis di-build ulang",
+        "Seluruh aplikasi di-restart",
+        "Tidak terjadi apa-apa sampai setState() dipanggil",
+        "Controller dihapus dari memori"
+      ],
+      "correctIndex": 0,
+      "explanation": "Variabel .obs adalah observable. Setiap Obx yang membaca nilainya saat build terdaftar sebagai pendengar dan otomatis di-build ulang ketika nilainya berubah, tanpa notifyListeners atau setState."
+    },
+    {
+      "question": "Sebuah widget hanya membutuhkan totalSks dan tidak boleh ikut rebuild ketika field lain berubah. Cara paling tepat adalah ...",
+      "options": [
+        "Membungkus Text totalSks dengan Obx kecil yang hanya membaca controller.totalSks",
+        "Membungkus seluruh Scaffold dengan satu Obx",
+        "Memanggil Get.put(KrsController()) di dalam build",
+        "Mengganti Obx dengan setState"
+      ],
+      "correctIndex": 0,
+      "explanation": "Obx hanya rebuild ketika observable yang dibaca di dalam builder-nya berubah. Obx kecil di sekitar widget yang butuh data membatasi rebuild seminimal mungkin."
+    },
+    {
+      "question": "Muncul error <em>\"[Get] the improper use of a GetX has been detected\"</em>. Penyebab paling mungkin adalah ...",
+      "options": [
+        "Di dalam Obx tidak ada satu pun variabel observable (.obs) yang dibaca",
+        "Lupa memanggil flutter pub get",
+        "Controller belum memiliki method onClose",
+        "Memakai GetMaterialApp bukan MaterialApp"
+      ],
+      "correctIndex": 0,
+      "explanation": "Obx harus membaca minimal satu observable di dalam builder-nya. Jika yang dibaca hanya variabel biasa (bukan .obs), GetX menampilkan error ini."
+    },
+    {
+      "question": "<code>Get.find&lt;KrsController&gt;()</code> melempar error \"KrsController not found\". Perbaikannya adalah ...",
+      "options": [
+        "Mendaftarkan controller lebih dulu dengan Get.put, Get.lazyPut, atau Bindings",
+        "Mengganti Get.find dengan Obx",
+        "Menambahkan .obs pada nama class",
+        "Memanggil notifyListeners()"
+      ],
+      "correctIndex": 0,
+      "explanation": "Get.find hanya mengambil instance yang sudah didaftarkan. Controller harus disediakan dulu, misalnya lewat Get.put di main, initialBinding, atau binding pada GetPage."
+    },
+    {
+      "question": "Di mana tempat paling tepat untuk memanggil pemuatan data awal (misalnya muatKatalog()) pada GetxController?",
+      "options": [
+        "Di method onInit() milik controller",
+        "Di dalam build() View",
+        "Di constructor View",
+        "Di onClose()"
+      ],
+      "correctIndex": 0,
+      "explanation": "onInit dipanggil sekali saat controller dibuat. Memanggil pemuatan di build akan mengulang request setiap rebuild. onClose dipakai untuk membersihkan sumber daya, misalnya membatalkan StreamSubscription."
+    },
+    {
+      "question": "Pada pola state async di controller, mengapa <code>_isLoading.value = false</code> sebaiknya diletakkan di blok finally?",
+      "options": [
+        "Agar loading selalu dimatikan, baik request berhasil maupun gagal",
+        "Agar request berjalan lebih cepat",
+        "Karena Dart melarang assignment di blok try",
+        "Agar error tidak pernah terjadi"
+      ],
+      "correctIndex": 0,
+      "explanation": "Blok finally selalu dijalankan setelah try/catch. Tanpa finally, jika terjadi exception, isLoading bisa tetap true dan View terjebak di tampilan loading."
+    },
+    {
+      "question": "Halaman detail dibuka dengan <code>Get.to(() =&gt; const DetailView())</code> dan perlu memakai OBJEK controller yang sama dengan halaman daftar. Cara yang benar adalah ...",
+      "options": [
+        "Memanggil Get.find&lt;TodoController&gt;() di DetailView",
+        "Membuat TodoController() baru di DetailView",
+        "Mengirim controller lewat Get.back()",
+        "Memanggil Get.put(TodoController()) lagi dengan tag acak"
+      ],
+      "correctIndex": 0,
+      "explanation": "Controller yang sudah didaftarkan tersimpan di dependency manager GetX, sehingga halaman mana pun bisa mengambil instance yang sama dengan Get.find tanpa mengopernya lewat constructor."
+    },
+    {
+      "question": "Dalam struktur folder MVC kursus ini, lapisan mana yang seharusnya memanggil HTTP atau database?",
+      "options": [
+        "services",
+        "views",
+        "models",
+        "controllers"
+      ],
+      "correctIndex": 0,
+      "explanation": "Service adalah satu-satunya lapisan yang tahu cara mengakses data. Controller memanggil service, View memanggil controller. Dengan begitu sumber data mudah diganti dan diuji."
+    }
+  ]
+}

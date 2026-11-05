@@ -5,17 +5,17 @@
   "title": "Database NoSQL Lokal dengan Hive",
   "duration": "Pertemuan 11 (150 Menit) + Belajar Mandiri",
   "prerequisites": [
-    "Modul 08: State Management dengan Provider",
+    "Modul 08: State Management dengan GetX + MVC",
     "Modul 10: Penyimpanan Data Lokal (Storage & SQLite)"
   ],
-  "summary": "Menyimpan data offline dengan Hive Community Edition (hive_ce): box key-value, Map dan List, objek sendiri dengan TypeAdapter manual maupun hasil generate, UI reaktif, pola Repository + Provider, dan enkripsi. Ditutup dengan mini project CRUD Catatan Kuliah Offline lengkap dengan pencarian dan pengurutan.",
+  "summary": "Menyimpan data offline dengan Hive Community Edition (hive_ce): box key-value, Map dan List, objek sendiri dengan TypeAdapter manual maupun hasil generate, UI reaktif, Hive dengan GetX + MVC (service dan controller), dan enkripsi. Ditutup dengan mini project CRUD Catatan Kuliah Offline lengkap dengan pencarian dan pengurutan.",
   "learningOutcomes": [
     "Menjelaskan konsep box key-value pada Hive dan memilih antara SharedPreferences, Hive, dan SQLite sesuai kebutuhan.",
     "Menginisialisasi Hive dan membuka box dengan benar di main() menggunakan hive_ce_flutter.",
     "Melakukan operasi put, get, add, delete, keys, values, length, dan clear pada box.",
     "Menyimpan Map dan List serta mengonversinya dengan aman menjadi objek model (toMap/fromMap).",
     "Menulis TypeAdapter manual dan membuat adapter otomatis dengan @GenerateAdapters, termasuk aturan typeId dan migrasi field.",
-    "Membangun UI reaktif dengan ValueListenableBuilder serta pola Repository + Provider di atas Hive.",
+    "Membangun UI reaktif dengan ValueListenableBuilder serta memisahkan service Hive, GetxController, dan view (pola MVC dengan GetX).",
     "Mengenkripsi box dengan HiveAesCipher dan menyimpan kuncinya di flutter_secure_storage.",
     "Membangun aplikasi CRUD offline lengkap (tambah, lihat, edit, hapus, cari, urutkan) dan mengujinya dengan unit test."
   ],
@@ -56,9 +56,9 @@
       "file": "07-valuelistenablebuilder.html"
     },
     {
-      "id": "hive-provider",
-      "title": "8. Hive + Provider dengan Pola Repository",
-      "file": "08-hive-provider.html"
+      "id": "hive-getx",
+      "title": "8. Hive + GetX Controller (Pola MVC)",
+      "file": "08-hive-getx.html"
     },
     {
       "id": "hive-enkripsi",
@@ -78,18 +78,18 @@
   ],
   "labAssignment": {
     "title": "Praktikum 11: Aplikasi Catatan Kuliah Offline dengan Hive",
-    "objective": "Membangun aplikasi CRUD offline yang menyimpan objek buatan sendiri di Hive dengan arsitektur Repository + Provider, lalu mengembangkannya dengan fitur tambahan.",
+    "objective": "Membangun aplikasi CRUD offline yang menyimpan objek buatan sendiri di Hive dengan arsitektur MVC GetX (model, service, controller, view), lalu mengembangkannya dengan fitur tambahan.",
     "instructions": [
       "<strong>Tugas 1 (Wajib, 20 poin):</strong> Bangun ulang mini project Catatan Kuliah Offline dari bagian 10 sampai berjalan di emulator. Buktikan data tetap ada setelah aplikasi ditutup paksa dan dibuka kembali (lampirkan 2 screenshot).",
       "<strong>Tugas 2 (Wajib, 20 poin):</strong> Tambahkan field <code>bool disematkan</code> (pin) pada model <code>Catatan</code>. Naikkan versi <code>CatatanAdapter</code> menjadi 2 dan baca field baru hanya jika versi &gt;= 2, sehingga catatan lama dari Tugas 1 tetap terbaca tanpa uninstall.",
       "<strong>Tugas 3 (Wajib, 15 poin):</strong> Tampilkan catatan yang disematkan selalu di urutan teratas (apa pun pilihan urutannya) dengan ikon pin, dan sediakan tombol untuk menyematkan atau melepas sematan.",
       "<strong>Tugas 4 (Wajib, 15 poin):</strong> Tambahkan filter mata kuliah berupa deretan <code>FilterChip</code> di bawah kolom pencarian. Daftar mata kuliah diambil otomatis dari catatan yang ada.",
-      "<strong>Tugas 5 (Wajib, 15 poin):</strong> Simpan pilihan urutan terakhir pengguna ke box <code>pengaturan</code> (gunakan repository terpisah) sehingga urutan tidak kembali ke default saat aplikasi dibuka ulang.",
-      "<strong>Tugas 6 (Wajib, 15 poin):</strong> Tulis unit test untuk <code>CatatanRepository</code> memakai <code>Hive.init</code> di folder sementara, minimal mencakup tambah, edit, hapus, dan persistensi setelah <code>Hive.close()</code>. Semua test harus lulus dengan <code>flutter test</code>.",
+      "<strong>Tugas 5 (Wajib, 15 poin):</strong> Simpan pilihan urutan terakhir pengguna ke box <code>pengaturan</code> (gunakan service terpisah, misalnya <code>PengaturanService</code>, yang dipanggil dari <code>CatatanController</code>) sehingga urutan tidak kembali ke default saat aplikasi dibuka ulang.",
+      "<strong>Tugas 6 (Wajib, 15 poin):</strong> Tulis unit test untuk <code>CatatanService</code> memakai <code>Hive.init</code> di folder sementara, minimal mencakup tambah, edit, hapus, dan persistensi setelah <code>Hive.close()</code>. Semua test harus lulus dengan <code>flutter test</code>.",
       "<strong>Bonus (+10 poin):</strong> Ganti tombol hapus dengan gestur geser <code>Dismissible</code> dan SnackBar berisi aksi \"Batalkan\" yang mengembalikan catatan yang terhapus."
     ],
     "expectedOutput": "Aplikasi Catatan Kuliah yang berjalan sepenuhnya offline: daftar catatan dengan pin, pencarian, filter mata kuliah, dan urutan yang diingat; form tambah/edit dengan validasi; konfirmasi hapus; data tetap ada setelah restart. Disertai output flutter test yang semua lulus dan flutter analyze tanpa issue.",
-    "rubric": "Tugas 1: fungsionalitas CRUD dan bukti persistensi (20%). Tugas 2: migrasi adapter tanpa kehilangan data lama (20%). Tugas 3: logika dan tampilan pin (15%). Tugas 4: filter mata kuliah (15%). Tugas 5: pengaturan urutan tersimpan dengan repository terpisah (15%). Tugas 6: kualitas dan kelulusan unit test (15%). Bonus Dismissible + Batalkan (+10%). Pengurangan nilai jika widget mengakses Hive secara langsung atau flutter analyze masih menampilkan issue."
+    "rubric": "Tugas 1: fungsionalitas CRUD dan bukti persistensi (20%). Tugas 2: migrasi adapter tanpa kehilangan data lama (20%). Tugas 3: logika dan tampilan pin (15%). Tugas 4: filter mata kuliah (15%). Tugas 5: pengaturan urutan tersimpan dengan service terpisah (15%). Tugas 6: kualitas dan kelulusan unit test (15%). Bonus Dismissible + Batalkan (+10%). Pengurangan nilai jika view/widget mengakses Hive secara langsung, controller mengimpor material.dart, atau flutter analyze masih menampilkan issue."
   },
   "quiz": [
     {
@@ -168,6 +168,17 @@
       ],
       "correctIndex": 2,
       "explanation": "listenable() dari hive_ce_flutter menghasilkan ValueListenable yang memicu rebuild ValueListenableBuilder setiap ada put, add, delete, atau clear."
+    },
+    {
+      "question": "Pada pola MVC dengan GetX di modul ini, pengguna menyimpan catatan baru tetapi daftar di layar tidak berubah. Kode controller: await _service.simpan(catatan); (tanpa baris lain). Apa perbaikan yang tepat?",
+      "options": [
+        "Memanggil Hive.box('catatan_box') langsung di view agar data terbaru terbaca",
+        "Setelah menyimpan, memperbarui state reaktif controller (misalnya _semua.assignAll(_service.ambilSemua())) sehingga Obx yang membacanya dibangun ulang",
+        "Mengganti Obx dengan StatelessWidget biasa",
+        "Membuka ulang box di dalam build()"
+      ],
+      "correctIndex": 1,
+      "explanation": "Obx hanya mendengarkan nilai .obs yang dibacanya, bukan isi box. Box memang sudah berubah, tetapi controller harus memperbarui RxList/nilai .obs miliknya agar view ikut diperbarui. View sebaiknya tidak menyentuh Hive langsung."
     },
     {
       "question": "Di mana kunci enkripsi untuk HiveAesCipher sebaiknya disimpan?",

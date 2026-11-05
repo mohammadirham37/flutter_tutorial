@@ -228,47 +228,95 @@ class DaftarBenar extends StatelessWidget {
 </div>
 <p>Alternatif lain adalah <code>ListView(shrinkWrap: true, physics: NeverScrollableScrollPhysics())</code>, tetapi ini hanya cocok untuk daftar pendek karena semua item dibangun sekaligus.</p>
 
-<h4>Error 5: Could not find the correct Provider&lt;T&gt; above this Widget</h4>
-<p><strong>Artinya:</strong> widget memanggil <code>context.watch&lt;T&gt;()</code> atau <code>context.read&lt;T&gt;()</code>, tetapi tidak ada <code>Provider&lt;T&gt;</code> di atasnya pada widget tree. Penyebab paling umum: provider dipasang di dalam satu halaman, lalu halaman lain yang dibuka dengan <code>Navigator.push</code> mencoba membacanya.</p>
-<pre><code class="language-dart">// SALAH: provider dipasang DI BAWAH MaterialApp, hanya untuk HalamanA.
-// Halaman yang dibuka lewat Navigator.push tidak bisa melihatnya.
-class AppSalah extends StatelessWidget {
-  const AppSalah({super.key});
+<h4>Error 5: "XController" not found. You need to call "Get.put(XController())"</h4>
+<p><strong>Artinya:</strong> widget memanggil <code>Get.find&lt;T&gt;()</code> (atau memakai <code>controller</code> di <code>GetView&lt;T&gt;</code>), tetapi controller <code>T</code> belum pernah didaftarkan dengan <code>Get.put</code>, <code>Get.lazyPut</code>, atau <code>Bindings</code>. Penyebab paling umum: lupa mendaftarkan controller di <code>main()</code>, atau halaman B mencari controller yang baru didaftarkan oleh halaman lain yang belum pernah dibuka.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+class CounterController extends GetxController {
+  final count = 0.obs;
+
+  void tambah() =&gt; count.value++;
+}
+
+void main() {
+  // SALAH: tidak ada Get.put(CounterController()) sebelum runApp
+  runApp(const GetMaterialApp(home: HalamanA()));
+}
+
+class HalamanA extends StatelessWidget {
+  const HalamanA({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: ChangeNotifierProvider(
-        create: (_) =&gt; CounterProvider(),
-        child: const HalamanA(),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Halaman A')),
+      body: Center(
+        child: FilledButton(
+          onPressed: () =&gt; Get.to(() =&gt; const HalamanB()),
+          child: const Text('Buka Halaman B'),
+        ),
+      ),
+    );
+  }
+}
+
+class HalamanB extends StatelessWidget {
+  const HalamanB({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Get.find mencari controller yang belum pernah didaftarkan
+    final c = Get.find&lt;CounterController&gt;();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Halaman B')),
+      body: Center(
+        child: Obx(() =&gt; Text(
+              'Nilai: ${c.count.value}',
+              style: Theme.of(context).textTheme.headlineMedium,
+            )),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: c.tambah,
+        child: const Icon(Icons.add),
       ),
     );
   }
 }</code></pre>
-<p>Halaman baru dari <code>Navigator.push</code> adalah “saudara” <code>HalamanA</code> di bawah <code>MaterialApp</code>, bukan anaknya, sehingga tidak bisa melihat provider tersebut. Pindahkan provider ke atas <code>MaterialApp</code>:</p>
-<pre><code class="language-dart">// BENAR: provider membungkus MaterialApp sehingga semua route bisa membacanya
-class AppBenar extends StatelessWidget {
-  const AppBenar({super.key});
+<p>Begitu tombol <em>Buka Halaman B</em> ditekan, <code>build()</code> milik <code>HalamanB</code> gagal. Pesan asli di Debug Console:</p>
+<pre><code class="language-text">══╡ EXCEPTION CAUGHT BY WIDGETS LIBRARY ╞═══════════════════════════════════
+The following message was thrown building HalamanB(dirty):
+"CounterController" not found. You need to call "Get.put(CounterController())" or
+"Get.lazyPut(()=&gt;CounterController())"
 
-  @override
-  Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) =&gt; CounterProvider(),
-      child: const MaterialApp(home: HalamanA()),
-    );
-  }
+The relevant error-causing widget was:
+  HalamanB HalamanB:file:///.../lib/main.dart:24:47
+
+When the exception was thrown, this was the stack:
+#0      GetInstance.find (package:get/get_instance/src/get_instance.dart:306:7)
+#1      Inst.find (package:get/get_instance/src/extension_instance.dart:69:45)
+#2      HalamanB.build (package:catatan_kuliah/main.dart:38:19)
+#3      StatelessElement.build (package:flutter/src/widgets/framework.dart:5902:49)
+...</code></pre>
+<p>Pesannya sangat jelas: sebutkan nama class yang dicari dan dua cara memperbaikinya. Baris pertama dari proyek Anda (<code>#2</code>) menunjuk ke <code>Get.find</code> di <code>HalamanB.build</code>. Perbaikannya: daftarkan controller sekali, sebelum halaman mana pun memakainya.</p>
+<pre><code class="language-dart">void main() {
+  // BENAR: daftarkan controller sekali, sebelum halaman mana pun memakainya
+  Get.put(CounterController());
+  runApp(const GetMaterialApp(home: HalamanA()));
 }</code></pre>
 <div class="screenshot-row">
   <div class="screenshot">
-    <img src="assets/img/screenshots/15-testing/provider-not-found.jpg" alt="Layar merah ProviderNotFoundException" loading="lazy">
-    <div class="screenshot-caption">AppSalah: setelah membuka Halaman B, pesan error lengkap dengan daftar penyebab</div>
+    <img src="assets/img/screenshots/15-testing/getx-not-found.jpg" alt="Layar merah CounterController not found" loading="lazy">
+    <div class="screenshot-caption">Tanpa <code>Get.put</code>: setelah membuka Halaman B, layar merah berisi saran perbaikan</div>
   </div>
   <div class="screenshot">
-    <img src="assets/img/screenshots/15-testing/provider-benar.jpg" alt="Halaman B menampilkan nilai provider" loading="lazy">
-    <div class="screenshot-caption">AppBenar: Halaman B bisa membaca CounterProvider</div>
+    <img src="assets/img/screenshots/15-testing/getx-benar.jpg" alt="Halaman B menampilkan nilai controller" loading="lazy">
+    <div class="screenshot-caption">Dengan <code>Get.put</code> di <code>main()</code>: Halaman B bisa membaca CounterController (tombol + ditekan tiga kali)</div>
   </div>
 </div>
-<p>Penyebab lain: lupa memberi tipe generik (<code>context.read()</code> tanpa <code>&lt;CounterProvider&gt;</code>), atau menambah provider baru di <code>main.dart</code> lalu hanya melakukan <em>hot reload</em>. Untuk kasus terakhir, lakukan <em>hot restart</em> (<kbd>Shift</kbd>+<kbd>R</kbd> atau tombol restart di VS Code).</p>
+<p>Penyebab lain: lupa memberi tipe generik (<code>Get.find()</code> tanpa <code>&lt;CounterController&gt;</code>), memakai <code>tag</code> yang berbeda antara <code>Get.put</code> dan <code>Get.find</code>, atau menambah <code>Get.put</code> baru di <code>main()</code> lalu hanya melakukan <em>hot reload</em>. <code>main()</code> tidak dijalankan ulang oleh hot reload, jadi lakukan <em>hot restart</em> (<kbd>Shift</kbd>+<kbd>R</kbd> atau tombol restart di VS Code).</p>
 
 <h4>Ringkasan</h4>
 <div class="table-responsive">
@@ -279,7 +327,7 @@ class AppBenar extends StatelessWidget {
       <tr><td>setState() called after dispose()</td><td>setState setelah await, halaman sudah ditutup</td><td><code>if (!mounted) return;</code>, cancel timer di dispose</td></tr>
       <tr><td>Null check operator used on a null value</td><td>Operator <code>!</code> pada nilai null</td><td><code>?.</code>, <code>??</code>, cek null dengan variabel lokal</td></tr>
       <tr><td>Vertical viewport was given unbounded height</td><td>ListView di dalam Column</td><td>Bungkus dengan <code>Expanded</code></td></tr>
-      <tr><td>Could not find the correct Provider</td><td>Provider dipasang terlalu bawah</td><td>Pindahkan ke atas <code>MaterialApp</code>, hot restart</td></tr>
+      <tr><td>"XController" not found. You need to call "Get.put(...)"</td><td><code>Get.find</code> sebelum controller didaftarkan</td><td><code>Get.put</code>/<code>Bindings</code> sebelum halaman dibuka, hot restart</td></tr>
     </tbody>
   </table>
 </div>

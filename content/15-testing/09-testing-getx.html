@@ -1,0 +1,420 @@
+<p class="lead">Di Modul 14, logika halaman catatan dipindahkan ke <code>NotesController</code>. Kabar baiknya: <code>GetxController</code> adalah class Dart biasa yang tidak mengimpor <code>material.dart</code> dan tidak memegang <code>BuildContext</code>, sehingga bisa diuji dengan <strong>unit test</strong> tanpa widget sama sekali. Setelah itu, kita uji View yang memakai controller tersebut dengan <strong>widget test</strong>.</p>
+
+<div class="callout callout-info"><h4>ℹ️ Versi ringkas</h4><p>Seperti bagian sebelumnya, <code>NotesController</code> di sini disederhanakan agar bisa dijalankan bersama <code>NoteRepository</code> dan <code>test/mock/fakes.dart</code> dari bagian 7. Polanya sama dengan controller proyek Modul 14: state privat <code>.obs</code>, getter publik, data dimuat di <code>onInit()</code>, dan repository diterima lewat konstruktor.</p></div>
+
+<h4>Controller yang akan diuji</h4>
+<p class="code-file-label">📄 <code>lib/controllers/notes_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/notes_controller.dart
+import 'package:get/get.dart';
+
+import '../data/note_repository.dart';
+import '../models/note.dart';
+
+class NotesController extends GetxController {
+  NotesController(this._repository);
+
+  final NoteRepository _repository;
+
+  // State privat reaktif
+  final _notes = &lt;Note&gt;[].obs;
+  final _isLoading = false.obs;
+  final _error = RxnString();
+  final _isOffline = false.obs;
+  final _kataKunci = ''.obs; // diketik pengguna di kolom cari
+  final _filter = ''.obs; // kata kunci yang benar-benar dipakai (setelah debounce)
+  late final Worker _cariWorker;
+
+  // Getter publik read-only
+  List&lt;Note&gt; get notes =&gt; List.unmodifiable(_notes);
+  bool get isLoading =&gt; _isLoading.value;
+  String? get error =&gt; _error.value;
+  bool get isOffline =&gt; _isOffline.value;
+
+  /// Catatan yang ditampilkan: semua, atau hanya yang judulnya cocok.
+  List&lt;Note&gt; get tampil {
+    final f = _filter.value.trim().toLowerCase();
+    if (f.isEmpty) return notes;
+    return _notes.where((n) =&gt; n.title.toLowerCase().contains(f)).toList();
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Worker: filter baru diterapkan 300 ms setelah pengguna berhenti mengetik
+    _cariWorker = debounce&lt;String&gt;(
+      _kataKunci,
+      (q) =&gt; _filter.value = q,
+      time: const Duration(milliseconds: 300),
+    );
+    loadNotes();
+  }
+
+  void cari(String kataKunci) =&gt; _kataKunci.value = kataKunci;
+
+  Future&lt;void&gt; loadNotes() async {
+    _isLoading.value = true;
+    _error.value = null;
+    try {
+      _notes.assignAll(await _repository.getNotes());
+      _isOffline.value = _repository.lastFromCache;
+    } catch (e) {
+      _error.value = 'Gagal memuat catatan';
+    } finally {
+      _isLoading.value = false;
+    }
+  }
+
+  Future&lt;bool&gt; addNote(String title, String content) async {
+    _error.value = null;
+    try {
+      final note = await _repository.addNote(title, content);
+      _notes.insert(0, note);
+      return true;
+    } catch (e) {
+      _error.value = 'Gagal menyimpan catatan';
+      return false;
+    }
+  }
+
+  @override
+  void onClose() {
+    _cariWorker.dispose();
+    super.onClose();
+  }
+}</code></pre>
+<p>Yang membuat controller ini mudah diuji:</p>
+<ul>
+  <li><strong>Repository masuk lewat konstruktor.</strong> Di test, kita isi dengan repository yang memakai data source palsu.</li>
+  <li><strong>Hasil dikembalikan, bukan ditampilkan.</strong> <code>addNote</code> mengembalikan <code>bool</code> dan mengisi <code>error</code>; View yang memutuskan menampilkan SnackBar. Controller tidak pernah memanggil <code>Get.snackbar</code> atau <code>Get.back</code>, sehingga test tidak butuh layar.</li>
+  <li><strong>Worker <code>debounce</code></strong> menunda penerapan kata kunci pencarian sampai pengguna berhenti mengetik selama 300 ms, lalu dibatalkan di <code>onClose()</code>.</li>
+</ul>
+
+<h4>Langkah 1: unit test untuk GetxController</h4>
+<p>Tiga hal wajib saat menguji controller GetX:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Baris</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>Get.testMode = true</code></td><td>Memberi tahu GetX bahwa kode berjalan di dalam test. Tanpa ini, pemanggilan navigasi GetX (<code>Get.to</code>, <code>Get.back</code>) di luar <code>GetMaterialApp</code> melempar error <em>You are trying to use contextless navigation without a GetMaterialApp</em></td></tr>
+      <tr><td><code>Get.put(NotesController(repository))</code></td><td>Mendaftarkan controller dengan dependensi palsu. <code>Get.put</code> langsung menjalankan <code>onInit()</code>, persis seperti di aplikasi</td></tr>
+      <tr><td><code>tearDown(Get.reset)</code></td><td>Menghapus semua instance setelah setiap test, agar test berikutnya mendapat controller baru</td></tr>
+    </tbody>
+  </table>
+</div>
+<p class="code-file-label">📄 <code>test/unit/notes_controller_test.dart</code></p>
+<pre><code class="language-dart">// test/unit/notes_controller_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+import 'package:catatan_kuliah/controllers/notes_controller.dart';
+import 'package:catatan_kuliah/data/note_repository.dart';
+import 'package:catatan_kuliah/models/note.dart';
+
+import '../mock/fakes.dart';
+
+void main() {
+  late FakeRemoteDataSource remote;
+  late FakeLocalCache cache;
+
+  setUp(() {
+    Get.testMode = true;
+    remote = FakeRemoteDataSource(
+      awal: [
+        const Note(id: 'n1', title: 'Pertemuan 1', content: 'Dart'),
+        const Note(id: 'n2', title: 'Kuis 1', content: 'Bab 1-3'),
+      ],
+    );
+    cache = FakeLocalCache();
+  });
+
+  // Hapus semua controller yang didaftarkan Get.put agar test terisolasi
+  tearDown(Get.reset);
+
+  /// Daftarkan controller SETELAH test mengatur remote/cache.
+  /// Get.put langsung menjalankan onInit(), jadi loadNotes() ikut berjalan.
+  NotesController buatController() {
+    final repository = NoteRepository(remote: remote, cache: cache);
+    return Get.put(NotesController(repository));
+  }
+
+  test('onInit memuat data: isLoading true lalu false', () async {
+    final c = buatController();
+
+    // onInit sudah memanggil loadNotes(), tetapi Future-nya belum selesai
+    expect(c.isLoading, isTrue);
+
+    await pumpEventQueue(); // tunggu semua Future fake selesai
+
+    expect(c.isLoading, isFalse);
+    expect(c.notes, hasLength(2));
+    expect(c.error, isNull);
+    expect(c.isOffline, isFalse);
+  });
+
+  test('offline dengan cache: data dari cache, isOffline true', () async {
+    remote.shouldFail = true;
+    cache.saved = [const Note(id: 'c1', title: 'Dari cache', content: '-')];
+
+    final c = buatController();
+    await pumpEventQueue();
+
+    expect(c.notes.single.title, 'Dari cache');
+    expect(c.isOffline, isTrue);
+  });
+
+  test('addNote menaruh catatan baru di urutan teratas', () async {
+    final c = buatController();
+    await pumpEventQueue();
+
+    final berhasil = await c.addNote('Tugas Besar', 'Deadline minggu 16');
+
+    expect(berhasil, isTrue);
+    expect(c.notes.first.title, 'Tugas Besar');
+    expect(c.notes, hasLength(3));
+  });
+
+  test('addNote gagal saat offline: false dan error terisi', () async {
+    final c = buatController();
+    await pumpEventQueue();
+    remote.shouldFail = true;
+
+    final berhasil = await c.addNote('Tugas Besar', 'Deadline minggu 16');
+
+    expect(berhasil, isFalse);
+    expect(c.error, 'Gagal menyimpan catatan');
+    expect(c.notes, hasLength(2)); // daftar lama tidak berubah
+  });
+
+  test('worker debounce: filter baru berlaku setelah 300 ms', () async {
+    final c = buatController();
+    await pumpEventQueue();
+
+    c.cari('kuis');
+    expect(c.tampil, hasLength(2)); // belum 300 ms, filter belum diterapkan
+
+    await Future&lt;void&gt;.delayed(const Duration(milliseconds: 350));
+    expect(c.tampil.single.title, 'Kuis 1');
+  });
+
+  test('Get.find mengembalikan instance yang sama dengan Get.put', () {
+    final c = buatController();
+
+    expect(Get.find&lt;NotesController&gt;(), same(c));
+  });
+}</code></pre>
+<pre><code class="language-text">$ flutter test test/unit/notes_controller_test.dart
+00:00 +6: All tests passed!</code></pre>
+<p>Teknik yang perlu diperhatikan:</p>
+<ul>
+  <li><strong><code>buatController()</code> dipanggil setelah skenario disiapkan.</strong> Karena <code>onInit()</code> langsung memanggil <code>loadNotes()</code>, nilai <code>remote.shouldFail</code> dan <code>cache.saved</code> harus diatur <em>sebelum</em> <code>Get.put</code>.</li>
+  <li><strong>Menguji <code>isLoading</code>.</strong> Tepat setelah <code>Get.put</code>, Future belum selesai sehingga <code>isLoading</code> masih <code>true</code>. <code>pumpEventQueue()</code> (dari <code>flutter_test</code>) menunggu semua Future yang sudah siap, lalu kita periksa <code>isLoading</code>, <code>notes</code>, dan <code>error</code>.</li>
+  <li><strong>Menguji worker.</strong> Tepat setelah <code>cari('kuis')</code>, daftar masih lengkap karena debounce belum lewat 300 ms. Setelah menunggu 350 ms, filter diterapkan. Dalam unit test biasa, waktu berjalan sungguhan, jadi test ini memang menunggu sekitar 0,35 detik.</li>
+  <li><strong>Tidak perlu <code>addListener</code>.</strong> Getter seperti <code>c.isLoading</code> cukup dibaca langsung; <code>.obs</code> otomatis memberi tahu <code>Obx</code> di View, dan perilaku itu diuji terpisah dengan widget test.</li>
+</ul>
+
+<h4>Langkah 2: View yang memakai controller</h4>
+<p class="code-file-label">📄 <code>lib/views/notes_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/notes_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/notes_controller.dart';
+
+class NotesView extends GetView&lt;NotesController&gt; {
+  const NotesView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Catatan Kuliah')),
+      body: Obx(() {
+        if (controller.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final error = controller.error;
+        if (error != null &amp;&amp; controller.notes.isEmpty) {
+          return Center(child: Text(error));
+        }
+        final tampil = controller.tampil;
+        return Column(
+          children: [
+            if (controller.isOffline)
+              const MaterialBanner(
+                content: Text('Mode offline: menampilkan data cache'),
+                actions: [SizedBox.shrink()],
+              ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: TextField(
+                onChanged: controller.cari,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'Cari judul catatan',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            Expanded(
+              child: tampil.isEmpty
+                  ? Center(
+                      child: Text(controller.notes.isEmpty
+                          ? 'Belum ada catatan'
+                          : 'Tidak ada catatan yang cocok'),
+                    )
+                  : ListView.builder(
+                      itemCount: tampil.length,
+                      itemBuilder: (context, index) {
+                        final note = tampil[index];
+                        return ListTile(
+                          title: Text(note.title),
+                          subtitle: Text(note.content),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+}</code></pre>
+<p><code>NotesView</code> meng-<em>extend</em> <code>GetView&lt;NotesController&gt;</code>, sehingga properti <code>controller</code> sama dengan <code>Get.find&lt;NotesController&gt;()</code>. Seluruh <code>body</code> dibungkus satu <code>Obx</code> yang membaca <code>isLoading</code>, <code>error</code>, <code>notes</code>, <code>isOffline</code>, dan <code>tampil</code>.</p>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/notes-online.jpg" alt="Daftar catatan saat online" loading="lazy">
+    <div class="screenshot-caption">Fake remote berhasil: daftar catatan tampil</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/notes-cari.jpg" alt="Daftar tersaring kata kunci kuis" loading="lazy">
+    <div class="screenshot-caption">Mengetik “kuis”: setelah 300 ms hanya catatan kuis yang tampil</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/15-testing/notes-offline.jpg" alt="Banner mode offline dengan data cache" loading="lazy">
+    <div class="screenshot-caption"><code>shouldFail = true</code>: data cache dan banner mode offline</div>
+  </div>
+</div>
+<p>Screenshot di atas diambil dengan memanggil <code>Get.put(NotesController(...))</code> berisi <code>FakeRemoteDataSource</code> dan <code>FakeLocalCache</code> di <code>main()</code>. Ini trik yang berguna untuk mendesain tampilan offline tanpa harus mematikan internet.</p>
+
+<h4>Langkah 3: widget test dengan GetMaterialApp</h4>
+<p>Pola kuncinya sama dengan <code>main.dart</code>: daftarkan controller (berisi dependensi palsu) dengan <code>Get.put</code>, <strong>lalu</strong> render View di dalam <code>GetMaterialApp</code>.</p>
+<p class="code-file-label">📄 <code>test/widget/notes_view_test.dart</code></p>
+<pre><code class="language-dart">// test/widget/notes_view_test.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+import 'package:catatan_kuliah/controllers/notes_controller.dart';
+import 'package:catatan_kuliah/data/note_repository.dart';
+import 'package:catatan_kuliah/models/note.dart';
+import 'package:catatan_kuliah/views/notes_view.dart';
+
+import '../mock/fakes.dart';
+
+/// Remote yang sengaja lambat agar status loading sempat terlihat.
+class RemoteLambat extends FakeRemoteDataSource {
+  RemoteLambat({super.awal});
+
+  @override
+  Future&lt;List&lt;Note&gt;&gt; fetchNotes() async {
+    await Future&lt;void&gt;.delayed(const Duration(milliseconds: 500));
+    return super.fetchNotes();
+  }
+}
+
+void main() {
+  late FakeRemoteDataSource remote;
+  late FakeLocalCache cache;
+
+  setUp(() {
+    Get.testMode = true;
+    remote = FakeRemoteDataSource(
+      awal: [
+        const Note(id: 'n1', title: 'Pertemuan 1', content: 'Dart'),
+        const Note(id: 'n2', title: 'Kuis 1', content: 'Bab 1-3'),
+      ],
+    );
+    cache = FakeLocalCache();
+  });
+
+  tearDown(Get.reset);
+
+  /// Daftarkan controller dengan fake, lalu render View di GetMaterialApp.
+  Future&lt;void&gt; pasangApp(WidgetTester tester) async {
+    Get.put(NotesController(NoteRepository(remote: remote, cache: cache)));
+    await tester.pumpWidget(const GetMaterialApp(home: NotesView()));
+  }
+
+  testWidgets('menampilkan loading lalu daftar catatan', (tester) async {
+    remote = RemoteLambat(awal: remote.notes);
+    await pasangApp(tester);
+
+    // Frame pertama: data belum datang (remote butuh 500 ms)
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    await tester.pumpAndSettle(); // majukan waktu sampai Future selesai
+
+    expect(find.text('Pertemuan 1'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('offline dengan cache: tampil banner mode offline',
+      (tester) async {
+    remote.shouldFail = true;
+    cache.saved = [const Note(id: 'c1', title: 'Dari cache', content: '-')];
+
+    await pasangApp(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dari cache'), findsOneWidget);
+    expect(find.textContaining('Mode offline'), findsOneWidget);
+  });
+
+  testWidgets('tanpa data sama sekali: tampil pesan kosong', (tester) async {
+    remote.notes.clear();
+
+    await pasangApp(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Belum ada catatan'), findsOneWidget);
+  });
+
+  testWidgets('catatan baru dari controller langsung tampil', (tester) async {
+    await pasangApp(tester);
+    await tester.pumpAndSettle();
+
+    // Ambil controller yang sama dengan yang dipakai View
+    final c = Get.find&lt;NotesController&gt;();
+    await c.addNote('Tugas Besar', 'Deadline minggu 16');
+    await tester.pump(); // Obx menggambar ulang
+
+    expect(find.text('Tugas Besar'), findsOneWidget);
+  });
+
+  testWidgets('kolom cari menyaring daftar setelah debounce',
+      (tester) async {
+    await pasangApp(tester);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'kuis');
+    await tester.pump(); // belum 300 ms: daftar masih lengkap
+    expect(find.text('Pertemuan 1'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 300)); // majukan waktu
+    expect(find.text('Pertemuan 1'), findsNothing);
+    expect(find.text('Kuis 1'), findsOneWidget);
+  });
+}</code></pre>
+<pre><code class="language-text">$ flutter test test/widget/notes_view_test.dart
+00:01 +5: All tests passed!</code></pre>
+<ul>
+  <li><strong><code>RemoteLambat</code></strong>: fake remote biasa selesai hampir seketika, bahkan sebelum frame pertama selesai digambar, sehingga loading tidak pernah terlihat. Subclass kecil yang menunggu 500 ms membuat status loading bisa diperiksa. Di dalam <code>testWidgets</code>, waktu ini palsu: <code>pumpAndSettle()</code> memajukannya tanpa benar-benar menunggu.</li>
+  <li><strong><code>pasangApp()</code></strong> dipanggil <em>setelah</em> test mengubah <code>remote</code>/<code>cache</code>, sehingga setiap test bisa menyiapkan skenario berbeda.</li>
+  <li><strong>Memegang controller dari test</strong>: <code>Get.find&lt;NotesController&gt;()</code> mengembalikan instance yang sama dengan yang dipakai View. Setelah <code>addNote</code>, cukup <code>pump()</code> agar <code>Obx</code> menggambar ulang.</li>
+  <li><strong>Menguji debounce di widget test</strong>: <code>tester.pump(const Duration(milliseconds: 300))</code> memajukan jam palsu 300 ms sehingga timer debounce berjalan, tanpa membuat test lambat.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li><strong>Lupa <code>tearDown(Get.reset)</code>.</strong> Instance dari test sebelumnya masih terdaftar, dan <code>Get.put</code> untuk tipe yang sudah ada <em>tidak</em> menggantinya. Akibatnya test memakai controller lama: pada percobaan kami, test offline gagal dengan <code>Found 0 widgets with text "Dari cache"</code> karena controller yang dipakai masih berisi data online dari test pertama. Test lulus jika dijalankan sendiri, tetapi gagal jika dijalankan bersama.</li>
+  <li>Memanggil <code>pumpWidget</code> sebelum <code>Get.put</code>. View langsung memanggil <code>Get.find</code> dan gagal dengan pesan <code>"NotesController" not found</code> (lihat bagian 1).</li>
+  <li>Membuat controller yang di dalamnya langsung memanggil <code>Supabase.instance.client</code> atau <code>Hive.box()</code>. Controller seperti itu tidak bisa diuji; terima repository lewat konstruktor.</li>
+  <li>Menampilkan SnackBar atau bernavigasi dari controller. Unit test controller jadi butuh widget tree; kembalikan hasilnya dan biarkan View yang bereaksi.</li>
+  <li>Hanya menguji controller lewat UI. Unit test controller jauh lebih cepat dan pesan gagalnya lebih jelas; gunakan widget test untuk memastikan <code>Obx</code> bereaksi terhadap state.</li>
+</ul></div>

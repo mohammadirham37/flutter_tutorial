@@ -7,17 +7,17 @@
   "prerequisites": [
     "Modul 05: Form & Validasi Input",
     "Modul 07: Navigasi",
-    "Modul 08: State Management Provider",
+    "Modul 08: State Management GetX & MVC",
     "Modul 12: Supabase"
   ],
-  "summary": "Memulai proyek utuh 'Catatan Kuliah': menyusun kebutuhan, arsitektur berlapis (UI, Provider, Service/Repository, Supabase/Hive), struktur folder, tabel profiles dengan trigger, lalu membangun fitur register, login, logout, dan sesi tersimpan menggunakan Supabase Auth, Provider, dan AuthGate.",
+  "summary": "Memulai proyek utuh 'Catatan Kuliah': menyusun kebutuhan, arsitektur MVC berlapis (View, Controller GetX, Service/Repository, Supabase/Hive), struktur folder, tabel profiles dengan trigger, lalu membangun fitur register, login, logout, dan sesi tersimpan menggunakan Supabase Auth, GetX (AuthController), dan AuthGate.",
   "learningOutcomes": [
     "Menyusun kebutuhan fungsional dan alur layar sebuah aplikasi mobile sebelum menulis kode.",
-    "Menerapkan arsitektur berlapis UI, Provider, Service/Repository dengan dependency injection.",
+    "Menerapkan arsitektur MVC berlapis View, Controller (GetX), Service/Repository dengan dependency injection Get.put/Get.find.",
     "Membuat tabel profiles beserta trigger handle_new_user dan policy RLS di Supabase.",
-    "Mengimplementasikan AuthService dan AuthProvider dengan status loading dan pesan error berbahasa Indonesia.",
-    "Membangun AuthGate berbasis onAuthStateChange untuk navigasi login/logout otomatis.",
-    "Membuat LoginScreen dan RegisterScreen dengan validasi form, show/hide password, tombol loading, dan SnackBar.",
+    "Mengimplementasikan AuthService dan AuthController (state reaktif .obs, onInit/onClose) dengan status loading dan pesan error berbahasa Indonesia.",
+    "Membangun AuthGate berbasis Obx dan onAuthStateChange untuk navigasi login/logout otomatis.",
+    "Membuat LoginView dan RegisterView dengan validasi form, show/hide password, tombol loading reaktif, dan SnackBar.",
     "Menguji alur autentikasi secara sistematis, termasuk mode konfirmasi email dan sesi tersimpan."
   ],
   "sections": [
@@ -42,9 +42,9 @@
       "file": "04-auth-service.html"
     },
     {
-      "id": "proyek-auth-provider",
-      "title": "5. AuthProvider & Pesan Error Ramah",
-      "file": "05-auth-provider.html"
+      "id": "proyek-auth-controller",
+      "title": "5. AuthController & Pesan Error Ramah",
+      "file": "05-auth-controller.html"
     },
     {
       "id": "proyek-auth-gate",
@@ -53,13 +53,13 @@
     },
     {
       "id": "proyek-auth-login",
-      "title": "7. LoginScreen",
-      "file": "07-login-screen.html"
+      "title": "7. LoginView",
+      "file": "07-login-view.html"
     },
     {
       "id": "proyek-auth-register",
-      "title": "8. RegisterScreen & Menjalankan Aplikasi",
-      "file": "08-register-screen.html"
+      "title": "8. RegisterView & Menjalankan Aplikasi",
+      "file": "08-register-view.html"
     },
     {
       "id": "proyek-auth-pengujian",
@@ -69,31 +69,31 @@
   ],
   "labAssignment": {
     "title": "Praktikum 13: Autentikasi Aplikasi Catatan Kuliah",
-    "objective": "Membangun fitur register, login, logout, dan sesi tersimpan yang aman dengan Supabase Auth, mengikuti arsitektur berlapis.",
+    "objective": "Membangun fitur register, login, logout, dan sesi tersimpan yang aman dengan Supabase Auth, mengikuti arsitektur MVC berlapis dengan GetX.",
     "instructions": [
-      "Buat proyek <code>catatan_kuliah</code>, pasang package dengan <code>flutter pub add supabase_flutter provider hive_ce hive_ce_flutter</code>, dan siapkan <code>env.json</code> + <code>.gitignore</code>.",
+      "Buat proyek <code>catatan_kuliah</code>, pasang package dengan <code>flutter pub add supabase_flutter get hive_ce hive_ce_flutter</code>, dan siapkan <code>env.json</code> + <code>.gitignore</code>.",
       "Jalankan SQL tabel <code>profiles</code>, fungsi <code>handle_new_user</code>, trigger, dan policy RLS di SQL Editor. Simpan SQL di <code>supabase/setup.sql</code>.",
-      "Implementasikan <code>env.dart</code>, <code>validators.dart</code>, <code>auth_service.dart</code>, dan <code>auth_provider.dart</code> sesuai section 4–5.",
-      "Implementasikan <code>auth_gate.dart</code>, HomeScreen sementara, dan <code>main.dart</code> (section 6).",
-      "Implementasikan LoginScreen dan RegisterScreen lengkap dengan validasi, show/hide password, tombol loading, dan SnackBar error (section 7–8).",
+      "Implementasikan <code>env.dart</code>, <code>validators.dart</code>, <code>auth_service.dart</code>, dan <code>controllers/auth_controller.dart</code> sesuai section 4–5.",
+      "Implementasikan <code>views/auth_gate.dart</code>, HomeView sementara, dan <code>main.dart</code> yang mendaftarkan <code>AuthController</code> dengan <code>Get.put(..., permanent: true)</code> sebelum <code>runApp</code> (section 6).",
+      "Implementasikan LoginView dan RegisterView lengkap dengan validasi, show/hide password, tombol loading di dalam <code>Obx</code>, dan SnackBar error (section 7–8).",
       "Pastikan <code>flutter analyze</code> tidak menemukan masalah.",
       "Jalankan 12 skenario pada checklist section 9. Lampirkan screenshot minimal untuk skenario 4, 5, 7, 10, dan 11.",
-      "Tambahan: tampilkan nama dari tabel <code>profiles</code> (bukan metadata) di HomeScreen memakai <code>select().eq('id', userId).maybeSingle()</code>."
+      "Tambahan: tampilkan nama dari tabel <code>profiles</code> (bukan metadata) di HomeView memakai <code>select().eq('id', userId).maybeSingle()</code>. Simpan hasilnya di state reaktif controller dan muat di <code>onInit</code>."
     ],
     "expectedOutput": "Aplikasi dapat register (dengan nama tersimpan di tabel profiles), login, logout, mengingat sesi setelah aplikasi ditutup, dan menampilkan pesan error berbahasa Indonesia untuk password salah, email terdaftar, email belum dikonfirmasi, dan tidak ada koneksi.",
-    "rubric": "Setup Supabase: tabel profiles, trigger & RLS benar (20%), Arsitektur berlapis: AuthService & AuthProvider terpisah dari UI (20%), AuthGate & navigasi otomatis (15%), Form login/register: validasi, show/hide, loading, SnackBar (25%), Laporan pengujian 12 skenario (15%), Kerapian kode & flutter analyze bersih (5%)."
+    "rubric": "Setup Supabase: tabel profiles, trigger & RLS benar (20%), Arsitektur MVC: AuthService & AuthController terpisah dari View, controller tanpa BuildContext (20%), AuthGate & navigasi otomatis (15%), Form login/register: validasi, show/hide, loading, SnackBar (25%), Laporan pengujian 12 skenario (15%), Kerapian kode & flutter analyze bersih (5%)."
   },
   "quiz": [
     {
       "question": "Dalam arsitektur proyek ini, class mana yang boleh memanggil supabase.auth secara langsung?",
       "options": [
-        "LoginScreen",
-        "AuthProvider",
+        "LoginView",
+        "AuthController",
         "AuthService",
         "Semua class boleh"
       ],
       "correctIndex": 2,
-      "explanation": "AuthService adalah satu-satunya lapisan yang berbicara dengan Supabase Auth. Provider memanggil service, sedangkan UI memanggil provider. Pemisahan ini memudahkan pengujian dan penggantian backend."
+      "explanation": "AuthService adalah satu-satunya lapisan yang berbicara dengan Supabase Auth. Controller memanggil service, sedangkan View memanggil controller. Pemisahan ini memudahkan pengujian dan penggantian backend."
     },
     {
       "question": "Mengapa fungsi handle_new_user diberi atribut 'security definer'?",
@@ -118,29 +118,29 @@
       "explanation": "Jika Confirm email aktif, akun dibuat (user terisi) tetapi session bernilai null sampai link konfirmasi diklik."
     },
     {
-      "question": "Setelah login sukses, bagaimana aplikasi berpindah dari LoginScreen ke HomeScreen?",
+      "question": "Setelah login sukses, bagaimana aplikasi berpindah dari LoginView ke HomeView?",
       "options": [
-        "LoginScreen memanggil Navigator.pushReplacement",
-        "AuthGate menerima event signedIn dari onAuthStateChange lalu membangun HomeScreen",
-        "AuthProvider memanggil runApp ulang",
+        "LoginView memanggil Get.off(() => const HomeView())",
+        "AuthController menerima event signedIn dari onAuthStateChange dan mengisi sesi reaktif, lalu Obx di AuthGate membangun HomeView",
+        "AuthController memanggil runApp ulang",
         "User harus menekan tombol refresh"
       ],
       "correctIndex": 1,
-      "explanation": "AuthGate mendengarkan stream status login. Begitu ada session, ia mengembalikan HomeScreen secara otomatis tanpa Navigator manual."
+      "explanation": "AuthController berlangganan stream status login. Begitu ada session, nilai Rx berubah dan Obx di AuthGate otomatis mengembalikan HomeView tanpa navigasi manual."
     },
     {
-      "question": "Mengapa stream auth disimpan di initState AuthGate, bukan dipanggil langsung di dalam build()?",
+      "question": "Di mana AuthController berlangganan stream onAuthStateChange, dan kapan langganan itu dibatalkan?",
       "options": [
-        "Karena initState lebih cepat dari build",
-        "Agar StreamBuilder tidak berlangganan ulang setiap kali widget di-rebuild",
-        "Karena build() tidak boleh memakai Stream",
-        "Karena Supabase melarangnya"
+        "Di build() AuthGate, dibatalkan saat widget di-rebuild",
+        "Di onInit() controller, dibatalkan di onClose()",
+        "Di constructor LoginView, tidak perlu dibatalkan",
+        "Di main(), dibatalkan saat runApp selesai"
       ],
       "correctIndex": 1,
-      "explanation": "Jika objek stream berbeda di setiap build, StreamBuilder akan berhenti berlangganan dan berlangganan ulang. Menyimpannya sekali di State membuat langganan stabil."
+      "explanation": "onInit dipanggil sekali saat controller didaftarkan dengan Get.put, sehingga langganan dibuat satu kali saja. onClose adalah pasangannya untuk membatalkan StreamSubscription agar tidak bocor memori."
     },
     {
-      "question": "Apa fungsi blok 'finally' pada method signIn di AuthProvider?",
+      "question": "Apa fungsi blok 'finally' pada method signIn di AuthController?",
       "options": [
         "Menampilkan SnackBar",
         "Memastikan isLoading kembali false baik login berhasil maupun gagal",
@@ -151,7 +151,7 @@
       "explanation": "finally selalu dieksekusi setelah try/catch, sehingga spinner pasti berhenti dan tombol aktif kembali dalam semua kondisi."
     },
     {
-      "question": "Pada LoginScreen, mengapa onPressed tombol Masuk diisi null ketika isLoading bernilai true?",
+      "question": "Pada LoginView, mengapa onPressed tombol Masuk diisi null ketika isLoading bernilai true?",
       "options": [
         "Agar warna tombol berubah saja",
         "Untuk menonaktifkan tombol sehingga mencegah request login ganda akibat klik berulang",
@@ -171,6 +171,17 @@
       ],
       "correctIndex": 1,
       "explanation": "Pesan gabungan adalah praktik keamanan standar. Membedakan keduanya membocorkan informasi tentang akun yang ada."
+    },
+    {
+      "question": "Mengapa AuthController didaftarkan dengan Get.put(..., permanent: true) di main() sebelum runApp?",
+      "options": [
+        "Agar controller dibuat ulang setiap kali halaman berganti",
+        "Agar satu instance AuthController tersedia untuk semua halaman lewat Get.find dan tidak dihapus GetX selama aplikasi berjalan",
+        "Karena GetMaterialApp tidak bisa dipakai tanpa controller",
+        "Agar AuthController bisa menampilkan SnackBar"
+      ],
+      "correctIndex": 1,
+      "explanation": "Status login dibutuhkan di seluruh aplikasi. Get.put di main() menjalankan onInit lebih awal, dan permanent: true mencegah controller ikut terhapus saat halaman (misalnya RegisterView) ditutup."
     }
   ]
 }

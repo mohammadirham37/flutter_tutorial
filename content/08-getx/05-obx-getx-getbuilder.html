@@ -1,0 +1,312 @@
+<p class="lead">GetX menyediakan tiga widget untuk menampilkan state controller: <code>Obx</code>, <code>GetX&lt;T&gt;</code>, dan <code>GetBuilder&lt;T&gt;</code>. Perbedaannya ada pada <strong>apa yang memicu rebuild</strong>. Memilih yang tepat membuat aplikasi benar sekaligus hemat rebuild.</p>
+
+<h4>Tiga cara menampilkan state</h4>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+class ProfilController extends GetxController {
+  final nama = 'Andi'.obs; // reaktif
+  int bintang = 0; // biasa (non-reaktif)
+
+  void tambahBintang() {
+    bintang++;
+    update(); // wajib untuk GetBuilder
+  }
+}
+
+Widget contoh() {
+  final c = Get.find&lt;ProfilController&gt;();
+  return Column(
+    children: [
+      // 1) Obx: ambil controller sendiri, rebuild saat .obs yang dibaca berubah
+      Obx(() =&gt; Text('Nama: ${c.nama.value}')),
+
+      // 2) GetX&lt;T&gt;: sama-sama reaktif, controller diberikan lewat builder
+      GetX&lt;ProfilController&gt;(
+        builder: (ctrl) =&gt; Text('Nama: ${ctrl.nama.value}'),
+      ),
+
+      // 3) GetBuilder&lt;T&gt;: tidak memantau .obs, rebuild hanya saat update()
+      GetBuilder&lt;ProfilController&gt;(
+        builder: (ctrl) =&gt; Text('Bintang: ${ctrl.bintang}'),
+      ),
+    ],
+  );
+}
+</code></pre>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Widget</th><th>Rebuild ketika</th><th>Cara mendapat controller</th><th>State yang cocok</th></tr></thead>
+    <tbody>
+      <tr><td><code>Obx(() =&gt; ...)</code></td><td>Observable (<code>.obs</code>) yang <em>dibaca di dalamnya</em> berubah</td><td>Sendiri: <code>Get.find</code> atau <code>controller</code> dari <code>GetView</code></td><td>Reaktif (<code>.obs</code>)</td></tr>
+      <tr><td><code>GetX&lt;T&gt;(builder: ...)</code></td><td>Sama seperti Obx</td><td>Diberikan lewat parameter <code>builder</code>; bisa juga <code>init:</code> untuk membuatnya</td><td>Reaktif (<code>.obs</code>)</td></tr>
+      <tr><td><code>GetBuilder&lt;T&gt;(builder: ...)</code></td><td>Controller memanggil <code>update()</code> (atau <code>update([id])</code>)</td><td>Diberikan lewat parameter <code>builder</code></td><td>Field biasa (non-reaktif)</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Hal penting: <code>GetBuilder</code> <strong>tidak</strong> memantau <code>.obs</code>, dan <code>Obx</code>/<code>GetX</code> <strong>tidak</strong> peduli pada <code>update()</code>. Keduanya adalah dua "jalur" yang terpisah.</p>
+
+<h4>Contoh lengkap: membuktikan perbedaan rebuild</h4>
+<p>Setiap kartu menampilkan berapa kali ia di-build. Tekan tombol dan amati angka mana yang naik.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Demo rebuild: angka "build ke-N" menunjukkan berapa kali tiap bagian di-build
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+class ProfilController extends GetxController {
+  // Reaktif: dipantau oleh Obx / GetX
+  final nama = 'Andi'.obs;
+  final poin = 0.obs;
+
+  // Non-reaktif: hanya diperbarui lewat update() untuk GetBuilder
+  int bintang = 0;
+
+  void tambahPoin() =&gt; poin.value++;
+
+  void gantiNama() =&gt; nama.value = nama.value == 'Andi' ? 'Bunga' : 'Andi';
+
+  void tambahBintang() {
+    bintang++;
+    update(); // beri tahu semua GetBuilder&lt;ProfilController&gt;
+  }
+}
+
+// Penghitung build HANYA untuk keperluan demo (jangan ditiru di aplikasi nyata)
+final Map&lt;String, int&gt; jumlahBuild = {};
+int catatBuild(String nama) =&gt; jumlahBuild[nama] = (jumlahBuild[nama] ?? 0) + 1;
+
+void main() {
+  Get.put(ProfilController());
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.deepOrange),
+      home: const DemoView(),
+    );
+  }
+}
+
+class DemoView extends GetView&lt;ProfilController&gt; {
+  const DemoView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Halaman ini tidak membaca .value di luar Obx, jadi tidak ikut rebuild
+    final n = catatBuild('halaman');
+    return Scaffold(
+      appBar: AppBar(title: Text('Obx vs GetX vs GetBuilder ($n)')),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          const KartuObxSemua(),
+          const KartuObxNama(),
+          const KartuGetX(),
+          const KartuGetBuilder(),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton(
+                  onPressed: controller.tambahPoin,
+                  child: const Text('Tambah Poin'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: controller.gantiNama,
+                  child: const Text('Ganti Nama'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          FilledButton.tonal(
+            onPressed: controller.tambahBintang,
+            child: const Text('Tambah Bintang'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 1) Obx yang membaca nama DAN poin: rebuild jika salah satunya berubah
+class KartuObxSemua extends GetView&lt;ProfilController&gt; {
+  const KartuObxSemua({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Obx(() {
+        final n = catatBuild('obx-semua');
+        return ListTile(
+          title: Text('Obx: ${controller.nama.value}, ${controller.poin.value} poin'),
+          subtitle: Text('build ke-$n'),
+        );
+      }),
+    );
+  }
+}
+
+// 2) Obx yang hanya membaca nama: rebuild HANYA jika nama berubah
+class KartuObxNama extends GetView&lt;ProfilController&gt; {
+  const KartuObxNama({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Obx(() {
+        final n = catatBuild('obx-nama');
+        return ListTile(
+          title: Text('Obx(nama): ${controller.nama.value}'),
+          subtitle: Text('build ke-$n'),
+        );
+      }),
+    );
+  }
+}
+
+// 3) GetX&lt;T&gt;: seperti Obx, tetapi controller diberikan lewat parameter builder
+class KartuGetX extends StatelessWidget {
+  const KartuGetX({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final nLuar = catatBuild('getx-luar');
+    return Card(
+      child: GetX&lt;ProfilController&gt;(
+        builder: (c) {
+          final nDalam = catatBuild('getx-dalam');
+          return ListTile(
+            title: Text('GetX(poin): ${c.poin.value}'),
+            subtitle: Text('luar build ke-$nLuar, builder ke-$nDalam'),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// 4) GetBuilder: TIDAK memantau .obs, hanya bereaksi pada update()
+class KartuGetBuilder extends StatelessWidget {
+  const KartuGetBuilder({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: GetBuilder&lt;ProfilController&gt;(
+        builder: (c) {
+          final n = catatBuild('getbuilder');
+          return ListTile(
+            title: Text('GetBuilder: ${c.bintang} bintang, ${c.poin.value} poin'),
+            subtitle: Text('build ke-$n'),
+          );
+        },
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/rebuild-tambah-poin.jpg" alt="Setelah 3x Tambah Poin: Obx(nama) dan GetBuilder tidak rebuild" loading="lazy">
+    <div class="screenshot-caption">Setelah 3x Tambah Poin: Obx(nama) dan GetBuilder tidak rebuild</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/rebuild-nama-bintang.jpg" alt="Setelah 1x Ganti Nama dan 2x Tambah Bintang" loading="lazy">
+    <div class="screenshot-caption">Dari awal: 1x Ganti Nama lalu 2x Tambah Bintang</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan hasil:</strong></p>
+<ul>
+  <li><strong>Tambah Poin</strong> (gambar kiri): kartu <em>Obx</em> (membaca nama dan poin) serta <em>GetX(poin)</em> naik menjadi build ke-4. Kartu <em>Obx(nama)</em> tetap build ke-1 karena ia tidak membaca <code>poin</code>.</li>
+  <li>Kartu <em>GetBuilder</em> juga tetap build ke-1, bahkan menampilkan "0 poin" padahal poin sudah 3. Mengubah <code>.obs</code> tidak memicu GetBuilder, dan membaca <code>.value</code> di dalam GetBuilder tidak membuatnya reaktif.</li>
+  <li><strong>Ganti Nama</strong> lalu <strong>Tambah Bintang</strong> (gambar kanan): Ganti Nama menaikkan kedua kartu Obx. Dua kali <code>update()</code> menaikkan GetBuilder menjadi build ke-3, sedangkan kartu GetX tetap build ke-1.</li>
+  <li>Angka "luar" pada kartu GetX tidak pernah naik. Seperti Obx, hanya isi <code>builder</code> yang dibangun ulang.</li>
+  <li>Angka di judul AppBar tetap (1): <code>DemoView</code> sendiri tidak pernah rebuild, karena tombol hanya <em>memanggil</em> method controller.</li>
+</ul>
+
+<h4>Membatasi rebuild</h4>
+<p>Prinsipnya sama untuk ketiga widget: <strong>bungkus sekecil mungkin</strong> bagian yang benar-benar berubah.</p>
+<ol>
+  <li>Jangan membungkus satu halaman penuh dengan satu <code>Obx</code> besar. Pecah menjadi beberapa <code>Obx</code> kecil, misalnya satu untuk judul, satu untuk ringkasan, satu per baris list.</li>
+  <li>Di dalam Obx, baca hanya observable yang dibutuhkan. Obx yang membaca <code>nama</code> saja tidak akan rebuild saat <code>poin</code> berubah.</li>
+  <li>Di callback (<code>onPressed</code>, <code>onTap</code>) cukup panggil method controller. Tidak perlu Obx.</li>
+  <li>Untuk <code>GetBuilder</code>, pakai <code>id</code> agar <code>update</code> hanya membangun ulang bagian tertentu.</li>
+</ol>
+
+<h4>Opsional: GetBuilder dengan id</h4>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+class NilaiController extends GetxController {
+  int uts = 0;
+  int uas = 0;
+
+  void tambahUts() {
+    uts++;
+    update(['uts']); // hanya GetBuilder dengan id 'uts' yang rebuild
+  }
+
+  void tambahUas() {
+    uas++;
+    update(['uas']);
+  }
+}
+
+Widget kartuNilai() {
+  return Column(
+    children: [
+      GetBuilder&lt;NilaiController&gt;(
+        id: 'uts',
+        builder: (c) =&gt; Text('UTS: ${c.uts}'),
+      ),
+      GetBuilder&lt;NilaiController&gt;(
+        id: 'uas',
+        builder: (c) =&gt; Text('UAS: ${c.uas}'),
+      ),
+    ],
+  );
+}
+</code></pre>
+<p><code>update(['uts'])</code> hanya membangun ulang GetBuilder dengan <code>id: 'uts'</code>. Perhatikan juga kebalikannya: <code>update()</code> tanpa argumen hanya membangun ulang GetBuilder yang <strong>tidak</strong> memakai <code>id</code>.</p>
+
+<h4>Ringkasan &amp; tips memilih</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Situasi</th><th>Pilihan</th></tr></thead>
+    <tbody>
+      <tr><td>Menampilkan state <code>.obs</code> (pilihan utama di kursus ini)</td><td><code>Obx</code></td></tr>
+      <tr><td>Butuh controller langsung di builder, atau ingin membuatnya di tempat dengan <code>init:</code></td><td><code>GetX&lt;T&gt;</code></td></tr>
+      <tr><td>State berupa field biasa dan Anda ingin mengontrol sendiri kapan UI diperbarui</td><td><code>GetBuilder&lt;T&gt;</code> + <code>update()</code></td></tr>
+      <tr><td>Hanya memanggil method (tombol, gesture)</td><td>Tanpa widget apa pun: <code>controller.method()</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout callout-tip"><h4>💡 Cara memilih</h4>
+<ol>
+  <li>Default-nya pakai <code>.obs</code> + <code>Obx</code>. Sederhana dan otomatis.</li>
+  <li>Pakai <code>GetBuilder</code> jika Anda sengaja tidak memakai <code>.obs</code>, misalnya data yang diubah berkali-kali lalu ditampilkan sekali di akhir proses.</li>
+  <li>Jangan mencampur dua jalur untuk satu data. Jika <code>poin</code> sudah <code>.obs</code>, tampilkan dengan Obx, bukan GetBuilder.</li>
+</ol>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Lupa <code>update()</code></strong> setelah mengubah field biasa. Data berubah di memori, tetapi GetBuilder tidak pernah dibangun ulang.</li>
+  <li><strong>Mengharapkan GetBuilder bereaksi pada <code>.obs</code></strong>, seperti kartu GetBuilder pada demo di atas yang tetap "0 poin".</li>
+  <li><strong>Satu Obx untuk seluruh halaman.</strong> Benar secara fungsi, tetapi setiap perubahan kecil membangun ulang semuanya. Pecah menjadi Obx kecil.</li>
+  <li>Memanggil <code>update()</code> di dalam <code>builder</code>. Widget diminta rebuild saat sedang dibangun, sehingga muncul error atau rebuild berulang. <code>update()</code> hanya dipanggil di method yang mengubah state.</li>
+</ul>
+</div>

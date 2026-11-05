@@ -193,7 +193,7 @@ class PengaturanScreen extends StatelessWidget {
   <li>Logout: <code>pushAndRemoveUntil</code> → <code>[Login]</code>. Tekan back di Android, aplikasi tertutup karena tidak ada halaman lain.</li>
 </ol>
 
-<div class="callout callout-info"><h4>ℹ️ Hubungan dengan Modul 13–14</h4><p>Di proyek CRUD + Auth nanti, perpindahan login/home tidak lagi memakai <code>pushReplacement</code> manual, melainkan sebuah <em>auth gate</em>: widget yang memilih menampilkan Login atau Home berdasarkan status sesi di Provider. Konsepnya sama: halaman login tidak boleh tersisa di tumpukan setelah login.</p></div>
+<div class="callout callout-info"><h4>ℹ️ Hubungan dengan Modul 13–14</h4><p>Di proyek CRUD + Auth nanti, perpindahan login/home tidak lagi memakai <code>pushReplacement</code> manual, melainkan sebuah <em>auth gate</em>: widget yang memilih menampilkan Login atau Home berdasarkan status sesi di <code>AuthController</code> (GetX). Konsepnya sama: halaman login tidak boleh tersisa di tumpukan setelah login.</p></div>
 
 <div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
 <ul>

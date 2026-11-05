@@ -1,0 +1,210 @@
+<p class="lead"><strong>Dependency injection</strong> berarti sebuah objek (misalnya controller) dibuat dan disediakan oleh pihak luar, bukan dibuat sendiri oleh widget yang membutuhkannya. Di GetX, kita "menitipkan" controller ke sebuah wadah global dengan <code>Get.put</code>, lalu widget mana pun bisa mengambilnya dengan <code>Get.find</code>, tanpa constructor berantai.</p>
+
+<h4>Daftar API yang perlu dikenal</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>API</th><th>Fungsinya</th><th>Kapan dipakai</th></tr></thead>
+    <tbody>
+      <tr><td><code>Get.put(X())</code></td><td>Membuat objek sekarang juga lalu mendaftarkannya</td><td>Controller yang langsung dibutuhkan</td></tr>
+      <tr><td><code>Get.put(X(), permanent: true)</code></td><td>Seperti di atas, tetapi tidak pernah dihapus otomatis</td><td>Controller global (auth, tema, keranjang)</td></tr>
+      <tr><td><code>Get.lazyPut(() =&gt; X())</code></td><td>Mendaftarkan "resep"; objek baru dibuat saat pertama kali di-<code>find</code></td><td>Controller yang belum tentu dipakai</td></tr>
+      <tr><td><code>Get.lazyPut(..., fenix: true)</code></td><td>Resep tetap disimpan; jika objek pernah dihapus, ia dibuat ulang saat di-<code>find</code> lagi</td><td>Halaman yang bisa dibuka-tutup berkali-kali</td></tr>
+      <tr><td><code>Get.find&lt;X&gt;()</code></td><td>Mengambil objek yang sudah terdaftar</td><td>Di View atau di controller lain</td></tr>
+      <tr><td><code>Get.delete&lt;X&gt;()</code></td><td>Menghapus objek dan memanggil <code>onClose()</code>-nya</td><td>Jarang dipanggil manual; GetX biasanya mengurusnya</td></tr>
+      <tr><td><code>GetView&lt;X&gt;</code></td><td><code>StatelessWidget</code> yang sudah punya getter <code>controller</code></td><td>View yang memakai satu controller utama</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh kecil: mendaftarkan dan mengambil</h4>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+class CounterController extends GetxController {
+  final nilai = 0.obs;
+}
+
+class ProfilController extends GetxController {}
+
+class KeranjangController extends GetxController {}
+
+void daftarkan() {
+  // 1) Get.put: objek dibuat SEKARANG lalu didaftarkan
+  Get.put(CounterController());
+
+  // 2) permanent: true → tidak pernah dihapus otomatis oleh GetX
+  Get.put(ProfilController(), permanent: true);
+
+  // 3) Get.lazyPut: yang didaftarkan "resep"-nya; objek baru dibuat
+  //    saat pertama kali di-Get.find. fenix: true → dibuat ulang jika
+  //    sebelumnya sudah dihapus.
+  Get.lazyPut(() =&gt; KeranjangController(), fenix: true);
+}
+
+void ambil() {
+  // 4) Get.find: ambil objek yang sudah terdaftar (error jika belum)
+  final c = Get.find&lt;CounterController&gt;();
+  c.nilai.value++;
+}
+
+Future&lt;void&gt; hapus() async {
+  // 5) Get.delete: hapus dari memori, onClose() milik controller dipanggil
+  await Get.delete&lt;CounterController&gt;();
+}
+
+// 6) GetView&lt;T&gt;: StatelessWidget dengan getter `controller` = Get.find&lt;T&gt;()
+class NilaiView extends GetView&lt;CounterController&gt; {
+  const NilaiView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() =&gt; Text('Nilai: ${controller.nilai.value}'));
+  }
+}
+</code></pre>
+<ul>
+  <li>Tipe generik di <code>Get.find&lt;CounterController&gt;()</code> wajib ditulis. Tipe itulah "kunci" pencariannya.</li>
+  <li><code>Get.find</code> sebelum ada <code>Get.put</code>/<code>Get.lazyPut</code> akan error dengan pesan <em>"CounterController" not found. You need to call "Get.put(CounterController())" or "Get.lazyPut(()=&gt;CounterController())"</em>.</li>
+  <li><code>GetView</code> hanyalah jalan pintas: di dalamnya <code>controller</code> sama dengan <code>Get.find&lt;CounterController&gt;()</code>. Constructor-nya tetap boleh <code>const</code>.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Kapan controller dihapus otomatis?</h4><p>Secara bawaan GetX menghapus controller yang dibuat <em>ketika sebuah halaman dibuka</em> (misalnya <code>Get.put</code> di dalam View halaman itu atau lewat binding halaman) begitu halaman tersebut ditutup dengan <code>Get.back</code>. Controller yang didaftarkan di <code>main()</code> sebelum <code>runApp</code>, terutama dengan <code>permanent: true</code>, tetap hidup selama aplikasi berjalan. Detail siklus hidup ini dibahas di section 7.</p></div>
+
+<h4>Contoh lengkap: satu controller, dua halaman</h4>
+<p>Halaman Dua dibuka dengan <code>Get.to</code> tanpa mengirim data apa pun, tetapi bisa membaca dan mengubah nilai yang sama dengan Halaman Satu.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Pastikan sudah: flutter pub add get
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+class CounterController extends GetxController {
+  final nilai = 0.obs;
+
+  void tambah() =&gt; nilai.value++;
+
+  void kurang() {
+    if (nilai.value == 0) return;
+    nilai.value--;
+  }
+}
+
+void main() {
+  // Didaftarkan SEKALI untuk seluruh aplikasi
+  Get.put(CounterController(), permanent: true);
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const HalamanSatuView(),
+    );
+  }
+}
+
+// GetView&lt;T&gt; menyediakan getter `controller` (= Get.find&lt;T&gt;())
+class HalamanSatuView extends GetView&lt;CounterController&gt; {
+  const HalamanSatuView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Halaman Satu')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Obx(
+              () =&gt; Text(
+                'Nilai: ${controller.nilai.value}',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: controller.tambah,
+              child: const Text('Tambah'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              // Tidak ada data yang dikirim lewat constructor!
+              onPressed: () =&gt; Get.to(() =&gt; const HalamanDuaView()),
+              child: const Text('Buka Halaman Dua'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class HalamanDuaView extends GetView&lt;CounterController&gt; {
+  const HalamanDuaView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Halaman Dua')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Obx(
+              () =&gt; Text(
+                'Nilai yang sama: ${controller.nilai.value}',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.tonal(
+              onPressed: controller.kurang,
+              child: const Text('Kurangi dari Halaman Dua'),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () =&gt; Get.back(),
+              child: const Text('Kembali'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/di-halaman-dua.jpg" alt="Halaman Dua membaca dan mengubah nilai yang sama" loading="lazy">
+    <div class="screenshot-caption">Tiga kali Tambah di Halaman Satu, lalu satu kali Kurangi di Halaman Dua</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>Get.put(CounterController(), permanent: true)</code> di <code>main()</code> membuat <strong>satu</strong> objek untuk seluruh aplikasi. Kedua halaman memakai objek yang sama, sehingga nilainya selalu sinkron.</li>
+  <li>Kedua View <code>extends GetView&lt;CounterController&gt;</code>, jadi cukup menulis <code>controller.nilai</code> tanpa <code>Get.find</code>.</li>
+  <li><code>Get.to(() =&gt; const HalamanDuaView())</code> membuka halaman baru tanpa <code>BuildContext</code>, dan <code>Get.back()</code> menutupnya. Keduanya butuh <code>GetMaterialApp</code>.</li>
+  <li>Saat menekan "Kurangi" di Halaman Dua lalu kembali, Halaman Satu sudah menampilkan nilai terbaru karena <code>Obx</code> di sana juga mendengarkan <code>nilai</code> yang sama.</li>
+  <li>Tombol "Tambah" langsung memakai <code>controller.tambah</code> (tanpa <code>Obx</code>). Memanggil method tidak perlu berlangganan perubahan; hanya bagian yang <em>menampilkan</em> state yang dibungkus <code>Obx</code>.</li>
+</ul>
+
+<h4>Alternatif: lazyPut</h4>
+<p>Jika controller belum tentu dipakai, ganti baris pendaftaran di <code>main()</code> menjadi:</p>
+<pre><code class="language-dart">Get.lazyPut(() =&gt; CounterController(), fenix: true);
+</code></pre>
+<p>Objek baru dibuat ketika <code>controller</code> pertama kali dibaca oleh <code>HalamanSatuView</code>. Dengan <code>fenix: true</code>, jika suatu saat objek itu dihapus, GetX membuatnya lagi saat dibutuhkan (nilainya kembali ke awal).</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong><code>Get.find</code> sebelum <code>Get.put</code>.</strong> Muncul error <em>"... not found. You need to call "Get.put(...)" or "Get.lazyPut(...)"</em>. Pastikan controller didaftarkan di <code>main()</code>, di <code>initialBinding</code>, atau di binding halaman sebelum View membacanya.</li>
+  <li><strong><code>Get.put</code> di dalam method <code>build</code> berkali-kali</strong> dengan maksud membuat controller "baru". <code>Get.put</code> untuk tipe yang sudah terdaftar mengembalikan objek lama. Daftarkan sekali di tempat yang jelas.</li>
+  <li>Membuat objek controller sendiri di View, misalnya <code>final c = CounterController();</code>. Objek itu tidak terdaftar, sehingga halaman lain yang memakai <code>Get.find</code> mendapat objek yang berbeda dan nilainya tidak sinkron.</li>
+  <li>Lupa tipe generik: <code>Get.find()</code> tanpa <code>&lt;CounterController&gt;</code> (dan tanpa tipe variabel) membuat GetX tidak tahu objek mana yang dicari.</li>
+</ul>
+</div>

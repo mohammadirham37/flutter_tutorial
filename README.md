@@ -55,14 +55,14 @@ Kurikulum dirancang untuk 1 semester perkuliahan (16 pertemuan + UTS/UAS):
 | **05** | **Interaktivitas & Form Mahasiswa** | Interaksi | Aneka tombol Material 3, `TextEditingController`, validasi `GlobalKey<FormState>`, Dropdown, DatePicker. |
 | **06** | **Scrollable Views & List Data** | Performa | Optimalisasi memori dengan `ListView.builder` (viewport recycling), `GridView`, dan `SliverAppBar`. |
 | **07** | **Navigasi & Routing Halaman** | Arsitektur | Navigation stack, passing data bolak-balik (`await push` / `pop`), `NavigationBar` tab, dan `GoRouter`. |
-| **08** | **State Management (Provider)** | Arsitektur | Mengatasi masalah *prop drilling*, arsitektur `ChangeNotifier`, `Consumer`, `context.watch` vs `context.read`. |
+| **08** | **Manajemen State Terstruktur dengan GetX & Pola MVC** | Arsitektur | Mengatasi masalah *prop drilling*, `GetxController`, state reaktif `.obs` + `Obx`, `Get.put`/`Get.find`/`Bindings`, workers, struktur folder models/services/controllers/views. |
 | **09** | **Integrasi REST API (Networking)** | Jaringan | Package `http`, serialisasi JSON ke Model Dart (`fromJson`), `FutureBuilder`, dan Repository pattern. |
 | **10** | **Local Storage & SQLite** | Database | Persistensi data lokal `shared_preferences` (token/tema) dan SQLite database lokal offline-first (`sqflite`). |
 | **11** | **Hive: Database NoSQL Lokal** | Database | Box, TypeAdapter, `ValueListenableBuilder`, enkripsi, dan mini project CRUD catatan offline dengan `hive_ce`. |
 | **12** | **Supabase: Backend Cloud** | Backend | Postgres, SQL Editor, Row Level Security, query CRUD, Auth email/password, dan Realtime. |
-| **13** | **Proyek Bagian 1: Auth Login & Register** | Proyek | Arsitektur aplikasi "Catatan Kuliah", tabel profil + trigger, AuthService, AuthProvider, AuthGate, layar Login & Register. |
+| **13** | **Proyek Bagian 1: Auth Login & Register** | Proyek | Arsitektur aplikasi "Catatan Kuliah", tabel profil + trigger, AuthService, AuthController (GetX), AuthGate, layar Login & Register. |
 | **14** | **Proyek Bagian 2: CRUD Supabase + Cache Hive** | Proyek | Tabel `notes` + RLS, repository remote/lokal, mode offline, pencarian, tambah/edit/hapus catatan. |
-| **15** | **Debugging & Automated Testing** | Kualitas | Membaca error, Flutter DevTools, unit test, fake/mock repository, widget test form login, integration test. |
+| **15** | **Debugging & Automated Testing** | Kualitas | Membaca error, Flutter DevTools, unit test, fake/mock repository, widget test form login, testing controller GetX, integration test. |
 | **16** | **Build Rilis & Capstone Project** | Produksi | App icon, splash, keystore, `--dart-define-from-file`, `flutter build apk --split-per-abi`, dan panduan Tugas Besar. |
 
 ---

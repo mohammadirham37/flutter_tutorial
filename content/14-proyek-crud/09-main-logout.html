@@ -1,20 +1,20 @@
-<p class="lead">Semua potongan sudah siap. Langkah terakhir adalah merakitnya di <code>main.dart</code>: inisialisasi Hive dan Supabase, membuat objek dari lapisan bawah ke atas, lalu mendaftarkan dua provider.</p>
+<p class="lead">Semua potongan sudah siap. Langkah terakhir adalah merakitnya di <code>main.dart</code>: inisialisasi Hive dan Supabase, membuat objek dari lapisan bawah ke atas, lalu mendaftarkan dua controller global dengan <code>Get.put</code>.</p>
 
 <h4>File: <code>lib/main.dart</code> (versi final)</h4>
 <p class="code-file-label">📄 <code>lib/main.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
-import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/env.dart';
+import 'controllers/auth_controller.dart';
+import 'controllers/notes_controller.dart';
 import 'data/note_local_data_source.dart';
 import 'data/note_remote_data_source.dart';
 import 'data/note_repository.dart';
-import 'providers/auth_provider.dart';
-import 'providers/notes_provider.dart';
-import 'screens/auth_gate.dart';
 import 'services/auth_service.dart';
+import 'views/auth_gate.dart';
 
 Future&lt;void&gt; main() async {
   // Wajib sebelum memanggil kode async/plugin sebelum runApp.
@@ -43,15 +43,12 @@ Future&lt;void&gt; main() async {
     local: localDataSource,
   );
 
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) =&gt; AuthProvider(authService)),
-        ChangeNotifierProvider(create: (_) =&gt; NotesProvider(repository)),
-      ],
-      child: const CatatanKuliahApp(),
-    ),
-  );
+  // 4. Daftarkan controller global. permanent: true agar tidak pernah
+  //    dihapus otomatis oleh GetX selama aplikasi berjalan.
+  Get.put(AuthController(authService), permanent: true);
+  Get.put(NotesController(repository), permanent: true);
+
+  runApp(const CatatanKuliahApp());
 }
 
 class CatatanKuliahApp extends StatelessWidget {
@@ -59,7 +56,7 @@ class CatatanKuliahApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return GetMaterialApp(
       title: 'Catatan Kuliah',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -105,26 +102,28 @@ NoteLocalDataSource.open()   SupabaseClient ────────────
                    ▼                                     ▼
             NoteRepository                         AuthService
                    │                                     │
-            NotesProvider                          AuthProvider
-                   └────────────── MultiProvider ────────┘
-                                        │
-                                CatatanKuliahApp → AuthGate
+           NotesController                      AuthController
+                   └─── Get.put(..., permanent: true) ───┘
+                                      │
+                  runApp(CatatanKuliahApp) → GetMaterialApp → AuthGate
 </code></pre>
 <ul>
   <li><strong>Objek dibuat sekali di <code>main()</code></strong> lalu disuntikkan lewat constructor. Tidak ada class yang memanggil <code>Supabase.instance</code> atau <code>Hive.openBox</code> sendiri.</li>
-  <li><strong><code>MultiProvider</code></strong> (Modul 08) mendaftarkan beberapa provider sekaligus tanpa nesting yang dalam.</li>
-  <li>Dibanding versi Modul 13, yang <strong>bertambah</strong> hanya bagian Hive, repository, dan <code>NotesProvider</code>. Bagian auth tidak berubah sama sekali, dan itulah manfaat arsitektur berlapis.</li>
+  <li><strong><code>Get.put(..., permanent: true)</code></strong> (Modul 08) mendaftarkan controller ke "gudang" dependency GetX <em>sebelum</em> <code>runApp</code>. Setelah itu View mana pun bisa mengambilnya dengan <code>Get.find</code> atau <code>GetView</code>. <code>permanent: true</code> mencegah GetX menghapus controller saat halaman ditutup, karena kedua controller ini dipakai selama aplikasi hidup.</li>
+  <li><strong><code>GetMaterialApp</code></strong> menggantikan <code>MaterialApp</code> agar <code>Get.to</code>, <code>Get.back</code>, dan fitur GetX lain bisa bekerja. Parameternya sama (<code>title</code>, <code>theme</code>, <code>home</code>, ...).</li>
+  <li>Dibanding versi Modul 13, yang <strong>bertambah</strong> hanya bagian Hive, repository, dan <code>NotesController</code>. Bagian auth tidak berubah sama sekali, dan itulah manfaat arsitektur berlapis.</li>
 </ul>
 
 <h4>Alur logout yang aman</h4>
-<pre><code class="language-text">ikon logout ─▶ dialog "Keluar?" ─▶ NotesProvider.clear()
-                                       ├─ _notes = [], filter direset
+<pre><code class="language-text">ikon logout ─▶ dialog "Keluar?" ─▶ NotesController.clear()
+                                       ├─ _notes.clear(), filter direset
                                        └─ repository.clearCache() → Hive box dikosongkan
-                                   ─▶ AuthProvider.signOut()
+                                   ─▶ AuthController.signOut()
                                        └─ onAuthStateChange: signedOut
-                                           └─ AuthGate → LoginScreen
+                                           └─ _session.value = null
+                                               └─ Obx di AuthGate → LoginView
 </code></pre>
-<p>Urutannya penting: cache dibersihkan <strong>sebelum</strong> sesi dihapus. Jika urutannya dibalik, AuthGate langsung membuang HomeScreen dan state provider masih berisi catatan user lama sampai user berikutnya login.</p>
+<p>Urutannya penting: cache dibersihkan <strong>sebelum</strong> sesi dihapus. Jika urutannya dibalik, AuthGate langsung membuang <code>HomeView</code>, sedangkan <code>NotesController</code> (yang <code>permanent</code>, jadi tidak ikut dihapus) masih berisi catatan user lama sampai user berikutnya login.</p>
 
 <h4>Jalankan aplikasi</h4>
 <pre><code class="language-bash">flutter analyze
@@ -143,6 +142,6 @@ flutter run --dart-define-from-file=env.json
 <div class="screenshot-row">
   <div class="screenshot">
     <img src="assets/img/screenshots/14-proyek-crud/home-offline.jpg" alt="Banner mode offline" loading="lazy">
-    <div class="screenshot-caption">Emulator dalam mode pesawat: catatan tampil dari cache Hive dengan banner offline</div>
+    <div class="screenshot-caption">Server tidak bisa dihubungi: catatan tampil dari cache Hive dengan banner offline</div>
   </div>
 </div>

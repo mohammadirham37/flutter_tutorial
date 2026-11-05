@@ -1,11 +1,11 @@
-<p class="lead">Section ini berisi <strong>seluruh</strong> file aplikasi Catatan Kuliah dalam bentuk final dan lengkap, siap disalin. Gunakan untuk membandingkan jika aplikasi Anda error, atau untuk memulai ulang dari nol. Semua kode di bawah sudah diverifikasi dengan <code>flutter analyze</code> (tanpa masalah) dan <code>flutter test</code> (8 test lulus).</p>
+<p class="lead">Section ini berisi <strong>seluruh</strong> file aplikasi Catatan Kuliah dalam bentuk final dan lengkap, siap disalin. Gunakan untuk membandingkan jika aplikasi Anda error, atau untuk memulai ulang dari nol. Semua kode di bawah sudah diverifikasi dengan <code>flutter analyze</code> (tanpa masalah) dan <code>flutter test</code> (12 test lulus).</p>
 
 <h4>Langkah dari proyek kosong</h4>
 <pre><code class="language-bash">flutter create catatan_kuliah
 cd catatan_kuliah
-flutter pub add supabase_flutter provider hive_ce hive_ce_flutter
+flutter pub add supabase_flutter get hive_ce hive_ce_flutter
 rm test/widget_test.dart
-mkdir -p lib/config lib/models lib/services lib/data lib/providers lib/screens lib/widgets lib/utils supabase
+mkdir -p lib/config lib/models lib/services lib/data lib/controllers lib/views lib/widgets lib/utils test/helpers supabase
 </code></pre>
 <p>Lalu buat setiap file di bawah ini, jalankan SQL di Supabase, isi <code>env.json</code>, dan jalankan <code>flutter run --dart-define-from-file=env.json</code>.</p>
 
@@ -187,18 +187,18 @@ create trigger notes_set_updated_at
 <h4>Konfigurasi & entry point</h4>
 <p class="code-file-label">📄 <code>lib/main.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
-import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/env.dart';
+import 'controllers/auth_controller.dart';
+import 'controllers/notes_controller.dart';
 import 'data/note_local_data_source.dart';
 import 'data/note_remote_data_source.dart';
 import 'data/note_repository.dart';
-import 'providers/auth_provider.dart';
-import 'providers/notes_provider.dart';
-import 'screens/auth_gate.dart';
 import 'services/auth_service.dart';
+import 'views/auth_gate.dart';
 
 Future&lt;void&gt; main() async {
   // Wajib sebelum memanggil kode async/plugin sebelum runApp.
@@ -227,15 +227,12 @@ Future&lt;void&gt; main() async {
     local: localDataSource,
   );
 
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) =&gt; AuthProvider(authService)),
-        ChangeNotifierProvider(create: (_) =&gt; NotesProvider(repository)),
-      ],
-      child: const CatatanKuliahApp(),
-    ),
-  );
+  // 4. Daftarkan controller global. permanent: true agar tidak pernah
+  //    dihapus otomatis oleh GetX selama aplikasi berjalan.
+  Get.put(AuthController(authService), permanent: true);
+  Get.put(NotesController(repository), permanent: true);
+
+  runApp(const CatatanKuliahApp());
 }
 
 class CatatanKuliahApp extends StatelessWidget {
@@ -243,7 +240,7 @@ class CatatanKuliahApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return GetMaterialApp(
       title: 'Catatan Kuliah',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -534,7 +531,7 @@ class NotesResult {
   final bool fromCache;
 }
 
-/// Satu pintu untuk semua data catatan. Provider tidak perlu tahu
+/// Satu pintu untuk semua data catatan. Controller tidak perlu tahu
 /// apakah data berasal dari Supabase atau dari cache Hive.
 class NoteRepository {
   NoteRepository({
@@ -591,31 +588,40 @@ class NoteRepository {
 }
 </code></pre>
 
-<h4>Provider</h4>
-<p class="code-file-label">📄 <code>lib/providers/auth_provider.dart</code></p>
-<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+<h4>Controllers</h4>
+<p class="code-file-label">📄 <code>lib/controllers/auth_controller.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/auth_service.dart';
 
-/// Hasil proses registrasi, dipakai RegisterScreen untuk menentukan
+/// Hasil proses registrasi, dipakai RegisterView untuk menentukan
 /// pesan yang ditampilkan.
 enum RegisterResult { failed, loggedIn, needsEmailConfirmation }
 
-class AuthProvider extends ChangeNotifier {
-  AuthProvider(this._authService);
+class AuthController extends GetxController {
+  AuthController(this._authService);
 
   final AuthService _authService;
 
-  bool _isLoading = false;
-  String? _errorMessage;
+  // State privat yang reaktif.
+  final _isLoading = false.obs;
+  final _errorMessage = RxnString();
+  final _session = Rxn&lt;Session&gt;();
 
-  bool get isLoading =&gt; _isLoading;
-  String? get errorMessage =&gt; _errorMessage;
+  StreamSubscription&lt;AuthState&gt;? _authSubscription;
+
+  // Getter publik read-only. Membaca getter ini di dalam Obx
+  // otomatis mendaftarkan Obx sebagai pendengar.
+  bool get isLoading =&gt; _isLoading.value;
+  String? get errorMessage =&gt; _errorMessage.value;
 
   Stream&lt;AuthState&gt; get authStateChanges =&gt; _authService.authStateChanges;
-  Session? get currentSession =&gt; _authService.currentSession;
-  User? get currentUser =&gt; _authService.currentUser;
+  Session? get currentSession =&gt; _session.value;
+  User? get currentUser =&gt; _session.value?.user;
 
   /// Nama yang ditampilkan di AppBar. Diambil dari metadata saat register.
   String get displayName {
@@ -626,16 +632,34 @@ class AuthProvider extends ChangeNotifier {
     return user.email ?? '';
   }
 
+  @override
+  void onInit() {
+    super.onInit();
+    // Mulai dari sesi yang tersimpan di perangkat (jika ada) ...
+    _session.value = _authService.currentSession;
+    // ... lalu ikuti setiap perubahan status login.
+    _authSubscription = _authService.authStateChanges.listen(
+      (data) =&gt; _session.value = data.session,
+      onError: (Object e) =&gt; debugPrint('authStateChanges: $e'),
+    );
+  }
+
+  @override
+  void onClose() {
+    _authSubscription?.cancel();
+    super.onClose();
+  }
+
   Future&lt;bool&gt; signIn({required String email, required String password}) async {
     _setLoading(true);
     try {
       await _authService.signIn(email: email.trim(), password: password);
       return true;
     } on AuthException catch (e) {
-      _errorMessage = _mapAuthError(e);
+      _errorMessage.value = _mapAuthError(e);
       return false;
     } catch (e) {
-      _errorMessage = 'Terjadi kesalahan tak terduga: $e';
+      _errorMessage.value = 'Terjadi kesalahan tak terduga: $e';
       return false;
     } finally {
       _setLoading(false);
@@ -661,10 +685,10 @@ class AuthProvider extends ChangeNotifier {
       }
       return RegisterResult.loggedIn;
     } on AuthException catch (e) {
-      _errorMessage = _mapAuthError(e);
+      _errorMessage.value = _mapAuthError(e);
       return RegisterResult.failed;
     } catch (e) {
-      _errorMessage = 'Terjadi kesalahan tak terduga: $e';
+      _errorMessage.value = 'Terjadi kesalahan tak terduga: $e';
       return RegisterResult.failed;
     } finally {
       _setLoading(false);
@@ -681,14 +705,12 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void clearError() {
-    _errorMessage = null;
-    notifyListeners();
+    _errorMessage.value = null;
   }
 
   void _setLoading(bool value) {
-    _isLoading = value;
-    if (value) _errorMessage = null;
-    notifyListeners();
+    _isLoading.value = value;
+    if (value) _errorMessage.value = null;
   }
 
   /// Menerjemahkan error Supabase Auth menjadi pesan berbahasa Indonesia.
@@ -718,40 +740,42 @@ class AuthProvider extends ChangeNotifier {
   }
 }
 </code></pre>
-<p class="code-file-label">📄 <code>lib/providers/notes_provider.dart</code></p>
+<p class="code-file-label">📄 <code>lib/controllers/notes_controller.dart</code></p>
 <pre><code class="language-dart">import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/note_repository.dart';
 import '../models/note.dart';
 
-class NotesProvider extends ChangeNotifier {
-  NotesProvider(this._repository);
+class NotesController extends GetxController {
+  NotesController(this._repository);
 
   final NoteRepository _repository;
 
-  List&lt;Note&gt; _notes = [];
-  bool _isLoading = false;
-  bool _isOffline = false;
-  String? _errorMessage;
-  String _query = '';
-  String? _categoryFilter; // null = semua kategori
+  // State privat yang reaktif (.obs). Setiap perubahan otomatis
+  // memberi tahu Obx yang membacanya.
+  final _notes = &lt;Note&gt;[].obs;
+  final _isLoading = false.obs;
+  final _isOffline = false.obs;
+  final _errorMessage = RxnString();
+  final _query = ''.obs;
+  final _categoryFilter = RxnString(); // null = semua kategori
 
-  bool get isLoading =&gt; _isLoading;
-  bool get isOffline =&gt; _isOffline;
-  String? get errorMessage =&gt; _errorMessage;
-  String get query =&gt; _query;
-  String? get categoryFilter =&gt; _categoryFilter;
+  bool get isLoading =&gt; _isLoading.value;
+  bool get isOffline =&gt; _isOffline.value;
+  String? get errorMessage =&gt; _errorMessage.value;
+  String get query =&gt; _query.value;
+  String? get categoryFilter =&gt; _categoryFilter.value;
   bool get hasNotes =&gt; _notes.isNotEmpty;
 
   /// Daftar yang ditampilkan di layar setelah difilter pencarian &amp; kategori.
   List&lt;Note&gt; get visibleNotes {
-    final q = _query.toLowerCase();
+    final q = _query.value.toLowerCase();
+    final kategori = _categoryFilter.value;
     return _notes.where((note) {
-      final cocokKategori =
-          _categoryFilter == null || note.category == _categoryFilter;
+      final cocokKategori = kategori == null || note.category == kategori;
       final cocokCari =
           q.isEmpty ||
           note.title.toLowerCase().contains(q) ||
@@ -767,21 +791,19 @@ class NotesProvider extends ChangeNotifier {
     return null;
   }
 
-  /// Memuat catatan (dipanggil saat HomeScreen dibuka &amp; saat pull-to-refresh).
+  /// Memuat catatan (dipanggil saat HomeView dibuka &amp; saat pull-to-refresh).
   Future&lt;void&gt; loadNotes() async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+    _isLoading.value = true;
+    _errorMessage.value = null;
 
     try {
       final result = await _repository.getNotes();
-      _notes = result.notes;
-      _isOffline = result.fromCache;
+      _notes.assignAll(result.notes);
+      _isOffline.value = result.fromCache;
     } catch (e) {
-      _errorMessage = _friendlyError(e);
+      _errorMessage.value = _friendlyError(e);
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      _isLoading.value = false;
     }
   }
 
@@ -798,8 +820,7 @@ class NotesProvider extends ChangeNotifier {
         category: category,
       );
       _notes.insert(0, note);
-      _isOffline = false;
-      notifyListeners();
+      _isOffline.value = false;
       return null;
     } catch (e) {
       return _friendlyError(e);
@@ -811,8 +832,7 @@ class NotesProvider extends ChangeNotifier {
       final updated = await _repository.updateNote(note);
       _notes.removeWhere((n) =&gt; n.id == updated.id);
       _notes.insert(0, updated); // yang baru diubah naik ke atas
-      _isOffline = false;
-      notifyListeners();
+      _isOffline.value = false;
       return null;
     } catch (e) {
       return _friendlyError(e);
@@ -825,38 +845,29 @@ class NotesProvider extends ChangeNotifier {
     final index = _notes.indexWhere((n) =&gt; n.id == note.id);
     if (index == -1) return null;
 
-    _notes.removeAt(index);
-    notifyListeners();
+    _notes.removeAt(index); // UI langsung diperbarui
 
     try {
       await _repository.deleteNote(note.id);
       return null;
     } catch (e) {
-      _notes.insert(index, note);
-      notifyListeners();
+      _notes.insert(index, note); // rollback, UI ikut diperbarui
       return _friendlyError(e);
     }
   }
 
-  void setQuery(String value) {
-    _query = value;
-    notifyListeners();
-  }
+  void setQuery(String value) =&gt; _query.value = value;
 
-  void setCategoryFilter(String? category) {
-    _categoryFilter = category;
-    notifyListeners();
-  }
+  void setCategoryFilter(String? category) =&gt; _categoryFilter.value = category;
 
   /// Dipanggil saat logout: kosongkan state dan cache Hive.
   Future&lt;void&gt; clear() async {
-    _notes = [];
-    _query = '';
-    _categoryFilter = null;
-    _errorMessage = null;
-    _isOffline = false;
+    _notes.clear();
+    _query.value = '';
+    _categoryFilter.value = null;
+    _errorMessage.value = null;
+    _isOffline.value = false;
     await _repository.clearCache();
-    notifyListeners();
   }
 
   String _friendlyError(Object e) {
@@ -877,70 +888,50 @@ class NotesProvider extends ChangeNotifier {
 }
 </code></pre>
 
-<h4>Screens</h4>
-<p class="code-file-label">📄 <code>lib/screens/auth_gate.dart</code></p>
+<h4>Views</h4>
+<p class="code-file-label">📄 <code>lib/views/auth_gate.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:get/get.dart';
 
-import '../providers/auth_provider.dart';
-import 'home_screen.dart';
-import 'login_screen.dart';
+import '../controllers/auth_controller.dart';
+import 'home_view.dart';
+import 'login_view.dart';
 
-/// "Penjaga pintu" aplikasi: mendengarkan perubahan status login lalu
-/// memilih halaman yang tepat secara otomatis.
-class AuthGate extends StatefulWidget {
+/// "Penjaga pintu" aplikasi: mengamati status login di AuthController
+/// lalu memilih halaman yang tepat secara otomatis.
+class AuthGate extends GetView&lt;AuthController&gt; {
   const AuthGate({super.key});
 
   @override
-  State&lt;AuthGate&gt; createState() =&gt; _AuthGateState();
-}
-
-class _AuthGateState extends State&lt;AuthGate&gt; {
-  // Simpan stream di State agar tidak dibuat ulang setiap build.
-  late final Stream&lt;AuthState&gt; _authStream;
-
-  @override
-  void initState() {
-    super.initState();
-    _authStream = context.read&lt;AuthProvider&gt;().authStateChanges;
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return StreamBuilder&lt;AuthState&gt;(
-      stream: _authStream,
-      builder: (context, snapshot) {
-        // Sebelum event pertama datang, pakai sesi yang tersimpan di perangkat.
-        final session = snapshot.hasData
-            ? snapshot.data!.session
-            : context.read&lt;AuthProvider&gt;().currentSession;
-
-        if (session == null) {
-          return const LoginScreen();
-        }
-        return const HomeScreen();
-      },
-    );
+    return Obx(() {
+      // currentSession dibaca di dalam Obx, jadi setiap kali sesi berubah
+      // (signedIn, signedOut, ...) builder ini dijalankan ulang.
+      if (controller.currentSession == null) {
+        return const LoginView();
+      }
+      return const HomeView();
+    });
   }
 }
 </code></pre>
-<p class="code-file-label">📄 <code>lib/screens/login_screen.dart</code></p>
+<p class="code-file-label">📄 <code>lib/views/login_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
-import '../providers/auth_provider.dart';
+import '../controllers/auth_controller.dart';
 import '../utils/validators.dart';
-import 'register_screen.dart';
+import 'register_view.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class LoginView extends StatefulWidget {
+  const LoginView({super.key});
 
   @override
-  State&lt;LoginScreen&gt; createState() =&gt; _LoginScreenState();
+  State&lt;LoginView&gt; createState() =&gt; _LoginViewState();
 }
 
-class _LoginScreenState extends State&lt;LoginScreen&gt; {
+class _LoginViewState extends State&lt;LoginView&gt; {
+  final _auth = Get.find&lt;AuthController&gt;();
   final _formKey = GlobalKey&lt;FormState&gt;();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -958,17 +949,16 @@ class _LoginScreenState extends State&lt;LoginScreen&gt; {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    final auth = context.read&lt;AuthProvider&gt;();
-    final success = await auth.signIn(
+    final success = await _auth.signIn(
       email: _emailController.text,
       password: _passwordController.text,
     );
 
-    // Jika sukses, AuthGate otomatis pindah ke HomeScreen.
+    // Jika sukses, AuthGate otomatis pindah ke HomeView.
     if (!success &amp;&amp; mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(auth.errorMessage ?? 'Login gagal'),
+          content: Text(_auth.errorMessage ?? 'Login gagal'),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -977,8 +967,6 @@ class _LoginScreenState extends State&lt;LoginScreen&gt; {
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = context.watch&lt;AuthProvider&gt;().isLoading;
-
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -1045,32 +1033,38 @@ class _LoginScreenState extends State&lt;LoginScreen&gt; {
                     validator: Validators.password,
                   ),
                   const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: isLoading ? null : _submit,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                    ),
-                    child: isLoading
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2.5),
-                          )
-                        : const Text('Masuk'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: isLoading
-                        ? null
-                        : () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =&gt; const RegisterScreen(),
-                              ),
-                            );
-                          },
-                    child: const Text('Belum punya akun? Daftar di sini'),
-                  ),
+                  // Hanya bagian tombol yang bergantung pada isLoading,
+                  // jadi hanya bagian ini yang dibungkus Obx.
+                  Obx(() {
+                    final isLoading = _auth.isLoading;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FilledButton(
+                          onPressed: isLoading ? null : _submit,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                          ),
+                          child: isLoading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                              : const Text('Masuk'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: isLoading
+                              ? null
+                              : () =&gt; Get.to(() =&gt; const RegisterView()),
+                          child: const Text('Belum punya akun? Daftar di sini'),
+                        ),
+                      ],
+                    );
+                  }),
                 ],
               ),
             ),
@@ -1081,21 +1075,22 @@ class _LoginScreenState extends State&lt;LoginScreen&gt; {
   }
 }
 </code></pre>
-<p class="code-file-label">📄 <code>lib/screens/register_screen.dart</code></p>
+<p class="code-file-label">📄 <code>lib/views/register_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
-import '../providers/auth_provider.dart';
+import '../controllers/auth_controller.dart';
 import '../utils/validators.dart';
 
-class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+class RegisterView extends StatefulWidget {
+  const RegisterView({super.key});
 
   @override
-  State&lt;RegisterScreen&gt; createState() =&gt; _RegisterScreenState();
+  State&lt;RegisterView&gt; createState() =&gt; _RegisterViewState();
 }
 
-class _RegisterScreenState extends State&lt;RegisterScreen&gt; {
+class _RegisterViewState extends State&lt;RegisterView&gt; {
+  final _auth = Get.find&lt;AuthController&gt;();
   final _formKey = GlobalKey&lt;FormState&gt;();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -1122,8 +1117,7 @@ class _RegisterScreenState extends State&lt;RegisterScreen&gt; {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    final auth = context.read&lt;AuthProvider&gt;();
-    final result = await auth.register(
+    final result = await _auth.register(
       fullName: _nameController.text,
       email: _emailController.text,
       password: _passwordController.text,
@@ -1133,8 +1127,8 @@ class _RegisterScreenState extends State&lt;RegisterScreen&gt; {
     switch (result) {
       case RegisterResult.loggedIn:
         // Sesi langsung aktif. AuthGate di bawah halaman ini sudah berganti
-        // ke HomeScreen, jadi cukup tutup halaman register.
-        Navigator.of(context).pop();
+        // ke HomeView, jadi cukup tutup halaman register.
+        Get.back();
       case RegisterResult.needsEmailConfirmation:
         await showDialog&lt;void&gt;(
           context: context,
@@ -1152,11 +1146,11 @@ class _RegisterScreenState extends State&lt;RegisterScreen&gt; {
             ],
           ),
         );
-        if (mounted) Navigator.of(context).pop();
+        if (mounted) Get.back();
       case RegisterResult.failed:
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(auth.errorMessage ?? 'Registrasi gagal'),
+            content: Text(_auth.errorMessage ?? 'Registrasi gagal'),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
@@ -1165,8 +1159,6 @@ class _RegisterScreenState extends State&lt;RegisterScreen&gt; {
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = context.watch&lt;AuthProvider&gt;().isLoading;
-
     return Scaffold(
       appBar: AppBar(title: const Text('Daftar Akun')),
       body: SafeArea(
@@ -1237,26 +1229,34 @@ class _RegisterScreenState extends State&lt;RegisterScreen&gt; {
                   validator: _validateConfirm,
                 ),
                 const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: isLoading ? null : _submit,
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                  child: isLoading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
-                        )
-                      : const Text('Daftar'),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: isLoading
-                      ? null
-                      : () =&gt; Navigator.of(context).pop(),
-                  child: const Text('Sudah punya akun? Masuk'),
-                ),
+                Obx(() {
+                  final isLoading = _auth.isLoading;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FilledButton(
+                        onPressed: isLoading ? null : _submit,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                        child: isLoading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                ),
+                              )
+                            : const Text('Daftar'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: isLoading ? null : () =&gt; Get.back(),
+                        child: const Text('Sudah punya akun? Masuk'),
+                      ),
+                    ],
+                  );
+                }),
               ],
             ),
           ),
@@ -1266,37 +1266,38 @@ class _RegisterScreenState extends State&lt;RegisterScreen&gt; {
   }
 }
 </code></pre>
-<p class="code-file-label">📄 <code>lib/screens/home_screen.dart</code></p>
+<p class="code-file-label">📄 <code>lib/views/home_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
 import '../models/note.dart';
-import '../providers/auth_provider.dart';
-import '../providers/notes_provider.dart';
+import '../controllers/auth_controller.dart';
+import '../controllers/notes_controller.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/note_card.dart';
 import '../widgets/offline_banner.dart';
-import 'note_detail_screen.dart';
-import 'note_form_screen.dart';
+import 'note_detail_view.dart';
+import 'note_form_view.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class HomeView extends StatefulWidget {
+  const HomeView({super.key});
 
   @override
-  State&lt;HomeScreen&gt; createState() =&gt; _HomeScreenState();
+  State&lt;HomeView&gt; createState() =&gt; _HomeViewState();
 }
 
-class _HomeScreenState extends State&lt;HomeScreen&gt; {
+class _HomeViewState extends State&lt;HomeView&gt; {
+  // Controller global yang didaftarkan di main() dengan Get.put.
+  final _auth = Get.find&lt;AuthController&gt;();
+  final _notes = Get.find&lt;NotesController&gt;();
   final _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // Tunggu frame pertama selesai, baru muat data (notifyListeners tidak
-    // boleh dipanggil ketika widget tree sedang dibangun).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read&lt;NotesProvider&gt;().loadNotes();
-    });
+    // HomeView dibuat setiap kali user berhasil login, jadi inilah saat
+    // yang tepat untuk memuat catatan milik user tersebut.
+    _notes.loadNotes();
   }
 
   @override
@@ -1312,13 +1313,10 @@ class _HomeScreenState extends State&lt;HomeScreen&gt; {
       message: 'Catatan yang tersimpan di perangkat akan dihapus.',
       confirmLabel: 'Keluar',
     );
-    if (!yakin || !mounted) return;
+    if (!yakin) return;
 
-    // Ambil referensi provider sebelum await berikutnya.
-    final notes = context.read&lt;NotesProvider&gt;();
-    final auth = context.read&lt;AuthProvider&gt;();
-    await notes.clear(); // hapus cache Hive
-    await auth.signOut(); // AuthGate otomatis kembali ke LoginScreen
+    await _notes.clear(); // kosongkan state + cache Hive
+    await _auth.signOut(); // AuthGate otomatis kembali ke LoginView
   }
 
   Future&lt;bool&gt; _confirmDelete(Note note) {
@@ -1332,7 +1330,7 @@ class _HomeScreenState extends State&lt;HomeScreen&gt; {
 
   Future&lt;void&gt; _delete(Note note) async {
     final messenger = ScaffoldMessenger.of(context);
-    final error = await context.read&lt;NotesProvider&gt;().deleteNote(note);
+    final error = await _notes.deleteNote(note);
     messenger.showSnackBar(
       SnackBar(
         content: Text(
@@ -1344,21 +1342,13 @@ class _HomeScreenState extends State&lt;HomeScreen&gt; {
     );
   }
 
-  void _openForm() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) =&gt; const NoteFormScreen()));
-  }
+  void _openForm() =&gt; Get.to(() =&gt; const NoteFormView());
 
-  void _openDetail(Note note) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) =&gt; NoteDetailScreen(noteId: note.id)),
-    );
-  }
+  void _openDetail(Note note) =&gt; Get.to(() =&gt; NoteDetailView(noteId: note.id));
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch&lt;NotesProvider&gt;();
-    final name = context.read&lt;AuthProvider&gt;().displayName;
+    final name = _auth.displayName;
 
     return Scaffold(
       appBar: AppBar(
@@ -1384,37 +1374,46 @@ class _HomeScreenState extends State&lt;HomeScreen&gt; {
       ),
       body: Column(
         children: [
-          if (provider.isOffline) OfflineBanner(onRetry: provider.loadNotes),
+          // Setiap Obx hanya rebuild jika state yang dibacanya berubah.
+          Obx(
+            () =&gt; _notes.isOffline
+                ? OfflineBanner(onRetry: _notes.loadNotes)
+                : const SizedBox.shrink(),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: TextField(
-              controller: _searchController,
-              onChanged: provider.setQuery,
-              decoration: InputDecoration(
-                hintText: 'Cari judul atau isi catatan...',
-                prefixIcon: const Icon(Icons.search),
-                border: const OutlineInputBorder(),
-                isDense: true,
-                suffixIcon: provider.query.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          provider.setQuery('');
-                        },
-                      ),
+            child: Obx(
+              () =&gt; TextField(
+                controller: _searchController,
+                onChanged: _notes.setQuery,
+                decoration: InputDecoration(
+                  hintText: 'Cari judul atau isi catatan...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  suffixIcon: _notes.query.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            _notes.setQuery('');
+                          },
+                        ),
+                ),
               ),
             ),
           ),
-          _CategoryFilter(
-            selected: provider.categoryFilter,
-            onSelected: provider.setCategoryFilter,
+          Obx(
+            () =&gt; _CategoryFilter(
+              selected: _notes.categoryFilter,
+              onSelected: _notes.setCategoryFilter,
+            ),
           ),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: provider.loadNotes,
-              child: _buildBody(provider),
+              onRefresh: _notes.loadNotes,
+              child: Obx(_buildBody),
             ),
           ),
         ],
@@ -1422,32 +1421,32 @@ class _HomeScreenState extends State&lt;HomeScreen&gt; {
     );
   }
 
-  Widget _buildBody(NotesProvider provider) {
+  Widget _buildBody() {
     // 1. Loading pertama kali (belum ada data sama sekali)
-    if (provider.isLoading &amp;&amp; !provider.hasNotes) {
+    if (_notes.isLoading &amp;&amp; !_notes.hasNotes) {
       return const Center(child: CircularProgressIndicator());
     }
 
     // 2. Error dan tidak ada data cadangan
-    if (provider.errorMessage != null &amp;&amp; !provider.hasNotes) {
+    if (_notes.errorMessage != null &amp;&amp; !_notes.hasNotes) {
       return _MessageView(
         icon: Icons.error_outline,
-        message: provider.errorMessage!,
+        message: _notes.errorMessage!,
         action: FilledButton.icon(
-          onPressed: provider.loadNotes,
+          onPressed: _notes.loadNotes,
           icon: const Icon(Icons.refresh),
           label: const Text('Coba lagi'),
         ),
       );
     }
 
-    final notes = provider.visibleNotes;
+    final notes = _notes.visibleNotes;
 
     // 3. Kosong
     if (notes.isEmpty) {
       return _MessageView(
         icon: Icons.note_alt_outlined,
-        message: provider.hasNotes
+        message: _notes.hasNotes
             ? 'Tidak ada catatan yang cocok.'
             : 'Belum ada catatan.\nTekan tombol + untuk menambah.',
       );
@@ -1546,26 +1545,27 @@ class _MessageView extends StatelessWidget {
   }
 }
 </code></pre>
-<p class="code-file-label">📄 <code>lib/screens/note_form_screen.dart</code></p>
+<p class="code-file-label">📄 <code>lib/views/note_form_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
+import '../controllers/notes_controller.dart';
 import '../models/note.dart';
-import '../providers/notes_provider.dart';
 
-/// Satu layar untuk dua keperluan:
+/// Satu halaman untuk dua keperluan:
 /// - note == null  -&gt; mode TAMBAH
 /// - note != null  -&gt; mode EDIT
-class NoteFormScreen extends StatefulWidget {
-  const NoteFormScreen({super.key, this.note});
+class NoteFormView extends StatefulWidget {
+  const NoteFormView({super.key, this.note});
 
   final Note? note;
 
   @override
-  State&lt;NoteFormScreen&gt; createState() =&gt; _NoteFormScreenState();
+  State&lt;NoteFormView&gt; createState() =&gt; _NoteFormViewState();
 }
 
-class _NoteFormScreenState extends State&lt;NoteFormScreen&gt; {
+class _NoteFormViewState extends State&lt;NoteFormView&gt; {
+  final _notes = Get.find&lt;NotesController&gt;();
   final _formKey = GlobalKey&lt;FormState&gt;();
   late final TextEditingController _titleController;
   late final TextEditingController _contentController;
@@ -1597,13 +1597,12 @@ class _NoteFormScreenState extends State&lt;NoteFormScreen&gt; {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() =&gt; _isSaving = true);
-    final provider = context.read&lt;NotesProvider&gt;();
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
 
     final String? error;
     if (_isEdit) {
-      error = await provider.updateNote(
+      error = await _notes.updateNote(
         widget.note!.copyWith(
           title: title,
           content: content,
@@ -1611,7 +1610,7 @@ class _NoteFormScreenState extends State&lt;NoteFormScreen&gt; {
         ),
       );
     } else {
-      error = await provider.addNote(
+      error = await _notes.addNote(
         title: title,
         content: content,
         category: _category,
@@ -1628,7 +1627,7 @@ class _NoteFormScreenState extends State&lt;NoteFormScreen&gt; {
           content: Text(_isEdit ? 'Catatan diperbarui' : 'Catatan disimpan'),
         ),
       );
-      Navigator.of(context).pop();
+      Get.back(); // kembali ke halaman sebelumnya
     } else {
       messenger.showSnackBar(
         SnackBar(
@@ -1720,18 +1719,18 @@ class _NoteFormScreenState extends State&lt;NoteFormScreen&gt; {
   }
 }
 </code></pre>
-<p class="code-file-label">📄 <code>lib/screens/note_detail_screen.dart</code></p>
+<p class="code-file-label">📄 <code>lib/views/note_detail_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
+import '../controllers/notes_controller.dart';
 import '../models/note.dart';
-import '../providers/notes_provider.dart';
 import '../utils/date_format.dart';
 import '../widgets/confirm_dialog.dart';
-import 'note_form_screen.dart';
+import 'note_form_view.dart';
 
-class NoteDetailScreen extends StatelessWidget {
-  const NoteDetailScreen({super.key, required this.noteId});
+class NoteDetailView extends GetView&lt;NotesController&gt; {
+  const NoteDetailView({super.key, required this.noteId});
 
   final String noteId;
 
@@ -1745,28 +1744,29 @@ class NoteDetailScreen extends StatelessWidget {
     if (!yakin || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
-    final provider = context.read&lt;NotesProvider&gt;();
     // Tutup halaman detail dulu, baru hapus (optimistic delete).
-    Navigator.of(context).pop();
-    final error = await provider.deleteNote(note);
+    Get.back();
+    final error = await controller.deleteNote(note);
     messenger.showSnackBar(SnackBar(content: Text(error ?? 'Catatan dihapus')));
   }
 
   @override
   Widget build(BuildContext context) {
-    // Ambil versi terbaru catatan dari provider, sehingga setelah diedit
-    // halaman ini langsung menampilkan perubahan.
-    final note = context.select&lt;NotesProvider, Note?&gt;(
-      (provider) =&gt; provider.findById(noteId),
-    );
+    // Obx membaca versi terbaru catatan dari controller, sehingga setelah
+    // diedit halaman ini langsung menampilkan perubahan.
+    return Obx(() {
+      final note = controller.findById(noteId);
+      if (note == null) {
+        return Scaffold(
+          appBar: AppBar(),
+          body: const Center(child: Text('Catatan tidak ditemukan.')),
+        );
+      }
+      return _buildDetail(context, note);
+    });
+  }
 
-    if (note == null) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: Text('Catatan tidak ditemukan.')),
-      );
-    }
-
+  Widget _buildDetail(BuildContext context, Note note) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Detail Catatan'),
@@ -1774,11 +1774,7 @@ class NoteDetailScreen extends StatelessWidget {
           IconButton(
             tooltip: 'Edit',
             icon: const Icon(Icons.edit),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) =&gt; NoteFormScreen(note: note)),
-              );
-            },
+            onPressed: () =&gt; Get.to(() =&gt; NoteFormView(note: note)),
           ),
           IconButton(
             tooltip: 'Hapus',
@@ -2002,26 +1998,79 @@ String formatTanggal(DateTime waktu) {
 </code></pre>
 
 <h4>Test</h4>
-<p class="code-file-label">📄 <code>test/note_local_data_source_test.dart</code></p>
-<pre><code class="language-dart">import 'dart:io';
-
-import 'package:catatan_kuliah/data/note_local_data_source.dart';
+<p class="code-file-label">📄 <code>test/helpers/fakes.dart</code></p>
+<pre><code class="language-dart">import 'package:catatan_kuliah/data/note_remote_data_source.dart';
 import 'package:catatan_kuliah/models/note.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:hive_ce/hive_ce.dart';
 
-Note buatNote(String id, {String title = 'Judul', int hari = 1}) {
+/// Membuat Note contoh untuk test. [hari] menentukan tanggal (urutan).
+Note buatNote(
+  String id, {
+  String title = 'Judul',
+  String category = 'Kuliah',
+  int hari = 1,
+}) {
   final waktu = DateTime.utc(2026, 10, hari);
   return Note(
     id: id,
     userId: 'user-1',
     title: title,
     content: 'Isi $title',
-    category: 'Kuliah',
+    category: category,
     createdAt: waktu,
     updatedAt: waktu,
   );
 }
+
+/// Pengganti Supabase untuk test. `implements` membuat kita wajib
+/// menulis ulang semua method, sehingga tidak ada request jaringan sungguhan.
+class FakeRemoteDataSource implements NoteRemoteDataSource {
+  List&lt;Note&gt; serverNotes = [];
+  Object? errorToThrow; // jika diisi, setiap method melempar error ini
+
+  void _maybeThrow() {
+    final error = errorToThrow;
+    if (error != null) throw error;
+  }
+
+  @override
+  Future&lt;List&lt;Note&gt;&gt; fetchNotes() async {
+    _maybeThrow();
+    return serverNotes;
+  }
+
+  @override
+  Future&lt;Note&gt; createNote({
+    required String title,
+    required String content,
+    required String category,
+  }) async {
+    _maybeThrow();
+    final note = buatNote('baru', title: title, category: category);
+    serverNotes.add(note);
+    return note;
+  }
+
+  @override
+  Future&lt;Note&gt; updateNote(Note note) async {
+    _maybeThrow();
+    return note;
+  }
+
+  @override
+  Future&lt;void&gt; deleteNote(String id) async {
+    _maybeThrow();
+    serverNotes.removeWhere((n) =&gt; n.id == id);
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>test/note_local_data_source_test.dart</code></p>
+<pre><code class="language-dart">import 'dart:io';
+
+import 'package:catatan_kuliah/data/note_local_data_source.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive_ce.dart';
+
+import 'helpers/fakes.dart';
 
 void main() {
   late Directory tempDir;
@@ -2076,67 +2125,12 @@ void main() {
 <pre><code class="language-dart">import 'dart:io';
 
 import 'package:catatan_kuliah/data/note_local_data_source.dart';
-import 'package:catatan_kuliah/data/note_remote_data_source.dart';
 import 'package:catatan_kuliah/data/note_repository.dart';
-import 'package:catatan_kuliah/models/note.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive_ce.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-Note buatNote(String id, {String title = 'Judul'}) {
-  final waktu = DateTime.utc(2026, 10, 1);
-  return Note(
-    id: id,
-    userId: 'user-1',
-    title: title,
-    content: 'Isi $title',
-    category: 'Kuliah',
-    createdAt: waktu,
-    updatedAt: waktu,
-  );
-}
-
-/// Pengganti Supabase untuk test. `implements` membuat kita wajib
-/// menulis ulang semua method, sehingga tidak ada request jaringan sungguhan.
-class FakeRemoteDataSource implements NoteRemoteDataSource {
-  List&lt;Note&gt; serverNotes = [];
-  Object? errorToThrow; // jika diisi, setiap method melempar error ini
-
-  void _maybeThrow() {
-    final error = errorToThrow;
-    if (error != null) throw error;
-  }
-
-  @override
-  Future&lt;List&lt;Note&gt;&gt; fetchNotes() async {
-    _maybeThrow();
-    return serverNotes;
-  }
-
-  @override
-  Future&lt;Note&gt; createNote({
-    required String title,
-    required String content,
-    required String category,
-  }) async {
-    _maybeThrow();
-    final note = buatNote('baru', title: title);
-    serverNotes.add(note);
-    return note;
-  }
-
-  @override
-  Future&lt;Note&gt; updateNote(Note note) async {
-    _maybeThrow();
-    return note;
-  }
-
-  @override
-  Future&lt;void&gt; deleteNote(String id) async {
-    _maybeThrow();
-    serverNotes.removeWhere((n) =&gt; n.id == id);
-  }
-}
+import 'helpers/fakes.dart';
 
 void main() {
   late Directory tempDir;
@@ -2207,6 +2201,97 @@ void main() {
       throwsA(isA&lt;SocketException&gt;()),
     );
     expect(local.getNotes(), hasLength(1));
+  });
+}
+</code></pre>
+<p class="code-file-label">📄 <code>test/notes_controller_test.dart</code></p>
+<pre><code class="language-dart">import 'dart:io';
+
+import 'package:catatan_kuliah/controllers/notes_controller.dart';
+import 'package:catatan_kuliah/data/note_local_data_source.dart';
+import 'package:catatan_kuliah/data/note_repository.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+import 'package:hive_ce/hive_ce.dart';
+
+import 'helpers/fakes.dart';
+
+void main() {
+  late Directory tempDir;
+  late FakeRemoteDataSource remote;
+  late NotesController controller;
+
+  setUp(() async {
+    Get.testMode = true;
+    tempDir = await Directory.systemTemp.createTemp('controller_test_');
+    Hive.init(tempDir.path);
+    remote = FakeRemoteDataSource()
+      ..serverNotes = [
+        buatNote('1', title: 'Basis Data', hari: 3),
+        buatNote('2', title: 'Tugas Mobile', category: 'Tugas', hari: 2),
+        buatNote('3', title: 'Kisi-kisi UTS', category: 'Ujian', hari: 1),
+      ];
+    final repository = NoteRepository(
+      remote: remote,
+      local: await NoteLocalDataSource.open(),
+    );
+    controller = Get.put(NotesController(repository));
+  });
+
+  tearDown(() async {
+    Get.reset(); // hapus semua controller agar setiap test terisolasi
+    await Hive.deleteFromDisk();
+    await tempDir.delete(recursive: true);
+  });
+
+  test('loadNotes mengisi daftar dan mematikan loading', () async {
+    final future = controller.loadNotes();
+    expect(controller.isLoading, isTrue);
+
+    await future;
+
+    expect(controller.isLoading, isFalse);
+    expect(controller.isOffline, isFalse);
+    expect(controller.visibleNotes, hasLength(3));
+  });
+
+  test('loadNotes offline: data cache dipakai dan isOffline true', () async {
+    await controller.loadNotes(); // online dulu, cache terisi
+    remote.errorToThrow = const SocketException('offline');
+
+    await controller.loadNotes();
+
+    expect(controller.isOffline, isTrue);
+    expect(controller.visibleNotes, hasLength(3));
+  });
+
+  test('setQuery dan setCategoryFilter menyaring visibleNotes', () async {
+    await controller.loadNotes();
+
+    controller.setQuery('mobile');
+    expect(controller.visibleNotes.single.id, '2');
+
+    controller.setQuery('');
+    controller.setCategoryFilter('Ujian');
+    expect(controller.visibleNotes.single.id, '3');
+
+    controller.setCategoryFilter(null);
+    expect(controller.visibleNotes, hasLength(3));
+  });
+
+  test('deleteNote gagal: catatan dikembalikan ke posisi semula', () async {
+    await controller.loadNotes();
+    final note = controller.findById('2')!;
+    remote.errorToThrow = const SocketException('offline');
+
+    final future = controller.deleteNote(note);
+    // Optimistic: sebelum server menjawab, catatan sudah hilang.
+    expect(controller.findById('2'), isNull);
+
+    final error = await future;
+
+    expect(error, isNotNull);
+    expect(controller.visibleNotes.map((n) =&gt; n.id), ['1', '2', '3']);
   });
 }
 </code></pre>

@@ -1,0 +1,407 @@
+<p class="lead">Bagian ini merangkum kesalahan GetX yang paling sering muncul di praktikum, lengkap dengan pesan error asli (diambil dari konsol <code>flutter run</code> dan <code>flutter analyze</code>) dan cara memperbaikinya.</p>
+
+<h4>1. Obx tanpa observable</h4>
+<pre><code class="language-dart">class CounterController extends GetxController {
+  int nilai = 0; // ❌ BUKAN observable
+}
+
+// di View
+Obx(() =&gt; Text('Nilai: ${c.nilai}')) // ❌ tidak ada .obs yang dibaca
+</code></pre>
+<p>Begitu halaman dibuka, layar merah muncul dan konsol menampilkan:</p>
+<pre><code class="language-text">══╡ EXCEPTION CAUGHT BY WIDGETS LIBRARY ╞════════════════════════
+The following message was thrown building Obx(has builder, dirty, state: ObxState#33f31):
+      [Get] the improper use of a GetX has been detected.
+      You should only use GetX or Obx for the specific widget that will be updated.
+      If you are seeing this error, you probably did not insert any observable variables into
+GetX/Obx
+      or insert them outside the scope that GetX considers suitable for an update
+      (example: GetX =&gt; HeavyWidget =&gt; variableObservable).
+      If you need to update a parent widget and a child widget, wrap each one in an Obx/GetX.
+</code></pre>
+<p><strong>Perbaikan:</strong> jadikan field-nya observable (<code>final nilai = 0.obs;</code>), atau jika memang tidak perlu reaktif, buang <code>Obx</code>-nya. Error yang sama muncul bila observable dibaca di <em>luar</em> builder Obx, misalnya disimpan ke variabel lokal sebelum <code>Obx(() =&gt; ...)</code>, atau dibaca di dalam widget lain yang punya method <code>build</code> sendiri.</p>
+<pre><code class="language-dart">// ❌ dibaca di luar Obx: Obx tidak melihat observable apa pun
+final teks = c.nama.value;
+return Obx(() =&gt; Text(teks));
+
+// ✅ dibaca di DALAM builder Obx
+return Obx(() =&gt; Text(c.nama.value));
+</code></pre>
+
+<h4>2. Lupa <code>.value</code> atau tertukar antara Rx dan nilainya</h4>
+<p>Sebagian besar kasus ini ditangkap <code>flutter analyze</code> sebelum aplikasi dijalankan:</p>
+<pre><code class="language-dart">final isLoading = false.obs;   // RxBool
+final nama = 'Andi'.obs;       // RxString
+final count = 0.obs;           // RxInt
+
+if (c.isLoading) {}            // ❌ error: Conditions must have a static type of 'bool'.
+String n = c.nama;             // ❌ error: A value of type 'RxString' can't be assigned
+                               //    to a variable of type 'String'.
+Text(c.nama);                  // ❌ error: The argument type 'RxString' can't be assigned
+                               //    to the parameter type 'String'.
+c.count = 3;                   // ❌ error: 'count' can't be used as a setter because it's final.
+if (5 == c.count) {}           // ⚠️ info: unrelated_type_equality_checks, dan hasilnya SELALU false
+
+// ✅ BENAR
+if (c.isLoading.value) {}
+String n = c.nama.value;
+Text(c.nama.value);
+c.count.value = 3;
+if (c.count.value == 5) {}
+</code></pre>
+<p>Kasus yang <strong>tidak</strong> tertangkap analyzer dan paling menjebak: field Rx dideklarasikan dengan <code>var</code>, lalu diganti dengan objek Rx baru.</p>
+<pre><code class="language-dart">var skor = 0.obs;
+
+void reset() {
+  skor = 0.obs; // ❌ Obx masih mendengarkan objek Rx LAMA, layar tidak berubah
+}
+
+// ✅ selalu deklarasikan Rx dengan final, ubah isinya lewat .value
+final skor = 0.obs;
+void reset() =&gt; skor.value = 0;
+</code></pre>
+<div class="callout callout-tip"><h4>💡 Getter menyelamatkan Anda</h4><p>Pola dari section 6 (field Rx privat + getter yang mengembalikan <code>.value</code>, misalnya <code>bool get isLoading =&gt; _isLoading.value;</code>) menghilangkan hampir semua kesalahan ini. View cukup menulis <code>controller.isLoading</code> tanpa memikirkan <code>.value</code>.</p></div>
+
+<h4>3. Get.find sebelum controller didaftarkan</h4>
+<pre><code class="language-dart">void main() {
+  runApp(const GetMaterialApp(home: HalamanSalah())); // ❌ tidak ada Get.put
+}
+
+// di HalamanSalah.build
+final c = Get.find&lt;KrsController&gt;();
+</code></pre>
+<pre><code class="language-text">══╡ EXCEPTION CAUGHT BY WIDGETS LIBRARY ╞════════════════════════
+The following message was thrown building HalamanSalah(dirty):
+"KrsController" not found. You need to call "Get.put(KrsController())" or
+"Get.lazyPut(()=&gt;KrsController())"
+</code></pre>
+<p><strong>Perbaikan:</strong> daftarkan controller lebih dulu: <code>Get.put</code> di <code>main()</code>, <code>initialBinding</code>, atau <code>binding</code> di <code>GetPage</code>/<code>Get.to</code> (section 4 dan 7). Periksa juga: apakah controller per halaman sudah terhapus karena halamannya ditutup, sementara halaman lain masih memanggil <code>Get.find</code>?</p>
+
+<h4>4. Mengubah field objek di dalam RxList</h4>
+<pre><code class="language-dart">class Tugas {
+  Tugas(this.judul);
+  final String judul;
+  bool selesai = false; // field mutable
+}
+
+final tugas = &lt;Tugas&gt;[Tugas('Laporan'), Tugas('Kuis')].obs;
+
+void toggle(int i) {
+  tugas[i].selesai = !tugas[i].selesai; // ❌ checkbox TIDAK berubah di layar
+}
+</code></pre>
+<p>Tidak ada pesan error sama sekali, tetapi checkbox tidak tercentang. <code>RxList</code> hanya tahu ketika <em>isi list</em> berubah (tambah, hapus, ganti elemen). Mengubah field di dalam objek yang sama tidak terdeteksi. Dua perbaikan:</p>
+<pre><code class="language-dart">// ✅ Cara 1 (disarankan): model immutable + copyWith, lalu GANTI elemennya
+_items[i] = _items[i].copyWith(selesai: !_items[i].selesai);
+
+// ✅ Cara 2: tetap mutable, lalu beri tahu Obx secara manual
+tugas[i].selesai = !tugas[i].selesai;
+tugas.refresh();
+</code></pre>
+<p>Aturan yang sama berlaku untuk <code>Rx&lt;ObjekBiasa&gt;</code>: setelah mengubah field-nya, panggil <code>.refresh()</code> atau ganti seluruh objek lewat <code>.value</code>.</p>
+
+<h4>5. Get.put dan memuat data di dalam build</h4>
+<pre><code class="language-dart">@override
+Widget build(BuildContext context) {
+  final c = Get.put(PengumumanController()); // ⚠️ objek baru dibuat setiap build
+  return Scaffold(
+    body: Obx(() {
+      c.muat(); // ❌ dipanggil setiap Obx rebuild
+      if (c.isLoading) return const Center(child: CircularProgressIndicator());
+      return ListView(children: [for (final p in c.items) Text(p)]);
+    }),
+  );
+}
+</code></pre>
+<p>Konsol menunjukkan request yang tidak pernah berhenti: <code>muat()</code> mengubah <code>isLoading</code>, Obx rebuild, rebuild memanggil <code>muat()</code> lagi, dan seterusnya.</p>
+<pre><code class="language-text">I/flutter: constructor PengumumanController
+I/flutter: muat() ke-1
+I/flutter: muat() ke-2
+I/flutter: muat() ke-3
+I/flutter: muat() ke-4
+...
+</code></pre>
+<p><strong>Perbaikan:</strong> panggil <code>muat()</code> di <code>onInit()</code> controller (section 8). Untuk <code>Get.put</code> di <code>build</code>: aplikasinya tetap jalan karena <code>Get.put</code> tidak menimpa instance yang sudah terdaftar, tetapi argumen <code>PengumumanController()</code> tetap dibuat lalu dibuang setiap kali widget itu rebuild. Daftarkan controller di binding, lalu ambil dengan <code>Get.find</code> atau <code>GetView</code>.</p>
+
+<h4>6. Lupa membersihkan di onClose</h4>
+<pre><code class="language-dart">class JamController extends GetxController {
+  final detik = 0.obs;
+  StreamSubscription&lt;int&gt;? _sub;
+
+  @override
+  void onInit() {
+    super.onInit();
+    _sub = Stream.periodic(const Duration(seconds: 1), (i) =&gt; i).listen((i) {
+      detik.value = i;
+      debugPrint('tick $i');
+    });
+  }
+
+  @override
+  void onClose() {
+    debugPrint('onClose dipanggil');
+    // ❌ lupa: _sub?.cancel();
+    super.onClose();
+  }
+}
+</code></pre>
+<p>Halaman Jam dibuka, lalu ditutup setelah sekitar 3 detik. Controller sudah dihapus, tetapi stream tetap berjalan:</p>
+<pre><code class="language-text">I/flutter: tick 0
+I/flutter: tick 1
+I/flutter: tick 2
+I/flutter: tick 3
+I/flutter: onClose dipanggil
+I/flutter: tick 4      &lt;- halaman sudah ditutup, tetapi masih berdetak
+I/flutter: tick 5
+I/flutter: tick 6
+</code></pre>
+<p><strong>Perbaikan:</strong> batalkan semua yang Anda mulai di <code>onInit</code>: <code>_sub?.cancel()</code>, <code>_timer?.cancel()</code>, <code>worker.dispose()</code> (section 9), dan <code>dispose()</code> untuk <code>TextEditingController</code> yang dimiliki controller.</p>
+
+<h4>7. Controller memanggil UI</h4>
+<pre><code class="language-dart">// ❌ SALAH: controller tahu tentang SnackBar dan navigasi
+Future&lt;void&gt; login(String email, String password) async {
+  try {
+    _user.value = await _service.login(email, password);
+    Get.offAll(() =&gt; const HomeView());
+  } catch (e) {
+    Get.snackbar('Gagal', e.toString());
+  }
+}
+
+// ✅ BENAR: controller mengembalikan hasil, View yang bereaksi
+Future&lt;bool&gt; login(String email, String password) async {
+  try {
+    _user.value = await _service.login(email, password);
+    return true;
+  } catch (e) {
+    _error.value = e.toString().replaceFirst('Exception: ', '');
+    return false;
+  }
+}
+</code></pre>
+<p>Versi salah tetap berjalan (GetX mengizinkannya), tetapi melanggar aturan MVC kursus ini: controller jadi bergantung pada View dan tidak bisa di-unit-test tanpa widget. Lihat contoh <code>AuthController</code> + <code>LoginView</code> di section 10.</p>
+
+<h4>8. Memakai MaterialApp padahal memanggil Get.to / Get.snackbar</h4>
+<pre><code class="language-dart">runApp(const MaterialApp(home: HalamanSalah())); // ❌ bukan GetMaterialApp
+
+// di dalam tombol
+onPressed: () =&gt; Get.to(() =&gt; const DetailView()),
+</code></pre>
+<pre><code class="language-text">══╡ EXCEPTION CAUGHT BY GESTURE ╞════════════════════════════════
+The following message was thrown while handling a gesture:
+You are trying to use contextless navigation without
+      a GetMaterialApp or Get.key.
+      If you are testing your app, you can use:
+      [Get.testMode = true], or if you are running your app on
+      a physical device or emulator, you must exchange your [MaterialApp]
+      for a [GetMaterialApp].
+</code></pre>
+<p><code>Get.snackbar</code> di bawah <code>MaterialApp</code> bahkan memberi pesan yang lebih membingungkan:</p>
+<pre><code class="language-text">E/flutter: Unhandled Exception: Null check operator used on a null value
+E/flutter: #0      SnackbarController._configureOverlay (package:get/get_navigation/src/snackbar/snackbar_controller.dart:94:18)
+</code></pre>
+<p><strong>Perbaikan:</strong> ganti <code>MaterialApp</code> dengan <code>GetMaterialApp</code>. Semua parameter lama (<code>theme</code>, <code>home</code>, <code>debugShowCheckedModeBanner</code>, ...) tetap sama. <code>Obx</code>, <code>Get.put</code>, dan <code>Get.find</code> sebenarnya bekerja dengan <code>MaterialApp</code> biasa; yang butuh <code>GetMaterialApp</code> adalah fitur rute, binding, snackbar, dan dialog GetX.</p>
+
+<h4>Contoh lengkap: semua perbaikan dalam satu aplikasi</h4>
+<p>Aplikasi Pengumuman berikut menerapkan perbaikan di atas: <code>GetMaterialApp</code>, controller per halaman lewat binding (dihapus otomatis), data dimuat di <code>onInit</code>, elemen <code>RxList</code> diganti dengan <code>copyWith</code>, dan halaman detail memakai controller yang sama lewat <code>GetView</code>.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Contoh BENAR: controller per halaman lewat binding, data dimuat di onInit,
+// elemen RxList diganti (bukan diubah isinya), halaman detail memakai Get.find.
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+// ---------- MODEL (immutable) ----------
+class Pengumuman {
+  final String id;
+  final String judul;
+  final bool dibaca;
+
+  const Pengumuman({required this.id, required this.judul, this.dibaca = false});
+
+  Pengumuman copyWith({bool? dibaca}) =&gt;
+      Pengumuman(id: id, judul: judul, dibaca: dibaca ?? this.dibaca);
+}
+
+// ---------- CONTROLLER ----------
+class PengumumanController extends GetxController {
+  final _isLoading = false.obs;
+  final _items = &lt;Pengumuman&gt;[].obs;
+
+  bool get isLoading =&gt; _isLoading.value;
+  List&lt;Pengumuman&gt; get items =&gt; List.unmodifiable(_items);
+
+  Pengumuman? cari(String id) =&gt; _items.firstWhereOrNull((p) =&gt; p.id == id);
+
+  @override
+  void onInit() {
+    super.onInit();
+    muat(); // ✅ sekali, bukan di build
+  }
+
+  Future&lt;void&gt; muat() async {
+    _isLoading.value = true;
+    try {
+      await Future.delayed(const Duration(seconds: 1));
+      _items.assignAll(const [
+        Pengumuman(id: '1', judul: 'Libur Dies Natalis'),
+        Pengumuman(id: '2', judul: 'Jadwal UTS'),
+        Pengumuman(id: '3', judul: 'Beasiswa PPA'),
+      ]);
+    } finally {
+      _isLoading.value = false;
+    }
+  }
+
+  void tandaiDibaca(String id) {
+    final i = _items.indexWhere((p) =&gt; p.id == id);
+    if (i == -1) return;
+    // ✅ GANTI elemennya, RxList langsung memberi tahu Obx
+    _items[i] = _items[i].copyWith(dibaca: true);
+  }
+
+  @override
+  void onClose() {
+    debugPrint('PengumumanController dihapus');
+    super.onClose();
+  }
+}
+
+// ---------- BINDING ----------
+class PengumumanBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut(() =&gt; PengumumanController());
+  }
+}
+
+// ---------- APP ----------
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // ✅ GetMaterialApp, bukan MaterialApp, karena memakai Get.to
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.blueGrey),
+      home: const MenuView(),
+    );
+  }
+}
+
+class MenuView extends StatelessWidget {
+  const MenuView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Menu')),
+      body: Center(
+        child: FilledButton(
+          // ✅ controller dibuat oleh binding saat halaman dibuka,
+          //    dan dihapus otomatis saat halaman ditutup
+          onPressed: () =&gt; Get.to(
+            () =&gt; const PengumumanView(),
+            binding: PengumumanBinding(),
+          ),
+          child: const Text('Buka Pengumuman'),
+        ),
+      ),
+    );
+  }
+}
+
+class PengumumanView extends GetView&lt;PengumumanController&gt; {
+  const PengumumanView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pengumuman')),
+      body: Obx(() {
+        if (controller.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return ListView(
+          children: [
+            for (final p in controller.items)
+              ListTile(
+                title: Text(p.judul),
+                trailing: p.dibaca
+                    ? const Icon(Icons.done_all, color: Colors.green)
+                    : null,
+                // ✅ cukup kirim id; detail mengambil controller yang SAMA
+                onTap: () =&gt; Get.to(() =&gt; DetailPengumumanView(id: p.id)),
+              ),
+          ],
+        );
+      }),
+    );
+  }
+}
+
+class DetailPengumumanView extends GetView&lt;PengumumanController&gt; {
+  const DetailPengumumanView({super.key, required this.id});
+
+  final String id;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final p = controller.cari(id);
+      if (p == null) return const Scaffold(body: Center(child: Text('Tidak ditemukan')));
+      return Scaffold(
+        appBar: AppBar(title: Text(p.judul)),
+        body: Center(
+          child: FilledButton.icon(
+            icon: Icon(p.dibaca ? Icons.done_all : Icons.mark_email_read),
+            label: Text(p.dibaca ? 'Sudah dibaca' : 'Tandai sudah dibaca'),
+            onPressed: p.dibaca ? null : () =&gt; controller.tandaiDibaca(id),
+          ),
+        ),
+      );
+    });
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/benar-daftar.jpg" alt="Daftar pengumuman, Jadwal UTS bertanda sudah dibaca" loading="lazy">
+    <div class="screenshot-caption">Kembali ke daftar: tanda dibaca langsung muncul</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/benar-detail.jpg" alt="Halaman detail memakai controller yang sama" loading="lazy">
+    <div class="screenshot-caption">Halaman detail memakai controller yang sama (Get.find)</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>PengumumanBinding</code> dipasang di <code>Get.to(..., binding: ...)</code>. Controller dibuat saat halaman Pengumuman dibuka; saat halaman ditutup, konsol mencetak <code>PengumumanController dihapus</code>.</li>
+  <li><code>muat()</code> dipanggil sekali di <code>onInit</code>, dengan <code>finally</code> agar loading pasti berhenti.</li>
+  <li><code>Pengumuman</code> immutable. <code>tandaiDibaca</code> mengganti elemen list dengan salinan baru, sehingga semua <code>Obx</code> yang membaca <code>items</code> rebuild.</li>
+  <li><code>DetailPengumumanView</code> hanya menerima <code>id</code>, lalu mencari datanya di controller yang sama. Tidak ada objek yang dioper lewat constructor dan tidak ada yang perlu dikembalikan lewat <code>Get.back(result: ...)</code>.</li>
+  <li><code>firstWhereOrNull</code> berasal dari extension GetX (juga ada di package <code>collection</code>): mengembalikan <code>null</code> jika tidak ketemu, alih-alih melempar error.</li>
+</ul>
+
+<h4>Ringkasan</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Gejala / pesan error</th><th>Penyebab</th><th>Perbaikan</th></tr></thead>
+    <tbody>
+      <tr><td><em>[Get] the improper use of a GetX has been detected</em></td><td>Obx tidak membaca observable apa pun di dalam builder-nya</td><td>Pakai <code>.obs</code> dan baca di dalam builder, atau hapus Obx</td></tr>
+      <tr><td><em>Conditions must have a static type of 'bool'</em>, <em>A value of type 'RxString' can't be assigned...</em></td><td>Lupa <code>.value</code></td><td>Tambahkan <code>.value</code> atau pakai getter</td></tr>
+      <tr><td>Layar tidak berubah walau nilai sudah diganti</td><td>Rx diganti objek baru (<code>skor = 0.obs</code>) atau field objek di RxList diubah</td><td>Rx selalu <code>final</code>; ganti elemen dengan <code>copyWith</code> atau panggil <code>refresh()</code></td></tr>
+      <tr><td><em>"X" not found. You need to call "Get.put(X())"...</em></td><td><code>Get.find</code> sebelum didaftarkan, atau controller halaman sudah dihapus</td><td>Daftarkan lewat <code>Get.put</code>/binding; periksa urutan</td></tr>
+      <tr><td>Request berulang tanpa henti</td><td><code>muat()</code> dipanggil di <code>build</code>/Obx</td><td>Pindahkan ke <code>onInit</code></td></tr>
+      <tr><td>Log/timer tetap jalan setelah halaman ditutup</td><td>Lupa membatalkan di <code>onClose</code></td><td><code>cancel()</code>/<code>dispose()</code> di <code>onClose</code></td></tr>
+      <tr><td>Controller tidak bisa diuji tanpa widget</td><td>Controller memanggil <code>Get.snackbar</code>/<code>Get.to</code></td><td>Kembalikan <code>bool</code>/pesan, View yang bereaksi</td></tr>
+      <tr><td><em>You are trying to use contextless navigation without a GetMaterialApp</em></td><td>Memakai <code>MaterialApp</code></td><td>Ganti dengan <code>GetMaterialApp</code></td></tr>
+    </tbody>
+  </table>
+</div>

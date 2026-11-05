@@ -1,4 +1,4 @@
-<p class="lead">Sekarang kita ganti HomeScreen sementara dari Modul 13 dengan halaman daftar catatan lengkap. Sebelum itu, kita siapkan empat file kecil yang dipakai berulang.</p>
+<p class="lead">Sekarang kita ganti <code>HomeView</code> sementara dari Modul 13 dengan halaman daftar catatan lengkap. Inilah <strong>V</strong> (View) pada pola MVC: View hanya menampilkan state dari <code>NotesController</code> dan meneruskan aksi user ke controller. Sebelum itu, kita siapkan empat file kecil yang dipakai berulang.</p>
 
 <h4>File: <code>lib/utils/date_format.dart</code></h4>
 <p>Format tanggal sederhana tanpa package tambahan. Jika ingin format yang lebih lengkap, Anda bisa memakai package <code>intl</code>.</p>
@@ -60,7 +60,7 @@ Future&lt;bool&gt; showConfirmDialog(
   return hasil ?? false;
 }
 </code></pre>
-<p><code>showDialog&lt;bool&gt;</code> mengembalikan nilai yang dikirim lewat <code>Navigator.pop(true/false)</code>, atau <code>null</code> jika user menutup dialog dengan mengetuk area luar. Karena itu ada <code>?? false</code>.</p>
+<p><code>showDialog&lt;bool&gt;</code> mengembalikan nilai yang dikirim lewat <code>Navigator.pop(true/false)</code>, atau <code>null</code> jika user menutup dialog dengan mengetuk area luar. Karena itu ada <code>?? false</code>. Di dalam dialog, <code>Get.back(result: true)</code> juga bisa dipakai, tetapi <code>Navigator.of(dialogContext).pop</code> membuat fungsi ini tetap bisa dipakai tanpa GetX.</p>
 
 <h4>File: <code>lib/widgets/note_card.dart</code></h4>
 <p class="code-file-label">📄 <code>lib/widgets/note_card.dart</code></p>
@@ -167,39 +167,40 @@ class OfflineBanner extends StatelessWidget {
 }
 </code></pre>
 
-<h4>File: <code>lib/screens/home_screen.dart</code> (versi final)</h4>
-<p>Hapus seluruh isi HomeScreen sementara dari Modul 13 dan ganti dengan kode berikut:</p>
-<p class="code-file-label">📄 <code>lib/screens/home_screen.dart</code></p>
+<h4>File: <code>lib/views/home_view.dart</code> (versi final)</h4>
+<p>Hapus seluruh isi <code>HomeView</code> sementara dari Modul 13 dan ganti dengan kode berikut. Perhatikan bahwa kali ini <code>HomeView</code> berupa <code>StatefulWidget</code>, karena ia memiliki <code>TextEditingController</code> untuk kolom pencarian (state lokal milik halaman ini).</p>
+<p class="code-file-label">📄 <code>lib/views/home_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
 import '../models/note.dart';
-import '../providers/auth_provider.dart';
-import '../providers/notes_provider.dart';
+import '../controllers/auth_controller.dart';
+import '../controllers/notes_controller.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/note_card.dart';
 import '../widgets/offline_banner.dart';
-import 'note_detail_screen.dart';
-import 'note_form_screen.dart';
+import 'note_detail_view.dart';
+import 'note_form_view.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class HomeView extends StatefulWidget {
+  const HomeView({super.key});
 
   @override
-  State&lt;HomeScreen&gt; createState() =&gt; _HomeScreenState();
+  State&lt;HomeView&gt; createState() =&gt; _HomeViewState();
 }
 
-class _HomeScreenState extends State&lt;HomeScreen&gt; {
+class _HomeViewState extends State&lt;HomeView&gt; {
+  // Controller global yang didaftarkan di main() dengan Get.put.
+  final _auth = Get.find&lt;AuthController&gt;();
+  final _notes = Get.find&lt;NotesController&gt;();
   final _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // Tunggu frame pertama selesai, baru muat data (notifyListeners tidak
-    // boleh dipanggil ketika widget tree sedang dibangun).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read&lt;NotesProvider&gt;().loadNotes();
-    });
+    // HomeView dibuat setiap kali user berhasil login, jadi inilah saat
+    // yang tepat untuk memuat catatan milik user tersebut.
+    _notes.loadNotes();
   }
 
   @override
@@ -215,13 +216,10 @@ class _HomeScreenState extends State&lt;HomeScreen&gt; {
       message: 'Catatan yang tersimpan di perangkat akan dihapus.',
       confirmLabel: 'Keluar',
     );
-    if (!yakin || !mounted) return;
+    if (!yakin) return;
 
-    // Ambil referensi provider sebelum await berikutnya.
-    final notes = context.read&lt;NotesProvider&gt;();
-    final auth = context.read&lt;AuthProvider&gt;();
-    await notes.clear(); // hapus cache Hive
-    await auth.signOut(); // AuthGate otomatis kembali ke LoginScreen
+    await _notes.clear(); // kosongkan state + cache Hive
+    await _auth.signOut(); // AuthGate otomatis kembali ke LoginView
   }
 
   Future&lt;bool&gt; _confirmDelete(Note note) {
@@ -235,7 +233,7 @@ class _HomeScreenState extends State&lt;HomeScreen&gt; {
 
   Future&lt;void&gt; _delete(Note note) async {
     final messenger = ScaffoldMessenger.of(context);
-    final error = await context.read&lt;NotesProvider&gt;().deleteNote(note);
+    final error = await _notes.deleteNote(note);
     messenger.showSnackBar(
       SnackBar(
         content: Text(
@@ -247,21 +245,13 @@ class _HomeScreenState extends State&lt;HomeScreen&gt; {
     );
   }
 
-  void _openForm() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) =&gt; const NoteFormScreen()));
-  }
+  void _openForm() =&gt; Get.to(() =&gt; const NoteFormView());
 
-  void _openDetail(Note note) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) =&gt; NoteDetailScreen(noteId: note.id)),
-    );
-  }
+  void _openDetail(Note note) =&gt; Get.to(() =&gt; NoteDetailView(noteId: note.id));
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch&lt;NotesProvider&gt;();
-    final name = context.read&lt;AuthProvider&gt;().displayName;
+    final name = _auth.displayName;
 
     return Scaffold(
       appBar: AppBar(
@@ -287,37 +277,46 @@ class _HomeScreenState extends State&lt;HomeScreen&gt; {
       ),
       body: Column(
         children: [
-          if (provider.isOffline) OfflineBanner(onRetry: provider.loadNotes),
+          // Setiap Obx hanya rebuild jika state yang dibacanya berubah.
+          Obx(
+            () =&gt; _notes.isOffline
+                ? OfflineBanner(onRetry: _notes.loadNotes)
+                : const SizedBox.shrink(),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: TextField(
-              controller: _searchController,
-              onChanged: provider.setQuery,
-              decoration: InputDecoration(
-                hintText: 'Cari judul atau isi catatan...',
-                prefixIcon: const Icon(Icons.search),
-                border: const OutlineInputBorder(),
-                isDense: true,
-                suffixIcon: provider.query.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          provider.setQuery('');
-                        },
-                      ),
+            child: Obx(
+              () =&gt; TextField(
+                controller: _searchController,
+                onChanged: _notes.setQuery,
+                decoration: InputDecoration(
+                  hintText: 'Cari judul atau isi catatan...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  suffixIcon: _notes.query.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            _notes.setQuery('');
+                          },
+                        ),
+                ),
               ),
             ),
           ),
-          _CategoryFilter(
-            selected: provider.categoryFilter,
-            onSelected: provider.setCategoryFilter,
+          Obx(
+            () =&gt; _CategoryFilter(
+              selected: _notes.categoryFilter,
+              onSelected: _notes.setCategoryFilter,
+            ),
           ),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: provider.loadNotes,
-              child: _buildBody(provider),
+              onRefresh: _notes.loadNotes,
+              child: Obx(_buildBody),
             ),
           ),
         ],
@@ -325,32 +324,32 @@ class _HomeScreenState extends State&lt;HomeScreen&gt; {
     );
   }
 
-  Widget _buildBody(NotesProvider provider) {
+  Widget _buildBody() {
     // 1. Loading pertama kali (belum ada data sama sekali)
-    if (provider.isLoading &amp;&amp; !provider.hasNotes) {
+    if (_notes.isLoading &amp;&amp; !_notes.hasNotes) {
       return const Center(child: CircularProgressIndicator());
     }
 
     // 2. Error dan tidak ada data cadangan
-    if (provider.errorMessage != null &amp;&amp; !provider.hasNotes) {
+    if (_notes.errorMessage != null &amp;&amp; !_notes.hasNotes) {
       return _MessageView(
         icon: Icons.error_outline,
-        message: provider.errorMessage!,
+        message: _notes.errorMessage!,
         action: FilledButton.icon(
-          onPressed: provider.loadNotes,
+          onPressed: _notes.loadNotes,
           icon: const Icon(Icons.refresh),
           label: const Text('Coba lagi'),
         ),
       );
     }
 
-    final notes = provider.visibleNotes;
+    final notes = _notes.visibleNotes;
 
     // 3. Kosong
     if (notes.isEmpty) {
       return _MessageView(
         icon: Icons.note_alt_outlined,
-        message: provider.hasNotes
+        message: _notes.hasNotes
             ? 'Tidak ada catatan yang cocok.'
             : 'Belum ada catatan.\nTekan tombol + untuk menambah.',
       );
@@ -450,17 +449,21 @@ class _MessageView extends StatelessWidget {
 }
 </code></pre>
 
-<h4>Membedah HomeScreen</h4>
+<h4>Membedah HomeView</h4>
 <div class="table-responsive">
   <table class="table-custom">
     <thead><tr><th>Bagian</th><th>Penjelasan</th></tr></thead>
     <tbody>
-      <tr><td><code>addPostFrameCallback</code> di <code>initState</code></td><td>Menunda <code>loadNotes()</code> sampai frame pertama selesai digambar, karena <code>loadNotes</code> langsung memanggil <code>notifyListeners</code>.</td></tr>
-      <tr><td><code>_logout()</code></td><td>Konfirmasi, lalu <code>notes.clear()</code> (kosongkan state + Hive), lalu <code>auth.signOut()</code>. Provider diambil <em>sebelum</em> <code>await</code> pertama yang memakai context.</td></tr>
-      <tr><td><code>OfflineBanner(onRetry: provider.loadNotes)</code></td><td>Banner hanya muncul jika data berasal dari cache. Tombol "Coba lagi" memanggil ulang server.</td></tr>
-      <tr><td><code>TextField(onChanged: provider.setQuery)</code></td><td>Setiap ketikan memperbarui filter. Ikon ✕ mengosongkan pencarian.</td></tr>
+      <tr><td><code>Get.find&lt;AuthController&gt;()</code>, <code>Get.find&lt;NotesController&gt;()</code></td><td>Mengambil controller global yang sudah didaftarkan di <code>main()</code> dengan <code>Get.put</code> (section 9). Tidak butuh <code>context</code>, jadi bisa langsung dijadikan field.</td></tr>
+      <tr><td><code>_notes.loadNotes()</code> di <code>initState</code></td><td>Memuat catatan setiap kali <code>HomeView</code> dibuat, yaitu setiap kali user berhasil login. Mengubah Rx di <code>initState</code> aman, karena belum ada <code>Obx</code> di halaman ini yang sedang dibangun.</td></tr>
+      <tr><td><code>_logout()</code></td><td>Konfirmasi, lalu <code>_notes.clear()</code> (kosongkan state + Hive), lalu <code>_auth.signOut()</code>. Tidak ada navigasi manual: <code>AuthGate</code> otomatis kembali ke <code>LoginView</code>.</td></tr>
+      <tr><td>Beberapa <code>Obx</code> kecil</td><td>Banner, kolom pencarian, chip kategori, dan isi daftar masing-masing dibungkus <code>Obx</code> sendiri. Setiap <code>Obx</code> hanya rebuild jika Rx yang dibacanya berubah. Misalnya <code>Obx</code> banner hanya membaca <code>isOffline</code>, jadi tidak ikut rebuild saat user mengetik.</td></tr>
+      <tr><td><code>OfflineBanner(onRetry: _notes.loadNotes)</code></td><td>Banner hanya muncul jika data berasal dari cache. Jika tidak, <code>Obx</code> mengembalikan <code>SizedBox.shrink()</code> (Obx wajib mengembalikan widget). Tombol "Coba lagi" memanggil ulang server.</td></tr>
+      <tr><td><code>TextField(onChanged: _notes.setQuery)</code></td><td>Setiap ketikan memperbarui filter. Ikon ✕ muncul jika <code>query</code> tidak kosong dan mengosongkan pencarian.</td></tr>
       <tr><td><code>_CategoryFilter</code></td><td>Deretan <code>ChoiceChip</code>. Memilih "Semua" berarti <code>null</code>.</td></tr>
-      <tr><td><code>RefreshIndicator(onRefresh: provider.loadNotes)</code></td><td>Tarik ke bawah untuk memuat ulang. Child-nya <strong>harus</strong> bisa di-scroll, karena itu tampilan kosong/error juga berupa <code>ListView</code> dengan <code>AlwaysScrollableScrollPhysics</code>.</td></tr>
+      <tr><td><code>Obx(_buildBody)</code></td><td><code>Obx</code> menerima fungsi tanpa parameter yang mengembalikan widget, jadi method <code>_buildBody</code> bisa langsung dioper. Semua getter controller yang dibaca di dalamnya ikut didengarkan.</td></tr>
+      <tr><td><code>Get.to(() =&gt; const NoteFormView())</code></td><td>Navigasi GetX tanpa <code>context</code>. Halaman detail menerima <code>noteId</code> (section 8).</td></tr>
+      <tr><td><code>RefreshIndicator(onRefresh: _notes.loadNotes)</code></td><td>Tarik ke bawah untuk memuat ulang. Child-nya <strong>harus</strong> bisa di-scroll, karena itu tampilan kosong/error juga berupa <code>ListView</code> dengan <code>AlwaysScrollableScrollPhysics</code>.</td></tr>
       <tr><td><code>_buildBody</code> dengan 4 kondisi</td><td>Urutan pengecekan: (1) loading pertama, (2) error tanpa data, (3) kosong, (4) daftar. Jika ada data cache, error tidak menutupi data.</td></tr>
       <tr><td><code>Dismissible</code></td><td><code>key: ValueKey(note.id)</code> harus unik dan stabil. <code>confirmDismiss</code> menampilkan dialog; jika hasilnya <code>false</code>, kartu kembali ke tempatnya. <code>onDismissed</code> memanggil optimistic delete.</td></tr>
       <tr><td><code>ScaffoldMessenger.of(context)</code> sebelum <code>await</code></td><td>Di <code>_delete</code>, messenger diambil sebelum menunggu server, sehingga aman dipakai setelahnya tanpa melanggar aturan <code>context</code> setelah <code>await</code>.</td></tr>
@@ -469,7 +472,7 @@ class _MessageView extends StatelessWidget {
   </table>
 </div>
 
-<p>Hasil di emulator, terhubung ke project Supabase dengan akun demo:</p>
+<p>Hasil di emulator, login sebagai akun demo yang sudah memiliki beberapa catatan:</p>
 <div class="screenshot-row">
   <div class="screenshot">
     <img src="assets/img/screenshots/14-proyek-crud/home-kosong.jpg" alt="Daftar kosong" loading="lazy">
@@ -493,4 +496,4 @@ class _MessageView extends StatelessWidget {
   </div>
 </div>
 
-<div class="callout callout-warning"><h4>⚠️ Error "A dismissed Dismissible widget is still part of the tree"</h4><p>Error ini muncul jika item yang sudah digeser tidak segera dihapus dari list. Optimistic delete di <code>NotesProvider</code> menghapusnya secara sinkron sebelum <code>await</code>, sehingga error ini tidak terjadi.</p></div>
+<div class="callout callout-warning"><h4>⚠️ Error "A dismissed Dismissible widget is still part of the tree"</h4><p>Error ini muncul jika item yang sudah digeser tidak segera dihapus dari list. Optimistic delete di <code>NotesController</code> menghapusnya secara sinkron sebelum <code>await</code>, sehingga error ini tidak terjadi.</p></div>

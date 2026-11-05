@@ -12,13 +12,13 @@
 </ul>
 
 <h4>Arsitektur</h4>
-<pre><code class="language-text">Widget (HomeScreen, FormCatatanScreen)
-   │  context.watch / context.read
+<pre><code class="language-text">View (HomeView, FormCatatanView)        ← V: tampilan, Obx, navigasi, SnackBar
+   │  Obx(() =&gt; controller.daftar) / controller.tambah(...)
    ▼
-CatatanProvider (ChangeNotifier)  ← cari, urutkan, tambah, ubah, hapus
+CatatanController (GetxController)      ← C: state .obs, cari, urutkan, tambah, ubah, hapus
    │
    ▼
-CatatanRepository                 ← satu-satunya yang menyentuh Hive
+CatatanService                          ← satu-satunya yang menyentuh Hive
    │
    ▼
 Box&lt;Catatan&gt; 'catatan_box'  +  CatatanAdapter (typeId 0)
@@ -31,26 +31,27 @@ Box&lt;Catatan&gt; 'catatan_box'  +  CatatanAdapter (typeId 0)
 │   ├── models/
 │   │   ├── catatan.dart
 │   │   └── catatan_adapter.dart
-│   ├── repositories/
-│   │   └── catatan_repository.dart
-│   ├── providers/
-│   │   └── catatan_provider.dart
-│   ├── screens/
-│   │   ├── home_screen.dart
-│   │   └── form_catatan_screen.dart
+│   ├── services/
+│   │   └── catatan_service.dart
+│   ├── controllers/
+│   │   └── catatan_controller.dart
+│   ├── views/
+│   │   ├── home_view.dart
+│   │   └── form_catatan_view.dart
 │   └── widgets/
 │       ├── catatan_tile.dart
 │       └── empty_state.dart
 └── test/
-    └── catatan_repository_test.dart   (bonus)
+    └── catatan_service_test.dart   (bonus)
 </code></pre>
+<p>Ini struktur MVC yang sama dengan Modul 08: <strong>M</strong>odel di <code>models/</code>, <strong>V</strong>iew di <code>views/</code>, <strong>C</strong>ontroller di <code>controllers/</code>, ditambah <code>services/</code> untuk akses Hive dan <code>widgets/</code> untuk komponen kecil.</p>
 
-<div class="callout callout-tip"><h4>💡 Urutan membangun</h4><p>Kerjakan dari lapisan paling bawah ke atas: model, adapter, repository, provider, widget kecil, layar, lalu <code>main.dart</code>. Dengan urutan ini setiap file yang kamu tulis hanya bergantung pada file yang sudah ada, sehingga error merah di editor cepat hilang.</p></div>
+<div class="callout callout-tip"><h4>💡 Urutan membangun</h4><p>Kerjakan dari lapisan paling bawah ke atas: model, adapter, service, controller, widget kecil, view, lalu <code>main.dart</code>. Dengan urutan ini setiap file yang kamu tulis hanya bergantung pada file yang sudah ada, sehingga error merah di editor cepat hilang.</p></div>
 
 <h4>Langkah 0: Buat proyek dan pasang package</h4>
 <pre><code class="language-bash">flutter create catatan_kuliah
 cd catatan_kuliah
-flutter pub add hive_ce hive_ce_flutter provider
+flutter pub add hive_ce hive_ce_flutter get
 </code></pre>
 <p>Hapus file <code>test/widget_test.dart</code> bawaan karena isinya menguji aplikasi counter yang akan kita ganti.</p>
 
@@ -138,28 +139,28 @@ class CatatanAdapter extends TypeAdapter&lt;Catatan&gt; {
 }
 </code></pre>
 
-<h4>Langkah 3: Repository</h4>
+<h4>Langkah 3: Service</h4>
 <p>Setiap catatan disimpan dengan <code>put(catatan.id, catatan)</code>. Karena key-nya adalah id catatan, menyimpan catatan yang sudah ada otomatis menjadi update, dan menghapus cukup dengan id. Kita tidak memakai index sama sekali.</p>
-<p class="code-file-label">📄 <code>lib/repositories/catatan_repository.dart</code></p>
-<pre><code class="language-dart">// lib/repositories/catatan_repository.dart
+<p class="code-file-label">📄 <code>lib/services/catatan_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/catatan_service.dart
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 
 import '../models/catatan.dart';
 
 /// Satu-satunya kelas yang boleh menyentuh box Hive catatan.
-/// Widget dan provider cukup memanggil method di sini.
-class CatatanRepository {
+/// Controller cukup memanggil method di sini; view tidak pernah menyentuh Hive.
+class CatatanService {
   static const String namaBox = 'catatan_box';
 
   final Box&lt;Catatan&gt; _box;
 
-  CatatanRepository(this._box);
+  CatatanService(this._box);
 
-  /// Membuka box lalu membungkusnya menjadi repository.
+  /// Membuka box lalu membungkusnya menjadi service.
   /// Pastikan Hive sudah di-init dan CatatanAdapter sudah didaftarkan.
-  static Future&lt;CatatanRepository&gt; buka() async {
+  static Future&lt;CatatanService&gt; buka() async {
     final box = await Hive.openBox&lt;Catatan&gt;(namaBox);
-    return CatatanRepository(box);
+    return CatatanService(box);
   }
 
   /// READ: semua catatan (urutan belum diatur)
@@ -181,42 +182,44 @@ class CatatanRepository {
 }
 </code></pre>
 
-<h4>Langkah 4: Provider</h4>
-<p>Provider menyimpan state UI (kata kunci pencarian dan pilihan urutan) dan menyediakan getter <code>daftar</code> yang sudah difilter dan diurutkan. Setiap operasi tulis memanggil repository, lalu <code>notifyListeners()</code>.</p>
-<p class="code-file-label">📄 <code>lib/providers/catatan_provider.dart</code></p>
-<pre><code class="language-dart">// lib/providers/catatan_provider.dart
-import 'package:flutter/foundation.dart';
+<h4>Langkah 4: Controller</h4>
+<p>Controller menyimpan state reaktif: salinan isi box (<code>_semua</code>), kata kunci pencarian, dan pilihan urutan. Getter <code>daftar</code> menghasilkan data yang sudah difilter dan diurutkan. Setiap operasi tulis memanggil service, lalu memuat ulang <code>_semua</code> dari box sehingga semua <code>Obx</code> yang membacanya ikut diperbarui.</p>
+<p class="code-file-label">📄 <code>lib/controllers/catatan_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/catatan_controller.dart
+import 'package:get/get.dart';
 
 import '../models/catatan.dart';
-import '../repositories/catatan_repository.dart';
+import '../services/catatan_service.dart';
 
 enum UrutanCatatan { terbaru, terlama, judulAZ }
 
-class CatatanProvider with ChangeNotifier {
-  final CatatanRepository _repo;
+class CatatanController extends GetxController {
+  CatatanController(this._service);
+  final CatatanService _service;
 
-  CatatanProvider(this._repo);
+  // State privat reaktif
+  final _semua = &lt;Catatan&gt;[].obs; // salinan isi box
+  final _kataKunci = ''.obs;
+  final _urutan = UrutanCatatan.terbaru.obs;
 
-  String _kataKunci = '';
-  UrutanCatatan _urutan = UrutanCatatan.terbaru;
+  // Getter publik read-only
+  String get kataKunci =&gt; _kataKunci.value;
+  UrutanCatatan get urutan =&gt; _urutan.value;
 
-  String get kataKunci =&gt; _kataKunci;
-  UrutanCatatan get urutan =&gt; _urutan;
-
-  /// Jumlah seluruh catatan di box (tanpa filter pencarian)
-  int get totalCatatan =&gt; _repo.jumlah;
+  /// Jumlah seluruh catatan (tanpa filter pencarian)
+  int get totalCatatan =&gt; _semua.length;
 
   /// Daftar yang siap ditampilkan: sudah difilter lalu diurutkan
   List&lt;Catatan&gt; get daftar {
-    final kunci = _kataKunci.trim().toLowerCase();
-    final hasil = _repo.ambilSemua().where((c) {
+    final kunci = _kataKunci.value.trim().toLowerCase();
+    final hasil = _semua.where((c) {
       if (kunci.isEmpty) return true;
       return c.judul.toLowerCase().contains(kunci) ||
           c.mataKuliah.toLowerCase().contains(kunci) ||
           c.isi.toLowerCase().contains(kunci);
     }).toList();
 
-    switch (_urutan) {
+    switch (_urutan.value) {
       case UrutanCatatan.terbaru:
         hasil.sort((a, b) =&gt; b.diubahPada.compareTo(a.diubahPada));
       case UrutanCatatan.terlama:
@@ -228,15 +231,17 @@ class CatatanProvider with ChangeNotifier {
     return hasil;
   }
 
-  void cari(String kataKunci) {
-    _kataKunci = kataKunci;
-    notifyListeners();
+  @override
+  void onInit() {
+    super.onInit();
+    _muatUlang(); // membaca box itu sinkron, jadi tidak perlu isLoading
   }
 
-  void ubahUrutan(UrutanCatatan urutan) {
-    _urutan = urutan;
-    notifyListeners();
-  }
+  void _muatUlang() =&gt; _semua.assignAll(_service.ambilSemua());
+
+  void cari(String kataKunci) =&gt; _kataKunci.value = kataKunci;
+
+  void ubahUrutan(UrutanCatatan urutan) =&gt; _urutan.value = urutan;
 
   Future&lt;void&gt; tambah({
     required String judul,
@@ -253,8 +258,8 @@ class CatatanProvider with ChangeNotifier {
       dibuatPada: sekarang,
       diubahPada: sekarang,
     );
-    await _repo.simpan(catatan);
-    notifyListeners();
+    await _service.simpan(catatan);
+    _muatUlang();
   }
 
   Future&lt;void&gt; ubah(
@@ -269,17 +274,20 @@ class CatatanProvider with ChangeNotifier {
       isi: isi,
       diubahPada: DateTime.now(),
     );
-    await _repo.simpan(baru); // key sama, data lama tertimpa
-    notifyListeners();
+    await _service.simpan(baru); // key sama, data lama tertimpa
+    _muatUlang();
   }
 
   Future&lt;void&gt; hapus(String id) async {
-    await _repo.hapus(id);
-    notifyListeners();
+    await _service.hapus(id);
+    _muatUlang();
   }
 }
 </code></pre>
 <ul>
+  <li>File ini hanya mengimpor <code>package:get/get.dart</code>, model, dan service. Tidak ada <code>material.dart</code>, <code>BuildContext</code>, SnackBar, maupun navigasi; semua itu urusan view. Karena itu controller bisa diuji dengan unit test biasa.</li>
+  <li><code>_muatUlang()</code> memakai <code>assignAll</code> untuk mengganti seluruh isi <code>RxList</code> sekaligus. Dipanggil di <code>onInit()</code> dan setelah setiap operasi tulis.</li>
+  <li><code>daftar</code> adalah <strong>data turunan</strong> berbentuk getter biasa. Karena getter ini membaca <code>_semua</code>, <code>_kataKunci.value</code>, dan <code>_urutan.value</code>, <code>Obx</code> yang memanggilnya otomatis mendengarkan ketiganya.</li>
   <li><code>switch</code> tanpa <code>break</code> adalah sintaks Dart 3: setiap <code>case</code> otomatis berhenti.</li>
   <li><code>totalCatatan</code> dipisah dari <code>daftar.length</code> agar layar bisa membedakan "belum ada catatan sama sekali" dan "pencarian tidak menemukan apa pun".</li>
   <li>Id dibuat dari <code>microsecondsSinceEpoch</code> sehingga cukup unik untuk satu perangkat tanpa package tambahan. Di Modul 14 kita akan memakai id dari server.</li>
@@ -401,29 +409,32 @@ class CatatanTile extends StatelessWidget {
   }
 }
 </code></pre>
-<p><code>CatatanTile</code> tidak tahu apa pun tentang Provider atau Hive. Ia hanya menerima data dan dua callback (<code>onTap</code>, <code>onHapus</code>), sehingga mudah dipakai ulang dan diuji.</p>
+<p><code>CatatanTile</code> tidak tahu apa pun tentang GetX, controller, atau Hive. Ia hanya menerima data dan dua callback (<code>onTap</code>, <code>onHapus</code>), sehingga mudah dipakai ulang dan diuji.</p>
 
-<h4>Langkah 6: Layar form (tambah &amp; edit)</h4>
+<h4>Langkah 6: View form (tambah &amp; edit)</h4>
 <p>Satu layar dipakai untuk dua mode. Jika parameter <code>catatan</code> bernilai <code>null</code>, form berada di mode tambah; jika berisi, form di mode edit dan field langsung terisi data lama.</p>
-<p class="code-file-label">📄 <code>lib/screens/form_catatan_screen.dart</code></p>
-<pre><code class="language-dart">// lib/screens/form_catatan_screen.dart
+<p class="code-file-label">📄 <code>lib/views/form_catatan_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/form_catatan_view.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
+import '../controllers/catatan_controller.dart';
 import '../models/catatan.dart';
-import '../providers/catatan_provider.dart';
 
-class FormCatatanScreen extends StatefulWidget {
+class FormCatatanView extends StatefulWidget {
   /// null = mode tambah, berisi = mode edit
   final Catatan? catatan;
 
-  const FormCatatanScreen({super.key, this.catatan});
+  const FormCatatanView({super.key, this.catatan});
 
   @override
-  State&lt;FormCatatanScreen&gt; createState() =&gt; _FormCatatanScreenState();
+  State&lt;FormCatatanView&gt; createState() =&gt; _FormCatatanViewState();
 }
 
-class _FormCatatanScreenState extends State&lt;FormCatatanScreen&gt; {
+class _FormCatatanViewState extends State&lt;FormCatatanView&gt; {
+  // Controller yang sama dengan yang dipakai HomeView
+  final _controller = Get.find&lt;CatatanController&gt;();
+
   final _formKey = GlobalKey&lt;FormState&gt;();
   late final TextEditingController _judulCtrl;
   late final TextEditingController _matkulCtrl;
@@ -458,20 +469,19 @@ class _FormCatatanScreenState extends State&lt;FormCatatanScreen&gt; {
     if (!_formKey.currentState!.validate()) return;
     setState(() =&gt; _menyimpan = true);
 
-    final provider = context.read&lt;CatatanProvider&gt;();
     final judul = _judulCtrl.text.trim();
     final matkul = _matkulCtrl.text.trim();
     final isi = _isiCtrl.text.trim();
 
     if (_modeEdit) {
-      await provider.ubah(
+      await _controller.ubah(
         widget.catatan!,
         judul: judul,
         mataKuliah: matkul,
         isi: isi,
       );
     } else {
-      await provider.tambah(judul: judul, mataKuliah: matkul, isi: isi);
+      await _controller.tambah(judul: judul, mataKuliah: matkul, isi: isi);
     }
 
     if (!mounted) return; // widget bisa saja sudah ditutup saat menunggu
@@ -480,7 +490,7 @@ class _FormCatatanScreenState extends State&lt;FormCatatanScreen&gt; {
         content: Text(_modeEdit ? 'Catatan diperbarui' : 'Catatan disimpan'),
       ),
     );
-    Navigator.pop(context);
+    Get.back();
   }
 
   @override
@@ -539,32 +549,31 @@ class _FormCatatanScreenState extends State&lt;FormCatatanScreen&gt; {
 }
 </code></pre>
 <ul>
-  <li><code>context.read&lt;CatatanProvider&gt;()</code> diambil <strong>sebelum</strong> <code>await</code>, karena memakai <code>context</code> setelah <code>await</code> perlu dicek dulu.</li>
+  <li><code>Get.find&lt;CatatanController&gt;()</code> mengambil controller yang sama yang sudah didaftarkan di <code>main()</code>. Tidak perlu mengoper controller lewat constructor atau <code>BuildContext</code>.</li>
+  <li><code>TextEditingController</code> dan status <code>_menyimpan</code> tetap disimpan di <code>State</code> karena hanya dipakai di layar ini (state lokal, seperti di Modul 05).</li>
+  <li>Controller hanya menyimpan data. Yang menampilkan SnackBar dan menutup layar (<code>Get.back()</code>) adalah view.</li>
   <li><code>if (!mounted) return;</code> setelah <code>await</code> mencegah error jika layar sudah ditutup ketika penyimpanan selesai.</li>
   <li>Tombol simpan dinonaktifkan (<code>onPressed: null</code>) selama menyimpan agar tidak terjadi simpan ganda.</li>
 </ul>
 
-<h4>Langkah 7: Layar utama</h4>
-<p class="code-file-label">📄 <code>lib/screens/home_screen.dart</code></p>
-<pre><code class="language-dart">// lib/screens/home_screen.dart
+<h4>Langkah 7: View utama</h4>
+<p class="code-file-label">📄 <code>lib/views/home_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/home_view.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
+import '../controllers/catatan_controller.dart';
 import '../models/catatan.dart';
-import '../providers/catatan_provider.dart';
 import '../widgets/catatan_tile.dart';
 import '../widgets/empty_state.dart';
-import 'form_catatan_screen.dart';
+import 'form_catatan_view.dart';
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+// GetView&lt;T&gt; menyediakan getter `controller` (= Get.find&lt;T&gt;())
+class HomeView extends GetView&lt;CatatanController&gt; {
+  const HomeView({super.key});
 
-  void _bukaForm(BuildContext context, [Catatan? catatan]) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =&gt; FormCatatanScreen(catatan: catatan),
-      ),
-    );
+  void _bukaForm([Catatan? catatan]) {
+    Get.to(() =&gt; FormCatatanView(catatan: catatan));
   }
 
   Future&lt;void&gt; _konfirmasiHapus(BuildContext context, Catatan catatan) async {
@@ -588,9 +597,8 @@ class HomeScreen extends StatelessWidget {
 
     // showDialog mengembalikan null jika dialog ditutup dengan tap di luar
     if (yakin != true) return;
-    if (!context.mounted) return;
 
-    await context.read&lt;CatatanProvider&gt;().hapus(catatan.id);
+    await controller.hapus(catatan.id);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('"${catatan.judul}" dihapus')),
@@ -599,32 +607,31 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch&lt;CatatanProvider&gt;();
-    final daftar = provider.daftar;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Catatan Kuliah'),
         actions: [
-          PopupMenuButton&lt;UrutanCatatan&gt;(
-            icon: const Icon(Icons.sort),
-            tooltip: 'Urutkan',
-            initialValue: provider.urutan,
-            onSelected: (u) =&gt; context.read&lt;CatatanProvider&gt;().ubahUrutan(u),
-            itemBuilder: (_) =&gt; const [
-              PopupMenuItem(
-                value: UrutanCatatan.terbaru,
-                child: Text('Terbaru dulu'),
-              ),
-              PopupMenuItem(
-                value: UrutanCatatan.terlama,
-                child: Text('Terlama dulu'),
-              ),
-              PopupMenuItem(
-                value: UrutanCatatan.judulAZ,
-                child: Text('Judul A-Z'),
-              ),
-            ],
+          Obx(
+            () =&gt; PopupMenuButton&lt;UrutanCatatan&gt;(
+              icon: const Icon(Icons.sort),
+              tooltip: 'Urutkan',
+              initialValue: controller.urutan,
+              onSelected: controller.ubahUrutan,
+              itemBuilder: (_) =&gt; const [
+                PopupMenuItem(
+                  value: UrutanCatatan.terbaru,
+                  child: Text('Terbaru dulu'),
+                ),
+                PopupMenuItem(
+                  value: UrutanCatatan.terlama,
+                  child: Text('Terlama dulu'),
+                ),
+                PopupMenuItem(
+                  value: UrutanCatatan.judulAZ,
+                  child: Text('Judul A-Z'),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -639,26 +646,25 @@ class HomeScreen extends StatelessWidget {
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
-              onChanged: (teks) =&gt; context.read&lt;CatatanProvider&gt;().cari(teks),
+              onChanged: controller.cari,
             ),
           ),
-          Expanded(child: _buildDaftar(context, provider, daftar)),
+          // Hanya bagian daftar yang dibangun ulang saat state berubah
+          Expanded(child: Obx(() =&gt; _buildDaftar(context))),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () =&gt; _bukaForm(context),
+        onPressed: _bukaForm,
         icon: const Icon(Icons.add),
         label: const Text('Catatan'),
       ),
     );
   }
 
-  Widget _buildDaftar(
-    BuildContext context,
-    CatatanProvider provider,
-    List&lt;Catatan&gt; daftar,
-  ) {
-    if (provider.totalCatatan == 0) {
+  Widget _buildDaftar(BuildContext context) {
+    final daftar = controller.daftar;
+
+    if (controller.totalCatatan == 0) {
       return const EmptyState(
         ikon: Icons.note_alt_outlined,
         judul: 'Belum ada catatan',
@@ -669,7 +675,7 @@ class HomeScreen extends StatelessWidget {
       return EmptyState(
         ikon: Icons.search_off,
         judul: 'Tidak ditemukan',
-        pesan: 'Tidak ada catatan yang cocok dengan "${provider.kataKunci}".',
+        pesan: 'Tidak ada catatan yang cocok dengan "${controller.kataKunci}".',
       );
     }
     return ListView.builder(
@@ -680,7 +686,7 @@ class HomeScreen extends StatelessWidget {
         return CatatanTile(
           key: ValueKey(catatan.id),
           catatan: catatan,
-          onTap: () =&gt; _bukaForm(context, catatan),
+          onTap: () =&gt; _bukaForm(catatan),
           onHapus: () =&gt; _konfirmasiHapus(context, catatan),
         );
       },
@@ -689,9 +695,12 @@ class HomeScreen extends StatelessWidget {
 }
 </code></pre>
 <ul>
-  <li><code>context.watch</code> di <code>build</code> membuat layar dibangun ulang setiap provider memanggil <code>notifyListeners()</code>: setelah tambah, edit, hapus, cari, atau ganti urutan.</li>
+  <li><code>HomeView extends GetView&lt;CatatanController&gt;</code> menyediakan getter <code>controller</code>, sehingga tidak perlu menulis <code>Get.find</code> berulang kali.</li>
+  <li>Hanya dua bagian yang dibungkus <code>Obx</code>: menu urutkan (membaca <code>urutan</code>) dan daftar catatan (membaca <code>daftar</code>, <code>totalCatatan</code>, <code>kataKunci</code>). Kolom pencarian dan FAB tidak ikut dibangun ulang saat mengetik.</li>
+  <li>Callback seperti <code>onChanged: controller.cari</code> dan <code>onSelected: controller.ubahUrutan</code> memanggil controller langsung tanpa <code>Obx</code>.</li>
+  <li>Navigasi ke form memakai <code>Get.to(() =&gt; FormCatatanView(...))</code>. Saat form ditutup, daftar sudah terbarui karena controller memuat ulang data setelah menyimpan.</li>
   <li><code>showDialog&lt;bool&gt;</code> mengembalikan <code>true</code>/<code>false</code> dari tombol, atau <code>null</code> jika dialog ditutup dengan mengetuk area luar. Karena itu yang dicek adalah <code>yakin != true</code>.</li>
-  <li><code>context.mounted</code> dicek setelah setiap <code>await</code> sebelum <code>context</code> dipakai lagi.</li>
+  <li><code>context.mounted</code> dicek setelah <code>await controller.hapus(...)</code> sebelum <code>context</code> dipakai lagi untuk SnackBar.</li>
   <li><code>ValueKey(catatan.id)</code> membantu Flutter mengenali item yang sama saat urutan list berubah.</li>
 </ul>
 
@@ -699,13 +708,13 @@ class HomeScreen extends StatelessWidget {
 <p class="code-file-label">📄 <code>lib/main.dart</code></p>
 <pre><code class="language-dart">// lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
-import 'package:provider/provider.dart';
 
+import 'controllers/catatan_controller.dart';
 import 'models/catatan_adapter.dart';
-import 'providers/catatan_provider.dart';
-import 'repositories/catatan_repository.dart';
-import 'screens/home_screen.dart';
+import 'services/catatan_service.dart';
+import 'views/home_view.dart';
 
 Future&lt;void&gt; main() async {
   // 1. Wajib sebelum memakai plugin (path_provider) sebelum runApp
@@ -717,15 +726,13 @@ Future&lt;void&gt; main() async {
   // 3. Daftarkan adapter SEBELUM membuka box yang memakainya
   Hive.registerAdapter(CatatanAdapter());
 
-  // 4. Buka box sekali di awal, lalu bungkus dengan repository
-  final repo = await CatatanRepository.buka();
+  // 4. Buka box sekali di awal, lalu bungkus dengan service
+  final service = await CatatanService.buka();
 
-  runApp(
-    ChangeNotifierProvider(
-      create: (_) =&gt; CatatanProvider(repo),
-      child: const CatatanApp(),
-    ),
-  );
+  // 5. Daftarkan controller agar bisa diambil dengan Get.find di view mana pun
+  Get.put(CatatanController(service));
+
+  runApp(const CatatanApp());
 }
 
 class CatatanApp extends StatelessWidget {
@@ -733,13 +740,13 @@ class CatatanApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return GetMaterialApp(
       title: 'Catatan Kuliah Offline',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
       ),
-      home: const HomeScreen(),
+      home: const HomeView(),
     );
   }
 }
@@ -794,21 +801,21 @@ class CatatanApp extends StatelessWidget {
   <li><strong>Tutup aplikasi sepenuhnya</strong> (bukan hot reload), lalu buka lagi: semua catatan masih ada.</li>
 </ol>
 
-<h4>Bonus: unit test repository</h4>
-<p>Repository yang terpisah dari UI bisa diuji tanpa emulator. Di unit test tidak ada <code>path_provider</code>, sehingga kita memakai <code>Hive.init(folder)</code> dengan folder sementara sebagai pengganti <code>Hive.initFlutter()</code>. Ganti <code>catatan_kuliah</code> pada baris import jika nama proyekmu berbeda (lihat <code>name:</code> di <code>pubspec.yaml</code>).</p>
-<p class="code-file-label">📄 <code>test/catatan_repository_test.dart</code></p>
-<pre><code class="language-dart">// test/catatan_repository_test.dart
+<h4>Bonus: unit test service</h4>
+<p>Service yang terpisah dari UI bisa diuji tanpa emulator. Di unit test tidak ada <code>path_provider</code>, sehingga kita memakai <code>Hive.init(folder)</code> dengan folder sementara sebagai pengganti <code>Hive.initFlutter()</code>. Ganti <code>catatan_kuliah</code> pada baris import jika nama proyekmu berbeda (lihat <code>name:</code> di <code>pubspec.yaml</code>).</p>
+<p class="code-file-label">📄 <code>test/catatan_service_test.dart</code></p>
+<pre><code class="language-dart">// test/catatan_service_test.dart
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:catatan_kuliah/models/catatan.dart';
 import 'package:catatan_kuliah/models/catatan_adapter.dart';
-import 'package:catatan_kuliah/repositories/catatan_repository.dart';
+import 'package:catatan_kuliah/services/catatan_service.dart';
 
 void main() {
   late Directory tempDir;
-  late CatatanRepository repo;
+  late CatatanService service;
 
   setUp(() async {
     // Di unit test tidak ada path_provider, jadi pakai Hive.init + folder sementara
@@ -817,7 +824,7 @@ void main() {
     if (!Hive.isAdapterRegistered(0)) {
       Hive.registerAdapter(CatatanAdapter());
     }
-    repo = await CatatanRepository.buka();
+    service = await CatatanService.buka();
   });
 
   tearDown(() async {
@@ -839,34 +846,34 @@ void main() {
   }
 
   test('create dan read', () async {
-    await repo.simpan(buatCatatan('1', 'Widget'));
-    expect(repo.jumlah, 1);
-    expect(repo.ambil('1')?.judul, 'Widget');
+    await service.simpan(buatCatatan('1', 'Widget'));
+    expect(service.jumlah, 1);
+    expect(service.ambil('1')?.judul, 'Widget');
   });
 
   test('update menimpa data dengan id yang sama', () async {
     final c = buatCatatan('1', 'Widget');
-    await repo.simpan(c);
-    await repo.simpan(c.copyWith(judul: 'Widget Dasar'));
-    expect(repo.jumlah, 1);
-    expect(repo.ambil('1')?.judul, 'Widget Dasar');
+    await service.simpan(c);
+    await service.simpan(c.copyWith(judul: 'Widget Dasar'));
+    expect(service.jumlah, 1);
+    expect(service.ambil('1')?.judul, 'Widget Dasar');
   });
 
   test('delete dan hapusSemua', () async {
-    await repo.simpan(buatCatatan('1', 'A'));
-    await repo.simpan(buatCatatan('2', 'B'));
-    await repo.hapus('1');
-    expect(repo.ambil('1'), isNull);
-    expect(repo.jumlah, 1);
-    await repo.hapusSemua();
-    expect(repo.ambilSemua(), isEmpty);
+    await service.simpan(buatCatatan('1', 'A'));
+    await service.simpan(buatCatatan('2', 'B'));
+    await service.hapus('1');
+    expect(service.ambil('1'), isNull);
+    expect(service.jumlah, 1);
+    await service.hapusSemua();
+    expect(service.ambilSemua(), isEmpty);
   });
 
   test('data tetap ada setelah box ditutup dan dibuka lagi', () async {
-    await repo.simpan(buatCatatan('1', 'Persisten'));
+    await service.simpan(buatCatatan('1', 'Persisten'));
     await Hive.close(); // seperti aplikasi ditutup
-    final repoBaru = await CatatanRepository.buka();
-    final c = repoBaru.ambil('1');
+    final serviceBaru = await CatatanService.buka();
+    final c = serviceBaru.ambil('1');
     expect(c?.judul, 'Persisten');
     expect(c?.dibuatPada, DateTime(2025, 1, 1, 8, 0)); // adapter bekerja
   });
@@ -875,17 +882,17 @@ void main() {
 
 <pre><code class="language-bash">flutter test
 </code></pre>
-<pre><code class="language-text">00:00 +0: loading test/catatan_repository_test.dart
+<pre><code class="language-text">00:00 +0: loading test/catatan_service_test.dart
 00:00 +0: create dan read
 00:00 +1: update menimpa data dengan id yang sama
 00:00 +2: delete dan hapusSemua
 00:00 +3: data tetap ada setelah box ditutup dan dibuka lagi
 00:00 +4: All tests passed!
 </code></pre>
-<p>Test terakhir paling penting: ia menutup Hive (seperti aplikasi ditutup), membuka box lagi, lalu memastikan data dan tanggalnya terbaca dengan benar. Itu bukti adapter kita bekerja dua arah.</p>
+<p>Test terakhir paling penting: ia menutup Hive (seperti aplikasi ditutup), membuka box lagi, lalu memastikan data dan tanggalnya terbaca dengan benar. Itu bukti adapter kita bekerja dua arah. Dengan cara yang sama kamu juga bisa menguji <code>CatatanController</code>: buat <code>CatatanController(service)</code>, panggil <code>onInit()</code>, lalu periksa <code>daftar</code> setelah <code>tambah</code> atau <code>cari</code>, karena controller tidak membutuhkan widget sama sekali.</p>
 
 <div class="callout callout-info"><h4>ℹ️ Pengembangan lanjutan</h4><ul>
 <li>Tambahkan field <code>disematkan</code> (pin) dengan menaikkan versi adapter menjadi 2 seperti contoh <code>DosenAdapter</code> di bagian 5.</li>
 <li>Ganti tombol hapus dengan gestur geser (<code>Dismissible</code>) dan SnackBar "Batalkan" yang menyimpan ulang catatan.</li>
-<li>Di Modul 14, pola repository yang sama dipakai lagi: data utama dari Supabase, lalu Hive menjadi cache offline.</li>
+<li>Di Modul 14, pemisahan lapisan yang sama dipakai lagi (di sana disebut repository): data utama dari Supabase, lalu Hive menjadi cache offline.</li>
 </ul></div>

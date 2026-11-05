@@ -1,19 +1,19 @@
-<p class="lead">Kita gabungkan semuanya menjadi aplikasi <strong>Catatan Kuliah</strong> yang sepenuhnya offline: tambah, edit, hapus (dengan urungkan), sematkan (pin), cari, dan filter kategori. Arsitekturnya sama seperti Modul 09, hanya sumber datanya SQLite: <strong>Model → Database → Provider → Screen</strong>.</p>
+<p class="lead">Kita gabungkan semuanya menjadi aplikasi <strong>Catatan Kuliah</strong> yang sepenuhnya offline: tambah, edit, hapus (dengan urungkan), sematkan (pin), cari, dan filter kategori. Arsitekturnya MVC dengan GetX seperti Modul 08 dan 09, hanya sumber datanya SQLite: <strong>Model → Service (Database) → Controller → View</strong>.</p>
 
 <h4>Struktur Folder</h4>
 <pre><code class="language-text">lib/
 ├── main.dart
 ├── models/
 │   └── catatan.dart
-├── data/
+├── services/
 │   └── catatan_database.dart
-├── providers/
-│   └── catatan_provider.dart
-└── screens/
-    ├── catatan_list_screen.dart
-    └── catatan_form_screen.dart
+├── controllers/
+│   └── catatan_controller.dart
+└── views/
+    ├── catatan_list_view.dart
+    └── catatan_form_view.dart
 </code></pre>
-<pre><code class="language-bash">flutter pub add sqflite path provider
+<pre><code class="language-bash">flutter pub add sqflite path get
 </code></pre>
 
 <h4>1. Model</h4>
@@ -68,8 +68,9 @@
 }
 </code></pre>
 
-<h4>2. Lapisan Database</h4>
-<p class="code-file-label">📄 <code>lib/data/catatan_database.dart</code></p>
+<h4>2. Service: Lapisan Database</h4>
+<p>Semua SQL dikumpulkan di satu service. Class ini tidak memakai GetX maupun widget.</p>
+<p class="code-file-label">📄 <code>lib/services/catatan_database.dart</code></p>
 <pre><code class="language-dart">import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -133,40 +134,45 @@ class CatatanDatabase {
 }
 </code></pre>
 
-<h4>3. Provider</h4>
-<p class="code-file-label">📄 <code>lib/providers/catatan_provider.dart</code></p>
-<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+<h4>3. Controller</h4>
+<p class="code-file-label">📄 <code>lib/controllers/catatan_controller.dart</code></p>
+<pre><code class="language-dart">import 'package:get/get.dart';
 
-import '../data/catatan_database.dart';
 import '../models/catatan.dart';
+import '../services/catatan_database.dart';
 
-class CatatanProvider extends ChangeNotifier {
+class CatatanController extends GetxController {
+  CatatanController(this._db);
   final CatatanDatabase _db;
-  CatatanProvider(this._db);
 
-  List&lt;Catatan&gt; _items = [];
-  bool _loading = true;
-  String _kata = '';
-  String? _kategori;
+  final _items = &lt;Catatan&gt;[].obs;
+  final _isLoading = true.obs; // true sampai data pertama selesai dibaca
+  final _kata = ''.obs;
+  final _kategori = RxnString();
 
   List&lt;Catatan&gt; get items =&gt; List.unmodifiable(_items);
-  bool get loading =&gt; _loading;
-  String? get kategori =&gt; _kategori;
-  bool get sedangMemfilter =&gt; _kata.isNotEmpty || _kategori != null;
+  bool get isLoading =&gt; _isLoading.value;
+  String? get kategori =&gt; _kategori.value;
+  bool get sedangMemfilter =&gt; _kata.value.isNotEmpty || _kategori.value != null;
+
+  @override
+  void onInit() {
+    super.onInit();
+    muat();
+  }
 
   Future&lt;void&gt; muat() async {
-    _items = await _db.getAll(kata: _kata, kategori: _kategori);
-    _loading = false;
-    notifyListeners();
+    _items.assignAll(await _db.getAll(kata: _kata.value, kategori: _kategori.value));
+    _isLoading.value = false;
   }
 
   Future&lt;void&gt; cari(String kata) {
-    _kata = kata.trim();
+    _kata.value = kata.trim();
     return muat();
   }
 
   Future&lt;void&gt; pilihKategori(String? kategori) {
-    _kategori = kategori;
+    _kategori.value = kategori;
     return muat();
   }
 
@@ -187,7 +193,6 @@ class CatatanProvider extends ChangeNotifier {
 
   Future&lt;void&gt; hapus(Catatan c) async {
     _items.remove(c); // hilang dari layar seketika (dibutuhkan Dismissible)
-    notifyListeners();
     await _db.delete(c.id!);
   }
 
@@ -198,27 +203,26 @@ class CatatanProvider extends ChangeNotifier {
   }
 }
 </code></pre>
+<p><strong>Penjelasan:</strong> kata kunci dan kategori juga disimpan sebagai nilai reaktif (<code>_kata</code>, <code>_kategori</code>), sehingga chip kategori yang terpilih dan teks "Tidak ada catatan yang cocok" ikut berubah otomatis. Data pertama dibaca di <code>onInit()</code>.</p>
 
-<h4>4. Layar Daftar</h4>
-<p class="code-file-label">📄 <code>lib/screens/catatan_list_screen.dart</code></p>
+<h4>4. View Daftar</h4>
+<p class="code-file-label">📄 <code>lib/views/catatan_list_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
+import '../controllers/catatan_controller.dart';
 import '../models/catatan.dart';
-import '../providers/catatan_provider.dart';
-import 'catatan_form_screen.dart';
+import 'catatan_form_view.dart';
 
-class CatatanListScreen extends StatelessWidget {
-  const CatatanListScreen({super.key});
+class CatatanListView extends GetView&lt;CatatanController&gt; {
+  const CatatanListView({super.key});
 
-  void _bukaForm(BuildContext context, [Catatan? c]) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) =&gt; CatatanFormScreen(catatan: c)));
+  void _bukaForm([Catatan? c]) {
+    Get.to(() =&gt; CatatanFormView(catatan: c));
   }
 
   @override
   Widget build(BuildContext context) {
-    final prov = context.watch&lt;CatatanProvider&gt;();
-
     return Scaffold(
       appBar: AppBar(title: const Text('Catatan Kuliah')),
       body: Column(
@@ -228,54 +232,59 @@ class CatatanListScreen extends StatelessWidget {
             child: SearchBar(
               hintText: 'Cari judul atau isi catatan',
               leading: const Icon(Icons.search),
-              onChanged: context.read&lt;CatatanProvider&gt;().cari,
+              onChanged: controller.cari,
             ),
           ),
           SizedBox(
             height: 48,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: [
-                ChoiceChip(
-                  label: const Text('Semua'),
-                  selected: prov.kategori == null,
-                  onSelected: (_) =&gt; prov.pilihKategori(null),
-                ),
-                for (final k in Catatan.kategoriList)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: ChoiceChip(
-                      label: Text(k),
-                      selected: prov.kategori == k,
-                      onSelected: (v) =&gt; prov.pilihKategori(v ? k : null),
+            child: Obx(() =&gt; ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Semua'),
+                      selected: controller.kategori == null,
+                      onSelected: (_) =&gt; controller.pilihKategori(null),
                     ),
-                  ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: prov.loading
-                ? const Center(child: CircularProgressIndicator())
-                : prov.items.isEmpty
-                    ? Center(
-                        child: Text(prov.sedangMemfilter
-                            ? 'Tidak ada catatan yang cocok.'
-                            : 'Belum ada catatan. Tekan + untuk menulis.'),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.only(bottom: 80),
-                        itemCount: prov.items.length,
-                        itemBuilder: (context, i) =&gt; _CatatanTile(
-                          catatan: prov.items[i],
-                          onTap: () =&gt; _bukaForm(context, prov.items[i]),
+                    for (final k in Catatan.kategoriList)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: ChoiceChip(
+                          label: Text(k),
+                          selected: controller.kategori == k,
+                          onSelected: (v) =&gt; controller.pilihKategori(v ? k : null),
                         ),
                       ),
+                  ],
+                )),
+          ),
+          Expanded(
+            child: Obx(() {
+              if (controller.isLoading) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final items = controller.items;
+              if (items.isEmpty) {
+                return Center(
+                  child: Text(controller.sedangMemfilter
+                      ? 'Tidak ada catatan yang cocok.'
+                      : 'Belum ada catatan. Tekan + untuk menulis.'),
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.only(bottom: 80),
+                itemCount: items.length,
+                itemBuilder: (context, i) =&gt; _CatatanTile(
+                  catatan: items[i],
+                  onTap: () =&gt; _bukaForm(items[i]),
+                ),
+              );
+            }),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () =&gt; _bukaForm(context),
+        onPressed: _bukaForm,
         icon: const Icon(Icons.edit_note),
         label: const Text('Tulis'),
       ),
@@ -283,14 +292,13 @@ class CatatanListScreen extends StatelessWidget {
   }
 }
 
-class _CatatanTile extends StatelessWidget {
+class _CatatanTile extends GetView&lt;CatatanController&gt; {
   final Catatan catatan;
   final VoidCallback onTap;
   const _CatatanTile({required this.catatan, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final prov = context.read&lt;CatatanProvider&gt;();
     final d = catatan.diubah;
     return Dismissible(
       key: ValueKey(catatan.id),
@@ -303,10 +311,10 @@ class _CatatanTile extends StatelessWidget {
       ),
       onDismissed: (_) {
         final messenger = ScaffoldMessenger.of(context);
-        prov.hapus(catatan);
+        controller.hapus(catatan);
         messenger.showSnackBar(SnackBar(
           content: Text('"${catatan.judul}" dihapus'),
-          action: SnackBarAction(label: 'URUNGKAN', onPressed: () =&gt; prov.pulihkan(catatan)),
+          action: SnackBarAction(label: 'URUNGKAN', onPressed: () =&gt; controller.pulihkan(catatan)),
         ));
       },
       child: Card(
@@ -323,7 +331,7 @@ class _CatatanTile extends StatelessWidget {
           trailing: IconButton(
             tooltip: catatan.disematkan ? 'Lepas sematan' : 'Sematkan',
             icon: Icon(catatan.disematkan ? Icons.push_pin : Icons.push_pin_outlined),
-            onPressed: () =&gt; prov.toggleSemat(catatan),
+            onPressed: () =&gt; controller.toggleSemat(catatan),
           ),
         ),
       ),
@@ -331,24 +339,26 @@ class _CatatanTile extends StatelessWidget {
   }
 }
 </code></pre>
+<p><strong>Penjelasan:</strong> ada dua <code>Obx</code> kecil. Yang pertama hanya membaca <code>kategori</code> (baris chip), yang kedua membaca <code>isLoading</code>, <code>items</code>, dan <code>sedangMemfilter</code> (daftar). <code>SearchBar</code> tidak dibungkus <code>Obx</code> karena tidak menampilkan nilai reaktif; ia hanya memanggil <code>controller.cari</code>. <code>_CatatanTile</code> juga memakai <code>GetView</code> agar bisa memanggil method controller tanpa dioper lewat constructor.</p>
 
-<h4>5. Layar Form (Tambah &amp; Edit)</h4>
-<p class="code-file-label">📄 <code>lib/screens/catatan_form_screen.dart</code></p>
+<h4>5. View Form (Tambah &amp; Edit)</h4>
+<p class="code-file-label">📄 <code>lib/views/catatan_form_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
+import '../controllers/catatan_controller.dart';
 import '../models/catatan.dart';
-import '../providers/catatan_provider.dart';
 
-class CatatanFormScreen extends StatefulWidget {
+class CatatanFormView extends StatefulWidget {
   final Catatan? catatan; // null = catatan baru
-  const CatatanFormScreen({super.key, this.catatan});
+  const CatatanFormView({super.key, this.catatan});
 
   @override
-  State&lt;CatatanFormScreen&gt; createState() =&gt; _CatatanFormScreenState();
+  State&lt;CatatanFormView&gt; createState() =&gt; _CatatanFormViewState();
 }
 
-class _CatatanFormScreenState extends State&lt;CatatanFormScreen&gt; {
+class _CatatanFormViewState extends State&lt;CatatanFormView&gt; {
+  final _controller = Get.find&lt;CatatanController&gt;();
   final _formKey = GlobalKey&lt;FormState&gt;();
   late final TextEditingController _judul =
       TextEditingController(text: widget.catatan?.judul);
@@ -368,8 +378,8 @@ class _CatatanFormScreenState extends State&lt;CatatanFormScreen&gt; {
     final data = lama == null
         ? Catatan(judul: _judul.text.trim(), isi: _isi.text.trim(), kategori: _kategori, diubah: DateTime.now())
         : lama.copyWith(judul: _judul.text.trim(), isi: _isi.text.trim(), kategori: _kategori);
-    await context.read&lt;CatatanProvider&gt;().simpan(data);
-    if (mounted) Navigator.pop(context);
+    await _controller.simpan(data);
+    if (mounted) Get.back();
   }
 
   @override
@@ -419,27 +429,26 @@ class _CatatanFormScreenState extends State&lt;CatatanFormScreen&gt; {
   }
 }
 </code></pre>
+<p><strong>Penjelasan:</strong> isian form (<code>TextEditingController</code>, kategori yang sedang dipilih) adalah state lokal milik halaman ini, jadi tetap memakai <code>StatefulWidget</code> dan <code>setState</code>. Yang masuk ke controller hanyalah data catatan yang sudah final.</p>
 
 <h4>6. <code>main.dart</code></h4>
 <p class="code-file-label">📄 <code>lib/main.dart</code></p>
 <pre><code class="language-dart">// CATATAN: sqflite hanya berjalan di Android, iOS, dan macOS.
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
-import 'data/catatan_database.dart';
-import 'providers/catatan_provider.dart';
-import 'screens/catatan_list_screen.dart';
+import 'controllers/catatan_controller.dart';
+import 'services/catatan_database.dart';
+import 'views/catatan_list_view.dart';
 
 void main() {
+  Get.put(CatatanController(CatatanDatabase.instance), permanent: true);
   runApp(
-    ChangeNotifierProvider(
-      create: (_) =&gt; CatatanProvider(CatatanDatabase.instance)..muat(),
-      child: MaterialApp(
-        title: 'Catatan Kuliah',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(colorSchemeSeed: Colors.amber),
-        home: const CatatanListScreen(),
-      ),
+    GetMaterialApp(
+      title: 'Catatan Kuliah',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.amber),
+      home: const CatatanListView(),
     ),
   );
 }
@@ -466,8 +475,9 @@ void main() {
 
 <div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
 <ul>
-  <li>Lupa <code>..muat()</code> saat membuat provider: spinner tidak pernah hilang karena <code>_loading</code> tetap <code>true</code>.</li>
-  <li>Memanggil <code>Navigator.pop</code> sebelum <code>await simpan(...)</code> selesai, sehingga daftar belum ter-update saat kembali.</li>
+  <li>Lupa memanggil <code>muat()</code> di <code>onInit()</code>: spinner tidak pernah hilang karena <code>_isLoading</code> tetap <code>true</code>.</li>
+  <li>Memanggil <code>Get.back()</code> sebelum <code>await simpan(...)</code> selesai, sehingga daftar belum ter-update saat kembali.</li>
+  <li>Membungkus seluruh <code>Scaffold</code> dengan satu <code>Obx</code> besar. Hasilnya tetap jalan, tetapi <code>SearchBar</code> ikut dibangun ulang setiap ada perubahan. Pakai <code>Obx</code> kecil hanya di bagian yang membaca nilai reaktif.</li>
   <li>Memakai <code>value:</code> pada <code>DropdownButtonFormField</code>; versi Flutter terbaru memakai <code>initialValue:</code>.</li>
 </ul>
 </div>

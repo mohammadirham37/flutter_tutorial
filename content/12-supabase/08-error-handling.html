@@ -84,6 +84,6 @@
 </code></pre>
 <p><code>AuthRetryableFetchException</code> adalah turunan <code>AuthException</code> yang dilempar saat request Auth gagal karena jaringan. Karena merupakan turunan, ia harus ditangkap <strong>sebelum</strong> <code>on AuthException</code>.</p>
 
-<div class="callout callout-tip"><h4>💡 Di mana sebaiknya try-catch ditulis?</h4><p>Jangan menyebar try-catch di setiap widget. Di proyek Modul 13–14, error ditangkap di <strong>Provider</strong>, diterjemahkan menjadi pesan Bahasa Indonesia, lalu UI cukup menampilkan pesannya. Dengan begitu tampilan tetap bersih dan logika error terkumpul di satu tempat.</p></div>
+<div class="callout callout-tip"><h4>💡 Di mana sebaiknya try-catch ditulis?</h4><p>Jangan menyebar try-catch di setiap widget. Di proyek Modul 13–14, error ditangkap di <strong>controller</strong> (GetxController), diterjemahkan menjadi pesan Bahasa Indonesia, lalu UI cukup menampilkan pesannya. Dengan begitu tampilan tetap bersih dan logika error terkumpul di satu tempat.</p></div>
 
 <div class="callout callout-warning"><h4>⚠️ Jangan menelan error</h4><p><code>catch (e) {}</code> yang kosong membuat bug tidak terlihat: data tidak tersimpan dan user tidak tahu kenapa. Minimal tampilkan SnackBar atau tulis <code>debugPrint(e.toString())</code> saat pengembangan.</p></div>

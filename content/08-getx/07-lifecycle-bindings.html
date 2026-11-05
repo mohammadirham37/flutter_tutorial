@@ -1,0 +1,373 @@
+<p class="lead">Setiap <code>GetxController</code> punya siklus hidup: dibuat, dipakai, lalu dihapus dari memori. GetX memanggil method tertentu di setiap tahap, sehingga Anda tahu kapan harus memuat data dan kapan harus membersihkan sumber daya. Di section ini kita juga mengenal <strong>Bindings</strong>, tempat rapi untuk mendaftarkan banyak controller sekaligus.</p>
+
+<h4>Tiga method lifecycle</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Method</th><th>Kapan dipanggil</th><th>Dipakai untuk</th></tr></thead>
+    <tbody>
+      <tr><td><code>onInit()</code></td><td>Sekali, tepat setelah controller dibuat dan didaftarkan</td><td>Memuat data awal, memulai timer, membuat worker (section 9), berlangganan stream</td></tr>
+      <tr><td><code>onReady()</code></td><td>Sekali, satu frame setelah <code>onInit</code> (halaman sudah tampil)</td><td>Aksi yang butuh UI sudah siap, misalnya menampilkan dialog sambutan dari View</td></tr>
+      <tr><td><code>onClose()</code></td><td>Sekali, sebelum controller dihapus dari memori</td><td>Membatalkan <code>Timer</code>, <code>StreamSubscription</code>, worker, menutup <code>TextEditingController</code> milik controller</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Jika Anda pernah memakai <code>StatefulWidget</code>, polanya mirip: <code>onInit</code> setara <code>initState</code>, dan <code>onClose</code> setara <code>dispose</code>. Bedanya, lifecycle ini milik controller, bukan milik widget.</p>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
+
+class ContohController extends GetxController {
+  ContohController() {
+    debugPrint('1. constructor');
+  }
+
+  @override
+  void onInit() {
+    super.onInit(); // selalu panggil super lebih dulu
+    debugPrint('2. onInit: muat data di sini');
+  }
+
+  @override
+  void onReady() {
+    super.onReady();
+    debugPrint('3. onReady: halaman sudah tampil');
+  }
+
+  @override
+  void onClose() {
+    debugPrint('4. onClose: bersihkan sumber daya di sini');
+    super.onClose();
+  }
+}
+</code></pre>
+<p>Kapan <code>onClose</code> dipanggil? Itu bergantung pada <em>cara</em> controller didaftarkan:</p>
+<ul>
+  <li>Didaftarkan dengan <code>permanent: true</code> atau di <code>initialBinding</code>: hidup selama aplikasi berjalan, <code>onClose</code> praktis tidak pernah dipanggil.</li>
+  <li>Didaftarkan lewat <strong>binding sebuah rute</strong> (atau <code>Get.put</code> di dalam halaman yang dibuka dengan <code>Get.to</code>/<code>Get.toNamed</code>): GetX mengikat controller ke rute tersebut. Saat halaman ditutup (<code>Get.back</code> atau tombol kembali), controller otomatis dihapus dan <code>onClose</code> dipanggil.</li>
+  <li>Dihapus manual dengan <code>Get.delete&lt;ContohController&gt;()</code>.</li>
+</ul>
+
+<h4>Bindings: satu tempat untuk mendaftarkan controller</h4>
+<p>Di section 4 controller didaftarkan dengan <code>Get.put</code> di <code>main()</code> atau di View. Untuk aplikasi yang punya banyak controller, pendaftaran itu lebih rapi dikumpulkan dalam class turunan <code>Bindings</code>. Method <code>dependencies()</code> berisi semua <code>Get.put</code>/<code>Get.lazyPut</code>.</p>
+<pre><code class="language-dart">// 1. Binding global: dijalankan sekali saat aplikasi mulai
+class AppBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.put(TemaController(), permanent: true);
+    Get.put(SesiController(), permanent: true);
+    Get.lazyPut(() =&gt; FavoritController(), fenix: true);
+  }
+}
+
+// 2. Binding per halaman: dijalankan saat rute dibuka
+class BelajarBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut(() =&gt; BelajarController());
+  }
+}
+
+// 3. Memasang binding
+GetMaterialApp(
+  initialBinding: AppBinding(),            // binding global
+  initialRoute: '/',
+  getPages: [
+    GetPage(name: '/', page: () =&gt; const BerandaView()),
+    GetPage(
+      name: '/belajar',
+      page: () =&gt; const BelajarView(),
+      binding: BelajarBinding(),           // binding milik rute ini
+    ),
+  ],
+);
+
+// 4. Membuka rute bernama (boleh membawa arguments)
+Get.toNamed('/belajar', arguments: 'Basis Data');
+</code></pre>
+<p>Untuk binding yang isinya hanya satu-dua baris, tidak perlu membuat class. Pakai <code>BindingsBuilder</code>:</p>
+<pre><code class="language-dart">GetPage(
+  name: '/belajar',
+  page: () =&gt; const BelajarView(),
+  binding: BindingsBuilder(() {
+    Get.lazyPut(() =&gt; BelajarController());
+  }),
+),
+</code></pre>
+<p>Jika Anda pernah melihat <code>MultiProvider</code> di package Provider, <code>AppBinding</code> inilah padanannya: semua controller global didaftarkan di satu tempat, tanpa widget yang bersarang.</p>
+
+<h4>Contoh lengkap: tiga controller global + satu controller per halaman</h4>
+<p>Aplikasi berikut punya <code>TemaController</code>, <code>SesiController</code>, dan <code>FavoritController</code> yang didaftarkan di <code>AppBinding</code>. Mengetuk nama mata kuliah membuka halaman Belajar yang punya <code>BelajarController</code> sendiri. Controller ini menjalankan <code>Timer</code> dan otomatis dihapus ketika halaman ditutup.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+// ================= CONTROLLER GLOBAL =================
+
+// Controller 1: pengaturan tampilan
+class TemaController extends GetxController {
+  final _gelap = false.obs;
+  bool get gelap =&gt; _gelap.value;
+
+  void toggle() =&gt; _gelap.value = !_gelap.value;
+
+  @override
+  void onInit() {
+    super.onInit();
+    debugPrint('TemaController.onInit');
+  }
+}
+
+// Controller 2: data pengguna yang sedang login
+class SesiController extends GetxController {
+  final _nama = RxnString(); // Rxn = observable yang boleh null
+  String? get nama =&gt; _nama.value;
+  bool get sudahLogin =&gt; _nama.value != null;
+
+  void login(String nama) =&gt; _nama.value = nama;
+  void logout() =&gt; _nama.value = null;
+
+  @override
+  void onInit() {
+    super.onInit();
+    debugPrint('SesiController.onInit');
+  }
+}
+
+// Controller 3: daftar favorit
+class FavoritController extends GetxController {
+  final _items = &lt;String&gt;{}.obs; // RxSet
+  int get jumlah =&gt; _items.length;
+  bool isFavorit(String m) =&gt; _items.contains(m);
+
+  void toggle(String m) {
+    if (!_items.remove(m)) _items.add(m);
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    debugPrint('FavoritController.onInit');
+  }
+}
+
+// ================= CONTROLLER PER HALAMAN =================
+
+// Hidup hanya selama halaman Belajar terbuka
+class BelajarController extends GetxController {
+  final _detik = 0.obs;
+  int get detik =&gt; _detik.value;
+
+  Timer? _timer;
+
+  @override
+  void onInit() {
+    super.onInit();
+    debugPrint('BelajarController.onInit: timer dimulai');
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) =&gt; _detik.value++);
+  }
+
+  @override
+  void onReady() {
+    super.onReady();
+    debugPrint('BelajarController.onReady: halaman sudah tampil');
+  }
+
+  @override
+  void onClose() {
+    _timer?.cancel(); // WAJIB: kalau lupa, timer tetap berjalan di latar
+    debugPrint('BelajarController.onClose: timer dihentikan setelah $detik detik');
+    super.onClose();
+  }
+}
+
+// ================= BINDINGS =================
+
+// Semua controller global didaftarkan di satu tempat
+class AppBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.put(TemaController(), permanent: true);
+    Get.put(SesiController(), permanent: true);
+    Get.put(FavoritController(), permanent: true);
+  }
+}
+
+// Binding khusus halaman Belajar
+class BelajarBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut(() =&gt; BelajarController());
+  }
+}
+
+// ================= APP =================
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      darkTheme: ThemeData(colorSchemeSeed: Colors.indigo, brightness: Brightness.dark),
+      initialBinding: AppBinding(), // dijalankan sekali saat aplikasi mulai
+      initialRoute: '/',
+      getPages: [
+        GetPage(name: '/', page: () =&gt; const BerandaView()),
+        GetPage(
+          name: '/belajar',
+          page: () =&gt; const BelajarView(),
+          binding: BelajarBinding(), // controller dibuat saat rute dibuka
+        ),
+      ],
+    );
+  }
+}
+
+// ================= VIEW =================
+
+class BerandaView extends StatelessWidget {
+  const BerandaView({super.key});
+
+  static const matkul = ['Pemrograman Mobile', 'Basis Data', 'Kecerdasan Buatan'];
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Get.find&lt;TemaController&gt;();
+    final sesi = Get.find&lt;SesiController&gt;();
+    final favorit = Get.find&lt;FavoritController&gt;();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Obx(() =&gt; Text(sesi.sudahLogin ? 'Halo, ${sesi.nama}' : 'Tamu')),
+        actions: [
+          IconButton(
+            tooltip: 'Ganti tema',
+            icon: const Icon(Icons.dark_mode),
+            onPressed: () {
+              tema.toggle(); // controller menyimpan state
+              // View yang menerapkan state ke tampilan
+              Get.changeThemeMode(tema.gelap ? ThemeMode.dark : ThemeMode.light);
+            },
+          ),
+          Obx(
+            () =&gt; IconButton(
+              tooltip: sesi.sudahLogin ? 'Logout' : 'Login',
+              icon: Icon(sesi.sudahLogin ? Icons.logout : Icons.login),
+              onPressed: () =&gt; sesi.sudahLogin ? sesi.logout() : sesi.login('Andi'),
+            ),
+          ),
+        ],
+      ),
+      body: ListView(
+        children: [
+          Obx(() =&gt; ListTile(title: Text('Favorit: ${favorit.jumlah} mata kuliah'))),
+          const Divider(),
+          for (final m in matkul)
+            ListTile(
+              title: Text(m),
+              // ketuk baris untuk membuka halaman Belajar
+              onTap: () =&gt; Get.toNamed('/belajar', arguments: m),
+              trailing: Obx(
+                () =&gt; IconButton(
+                  tooltip: 'Favorit $m',
+                  icon: Icon(
+                    favorit.isFavorit(m) ? Icons.favorite : Icons.favorite_border,
+                    color: favorit.isFavorit(m) ? Colors.red : null,
+                  ),
+                  onPressed: () =&gt; favorit.toggle(m),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// GetView&lt;T&gt; = StatelessWidget yang punya getter `controller` (= Get.find&lt;T&gt;())
+class BelajarView extends GetView&lt;BelajarController&gt; {
+  const BelajarView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final matkul = Get.arguments as String? ?? '-';
+
+    return Scaffold(
+      appBar: AppBar(title: Text('Belajar $matkul')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.timer, size: 64),
+            const SizedBox(height: 12),
+            Obx(
+              () =&gt; Text(
+                '${controller.detik} detik',
+                style: Theme.of(context).textTheme.displaySmall,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text('Tekan tombol kembali, lalu lihat log di konsol'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/bindings-awal.jpg" alt="Tiga controller global: tema, sesi, favorit" loading="lazy">
+    <div class="screenshot-caption">Tiga controller global dari AppBinding</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/bindings-aksi.jpg" alt="Setelah login, menambah dua favorit, dan ganti tema gelap" loading="lazy">
+    <div class="screenshot-caption">Setelah login, menambah favorit, dan ganti tema</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/bindings-belajar.jpg" alt="Halaman Belajar dengan timer dari BelajarController" loading="lazy">
+    <div class="screenshot-caption">Halaman Belajar: BelajarController dibuat oleh BelajarBinding</div>
+  </div>
+</div>
+
+<p>Log di konsol (<em>Debug Console</em> / terminal <code>flutter run</code>) setelah aplikasi dibuka, halaman Basis Data dibuka, lalu tombol kembali ditekan:</p>
+<pre><code class="language-text">I/flutter: TemaController.onInit
+I/flutter: SesiController.onInit
+I/flutter: FavoritController.onInit
+I/flutter: BelajarController.onInit: timer dimulai
+I/flutter: BelajarController.onReady: halaman sudah tampil
+I/flutter: BelajarController.onClose: timer dihentikan setelah 5 detik
+</code></pre>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>initialBinding: AppBinding()</code> menjalankan <code>dependencies()</code> sekali saat aplikasi mulai, sehingga tiga controller global langsung tersedia untuk <code>Get.find</code> di View mana pun.</li>
+  <li>Setiap controller kecil dan punya satu tanggung jawab. Hindari satu "GodController" berisi semua state.</li>
+  <li><code>BelajarBinding</code> dipasang di <code>GetPage</code>. Controller baru dibuat ketika rute <code>/belajar</code> dibuka, dan dihapus ketika rute ditutup. Buka halaman itu lagi: hitungan mulai dari 0 karena controllernya baru.</li>
+  <li><code>onClose</code> membatalkan <code>Timer</code>. Tanpa baris itu, timer tetap berdetak di latar dan terus mengubah observable milik controller yang sudah tidak dipakai (kebocoran memori).</li>
+  <li><code>BelajarView extends GetView&lt;BelajarController&gt;</code>: <code>GetView</code> hanyalah <code>StatelessWidget</code> yang menyediakan getter <code>controller</code> berisi <code>Get.find&lt;BelajarController&gt;()</code>.</li>
+  <li>Tema: <code>TemaController</code> hanya menyimpan nilai <code>gelap</code>. Yang memanggil <code>Get.changeThemeMode</code> adalah View, karena itu urusan tampilan (prinsip MVC dari section 2).</li>
+  <li><code>Get.arguments</code> berisi nilai yang dikirim lewat <code>Get.toNamed('/belajar', arguments: m)</code>.</li>
+  <li>Setiap <code>Obx</code> hanya membungkus bagian yang membaca observable: judul AppBar, ikon login, jumlah favorit, dan ikon hati per baris.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Get.put vs Get.lazyPut di binding</h4><p><code>Get.put</code> langsung membuat objek (dan menjalankan <code>onInit</code>) saat binding dijalankan. <code>Get.lazyPut</code> hanya mendaftarkan "resep"; objek baru dibuat saat pertama kali di-<code>Get.find</code>. Tambahkan <code>fenix: true</code> agar controller lazy bisa dibuat ulang setelah sempat dihapus.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Lupa memanggil <code>super.onInit()</code> / <code>super.onClose()</code>. Selalu panggil <code>super</code>.</li>
+  <li>Membuat <code>Timer</code>, <code>StreamSubscription</code>, atau worker di <code>onInit</code> tetapi tidak membatalkannya di <code>onClose</code>.</li>
+  <li>Memasang controller khusus satu halaman di <code>AppBinding</code> dengan <code>permanent: true</code>. Controller itu tidak pernah dihapus dan state lamanya muncul lagi saat halaman dibuka ulang.</li>
+  <li>Memakai <code>Get.toNamed('/belajar')</code> padahal rute itu tidak terdaftar di <code>getPages</code>, atau binding-nya lupa dipasang sehingga <code>Get.find</code> di View gagal dengan pesan <em>"BelajarController" not found</em>.</li>
+</ul>
+</div>

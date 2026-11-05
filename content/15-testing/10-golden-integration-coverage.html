@@ -131,7 +131,7 @@ genhtml coverage/lcov.info -o coverage/html
 open coverage/html/index.html        # macOS
 xdg-open coverage/html/index.html    # Linux</code></pre>
 <p>Pengguna Windows atau yang tidak ingin memasang lcov bisa memakai ekstensi VS Code <strong>Coverage Gutters</strong>: ia membaca <code>coverage/lcov.info</code> dan mewarnai baris di editor (hijau = teruji, merah = belum).</p>
-<div class="callout callout-tip"><h4>💡 Tips</h4><p>Jangan mengejar 100%. Target realistis untuk tugas besar: logika bisnis (<code>utils/</code>, <code>data/</code>, <code>providers/</code>) di atas 70%, ditambah widget test untuk halaman-halaman utama. Coverage tinggi dengan test yang tidak memeriksa apa-apa (tanpa <code>expect</code>) tidak ada artinya.</p></div>
+<div class="callout callout-tip"><h4>💡 Tips</h4><p>Jangan mengejar 100%. Target realistis untuk tugas besar: logika bisnis (<code>utils/</code>, <code>data/</code>, <code>controllers/</code>) di atas 70%, ditambah widget test untuk halaman-halaman utama. Coverage tinggi dengan test yang tidak memeriksa apa-apa (tanpa <code>expect</code>) tidak ada artinya.</p></div>
 
 <h4>Ringkasan perintah</h4>
 <div class="table-responsive">

@@ -1,48 +1,46 @@
-<p class="lead">Saatnya menggabungkan semua yang sudah dipelajari menjadi satu aplikasi utuh: <strong>Aplikasi Posts</strong> dengan fitur daftar, detail, tambah, edit, dan hapus, memakai ApiClient, Repository, dan Provider.</p>
+<p class="lead">Saatnya menggabungkan semua yang sudah dipelajari menjadi satu aplikasi utuh: <strong>Aplikasi Posts</strong> dengan fitur daftar, detail, tambah, edit, dan hapus, memakai ApiClient, Repository, serta pola <strong>MVC dengan GetX</strong> (Model, View, Controller).</p>
 
-<h4>Struktur Folder</h4>
+<h4>Struktur Folder (MVC)</h4>
 <pre><code class="language-text">lib/
 ├── main.dart
 ├── core/
-│   ├── api_exception.dart        (dari section 9, tanpa perubahan)
-│   └── api_client.dart           (dari section 9, tanpa perubahan)
+│   ├── api_exception.dart          (dari section 9, tanpa perubahan)
+│   └── api_client.dart             (dari section 9, tanpa perubahan)
 ├── models/
-│   └── post.dart                 (dari section 3, tanpa perubahan)
+│   └── post.dart                   (M: dari section 3, tanpa perubahan)
 ├── repositories/
-│   └── post_repository.dart      (dari section 9, tanpa perubahan)
-├── providers/
-│   └── post_crud_provider.dart   (BARU)
-└── screens/
-    ├── post_list_screen.dart     (BARU)
-    ├── post_detail_screen.dart   (BARU)
-    └── post_form_screen.dart     (BARU: dipakai untuk tambah dan edit)
+│   └── post_repository.dart        (akses data: dari section 9, tanpa perubahan)
+├── controllers/
+│   └── post_crud_controller.dart   (C: BARU)
+└── views/
+    ├── post_list_view.dart         (V: BARU)
+    ├── post_detail_view.dart       (V: BARU)
+    └── post_form_view.dart         (V: BARU, dipakai untuk tambah dan edit)
 </code></pre>
-<p>Persiapan: <code>flutter pub add http provider</code>, lalu salin empat file "dari section" di atas. Kita hanya menulis file yang BARU.</p>
+<p>Persiapan: <code>flutter pub add http get</code>, lalu salin empat file "dari section" di atas. Kita hanya menulis file yang BARU.</p>
 
-<div class="callout callout-info"><h4>ℹ️ Menyiasati JSONPlaceholder</h4><p>Karena server palsu selalu memberi <code>id: 101</code> untuk post baru dan tidak menyimpan perubahan, provider kita (1) memberi id unik lokal untuk post baru, dan (2) tidak mengirim PUT untuk post buatan sendiri (id &gt; 100) karena server akan membalas 500. Di backend sungguhan, dua siasat ini tidak diperlukan.</p></div>
+<div class="callout callout-info"><h4>ℹ️ Menyiasati JSONPlaceholder</h4><p>Karena server palsu selalu memberi <code>id: 101</code> untuk post baru dan tidak menyimpan perubahan, controller kita (1) memberi id unik lokal untuk post baru, dan (2) tidak mengirim PUT untuk post buatan sendiri (id &gt; 100) karena server akan membalas 500. Di backend sungguhan, dua siasat ini tidak diperlukan.</p></div>
 
-<h4>1. Provider CRUD</h4>
-<p class="code-file-label">📄 <code>lib/providers/post_crud_provider.dart</code></p>
-<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+<h4>1. Controller CRUD</h4>
+<p class="code-file-label">📄 <code>lib/controllers/post_crud_controller.dart</code></p>
+<pre><code class="language-dart">import 'package:get/get.dart';
 
 import '../models/post.dart';
 import '../repositories/post_repository.dart';
 
-enum LoadStatus { initial, loading, success, error }
-
-class PostCrudProvider extends ChangeNotifier {
+class PostCrudController extends GetxController {
+  PostCrudController(this._repo);
   final PostRepository _repo;
-  PostCrudProvider(this._repo);
 
-  List&lt;Post&gt; _posts = [];
-  LoadStatus _status = LoadStatus.initial;
-  String? _error;
-  bool _saving = false; // true saat POST/PUT/DELETE berjalan
+  final _posts = &lt;Post&gt;[].obs;
+  final _isLoading = false.obs;
+  final _error = RxnString();
+  final _saving = false.obs; // true saat POST/PUT/DELETE berjalan
 
   List&lt;Post&gt; get posts =&gt; List.unmodifiable(_posts);
-  LoadStatus get status =&gt; _status;
-  String? get error =&gt; _error;
-  bool get saving =&gt; _saving;
+  bool get isLoading =&gt; _isLoading.value;
+  String? get error =&gt; _error.value;
+  bool get saving =&gt; _saving.value;
 
   Post? findById(int id) {
     for (final p in _posts) {
@@ -51,19 +49,23 @@ class PostCrudProvider extends ChangeNotifier {
     return null;
   }
 
+  @override
+  void onInit() {
+    super.onInit();
+    load(); // READ pertama saat controller dibuat
+  }
+
   // READ
   Future&lt;void&gt; load() async {
-    _status = LoadStatus.loading;
-    _error = null;
-    notifyListeners();
+    _isLoading.value = true;
+    _error.value = null;
     try {
-      _posts = await _repo.getAll();
-      _status = LoadStatus.success;
+      _posts.assignAll(await _repo.getAll());
     } catch (e) {
-      _error = '$e';
-      _status = LoadStatus.error;
+      _error.value = '$e';
+    } finally {
+      _isLoading.value = false;
     }
-    notifyListeners();
   }
 
   // CREATE
@@ -94,87 +96,76 @@ class PostCrudProvider extends ChangeNotifier {
     });
   }
 
-  // Pembantu: set flag saving, jalankan aksi, lempar ulang error ke UI
+  // Pembantu: set flag saving, jalankan aksi, lempar ulang error ke View
   Future&lt;void&gt; _runSaving(Future&lt;void&gt; Function() action) async {
-    _saving = true;
-    notifyListeners();
+    _saving.value = true;
     try {
       await action();
     } finally {
-      _saving = false;
-      notifyListeners();
+      _saving.value = false;
     }
   }
 }
 </code></pre>
-<p><strong>Penjelasan:</strong> method <code>add</code>, <code>edit</code>, dan <code>remove</code> tidak menangkap error. Error dibiarkan naik ke layar form/detail agar layar itu bisa menampilkan SnackBar dan <strong>tidak menutup</strong> form jika gagal. <code>try/finally</code> di <code>_runSaving</code> memastikan flag <code>saving</code> kembali <code>false</code> walaupun terjadi error.</p>
+<p><strong>Penjelasan:</strong> method <code>add</code>, <code>edit</code>, dan <code>remove</code> tidak menangkap error. Error dibiarkan naik ke View form/detail agar View itu bisa menampilkan SnackBar dan <strong>tidak menutup</strong> form jika gagal. <code>try/finally</code> di <code>_runSaving</code> memastikan flag <code>saving</code> kembali <code>false</code> walaupun terjadi error. Perhatikan juga bahwa controller tidak bernavigasi dan tidak menampilkan SnackBar; semua itu tugas View.</p>
 
-<h4>2. Layar Daftar</h4>
-<p class="code-file-label">📄 <code>lib/screens/post_list_screen.dart</code></p>
+<h4>2. View Daftar</h4>
+<p class="code-file-label">📄 <code>lib/views/post_list_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
-import '../providers/post_crud_provider.dart';
-import 'post_detail_screen.dart';
-import 'post_form_screen.dart';
+import '../controllers/post_crud_controller.dart';
+import 'post_detail_view.dart';
+import 'post_form_view.dart';
 
-class PostListScreen extends StatelessWidget {
-  const PostListScreen({super.key});
+class PostListView extends GetView&lt;PostCrudController&gt; {
+  const PostListView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final prov = context.watch&lt;PostCrudProvider&gt;();
-
-    Widget body;
-    switch (prov.status) {
-      case LoadStatus.initial:
-      case LoadStatus.loading:
-        body = const Center(child: CircularProgressIndicator());
-      case LoadStatus.error:
-        body = Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.cloud_off, size: 56),
-              const SizedBox(height: 8),
-              Text(prov.error ?? 'Terjadi kesalahan'),
-              TextButton(onPressed: prov.load, child: const Text('Coba Lagi')),
-            ],
-          ),
-        );
-      case LoadStatus.success:
-        body = prov.posts.isEmpty
-            ? const Center(child: Text('Belum ada post.'))
-            : RefreshIndicator(
-                onRefresh: prov.load,
-                child: ListView.separated(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  itemCount: prov.posts.length,
-                  separatorBuilder: (_, _) =&gt; const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final post = prov.posts[i];
-                    return ListTile(
-                      leading: CircleAvatar(child: Text('${post.id}')),
-                      title: Text(post.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Text(post.body, maxLines: 2, overflow: TextOverflow.ellipsis),
-                      onTap: () =&gt; Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) =&gt; PostDetailScreen(postId: post.id!)),
-                      ),
-                    );
-                  },
-                ),
-              );
-    }
-
     return Scaffold(
       appBar: AppBar(title: const Text('Aplikasi Posts')),
-      body: body,
+      body: Obx(() {
+        if (controller.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (controller.error != null) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off, size: 56),
+                const SizedBox(height: 8),
+                Text(controller.error!),
+                TextButton(onPressed: controller.load, child: const Text('Coba Lagi')),
+              ],
+            ),
+          );
+        }
+        final posts = controller.posts;
+        if (posts.isEmpty) {
+          return const Center(child: Text('Belum ada post.'));
+        }
+        return RefreshIndicator(
+          onRefresh: controller.load,
+          child: ListView.separated(
+            physics: const AlwaysScrollableScrollPhysics(),
+            itemCount: posts.length,
+            separatorBuilder: (_, _) =&gt; const Divider(height: 1),
+            itemBuilder: (context, i) {
+              final post = posts[i];
+              return ListTile(
+                leading: CircleAvatar(child: Text('${post.id}')),
+                title: Text(post.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(post.body, maxLines: 2, overflow: TextOverflow.ellipsis),
+                onTap: () =&gt; Get.to(() =&gt; PostDetailView(postId: post.id!)),
+              );
+            },
+          ),
+        );
+      }),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () =&gt; Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) =&gt; const PostFormScreen()),
-        ),
+        onPressed: () =&gt; Get.to(() =&gt; const PostFormView()),
         icon: const Icon(Icons.add),
         label: const Text('Post Baru'),
       ),
@@ -182,18 +173,19 @@ class PostListScreen extends StatelessWidget {
   }
 }
 </code></pre>
+<p><strong>Penjelasan:</strong> <code>Get.to(() =&gt; HalamanBaru())</code> adalah pengganti <code>Navigator.push</code> di GetX; tidak butuh <code>context</code>. Halaman detail dan form tidak perlu menerima controller lewat constructor, karena keduanya cukup memanggil <code>Get.find</code> (lewat <code>GetView</code>) untuk mendapatkan <strong>instance yang sama</strong>.</p>
 
-<h4>3. Layar Detail (dengan Edit &amp; Hapus)</h4>
-<p class="code-file-label">📄 <code>lib/screens/post_detail_screen.dart</code></p>
+<h4>3. View Detail (dengan Edit &amp; Hapus)</h4>
+<p class="code-file-label">📄 <code>lib/views/post_detail_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
-import '../providers/post_crud_provider.dart';
-import 'post_form_screen.dart';
+import '../controllers/post_crud_controller.dart';
+import 'post_form_view.dart';
 
-class PostDetailScreen extends StatelessWidget {
+class PostDetailView extends GetView&lt;PostCrudController&gt; {
   final int postId;
-  const PostDetailScreen({super.key, required this.postId});
+  const PostDetailView({super.key, required this.postId});
 
   Future&lt;void&gt; _konfirmasiHapus(BuildContext context) async {
     final yakin = await showDialog&lt;bool&gt;(
@@ -210,10 +202,9 @@ class PostDetailScreen extends StatelessWidget {
     if (yakin != true || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
     try {
-      await context.read&lt;PostCrudProvider&gt;().remove(postId);
-      navigator.pop(); // kembali ke daftar
+      await controller.remove(postId);
+      Get.back(); // kembali ke daftar
       messenger.showSnackBar(const SnackBar(content: Text('Post dihapus')));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Gagal menghapus: $e')));
@@ -222,66 +213,66 @@ class PostDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final prov = context.watch&lt;PostCrudProvider&gt;();
-    final post = prov.findById(postId);
+    return Obx(() {
+      final post = controller.findById(postId);
 
-    // Post bisa saja sudah terhapus ketika layar ini masih terbuka
-    if (post == null) {
-      return Scaffold(appBar: AppBar(), body: const Center(child: Text('Post tidak ditemukan')));
-    }
+      // Post bisa saja sudah terhapus ketika layar ini masih terbuka
+      if (post == null) {
+        return Scaffold(appBar: AppBar(), body: const Center(child: Text('Post tidak ditemukan')));
+      }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Post #${post.id}'),
-        actions: [
-          IconButton(
-            tooltip: 'Edit',
-            icon: const Icon(Icons.edit),
-            onPressed: () =&gt; Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) =&gt; PostFormScreen(post: post)),
+      return Scaffold(
+        appBar: AppBar(
+          title: Text('Post #${post.id}'),
+          actions: [
+            IconButton(
+              tooltip: 'Edit',
+              icon: const Icon(Icons.edit),
+              onPressed: () =&gt; Get.to(() =&gt; PostFormView(post: post)),
             ),
-          ),
-          IconButton(
-            tooltip: 'Hapus',
-            icon: const Icon(Icons.delete_outline),
-            onPressed: prov.saving ? null : () =&gt; _konfirmasiHapus(context),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Text(post.title, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 4),
-          Text('Penulis: user ${post.userId}', style: Theme.of(context).textTheme.labelMedium),
-          const Divider(height: 32),
-          Text(post.body, style: Theme.of(context).textTheme.bodyLarge),
-        ],
-      ),
-    );
+            IconButton(
+              tooltip: 'Hapus',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: controller.saving ? null : () =&gt; _konfirmasiHapus(context),
+            ),
+          ],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text(post.title, style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 4),
+            Text('Penulis: user ${post.userId}', style: Theme.of(context).textTheme.labelMedium),
+            const Divider(height: 32),
+            Text(post.body, style: Theme.of(context).textTheme.bodyLarge),
+          ],
+        ),
+      );
+    });
   }
 }
 </code></pre>
+<p><strong>Penjelasan:</strong> seluruh halaman dibungkus <code>Obx</code> karena isinya bergantung pada <code>findById</code> (yang membaca list reaktif) dan <code>saving</code>. Setelah post diedit, halaman detail otomatis menampilkan judul baru tanpa perlu dikirimi data ulang.</p>
 
 <h4>4. Satu Form untuk Tambah dan Edit</h4>
-<p>Jika parameter <code>post</code> bernilai <code>null</code>, form berada dalam mode <strong>tambah</strong>; jika diisi, mode <strong>edit</strong> dan field terisi data lama.</p>
-<p class="code-file-label">📄 <code>lib/screens/post_form_screen.dart</code></p>
+<p>Jika parameter <code>post</code> bernilai <code>null</code>, form berada dalam mode <strong>tambah</strong>; jika diisi, mode <strong>edit</strong> dan field terisi data lama. <code>TextEditingController</code> adalah state lokal milik form, jadi tetap disimpan di <code>StatefulWidget</code>; controller GetX hanya dipakai untuk data post.</p>
+<p class="code-file-label">📄 <code>lib/views/post_form_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
+import '../controllers/post_crud_controller.dart';
 import '../models/post.dart';
-import '../providers/post_crud_provider.dart';
 
-class PostFormScreen extends StatefulWidget {
+class PostFormView extends StatefulWidget {
   final Post? post; // null = tambah, ada isi = edit
-  const PostFormScreen({super.key, this.post});
+  const PostFormView({super.key, this.post});
 
   @override
-  State&lt;PostFormScreen&gt; createState() =&gt; _PostFormScreenState();
+  State&lt;PostFormView&gt; createState() =&gt; _PostFormViewState();
 }
 
-class _PostFormScreenState extends State&lt;PostFormScreen&gt; {
+class _PostFormViewState extends State&lt;PostFormView&gt; {
+  final _controller = Get.find&lt;PostCrudController&gt;();
   final _formKey = GlobalKey&lt;FormState&gt;();
   late final TextEditingController _titleCtrl;
   late final TextEditingController _bodyCtrl;
@@ -304,21 +295,20 @@ class _PostFormScreenState extends State&lt;PostFormScreen&gt; {
 
   Future&lt;void&gt; _simpan() async {
     if (!_formKey.currentState!.validate()) return;
-    final prov = context.read&lt;PostCrudProvider&gt;();
     final title = _titleCtrl.text.trim();
     final body = _bodyCtrl.text.trim();
 
     try {
       if (_isEdit) {
-        await prov.edit(widget.post!.copyWith(title: title, body: body));
+        await _controller.edit(widget.post!.copyWith(title: title, body: body));
       } else {
-        await prov.add(title, body);
+        await _controller.add(title, body);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_isEdit ? 'Perubahan disimpan' : 'Post ditambahkan')),
       );
-      Navigator.pop(context);
+      Get.back();
     } catch (e) {
       if (!mounted) return;
       // Form TIDAK ditutup agar isian pengguna tidak hilang
@@ -328,7 +318,6 @@ class _PostFormScreenState extends State&lt;PostFormScreen&gt; {
 
   @override
   Widget build(BuildContext context) {
-    final saving = context.watch&lt;PostCrudProvider&gt;().saving;
     return Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'Edit Post' : 'Post Baru')),
       body: Form(
@@ -349,13 +338,17 @@ class _PostFormScreenState extends State&lt;PostFormScreen&gt; {
               validator: (v) =&gt; (v == null || v.trim().isEmpty) ? 'Isi tidak boleh kosong' : null,
             ),
             const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: saving ? null : _simpan,
-              icon: saving
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.save),
-              label: Text(saving ? 'Menyimpan...' : 'Simpan'),
-            ),
+            // Hanya tombol ini yang dibangun ulang saat saving berubah
+            Obx(() {
+              final saving = _controller.saving;
+              return FilledButton.icon(
+                onPressed: saving ? null : _simpan,
+                icon: saving
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.save),
+                label: Text(saving ? 'Menyimpan...' : 'Simpan'),
+              );
+            }),
           ],
         ),
       ),
@@ -367,21 +360,24 @@ class _PostFormScreenState extends State&lt;PostFormScreen&gt; {
 <h4>5. <code>main.dart</code></h4>
 <p class="code-file-label">📄 <code>lib/main.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
+import 'controllers/post_crud_controller.dart';
 import 'core/api_client.dart';
-import 'providers/post_crud_provider.dart';
 import 'repositories/post_repository.dart';
-import 'screens/post_list_screen.dart';
+import 'views/post_list_view.dart';
+
+/// Mendaftarkan semua dependency aplikasi di satu tempat.
+class AppBinding extends Bindings {
+  @override
+  void dependencies() {
+    final api = ApiClient(baseUrl: 'https://jsonplaceholder.typicode.com');
+    Get.put(PostCrudController(RemotePostRepository(api)), permanent: true);
+  }
+}
 
 void main() {
-  final api = ApiClient(baseUrl: 'https://jsonplaceholder.typicode.com');
-  runApp(
-    ChangeNotifierProvider(
-      create: (_) =&gt; PostCrudProvider(RemotePostRepository(api))..load(),
-      child: const PostsApp(),
-    ),
-  );
+  runApp(const PostsApp());
 }
 
 class PostsApp extends StatelessWidget {
@@ -389,11 +385,12 @@ class PostsApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return GetMaterialApp(
       title: 'Aplikasi Posts',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.teal),
-      home: const PostListScreen(),
+      initialBinding: AppBinding(),
+      home: const PostListView(),
     );
   }
 }
@@ -419,21 +416,25 @@ class PostsApp extends StatelessWidget {
 
 
 
+<p><strong>Penjelasan:</strong> <code>AppBinding</code> dijalankan oleh <code>GetMaterialApp</code> sebelum halaman pertama dibangun, sehingga <code>PostListView</code> sudah bisa menemukan <code>PostCrudController</code>. <code>permanent: true</code> menjaga controller tetap hidup selama aplikasi berjalan, karena dipakai oleh semua halaman.</p>
+
 <h4>Alur Data Saat Menambah Post</h4>
-<pre><code class="language-text">PostFormScreen._simpan()
-   └─&gt; PostCrudProvider.add()          saving = true, notifyListeners (tombol jadi "Menyimpan...")
+<pre><code class="language-text">PostFormView._simpan()
+   └─&gt; PostCrudController.add()        saving.value = true (Obx tombol: "Menyimpan...")
          └─&gt; RemotePostRepository.create()
                └─&gt; ApiClient.post('/posts', json)   -&gt; 201 Created
-         &lt;─ Post baru dimasukkan ke _posts, saving = false, notifyListeners
-   &lt;─ SnackBar "Post ditambahkan", Navigator.pop
-PostListScreen (context.watch) otomatis rebuild dan post baru muncul paling atas
+         &lt;─ Post baru di-insert ke _posts (RxList), saving.value = false
+   &lt;─ SnackBar "Post ditambahkan", Get.back()
+PostListView (Obx membaca controller.posts) otomatis rebuild, post baru muncul paling atas
 </code></pre>
 
 <div class="callout callout-warning"><h4>⚠️ Kesalahan Umum pada Proyek CRUD</h4>
 <ul>
-  <li>Menutup form (<code>Navigator.pop</code>) sebelum <code>await</code> selesai, sehingga error tidak pernah terlihat.</li>
-  <li>Mengirim objek yang sama ke halaman detail lalu mengeditnya: detail tidak berubah. Kirim <code>id</code> lalu cari data terbaru dari provider (seperti <code>findById</code>).</li>
+  <li>Menutup form (<code>Get.back()</code>) sebelum <code>await</code> selesai, sehingga error tidak pernah terlihat.</li>
+  <li>Mengirim objek yang sama ke halaman detail lalu mengeditnya: detail tidak berubah. Kirim <code>id</code> lalu cari data terbaru dari controller (seperti <code>findById</code>).</li>
   <li>Menekan tombol Simpan berkali-kali sehingga data dobel. Nonaktifkan tombol saat <code>saving</code>.</li>
   <li>Memakai <code>context</code> setelah <code>await</code> tanpa cek <code>mounted</code>/<code>context.mounted</code>.</li>
+  <li>Membuat controller baru di setiap halaman (<code>Get.put(PostCrudController(...))</code> di detail/form). Data jadi tidak sinkron; cukup <code>Get.find</code> controller yang sudah didaftarkan di <code>AppBinding</code>.</li>
+  <li>Memanggil <code>Get.back()</code> atau menampilkan SnackBar dari dalam controller. Controller cukup melempar error atau mengembalikan hasil; View yang memutuskan navigasi dan pesan.</li>
 </ul>
 </div>

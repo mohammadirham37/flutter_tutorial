@@ -158,7 +158,7 @@ class DetailMatkulScreen extends StatelessWidget {
 
 <div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
 <ul>
-  <li>Menyimpan data kiriman di variabel global agar "bisa diakses dari halaman lain". Ini membuat data sulit dilacak. Kirim lewat constructor, atau pakai Provider (Modul 08) untuk data yang dipakai banyak halaman.</li>
+  <li>Menyimpan data kiriman di variabel global agar "bisa diakses dari halaman lain". Ini membuat data sulit dilacak. Kirim lewat constructor, atau pakai controller GetX (Modul 08) untuk data yang dipakai banyak halaman.</li>
   <li>Lupa menulis <code>widget.</code> saat membaca field di <code>State</code>: tulis <code>widget.matkul.nama</code>, bukan <code>matkul.nama</code>.</li>
 </ul>
 </div>

@@ -23,17 +23,17 @@
                  └──────┬────────┘               │ ya
                         │ tidak                  ▼
                         ▼                 ┌──────────────┐
-                 ┌──────────────┐  login  │  HomeScreen  │──▶ NoteDetailScreen
-                 │ LoginScreen  │────────▶│ (daftar      │          │
+                 ┌──────────────┐  login  │   HomeView   │──▶ NoteDetailView
+                 │  LoginView   │────────▶│ (daftar      │          │
                  └──────┬───────┘         │  catatan)    │◀─────────┘
               "Daftar"  │  ▲ kembali      └──────┬───────┘
                         ▼  │                     │ FAB / Edit
                  ┌──────────────┐                ▼
-                 │RegisterScreen│         ┌──────────────┐
-                 └──────────────┘         │NoteFormScreen│
+                 │ RegisterView │         ┌──────────────┐
+                 └──────────────┘         │ NoteFormView │
                                           └──────────────┘
 </code></pre>
-<p>Modul 13 menyelesaikan bagian kiri (AuthGate, Login, Register) beserta <code>HomeScreen</code> sementara. Modul 14 mengganti <code>HomeScreen</code> dengan daftar catatan lengkap, lalu menambahkan form dan detail.</p>
+<p>Modul 13 menyelesaikan bagian kiri (AuthGate, Login, Register) beserta <code>HomeView</code> sementara. Modul 14 mengganti <code>HomeView</code> dengan daftar catatan lengkap, lalu menambahkan form dan detail.</p>
 
 <h4>Hasil akhir yang ingin dicapai</h4>
 <p>Tangkapan layar aplikasi final (akhir Modul 14) yang terhubung ke project Supabase:</p>
@@ -60,7 +60,7 @@
 <ul>
   <li><strong>Form &amp; validasi</strong> (Modul 05): TextFormField, GlobalKey&lt;FormState&gt;, validator.</li>
   <li><strong>Navigasi</strong> (Modul 07): push/pop, ditambah navigasi otomatis berbasis status login.</li>
-  <li><strong>Provider</strong> (Modul 08): ChangeNotifier, MultiProvider, context.watch/read/select.</li>
+  <li><strong>GetX &amp; MVC</strong> (Modul 08): <code>GetxController</code>, state reaktif <code>.obs</code>, <code>Obx</code>, <code>Get.put</code>/<code>Get.find</code>, <code>onInit</code>/<code>onClose</code>, navigasi <code>Get.to</code>/<code>Get.back</code>.</li>
   <li><strong>JSON &amp; repository</strong> (Modul 09): model fromJson/toJson, pemisahan lapisan data.</li>
   <li><strong>Hive</strong> (Modul 11): box sebagai cache offline.</li>
   <li><strong>Supabase</strong> (Modul 12): Auth, SQL, RLS, query CRUD.</li>

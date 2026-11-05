@@ -176,9 +176,9 @@ window.FLUTTER_CHEATSHEET = {
       "widgets": [
         "FutureBuilder",
         "StreamBuilder",
-        "Consumer",
-        "ChangeNotifierProvider",
-        "Selector",
+        "Obx",
+        "GetBuilder",
+        "GetMaterialApp",
         "AnimatedBuilder"
       ]
     }

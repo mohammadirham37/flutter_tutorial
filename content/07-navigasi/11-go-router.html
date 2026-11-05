@@ -66,7 +66,7 @@ void main() {
   runApp(const MyApp());
 }
 
-// Penanda status login sederhana. ChangeNotifier dibahas tuntas di Modul 08;
+// Penanda status login sederhana. ChangeNotifier adalah class bawaan Flutter;
 // di sini cukup tahu bahwa notifyListeners() memberi kabar ke GoRouter.
 class AuthState extends ChangeNotifier {
   bool _sudahLogin = false;
@@ -260,7 +260,7 @@ class TentangScreen extends StatelessWidget {
   <li><code>errorBuilder</code> menampilkan halaman ketika URL tidak cocok dengan rute mana pun.</li>
 </ul>
 
-<div class="callout callout-info"><h4>ℹ️ Hubungan dengan Modul 08 dan 13–14</h4><p>Pada contoh ini <code>authState</code> adalah variabel global agar contoh tetap singkat. Setelah mempelajari Provider, status login akan disimpan di <code>AuthProvider</code>. Proyek CRUD + Auth memakai pola yang setara: sebuah auth gate yang menampilkan Login atau Home berdasarkan sesi.</p></div>
+<div class="callout callout-info"><h4>ℹ️ Hubungan dengan Modul 08 dan 13–14</h4><p>Pada contoh ini <code>authState</code> adalah variabel global agar contoh tetap singkat. Setelah mempelajari GetX di Modul 08, status login akan disimpan di <code>AuthController</code> (sebuah <code>GetxController</code>). Proyek CRUD + Auth memakai pola yang setara: sebuah auth gate yang menampilkan Login atau Home berdasarkan sesi.</p></div>
 
 <div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
 <ul>

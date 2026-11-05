@@ -1,0 +1,449 @@
+<p class="lead">Studi kasus penutup: aplikasi <strong>Tugas Kuliah</strong> (todo) dengan fitur tambah, centang selesai, hapus (geser), filter, badge jumlah tugas aktif, dan halaman statistik. Satu <code>TodoController</code> dipakai bersama oleh tiga View, dan semuanya disusun dengan pola MVC.</p>
+
+<h4>Struktur folder</h4>
+<pre><code class="language-text">lib/
+├── main.dart
+├── models/todo.dart                  # M
+├── controllers/todo_controller.dart  # C
+└── views/                            # V
+    ├── todo_list_view.dart
+    ├── tambah_todo_view.dart
+    └── statistik_view.dart
+</code></pre>
+<p>Data masih disimpan di memori, jadi belum ada folder <code>services/</code>. Saat todo disimpan ke penyimpanan lokal (Modul 10–11) atau Supabase (Modul 12), cukup tambahkan service dan suntikkan ke controller seperti di section 8. View tidak perlu diubah.</p>
+
+<h4>Langkah 1: model</h4>
+<p class="code-file-label">📄 <code>lib/models/todo.dart</code></p>
+<pre><code class="language-dart">// lib/models/todo.dart
+class Todo {
+  final String id;
+  final String judul;
+  final String matkul;
+  final bool selesai;
+
+  const Todo({
+    required this.id,
+    required this.judul,
+    required this.matkul,
+    this.selesai = false,
+  });
+
+  // Membuat salinan dengan sebagian field diubah (objek tetap immutable)
+  Todo copyWith({String? judul, String? matkul, bool? selesai}) {
+    return Todo(
+      id: id,
+      judul: judul ?? this.judul,
+      matkul: matkul ?? this.matkul,
+      selesai: selesai ?? this.selesai,
+    );
+  }
+}
+
+enum FilterTodo { semua, aktif, selesai }
+</code></pre>
+<p><code>copyWith</code> membuat salinan objek dengan sebagian field diganti. Objek <code>Todo</code> tidak pernah diubah langsung; yang diganti adalah elemen di <code>RxList</code>, sehingga <code>Obx</code> pasti tahu ada perubahan (ingat kesalahan nomor 4 di section 11).</p>
+
+<h4>Langkah 2: controller</h4>
+<p class="code-file-label">📄 <code>lib/controllers/todo_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/todo_controller.dart
+import 'package:get/get.dart';
+
+import '../models/todo.dart';
+
+class TodoController extends GetxController {
+  final _todos = &lt;Todo&gt;[
+    const Todo(id: '1', judul: 'Laporan praktikum Flutter', matkul: 'Pemrograman Mobile'),
+    const Todo(id: '2', judul: 'Normalisasi tabel KRS', matkul: 'Basis Data', selesai: true),
+  ].obs;
+  final _filter = FilterTodo.semua.obs;
+
+  // ---------- GETTER (data turunan dihitung, tidak disimpan) ----------
+  FilterTodo get filter =&gt; _filter.value;
+  int get jumlahTotal =&gt; _todos.length;
+  int get jumlahSelesai =&gt; _todos.where((t) =&gt; t.selesai).length;
+  int get jumlahAktif =&gt; jumlahTotal - jumlahSelesai;
+  double get progres =&gt; jumlahTotal == 0 ? 0 : jumlahSelesai / jumlahTotal;
+
+  List&lt;Todo&gt; get todosTampil {
+    switch (_filter.value) {
+      case FilterTodo.semua:
+        return List.unmodifiable(_todos);
+      case FilterTodo.aktif:
+        return _todos.where((t) =&gt; !t.selesai).toList();
+      case FilterTodo.selesai:
+        return _todos.where((t) =&gt; t.selesai).toList();
+    }
+  }
+
+  Todo? cariById(String id) =&gt; _todos.firstWhereOrNull((t) =&gt; t.id == id);
+
+  // ---------- AKSI (cukup ubah observable, Obx otomatis rebuild) ----------
+  void tambah(String judul, String matkul) {
+    final id = DateTime.now().microsecondsSinceEpoch.toString();
+    _todos.insert(0, Todo(id: id, judul: judul, matkul: matkul));
+  }
+
+  void toggle(String id) {
+    final i = _todos.indexWhere((t) =&gt; t.id == id);
+    if (i == -1) return;
+    // ganti elemen dengan salinan baru, bukan mengubah field-nya
+    _todos[i] = _todos[i].copyWith(selesai: !_todos[i].selesai);
+  }
+
+  void hapus(String id) =&gt; _todos.removeWhere((t) =&gt; t.id == id);
+
+  void hapusYangSelesai() =&gt; _todos.removeWhere((t) =&gt; t.selesai);
+
+  void ubahFilter(FilterTodo f) =&gt; _filter.value = f;
+}
+</code></pre>
+<ul>
+  <li>Hanya dua observable: <code>_todos</code> (<code>RxList</code>) dan <code>_filter</code> (<code>Rx&lt;FilterTodo&gt;</code>, dibuat dengan <code>FilterTodo.semua.obs</code>).</li>
+  <li>Data turunan (<code>jumlahAktif</code>, <code>progres</code>, <code>todosTampil</code>) berupa getter yang dihitung dari <code>_todos</code>, tidak disimpan terpisah, sehingga tidak mungkin "tidak sinkron". Obx yang memanggil getter ini tetap reaktif karena getter membaca observable di dalamnya.</li>
+  <li>Setiap aksi cukup mengubah observable. Tidak ada <code>update()</code> yang bisa terlupa seperti pada <code>GetBuilder</code> (section 5).</li>
+  <li>Controller hanya mengimpor <code>package:get/get.dart</code> dan model. Tidak ada <code>material.dart</code>.</li>
+</ul>
+
+<h4>Langkah 3: main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'controllers/todo_controller.dart';
+import 'views/todo_list_view.dart';
+
+void main() {
+  runApp(const TodoApp());
+}
+
+class TodoApp extends StatelessWidget {
+  const TodoApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      title: 'Tugas Kuliah',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      // Satu TodoController untuk seluruh aplikasi
+      initialBinding: BindingsBuilder(() {
+        Get.put(TodoController(), permanent: true);
+      }),
+      home: const TodoListView(),
+    );
+  }
+}
+</code></pre>
+<p>Karena binding-nya hanya satu baris, dipakai <code>BindingsBuilder</code> (section 7) alih-alih membuat class <code>AppBinding</code>.</p>
+
+<h4>Langkah 4: halaman daftar</h4>
+<p class="code-file-label">📄 <code>lib/views/todo_list_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/todo_list_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/todo_controller.dart';
+import '../models/todo.dart';
+import 'statistik_view.dart';
+import 'tambah_todo_view.dart';
+
+class TodoListView extends GetView&lt;TodoController&gt; {
+  const TodoListView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Tugas Kuliah'),
+        actions: [
+          IconButton(
+            tooltip: 'Statistik',
+            // Obx kecil: hanya badge yang rebuild saat jumlah aktif berubah
+            icon: Obx(
+              () =&gt; Badge(
+                label: Text('${controller.jumlahAktif}'),
+                child: const Icon(Icons.insights),
+              ),
+            ),
+            onPressed: () =&gt; Get.to(() =&gt; const StatistikView()),
+          ),
+        ],
+      ),
+      body: const Column(
+        children: [
+          _FilterBar(),
+          Expanded(child: _DaftarTodo()),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.add),
+        label: const Text('Tugas Baru'),
+        onPressed: () =&gt; Get.to(() =&gt; const TambahTodoView()),
+      ),
+    );
+  }
+}
+
+class _FilterBar extends GetView&lt;TodoController&gt; {
+  const _FilterBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      // Obx ini hanya membaca filter, tidak ikut rebuild saat todo dicentang
+      child: Obx(
+        () =&gt; SegmentedButton&lt;FilterTodo&gt;(
+          segments: const [
+            ButtonSegment(value: FilterTodo.semua, label: Text('Semua')),
+            ButtonSegment(value: FilterTodo.aktif, label: Text('Aktif')),
+            ButtonSegment(value: FilterTodo.selesai, label: Text('Selesai')),
+          ],
+          selected: {controller.filter},
+          onSelectionChanged: (pilihan) =&gt; controller.ubahFilter(pilihan.first),
+        ),
+      ),
+    );
+  }
+}
+
+class _DaftarTodo extends GetView&lt;TodoController&gt; {
+  const _DaftarTodo();
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final todos = controller.todosTampil;
+
+      if (todos.isEmpty) {
+        return const Center(child: Text('Tidak ada tugas di filter ini'));
+      }
+
+      return ListView.builder(
+        itemCount: todos.length,
+        itemBuilder: (context, i) {
+          final t = todos[i];
+          return Dismissible(
+            key: ValueKey(t.id),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              color: Colors.red,
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 20),
+              child: const Icon(Icons.delete, color: Colors.white),
+            ),
+            onDismissed: (_) {
+              controller.hapus(t.id);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('"${t.judul}" dihapus')),
+              );
+            },
+            child: CheckboxListTile(
+              value: t.selesai,
+              onChanged: (_) =&gt; controller.toggle(t.id),
+              title: Text(
+                t.judul,
+                style: TextStyle(
+                  decoration: t.selesai ? TextDecoration.lineThrough : null,
+                ),
+              ),
+              subtitle: Text(t.matkul),
+            ),
+          );
+        },
+      );
+    });
+  }
+}
+</code></pre>
+
+<h4>Langkah 5: halaman tambah</h4>
+<p class="code-file-label">📄 <code>lib/views/tambah_todo_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/tambah_todo_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/todo_controller.dart';
+
+// StatefulWidget: isi form (judul, matkul terpilih) adalah state LOKAL
+class TambahTodoView extends StatefulWidget {
+  const TambahTodoView({super.key});
+
+  @override
+  State&lt;TambahTodoView&gt; createState() =&gt; _TambahTodoViewState();
+}
+
+class _TambahTodoViewState extends State&lt;TambahTodoView&gt; {
+  final _formKey = GlobalKey&lt;FormState&gt;();
+  final _judulController = TextEditingController();
+  String _matkul = 'Pemrograman Mobile';
+
+  static const daftarMatkul = ['Pemrograman Mobile', 'Basis Data', 'Jaringan Komputer'];
+
+  @override
+  void dispose() {
+    _judulController.dispose();
+    super.dispose();
+  }
+
+  void _simpan() {
+    if (!_formKey.currentState!.validate()) return;
+    // Tidak perlu mengembalikan data lewat Get.back(result: ...): controller yang menyimpan
+    Get.find&lt;TodoController&gt;().tambah(_judulController.text.trim(), _matkul);
+    Get.back();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Tugas Baru')),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: _judulController,
+              decoration: const InputDecoration(
+                labelText: 'Judul tugas',
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =&gt;
+                  (v == null || v.trim().isEmpty) ? 'Judul wajib diisi' : null,
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField&lt;String&gt;(
+              initialValue: _matkul,
+              decoration: const InputDecoration(
+                labelText: 'Mata kuliah',
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                for (final m in daftarMatkul) DropdownMenuItem(value: m, child: Text(m)),
+              ],
+              onChanged: (v) =&gt; setState(() =&gt; _matkul = v ?? _matkul),
+            ),
+            const SizedBox(height: 24),
+            FilledButton(onPressed: _simpan, child: const Text('Simpan')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Langkah 6: halaman statistik</h4>
+<p class="code-file-label">📄 <code>lib/views/statistik_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/statistik_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/todo_controller.dart';
+
+class StatistikView extends GetView&lt;TodoController&gt; {
+  const StatistikView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Statistik')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Obx(
+          () =&gt; Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '${(controller.progres * 100).round()}% selesai',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(value: controller.progres, minHeight: 10),
+              const SizedBox(height: 16),
+              Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: const Text('Total tugas'),
+                      trailing: Text('${controller.jumlahTotal}'),
+                    ),
+                    ListTile(
+                      title: const Text('Aktif'),
+                      trailing: Text('${controller.jumlahAktif}'),
+                    ),
+                    ListTile(
+                      title: const Text('Selesai'),
+                      trailing: Text('${controller.jumlahSelesai}'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.cleaning_services),
+                label: const Text('Hapus semua yang selesai'),
+                onPressed: controller.jumlahSelesai == 0
+                    ? null
+                    : controller.hapusYangSelesai,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Hasil</h4>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/todo-list.jpg" alt="Daftar tugas awal dengan badge 1 tugas aktif" loading="lazy">
+    <div class="screenshot-caption">Daftar tugas awal</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/todo-setelah.jpg" alt="Tugas baru muncul di atas, badge aktif menjadi 2" loading="lazy">
+    <div class="screenshot-caption">Tugas baru muncul, badge aktif bertambah</div>
+  </div>
+</div>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/todo-filter.jpg" alt="Filter Selesai setelah satu tugas dicentang" loading="lazy">
+    <div class="screenshot-caption">Filter Selesai setelah satu tugas dicentang</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/todo-statistik.jpg" alt="Halaman statistik membaca controller yang sama" loading="lazy">
+    <div class="screenshot-caption">Halaman statistik membaca controller yang sama</div>
+  </div>
+</div>
+
+<p><strong>Ringkasan teknik yang dipakai:</strong></p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Bagian</th><th>Teknik</th><th>Alasan</th></tr></thead>
+    <tbody>
+      <tr><td>Badge statistik di AppBar</td><td><code>Obx</code> kecil hanya di sekitar <code>Badge</code></td><td>Hanya ikon yang rebuild saat jumlah aktif berubah</td></tr>
+      <tr><td>Filter</td><td><code>Obx</code> yang hanya membaca <code>controller.filter</code></td><td>Tombol filter tidak rebuild saat todo dicentang</td></tr>
+      <tr><td>Daftar todo</td><td><code>Obx</code> yang membaca <code>todosTampil</code></td><td>Butuh seluruh daftar terkini sesuai filter</td></tr>
+      <tr><td>Mengambil controller</td><td><code>GetView&lt;TodoController&gt;</code> / <code>Get.find</code></td><td>Tiga View memakai objek yang sama tanpa dioper lewat constructor</td></tr>
+      <tr><td>Tambah tugas</td><td><code>controller.tambah(...)</code> lalu <code>Get.back()</code></td><td>Tidak perlu <code>Get.back(result: ...)</code>; controller yang menyimpan</td></tr>
+      <tr><td>Centang</td><td>Ganti elemen dengan <code>copyWith</code></td><td>RxList mendeteksi perubahan elemen</td></tr>
+      <tr><td>Hapus</td><td><code>Dismissible</code> + <code>ValueKey(t.id)</code></td><td>Key unik agar Flutter tidak salah menghapus item</td></tr>
+      <tr><td>Form tambah</td><td><code>StatefulWidget</code> + <code>TextEditingController</code></td><td>Isi form adalah state lokal, tidak perlu masuk controller</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-info"><h4>ℹ️ Bandingkan dengan Modul 07</h4><p>Di studi kasus Modul 07, data KRS harus dioper lewat constructor dan callback, dan halaman tambah mengembalikan hasil lewat <code>Navigator.pop</code>. Di sini, ketiga View cukup mengambil <code>TodoController</code> dengan <code>Get.find</code>/<code>GetView</code>, dan setiap perubahan langsung terlihat di semua halaman berkat <code>Obx</code>. Pola yang sama dipakai di proyek CRUD Modul 13–14, dengan tambahan service, status loading/error dari section 8, dan auth gate dari section 10.</p></div>
+
+<div class="callout callout-tip"><h4>💡 Tantangan tambahan</h4>
+<ul>
+  <li>Tambahkan halaman edit yang memakai <code>cariById</code> dan method baru <code>ubah(id, judul)</code> di controller (ganti elemen dengan <code>copyWith</code>).</li>
+  <li>Tambahkan tombol "Urungkan" pada SnackBar hapus. Petunjuk: buat method <code>hapus</code> yang mengembalikan <code>Todo</code> yang dihapus beserta indeksnya, lalu <code>sisipkan(index, todo)</code>.</li>
+  <li>Tambahkan kotak pencarian judul tugas dengan worker <code>debounce</code> (section 9).</li>
+  <li>Simpan todo ke penyimpanan lokal (Modul 10/11): buat <code>TodoService</code>, suntikkan ke controller, dan muat datanya di <code>onInit</code>.</li>
+  <li>Pisahkan binding ke <code>lib/bindings/app_binding.dart</code> seperti section 10.</li>
+</ul>
+</div>

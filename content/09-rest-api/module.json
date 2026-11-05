@@ -5,17 +5,17 @@
   "title": "Integrasi REST API & Asynchronous Networking",
   "duration": "Pertemuan 9 (150 Menit) + Belajar Mandiri",
   "prerequisites": [
-    "Modul 08: State Management Provider"
+    "Modul 08: State Management GetX & Pola MVC"
   ],
-  "summary": "Menghubungkan aplikasi Flutter ke server backend melalui HTTP/REST secara bertahap: konsep request-response, JSON dan model Dart (fromJson/toJson), GET/POST/PUT/PATCH/DELETE dengan package http, header & Bearer token, penanganan error dan timeout, lapisan ApiClient-Repository, FutureBuilder, pull-to-refresh, integrasi Provider, hingga studi kasus aplikasi CRUD Posts multi-file.",
+  "summary": "Menghubungkan aplikasi Flutter ke server backend melalui HTTP/REST secara bertahap: konsep request-response, JSON dan model Dart (fromJson/toJson), GET/POST/PUT/PATCH/DELETE dengan package http, header & Bearer token, penanganan error dan timeout, lapisan ApiClient-Repository, FutureBuilder, pull-to-refresh, integrasi dengan controller GetX (pola MVC), hingga studi kasus aplikasi CRUD Posts multi-file.",
   "learningOutcomes": [
     "Menjelaskan komponen request/response HTTP: method, URL, header, body, dan status code.",
     "Mengonversi JSON menjadi objek Dart (jsonDecode, fromJson) termasuk object bersarang dan list, serta sebaliknya (toJson, jsonEncode).",
     "Melakukan HTTP Request (GET, POST, PUT, PATCH, DELETE) menggunakan package http dan mengirim header Authorization Bearer.",
     "Menangani kegagalan jaringan (status code, SocketException, ClientException, TimeoutException) dengan pesan yang ramah pengguna.",
     "Menyusun lapisan ApiClient dan Repository sehingga UI terpisah dari kode jaringan.",
-    "Menampilkan tiga kondisi UI (loading, error, data) dengan FutureBuilder maupun Provider, dilengkapi pull-to-refresh.",
-    "Membangun aplikasi CRUD lengkap (daftar, detail, tambah, edit, hapus) yang terhubung ke REST API."
+    "Menampilkan tiga kondisi UI (loading, error, data) dengan FutureBuilder maupun controller GetX (isLoading, error, data), dilengkapi pull-to-refresh.",
+    "Membangun aplikasi CRUD lengkap (daftar, detail, tambah, edit, hapus) berpola MVC dengan GetX yang terhubung ke REST API."
   ],
   "sections": [
     {
@@ -74,9 +74,9 @@
       "file": "11-pull-to-refresh.html"
     },
     {
-      "id": "rest-provider-api",
-      "title": "12. Integrasi REST API dengan Provider",
-      "file": "12-provider-api.html"
+      "id": "rest-getx-api",
+      "title": "12. Integrasi REST API dengan GetX (Controller & View)",
+      "file": "12-getx-api.html"
     },
     {
       "id": "rest-studi-kasus-crud",
@@ -86,19 +86,19 @@
   ],
   "labAssignment": {
     "title": "Praktikum 9: Aplikasi Katalog Tugas Kuliah Berbasis REST API",
-    "objective": "Membangun aplikasi CRUD yang terhubung ke REST API publik dengan arsitektur berlapis (ApiClient, Repository, Provider) dan penanganan error yang ramah pengguna.",
+    "objective": "Membangun aplikasi CRUD yang terhubung ke REST API publik dengan arsitektur berlapis dan pola MVC (ApiClient, Repository, Controller GetX, View) dan penanganan error yang ramah pengguna.",
     "instructions": [
       "Gunakan endpoint <code>https://jsonplaceholder.typicode.com/todos</code> (atau mock API pribadi seperti mockapi.io agar data benar-benar tersimpan).",
       "Buat model <code>Todo</code> (id, userId, title, completed) lengkap dengan <code>fromJson</code>, <code>toJson</code>, dan <code>copyWith</code>.",
       "Buat <code>ApiClient</code> yang menambahkan header JSON, memberi timeout 10 detik, dan mengubah semua kegagalan menjadi <code>ApiException</code>.",
       "Buat <code>TodoRepository</code> (abstract) beserta <code>RemoteTodoRepository</code> dan <code>FakeTodoRepository</code>.",
-      "Buat <code>TodoProvider</code> dengan status <code>loading/success/error</code>; tampilkan daftar todo dengan <code>?_limit=20</code> dan pull-to-refresh.",
-      "Sediakan halaman detail, form tambah/edit (satu form untuk dua mode, dengan validasi), dan hapus dengan dialog konfirmasi.",
+      "Buat <code>TodoController</code> (GetxController) dengan state reaktif <code>isLoading</code>, <code>error</code>, dan daftar todo; muat data di <code>onInit()</code> dan daftarkan dengan <code>Get.put</code> atau <code>Bindings</code>. Tampilkan daftar todo dengan <code>?_limit=20</code> dan pull-to-refresh memakai <code>Obx</code>.",
+      "Susun folder <code>models/</code>, <code>repositories/</code>, <code>controllers/</code>, dan <code>views/</code>. Sediakan view detail, form tambah/edit (satu form untuk dua mode, dengan validasi), dan hapus dengan dialog konfirmasi; navigasi memakai <code>Get.to</code>/<code>Get.back</code>.",
       "Ubah status selesai todo memakai request <code>PATCH</code> yang hanya mengirim field <code>completed</code>.",
       "Uji mode pesawat dan host yang salah: aplikasi wajib menampilkan pesan error dan tombol coba lagi, bukan crash. Tambahkan izin INTERNET lalu uji juga dengan build release."
     ],
     "expectedOutput": "Aplikasi daftar tugas yang memuat data dari internet, bisa menambah, mengedit, menandai selesai, dan menghapus data dengan umpan balik visual (loading, SnackBar, pesan error) yang jelas.",
-    "rubric": "Model & parsing JSON (15%), ApiClient + error handling (20%), Repository & Provider (20%), Operasi CRUD + PATCH berjalan (25%), UX: loading, pull-to-refresh, validasi, konfirmasi hapus (20%)."
+    "rubric": "Model & parsing JSON (15%), ApiClient + error handling (20%), Repository & Controller GetX (20%), Operasi CRUD + PATCH berjalan (25%), UX: loading, pull-to-refresh, validasi, konfirmasi hapus (20%)."
   },
   "quiz": [
     {

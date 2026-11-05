@@ -1,0 +1,335 @@
+<p class="lead">Semakin besar aplikasi, semakin penting memisahkan kode berdasarkan tanggung jawabnya. Struktur MVC berikut sederhana, cukup untuk proyek kuliah, dan dipakai lagi di proyek CRUD + Auth (Modul 13–14).</p>
+
+<pre><code class="language-text">lib/
+├── main.dart              # runApp(GetMaterialApp(...)) + initialBinding
+├── models/                # M: class data murni (User, Mahasiswa, Todo)
+├── services/              # akses data: HTTP, database, Supabase, Hive
+├── controllers/           # C: GetxController, state reaktif + logika bisnis
+├── bindings/              # (opsional) class XxxBinding extends Bindings
+├── views/                 # V: halaman penuh, file xxx_view.dart, class XxxView
+└── widgets/               # komponen kecil yang dipakai ulang
+</code></pre>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Folder</th><th>Boleh mengimpor</th><th>Tidak boleh</th></tr></thead>
+    <tbody>
+      <tr><td><code>models</code></td><td>Dart murni</td><td>Flutter, GetX, service, controller</td></tr>
+      <tr><td><code>services</code></td><td>models, package http/database/Supabase</td><td>Widget, <code>BuildContext</code>, GetX, controller</td></tr>
+      <tr><td><code>controllers</code></td><td>models, services, <code>package:get/get.dart</code>, <code>foundation.dart</code> (debugPrint), controller lain lewat <code>Get.find</code></td><td><code>material.dart</code>, <code>BuildContext</code>, SnackBar/dialog, navigasi</td></tr>
+      <tr><td><code>bindings</code></td><td>controllers, services, GetX</td><td>Widget</td></tr>
+      <tr><td><code>views</code> / <code>widgets</code></td><td>models, controllers, GetX, widget lain</td><td>Memanggil service langsung</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Arah ketergantungan: <strong>View → Controller → Service → Model</strong>. Panah hanya menunjuk satu arah: controller tidak boleh tahu tentang View. Itulah sebabnya controller tidak menampilkan SnackBar atau bernavigasi sendiri. Controller mengembalikan hasil (<code>bool</code>, pesan error), lalu View yang memutuskan reaksinya.</p>
+
+<div class="callout callout-info"><h4>ℹ️ "Tapi GetX bisa Get.snackbar dari controller..."</h4><p>Benar. Karena <code>Get.snackbar</code>, <code>Get.to</code>, dan <code>Get.back</code> tidak butuh <code>BuildContext</code>, GetX sebenarnya mengizinkan semua itu dipanggil dari controller. Kursus ini <strong>sengaja tidak melakukannya</strong>. Controller yang bebas UI bisa diuji dengan unit test biasa tanpa widget (Modul 15), dan logikanya bisa dipakai ulang oleh View yang berbeda.</p></div>
+
+<h4>Contoh lengkap: Auth gate dengan GetX</h4>
+<p>Auth gate adalah widget yang memilih menampilkan <code>LoginView</code> atau <code>HomeView</code> berdasarkan status sesi di <code>AuthController</code>. Login dan logout tidak memerlukan <code>Get.to</code> atau <code>Get.off</code> sama sekali.</p>
+<pre><code class="language-text">lib/
+├── main.dart
+├── models/user.dart
+├── services/auth_service.dart
+├── controllers/auth_controller.dart
+├── bindings/app_binding.dart
+├── views/
+│   ├── login_view.dart
+│   └── home_view.dart
+└── widgets/auth_gate.dart
+</code></pre>
+<p class="code-file-label">📄 <code>lib/models/user.dart</code></p>
+<pre><code class="language-dart">// lib/models/user.dart
+class User {
+  final String email;
+  final String nama;
+
+  const User({required this.email, required this.nama});
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/services/auth_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/auth_service.dart
+// Service palsu. Di Modul 12 bagian ini diganti dengan Supabase Auth.
+import '../models/user.dart';
+
+class AuthService {
+  Future&lt;User&gt; login(String email, String password) async {
+    await Future.delayed(const Duration(seconds: 1));
+    if (password != '123456') {
+      throw Exception('Email atau password salah');
+    }
+    return User(email: email, nama: email.split('@').first);
+  }
+
+  Future&lt;void&gt; logout() async {
+    await Future.delayed(const Duration(milliseconds: 300));
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/controllers/auth_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/auth_controller.dart
+// Controller TIDAK mengimpor material.dart dan tidak memegang BuildContext.
+import 'package:get/get.dart';
+
+import '../models/user.dart';
+import '../services/auth_service.dart';
+
+class AuthController extends GetxController {
+  AuthController(this._service);
+
+  final AuthService _service;
+
+  final _user = Rxn&lt;User&gt;(); // null = belum login
+  final _isLoading = false.obs;
+  final _error = RxnString();
+
+  User? get user =&gt; _user.value;
+  bool get isLoggedIn =&gt; _user.value != null;
+  bool get isLoading =&gt; _isLoading.value;
+  String? get error =&gt; _error.value;
+
+  /// Mengembalikan true jika berhasil. View yang memutuskan cara
+  /// menampilkan kegagalan (SnackBar, dialog, dll).
+  Future&lt;bool&gt; login(String email, String password) async {
+    _isLoading.value = true;
+    _error.value = null;
+    try {
+      _user.value = await _service.login(email, password);
+      return true;
+    } catch (e) {
+      _error.value = e.toString().replaceFirst('Exception: ', '');
+      return false;
+    } finally {
+      _isLoading.value = false;
+    }
+  }
+
+  Future&lt;void&gt; logout() async {
+    await _service.logout();
+    _user.value = null;
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/bindings/app_binding.dart</code></p>
+<pre><code class="language-dart">// lib/bindings/app_binding.dart
+import 'package:get/get.dart';
+
+import '../controllers/auth_controller.dart';
+import '../services/auth_service.dart';
+
+class AppBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.put(AuthController(AuthService()), permanent: true);
+    // Controller global lain (KrsController, TodoController, ...) ditambahkan di sini
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/widgets/auth_gate.dart</code></p>
+<pre><code class="language-dart">// lib/widgets/auth_gate.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/auth_controller.dart';
+import '../views/home_view.dart';
+import '../views/login_view.dart';
+
+// Auth gate: memilih halaman berdasarkan status sesi.
+// Tidak ada Get.to / Get.off sama sekali untuk login/logout!
+class AuthGate extends GetView&lt;AuthController&gt; {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Obx hanya membaca isLoggedIn, jadi hanya rebuild saat status login berubah
+    return Obx(
+      () =&gt; controller.isLoggedIn ? const HomeView() : const LoginView(),
+    );
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/views/login_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/login_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/auth_controller.dart';
+
+// StatefulWidget karena TextEditingController adalah state LOKAL form ini
+class LoginView extends StatefulWidget {
+  const LoginView({super.key});
+
+  @override
+  State&lt;LoginView&gt; createState() =&gt; _LoginViewState();
+}
+
+class _LoginViewState extends State&lt;LoginView&gt; {
+  final _auth = Get.find&lt;AuthController&gt;();
+  final _emailController = TextEditingController(text: 'andi@mhs.unsoed.ac.id');
+  final _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _login() async {
+    FocusScope.of(context).unfocus(); // tutup keyboard
+    final berhasil = await _auth.login(
+      _emailController.text.trim(),
+      _passwordController.text,
+    );
+    // Jika berhasil, AuthGate otomatis menampilkan HomeView.
+    if (!berhasil &amp;&amp; mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_auth.error ?? 'Login gagal')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            TextField(
+              controller: _emailController,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Password',
+                helperText: 'Petunjuk: 123456',
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              // Obx kecil: hanya tombol yang rebuild saat isLoading berubah
+              child: Obx(
+                () =&gt; FilledButton(
+                  onPressed: _auth.isLoading ? null : _login,
+                  child: _auth.isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Masuk'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/views/home_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/home_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/auth_controller.dart';
+
+class HomeView extends GetView&lt;AuthController&gt; {
+  const HomeView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Beranda'),
+        actions: [
+          IconButton(
+            tooltip: 'Logout',
+            icon: const Icon(Icons.logout),
+            // Setelah logout, AuthGate otomatis kembali ke LoginView
+            onPressed: controller.logout,
+          ),
+        ],
+      ),
+      body: Center(
+        child: Obx(
+          () =&gt; Text(
+            'Selamat datang, ${controller.user?.nama}!',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'bindings/app_binding.dart';
+import 'widgets/auth_gate.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      initialBinding: AppBinding(),
+      home: const AuthGate(),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/gate-login.jpg" alt="AuthGate menampilkan LoginView" loading="lazy">
+    <div class="screenshot-caption">AuthGate menampilkan LoginView</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/gate-error.jpg" alt="Password salah: SnackBar berisi pesan error dari controller" loading="lazy">
+    <div class="screenshot-caption">Password salah: View menampilkan pesan error dari controller</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/gate-home.jpg" alt="Login berhasil: AuthGate menampilkan HomeView" loading="lazy">
+    <div class="screenshot-caption">Login berhasil: AuthGate menampilkan HomeView</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>AuthController</code> menyimpan user dalam <code>Rxn&lt;User&gt;()</code>, observable yang boleh <code>null</code>. <code>null</code> berarti belum login.</li>
+  <li><code>AuthGate</code> membungkus pilihan halaman dengan <code>Obx</code> yang hanya membaca <code>isLoggedIn</code>. Begitu <code>_user.value</code> berubah, gate langsung berganti halaman. Saat <code>isLoading</code> berubah, gate tidak ikut rebuild.</li>
+  <li><code>login()</code> mengembalikan <code>bool</code>. <code>LoginView</code> yang memutuskan cara menampilkan kegagalan (SnackBar, dengan cek <code>mounted</code> setelah <code>await</code>), sedangkan controller hanya menyimpan pesannya di <code>error</code>.</li>
+  <li><code>LoginView</code> tetap <code>StatefulWidget</code> karena <code>TextEditingController</code> adalah state lokal milik form (ephemeral state, section 1). State global (siapa yang login) ada di controller.</li>
+  <li>Tombol Masuk dibungkus <code>Obx</code> kecil: dinonaktifkan dan diganti spinner selama <code>isLoading</code>, mencegah login ganda.</li>
+  <li>Logout cukup memanggil <code>controller.logout</code>. Begitu user menjadi <code>null</code>, AuthGate menampilkan LoginView lagi.</li>
+  <li><code>AppBinding</code> mendaftarkan <code>AuthController</code> dengan <code>permanent: true</code> karena sesi login dibutuhkan selama aplikasi hidup.</li>
+  <li><code>auth_controller.dart</code> hanya mengimpor <code>package:get/get.dart</code>, model, dan service. Coba cek: tidak ada <code>material.dart</code>.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Dipakai lagi di Modul 13–14</h4><p>Proyek CRUD + Auth nanti memakai nama yang sama: <code>lib/controllers/auth_controller.dart</code> (<code>AuthController</code>), <code>AuthGate</code>, <code>LoginView</code>, <code>RegisterView</code>, <code>HomeView</code>, ditambah <code>NotesController</code>. Bedanya, <code>AuthService</code> palsu di atas diganti Supabase Auth, dan status login didengarkan dari stream (<code>StreamSubscription</code> dibuat di <code>onInit</code>, dibatalkan di <code>onClose</code>).</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Mengimpor <code>material.dart</code> di controller untuk memanggil <code>ScaffoldMessenger</code>, atau memanggil <code>Get.snackbar</code>/<code>Get.to</code> dari controller. Kembalikan hasil (<code>bool</code>/pesan) dan biarkan View yang bereaksi.</li>
+  <li>Mencampur AuthGate dengan <code>Get.off(() =&gt; const HomeView())</code> manual setelah login. Pilih satu cara; jika memakai AuthGate, biarkan ia yang menentukan halaman.</li>
+  <li>Memanggil <code>AuthService</code> langsung dari <code>LoginView</code>. View hanya bicara dengan controller.</li>
+  <li>Menaruh semua class di <code>main.dart</code> sampai ratusan baris. Pecah sesuai struktur di atas sejak awal.</li>
+</ul>
+</div>

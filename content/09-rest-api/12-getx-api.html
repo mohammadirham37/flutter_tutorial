@@ -1,0 +1,206 @@
+<p class="lead"><code>FutureBuilder</code> cocok untuk satu layar sederhana. Namun jika data yang sama dipakai banyak layar (daftar, detail, form) dan bisa berubah (tambah/hapus), simpan data di <strong>controller GetX</strong> (Modul 08). Controller menyimpan tiga hal: <strong>isLoading</strong>, <strong>pesan error</strong>, dan <strong>data</strong>. View cukup membaca ketiganya di dalam <code>Obx</code>.</p>
+
+<h4>Posisi Setiap File dalam Pola MVC</h4>
+<p>Lapisan dari section 9 tetap dipakai. Dalam pola MVC, <code>ApiClient</code> dan <code>PostRepository</code> berperan sebagai <strong>service</strong> (akses data); kita cukup menambahkan <strong>controller</strong> dan <strong>view</strong>.</p>
+<pre><code class="language-text">lib/
+├── main.dart
+├── core/
+│   ├── api_exception.dart       (section 9)
+│   └── api_client.dart          (section 9)
+├── models/
+│   └── post.dart                (M: section 3)
+├── repositories/
+│   └── post_repository.dart     (akses data, section 9)
+├── controllers/
+│   └── post_controller.dart     (C: BARU)
+└── views/
+    └── post_list_view.dart      (V: BARU)
+</code></pre>
+<p>Arah ketergantungan tetap satu arah: <strong>View → Controller → Repository → ApiClient</strong>. Controller tidak tahu soal <code>http</code>, dan View tidak tahu soal URL.</p>
+
+<h4>Langkah 1: Controller</h4>
+<p>Pasang package: <code>flutter pub add get</code>. Controller menerima <code>PostRepository</code> lewat constructor, sehingga saat testing bisa diganti <code>FakePostRepository</code>.</p>
+<p class="code-file-label">📄 <code>lib/controllers/post_controller.dart</code></p>
+<pre><code class="language-dart">import 'package:get/get.dart';
+
+import '../models/post.dart';
+import '../repositories/post_repository.dart';
+
+class PostController extends GetxController {
+  PostController(this._repo);
+  final PostRepository _repo;
+
+  // State privat yang reaktif
+  final _posts = &lt;Post&gt;[].obs;
+  final _isLoading = false.obs;
+  final _error = RxnString(); // String? yang reaktif
+
+  // Getter publik read-only untuk View
+  List&lt;Post&gt; get posts =&gt; List.unmodifiable(_posts);
+  bool get isLoading =&gt; _isLoading.value;
+  String? get error =&gt; _error.value;
+
+  @override
+  void onInit() {
+    super.onInit();
+    fetchPosts(); // data pertama diambil saat controller dibuat
+  }
+
+  Future&lt;void&gt; fetchPosts() async {
+    _isLoading.value = true; // View langsung menampilkan loading
+    _error.value = null;
+    try {
+      _posts.assignAll(await _repo.getAll());
+    } catch (e) {
+      _error.value = e.toString();
+    } finally {
+      _isLoading.value = false; // View menampilkan data atau error
+    }
+  }
+
+  /// Optimistic delete: hapus dulu dari layar, kembalikan jika server gagal.
+  Future&lt;bool&gt; deletePost(Post post) async {
+    final index = _posts.indexOf(post);
+    _posts.removeAt(index);
+    try {
+      await _repo.delete(post.id!);
+      return true;
+    } catch (e) {
+      _posts.insert(index, post); // rollback
+      return false;
+    }
+  }
+}
+</code></pre>
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li>Tidak ada pemanggilan manual seperti <code>update()</code>. Setiap kali <code>.value</code> pada <code>_isLoading</code>/<code>_error</code> diubah, atau isi <code>_posts</code> berubah (<code>assignAll</code>, <code>removeAt</code>, <code>insert</code>), semua <code>Obx</code> yang membacanya otomatis dibangun ulang.</li>
+  <li><code>onInit()</code> adalah tempat yang tepat untuk request pertama: dipanggil sekali saat controller dibuat oleh <code>Get.put</code>.</li>
+  <li><code>finally</code> memastikan <code>isLoading</code> kembali <code>false</code>, baik request berhasil maupun gagal.</li>
+  <li>Pada <code>deletePost</code> kita memakai pola <em>optimistic update</em>: item langsung hilang sehingga aplikasi terasa cepat, lalu dikembalikan jika server menolak. Controller hanya mengembalikan <code>bool</code>; yang menampilkan SnackBar adalah View.</li>
+  <li>Controller tidak mengimpor <code>material.dart</code> dan tidak memegang <code>BuildContext</code>, sehingga bisa di-unit-test tanpa widget (Modul 15).</li>
+</ul>
+
+<h4>Langkah 2: View</h4>
+<p>View di-<em>extend</em> dari <code>GetView&lt;PostController&gt;</code>, sehingga properti <code>controller</code> otomatis berisi hasil <code>Get.find&lt;PostController&gt;()</code>.</p>
+<p class="code-file-label">📄 <code>lib/views/post_list_view.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/post_controller.dart';
+
+class PostListView extends GetView&lt;PostController&gt; {
+  const PostListView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Obx(() =&gt; Text('Post (${controller.posts.length})'))),
+      body: Obx(() {
+        // 1. Loading
+        if (controller.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        // 2. Error
+        if (controller.error != null) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(controller.error!),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: controller.fetchPosts,
+                  child: const Text('Coba Lagi'),
+                ),
+              ],
+            ),
+          );
+        }
+        // 3. Data
+        final posts = controller.posts;
+        return RefreshIndicator(
+          onRefresh: controller.fetchPosts,
+          child: ListView.builder(
+            itemCount: posts.length,
+            itemBuilder: (context, i) {
+              final post = posts[i];
+              return Dismissible(
+                key: ValueKey(post.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  color: Colors.red,
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20),
+                  child: const Icon(Icons.delete, color: Colors.white),
+                ),
+                onDismissed: (_) async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final ok = await controller.deletePost(post);
+                  messenger.showSnackBar(SnackBar(
+                    content: Text(ok ? 'Post ${post.id} dihapus' : 'Gagal menghapus, data dikembalikan'),
+                  ));
+                },
+                child: ListTile(
+                  leading: CircleAvatar(child: Text('${post.id}')),
+                  title: Text(post.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(post.body, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              );
+            },
+          ),
+        );
+      }),
+    );
+  }
+}
+</code></pre>
+
+<h4>Langkah 3: Daftarkan Controller di <code>main.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// Butuh: flutter pub add http get
+// File: models/post.dart, core/api_exception.dart, core/api_client.dart,
+//       repositories/post_repository.dart, controllers/post_controller.dart,
+//       views/post_list_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'core/api_client.dart';
+import 'controllers/post_controller.dart';
+import 'repositories/post_repository.dart';
+import 'views/post_list_view.dart';
+
+void main() {
+  final repo = RemotePostRepository(
+    ApiClient(baseUrl: 'https://jsonplaceholder.typicode.com'),
+  );
+  Get.put(PostController(repo)); // onInit() langsung memanggil fetchPosts()
+  runApp(const GetMaterialApp(home: PostListView()));
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/09-rest-api/getx-list.jpg" alt="Daftar post dari PostController" loading="lazy">
+    <div class="screenshot-caption">Data berhasil dimuat: daftar post dari PostController</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>Get.put(PostController(repo))</code> dipanggil sebelum <code>runApp</code>, sehingga controller sudah ada ketika <code>PostListView</code> memanggil <code>Get.find</code> (lewat <code>GetView</code>).</li>
+  <li><code>Obx</code> di judul AppBar hanya membaca <code>posts.length</code>, jadi hanya judul yang dibangun ulang ketika jumlah post berubah. <code>Obx</code> di <code>body</code> membaca <code>isLoading</code>, <code>error</code>, dan <code>posts</code>.</li>
+  <li>Urutan pengecekan <strong>loading → error → data</strong> menjamin hanya satu kondisi yang tampil.</li>
+  <li>Di dalam callback (<code>onPressed</code>, <code>onRefresh</code>, <code>onDismissed</code>) cukup panggil <code>controller.method()</code>, tanpa <code>Obx</code>.</li>
+  <li><code>ScaffoldMessenger.of(context)</code> disimpan ke variabel <strong>sebelum</strong> <code>await</code>, sehingga aman dipakai setelahnya.</li>
+  <li>Geser item ke kiri untuk menghapus. Karena JSONPlaceholder selalu menjawab sukses, rollback hanya terlihat jika internet dimatikan.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan Umum</h4>
+<ul>
+  <li>Memanggil <code>fetchPosts()</code> di dalam <code>build()</code>: request dikirim ulang setiap kali layar dibangun. Panggil di <code>onInit()</code> controller.</li>
+  <li>Lupa <code>Get.put</code> sebelum View dibuka: muncul error <em>"PostController" not found. You need to call "Get.put(PostController())"</em>.</li>
+  <li>Mengganti list dengan <code>_posts = hasil</code>: variabel <code>final</code> tidak bisa diisi ulang, dan list reaktifnya hilang. Pakai <code>_posts.assignAll(hasil)</code>.</li>
+  <li><code>Obx</code> yang tidak membaca satu pun nilai reaktif: GetX melempar error <em>improper use of a GetX</em>. Pastikan getter seperti <code>controller.isLoading</code> dibaca di dalam fungsi <code>Obx</code>, bukan di luar.</li>
+  <li>Menampilkan SnackBar atau dialog dari controller. Biarkan controller mengembalikan hasil (<code>bool</code>/pesan), lalu View yang bereaksi.</li>
+</ul>
+</div>

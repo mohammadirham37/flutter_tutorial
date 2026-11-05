@@ -35,8 +35,8 @@
       <tr><td>Register gagal "Alamat email tidak valid"</td><td>Supabase menolak domain contoh seperti <code>@example.com</code> (kode <code>email_address_invalid</code>), dan server email bawaan Supabase hanya mengirim ke alamat anggota tim project</td><td>Pakai alamat email sungguhan untuk uji register, atau buat akun uji lewat <strong>Authentication → Users → Add user</strong> dengan <strong>Auto Confirm User</strong>. Untuk produksi, pasang SMTP sendiri di <strong>Authentication → Emails → SMTP Settings</strong></td></tr>
       <tr><td>Email konfirmasi tidak pernah datang</td><td>Batas email bawaan Supabase / masuk folder spam</td><td>Cek spam, tunggu, atau matikan Confirm email</td></tr>
       <tr><td>Kolom <code>full_name</code> di profiles kosong</td><td>Key metadata berbeda (<code>fullName</code> vs <code>full_name</code>)</td><td>Samakan key di <code>signUp(data: ...)</code> dan di SQL trigger</td></tr>
-      <tr><td>Setelah login, layar tetap di Login</td><td><code>home:</code> di MaterialApp bukan <code>AuthGate</code>, atau stream dibuat ulang setiap build</td><td>Periksa <code>main.dart</code> dan <code>auth_gate.dart</code></td></tr>
-      <tr><td>Setelah register (Confirm OFF), halaman Register tidak tertutup</td><td>Lupa <code>Navigator.pop()</code> pada kasus <code>loggedIn</code></td><td>Lihat <code>switch</code> di RegisterScreen</td></tr>
+      <tr><td>Setelah login, layar tetap di Login</td><td><code>home:</code> di GetMaterialApp bukan <code>AuthGate</code>, atau <code>currentSession</code> dibaca di luar builder <code>Obx</code></td><td>Periksa <code>main.dart</code>, <code>auth_gate.dart</code>, dan <code>onInit</code> di <code>AuthController</code></td></tr>
+      <tr><td>Setelah register (Confirm OFF), halaman Register tidak tertutup</td><td>Lupa <code>Get.back()</code> pada kasus <code>loggedIn</code></td><td>Lihat <code>switch</code> di RegisterView</td></tr>
       <tr><td>Error <em>Failed host lookup</em></td><td>Tidak ada internet, emulator offline, atau URL salah ketik</td><td>Cek koneksi emulator dan isi <code>SUPABASE_URL</code></td></tr>
     </tbody>
   </table>
@@ -44,10 +44,10 @@
 
 <h4>Ringkasan Modul 13</h4>
 <ul>
-  <li>Arsitektur berlapis: UI &rarr; Provider &rarr; Service/Repository &rarr; Supabase/Hive.</li>
+  <li>Arsitektur berlapis pola MVC: View &rarr; Controller (GetX) &rarr; Service/Repository &rarr; Supabase/Hive.</li>
   <li>Tabel <code>profiles</code> diisi otomatis oleh trigger <code>security definer</code> dari <code>raw_user_meta_data</code>.</li>
-  <li><code>AuthService</code> membungkus Supabase Auth, sedangkan <code>AuthProvider</code> menyimpan loading/error dan menerjemahkan kode error.</li>
-  <li><code>AuthGate</code> + <code>onAuthStateChange</code> membuat navigasi login/logout otomatis tanpa Navigator manual.</li>
+  <li><code>AuthService</code> membungkus Supabase Auth, sedangkan <code>AuthController</code> menyimpan loading/error/sesi secara reaktif (<code>.obs</code>), berlangganan <code>onAuthStateChange</code> di <code>onInit</code>, dan menerjemahkan kode error.</li>
+  <li><code>AuthGate</code> + <code>Obx</code> yang membaca <code>currentSession</code> membuat navigasi login/logout otomatis tanpa <code>Get.off</code> atau Navigator manual.</li>
   <li>Login dan Register memakai Form + validator + show/hide password + tombol loading + SnackBar.</li>
 </ul>
-<p>Di Modul 14 kita melanjutkan kode yang <strong>sama</strong>: menambah tabel <code>notes</code>, cache Hive, dan mengganti HomeScreen sementara dengan daftar catatan lengkap.</p>
+<p>Di Modul 14 kita melanjutkan kode yang <strong>sama</strong>: menambah tabel <code>notes</code>, cache Hive, dan mengganti HomeView sementara dengan daftar catatan lengkap.</p>

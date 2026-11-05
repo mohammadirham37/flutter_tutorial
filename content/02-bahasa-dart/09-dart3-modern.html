@@ -205,7 +205,7 @@ void main() {
 </code></pre>
 <p>Coba hapus baris <code>AkunDiblokir() =&gt; ...</code>, lalu jalankan <code>dart analyze</code>. Compiler akan menolak dengan pesan bahwa tipe <code>HasilLogin</code> tidak tertangani secara lengkap (<em>not exhaustively matched</em>).</p>
 
-<p>Pola yang sama sangat cocok untuk status pemuatan data di aplikasi (Memuat, Sukses, Gagal), yang akan Anda pakai bersama Provider dan REST API:</p>
+<p>Pola yang sama sangat cocok untuk status pemuatan data di aplikasi (Memuat, Sukses, Gagal), yang akan Anda pakai bersama controller GetX dan REST API:</p>
 <pre><code class="language-dart">sealed class StatusData {}
 
 class Memuat extends StatusData {}

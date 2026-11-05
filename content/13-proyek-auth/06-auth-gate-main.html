@@ -1,96 +1,73 @@
-<p class="lead">Bagaimana aplikasi tahu harus menampilkan Login atau Home? Kita <strong>tidak</strong> memakai <code>Navigator.pushReplacement</code> setelah login. Sebagai gantinya, satu widget bernama <code>AuthGate</code> mendengarkan stream status login dan memilih layar secara otomatis.</p>
+<p class="lead">Bagaimana aplikasi tahu harus menampilkan Login atau Home? Kita <strong>tidak</strong> memakai <code>Get.off</code> atau <code>Navigator.pushReplacement</code> setelah login. Sebagai gantinya, satu widget bernama <code>AuthGate</code> mengamati status login di <code>AuthController</code> (yang mendengarkan stream <code>onAuthStateChange</code>) dan memilih halaman secara otomatis.</p>
 
 <h4>Kenapa AuthGate lebih baik daripada navigasi manual?</h4>
 <div class="table-responsive">
   <table class="table-custom">
     <thead><tr><th>Situasi</th><th>Navigasi manual</th><th>AuthGate (reaktif)</th></tr></thead>
     <tbody>
-      <tr><td>Login berhasil</td><td>Harus memanggil <code>pushReplacement(Home)</code></td><td>Otomatis pindah ke Home</td></tr>
-      <tr><td>Logout</td><td>Harus <code>pushAndRemoveUntil(Login)</code></td><td>Otomatis kembali ke Login</td></tr>
+      <tr><td>Login berhasil</td><td>Harus memanggil <code>Get.off(...)</code> / <code>pushReplacement</code> ke Home</td><td>Otomatis pindah ke Home</td></tr>
+      <tr><td>Logout</td><td>Harus <code>Get.offAll(...)</code> / <code>pushAndRemoveUntil</code> ke Login</td><td>Otomatis kembali ke Login</td></tr>
       <tr><td>Aplikasi dibuka ulang, sesi masih ada</td><td>Perlu cek manual di splash screen</td><td>Langsung ke Home (event <code>initialSession</code>)</td></tr>
       <tr><td>Sesi kedaluwarsa / dicabut</td><td>Sering terlupa</td><td>Otomatis ke Login (event <code>signedOut</code>)</td></tr>
     </tbody>
   </table>
 </div>
 
-<h4>File 5: <code>lib/screens/auth_gate.dart</code></h4>
-<p class="code-file-label">📄 <code>lib/screens/auth_gate.dart</code></p>
+<h4>File 5: <code>lib/views/auth_gate.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/views/auth_gate.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:get/get.dart';
 
-import '../providers/auth_provider.dart';
-import 'home_screen.dart';
-import 'login_screen.dart';
+import '../controllers/auth_controller.dart';
+import 'home_view.dart';
+import 'login_view.dart';
 
-/// "Penjaga pintu" aplikasi: mendengarkan perubahan status login lalu
-/// memilih halaman yang tepat secara otomatis.
-class AuthGate extends StatefulWidget {
+/// "Penjaga pintu" aplikasi: mengamati status login di AuthController
+/// lalu memilih halaman yang tepat secara otomatis.
+class AuthGate extends GetView&lt;AuthController&gt; {
   const AuthGate({super.key});
 
   @override
-  State&lt;AuthGate&gt; createState() =&gt; _AuthGateState();
-}
-
-class _AuthGateState extends State&lt;AuthGate&gt; {
-  // Simpan stream di State agar tidak dibuat ulang setiap build.
-  late final Stream&lt;AuthState&gt; _authStream;
-
-  @override
-  void initState() {
-    super.initState();
-    _authStream = context.read&lt;AuthProvider&gt;().authStateChanges;
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return StreamBuilder&lt;AuthState&gt;(
-      stream: _authStream,
-      builder: (context, snapshot) {
-        // Sebelum event pertama datang, pakai sesi yang tersimpan di perangkat.
-        final session = snapshot.hasData
-            ? snapshot.data!.session
-            : context.read&lt;AuthProvider&gt;().currentSession;
-
-        if (session == null) {
-          return const LoginScreen();
-        }
-        return const HomeScreen();
-      },
-    );
+    return Obx(() {
+      // currentSession dibaca di dalam Obx, jadi setiap kali sesi berubah
+      // (signedIn, signedOut, ...) builder ini dijalankan ulang.
+      if (controller.currentSession == null) {
+        return const LoginView();
+      }
+      return const HomeView();
+    });
   }
 }
 </code></pre>
 <ul>
-  <li><strong>Stream disimpan di <code>initState</code></strong> sebagai <code>late final</code>. Jika <code>stream:</code> diisi langsung dengan getter di dalam <code>build()</code>, setiap rebuild bisa membuat StreamBuilder berlangganan ulang.</li>
-  <li><code>context.read</code> boleh dipakai di <code>initState</code> karena kita hanya membaca sekali, tanpa mendengarkan perubahan.</li>
-  <li><code>snapshot.hasData ? ... : currentSession</code>: sebelum event pertama tiba (beberapa milidetik), kita memakai sesi tersimpan agar layar Login tidak "berkedip" sesaat bagi user yang sudah login.</li>
-  <li>Setiap event (<code>signedIn</code>, <code>signedOut</code>, <code>tokenRefreshed</code>, ...) membawa <code>session</code> terbaru, jadi cukup cek <code>session == null</code>.</li>
+  <li><strong><code>extends GetView&lt;AuthController&gt;</code></strong>: <code>GetView</code> adalah <code>StatelessWidget</code> yang punya getter <code>controller</code>, isinya sama dengan <code>Get.find&lt;AuthController&gt;()</code>. Cocok untuk halaman yang hanya memakai satu controller.</li>
+  <li><strong><code>Obx(() { ... })</code></strong> membaca <code>controller.currentSession</code>. Karena getter itu membaca <code>_session.value</code>, Obx otomatis mendaftar sebagai pendengar dan dibangun ulang setiap kali sesi berubah.</li>
+  <li>Tidak perlu <code>StatefulWidget</code>, <code>initState</code>, atau <code>StreamBuilder</code>. Langganan stream sudah diurus <code>AuthController</code> di <code>onInit</code> dan dibatalkan di <code>onClose</code>, sehingga tidak ada risiko berlangganan ulang di setiap build.</li>
+  <li>Sesi awal diisi dari <code>currentSession</code> di <code>onInit</code>, sehingga user yang sudah login tidak melihat layar Login "berkedip" sesaat ketika aplikasi dibuka.</li>
+  <li>Setiap event (<code>signedIn</code>, <code>signedOut</code>, <code>tokenRefreshed</code>, ...) membawa <code>session</code> terbaru, jadi cukup cek <code>currentSession == null</code>.</li>
 </ul>
 
-<h4>File 6 (sementara): <code>lib/screens/home_screen.dart</code></h4>
+<h4>File 6 (sementara): <code>lib/views/home_view.dart</code></h4>
 <p>Untuk menguji alur login, kita buat Home sederhana yang menampilkan nama dan email user serta tombol keluar. File ini akan <strong>diganti seluruhnya</strong> di Modul 14.</p>
-<p class="code-file-label">📄 <code>lib/screens/home_screen.dart</code></p>
+<p class="code-file-label">📄 <code>lib/views/home_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
-import '../providers/auth_provider.dart';
+import '../controllers/auth_controller.dart';
 
-/// HomeScreen sementara untuk Bagian 1. Di Modul 14 file ini diganti
+/// HomeView sementara untuk Bagian 1. Di Modul 14 file ini diganti
 /// dengan daftar catatan lengkap.
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class HomeView extends GetView&lt;AuthController&gt; {
+  const HomeView({super.key});
 
-  Future&lt;void&gt; _logout(BuildContext context) async {
-    await context.read&lt;AuthProvider&gt;().signOut();
-    // Tidak perlu Navigator: AuthGate otomatis menampilkan LoginScreen.
+  Future&lt;void&gt; _logout() async {
+    await controller.signOut();
+    // Tidak perlu navigasi: AuthGate otomatis menampilkan LoginView.
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch&lt;AuthProvider&gt;();
-    final user = auth.currentUser;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Catatan Kuliah'),
@@ -98,62 +75,69 @@ class HomeScreen extends StatelessWidget {
           IconButton(
             tooltip: 'Keluar',
             icon: const Icon(Icons.logout),
-            onPressed: () =&gt; _logout(context),
+            onPressed: _logout,
           ),
         ],
       ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.verified_user, size: 72, color: Colors.green),
-              const SizedBox(height: 16),
-              Text(
-                'Halo, ${auth.displayName}!',
-                style: Theme.of(context).textTheme.headlineSmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text('Login sebagai ${user?.email ?? '-'}'),
-              const SizedBox(height: 4),
-              SelectableText(
-                'User ID: ${user?.id ?? '-'}',
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Autentikasi berhasil. Daftar catatan dibuat di Modul 14.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              OutlinedButton.icon(
-                onPressed: () =&gt; _logout(context),
-                icon: const Icon(Icons.logout),
-                label: const Text('Keluar'),
-              ),
-            ],
-          ),
+          child: Obx(() {
+            final user = controller.currentUser;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.verified_user, size: 72, color: Colors.green),
+                const SizedBox(height: 16),
+                Text(
+                  'Halo, ${controller.displayName}!',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text('Login sebagai ${user?.email ?? '-'}'),
+                const SizedBox(height: 4),
+                SelectableText(
+                  'User ID: ${user?.id ?? '-'}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Autentikasi berhasil. Daftar catatan dibuat di Modul 14.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  onPressed: _logout,
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Keluar'),
+                ),
+              ],
+            );
+          }),
         ),
       ),
     );
   }
 }
 </code></pre>
-<p>Perhatikan <code>_logout</code>: setelah <code>signOut()</code> tidak ada <code>Navigator</code> sama sekali. Stream memancarkan <code>signedOut</code>, lalu AuthGate menampilkan LoginScreen.</p>
+<ul>
+  <li><code>extends GetView&lt;AuthController&gt;</code> menyediakan getter <code>controller</code> (hasil <code>Get.find</code>), sama seperti di AuthGate.</li>
+  <li>Hanya bagian yang membaca data user yang dibungkus <code>Obx</code>. <code>AppBar</code> tidak bergantung pada state, jadi tidak perlu ikut dibangun ulang.</li>
+  <li>Perhatikan <code>_logout</code>: setelah <code>signOut()</code> tidak ada navigasi sama sekali (tidak ada <code>Get.offAll</code> atau <code>Navigator</code>). Stream memancarkan <code>signedOut</code>, <code>AuthController</code> mengosongkan sesi, lalu <code>Obx</code> di AuthGate menampilkan LoginView.</li>
+</ul>
 
 <h4>File 7: <code>lib/main.dart</code> (versi Bagian 1)</h4>
 <p class="code-file-label">📄 <code>lib/main.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/env.dart';
-import 'providers/auth_provider.dart';
-import 'screens/auth_gate.dart';
+import 'controllers/auth_controller.dart';
 import 'services/auth_service.dart';
+import 'views/auth_gate.dart';
 
 Future&lt;void&gt; main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -168,14 +152,14 @@ Future&lt;void&gt; main() async {
     publishableKey: Env.supabasePublishableKey,
   );
 
-  final authService = AuthService(Supabase.instance.client);
-
-  runApp(
-    ChangeNotifierProvider(
-      create: (_) =&gt; AuthProvider(authService),
-      child: const CatatanKuliahApp(),
-    ),
+  // Daftarkan controller global SEBELUM runApp. permanent: true membuat
+  // AuthController tidak pernah dihapus selama aplikasi berjalan.
+  Get.put(
+    AuthController(AuthService(Supabase.instance.client)),
+    permanent: true,
   );
+
+  runApp(const CatatanKuliahApp());
 }
 
 class CatatanKuliahApp extends StatelessWidget {
@@ -183,7 +167,7 @@ class CatatanKuliahApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return GetMaterialApp(
       title: 'Catatan Kuliah',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -221,11 +205,13 @@ class ConfigErrorApp extends StatelessWidget {
 </code></pre>
 <ul>
   <li><code>if (!Env.isConfigured)</code>: jika lupa <code>--dart-define-from-file</code>, aplikasi menampilkan petunjuk yang jelas, bukan error membingungkan dari Supabase.</li>
-  <li><code>AuthService(Supabase.instance.client)</code> dibuat <em>sesudah</em> <code>initialize</code> selesai, lalu disuntikkan ke <code>AuthProvider</code>.</li>
-  <li><code>ChangeNotifierProvider</code> di atas <code>MaterialApp</code> membuat <code>AuthProvider</code> bisa diakses dari semua halaman, termasuk halaman yang di-<code>push</code>.</li>
+  <li><code>AuthService(Supabase.instance.client)</code> dibuat <em>sesudah</em> <code>initialize</code> selesai, lalu disuntikkan ke constructor <code>AuthController</code>.</li>
+  <li><strong><code>Get.put(..., permanent: true)</code> sebelum <code>runApp</code></strong> mendaftarkan <code>AuthController</code> sebagai controller global. Saat itu juga <code>onInit</code> dijalankan sehingga langganan status login sudah aktif sebelum layar pertama tampil. <code>permanent: true</code> mencegah GetX menghapus controller ini ketika halaman ditutup. Di Modul 14, <code>NotesController</code> didaftarkan di tempat yang sama.</li>
+  <li><code>GetMaterialApp</code> menggantikan <code>MaterialApp</code> agar fitur GetX seperti <code>Get.to</code> dan <code>Get.back</code> (dipakai di LoginView dan RegisterView) bisa berjalan. Parameter lain (<code>title</code>, <code>theme</code>, <code>home</code>) tetap sama.</li>
+  <li><code>ConfigErrorApp</code> cukup memakai <code>MaterialApp</code> biasa karena tidak memakai controller maupun navigasi GetX.</li>
 </ul>
 
-<div class="callout callout-warning"><h4>⚠️ Belum bisa dijalankan</h4><p><code>auth_gate.dart</code> meng-import <code>login_screen.dart</code>, yang baru kita buat di section berikutnya. Wajar jika editor masih menandai error merah. Lanjutkan ke section 7 dan 8.</p></div>
+<div class="callout callout-warning"><h4>⚠️ Belum bisa dijalankan</h4><p><code>auth_gate.dart</code> meng-import <code>login_view.dart</code>, yang baru kita buat di section berikutnya. Wajar jika editor masih menandai error merah. Lanjutkan ke section 7 dan 8.</p></div>
 
 <p>Jika aplikasi dijalankan tanpa <code>--dart-define-from-file</code>, tampilannya seperti ini:</p>
 <div class="screenshot-row">

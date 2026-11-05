@@ -105,7 +105,7 @@ Bahasa kode yang didukung pewarnaan: `language-dart`, `language-bash`, `language
 
 Setiap contoh kode Flutter yang menampilkan UI wajib diikuti screenshot hasilnya, diambil dari Android Emulator (bukan gambar karangan).
 
-1. Pastikan emulator menyala dan runner aktif. Runner adalah proyek `/tmp/shot_runner` yang dijalankan sekali dengan `/tmp/shot_runner/tool/start.sh`. Proyek ini sudah memuat package `provider`, `go_router`, `http`, `shared_preferences`, `sqflite`, `path`, `path_provider`, `hive_ce`, `hive_ce_flutter`, `supabase_flutter`, `intl`, `uuid`, `flutter_secure_storage`.
+1. Pastikan emulator menyala dan runner aktif. Runner adalah proyek `/tmp/shot_runner` yang dijalankan sekali dengan `/tmp/shot_runner/tool/start.sh`. Proyek ini sudah memuat package `get`, `go_router`, `http`, `shared_preferences`, `sqflite`, `path`, `path_provider`, `hive_ce`, `hive_ce_flutter`, `supabase_flutter`, `intl`, `uuid`, `flutter_secure_storage`.
 2. Ambil screenshot:
 
 ```bash

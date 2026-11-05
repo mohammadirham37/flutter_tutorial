@@ -1,0 +1,200 @@
+<p class="lead">Di Modul 08 kamu belajar GetX dengan pola MVC untuk mengelola state. Sekarang kita gabungkan dengan Hive: <strong>service</strong> mengurus penyimpanan di box, <strong>controller</strong> (<code>GetxController</code>) menyimpan state reaktif, dan <strong>view</strong> cukup menampilkan data lewat <code>Obx</code>.</p>
+
+<h4>Pembagian tugas</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Lapisan</th><th>Folder</th><th>Tugas</th><th>Boleh tahu tentang</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Model</strong></td><td><code>models/</code></td><td>Class data murni (bagian 5 dan 6)</td><td>Tidak bergantung pada apa pun</td></tr>
+      <tr><td><strong>Service</strong></td><td><code>services/</code></td><td>Membaca dan menulis box Hive</td><td>Hive, model</td></tr>
+      <tr><td><strong>Controller</strong></td><td><code>controllers/</code></td><td>Logika aplikasi dan state <code>.obs</code>, memanggil service</td><td>Service, model (tanpa widget, tanpa Hive langsung)</td></tr>
+      <tr><td><strong>View</strong></td><td><code>views/</code></td><td>Menampilkan data dengan <code>Obx</code>, meneruskan aksi pengguna ke controller</td><td>Controller, model (tidak menyentuh Hive langsung)</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Arah ketergantungannya satu jalur: <strong>View &rarr; Controller &rarr; Service &rarr; Hive</strong>. Keuntungannya: jika suatu saat penyimpanan diganti (misalnya ke Supabase di Modul 12), yang diubah cukup service. View tidak perlu disentuh, dan service maupun controller mudah diuji tanpa UI.</p>
+
+<div class="callout callout-info"><h4>ℹ️ Service atau repository?</h4><p>Di banyak tutorial, kelas yang membungkus box Hive disebut <em>repository</em>. Di kursus ini kita memakai nama <strong>service</strong> agar sama dengan struktur MVC Modul 08. Isinya sama saja: satu-satunya tempat yang menyentuh box. Di Modul 13&ndash;14 kamu akan melihat lagi nama repository untuk lapisan yang serupa.</p></div>
+
+<p>Contoh: pengaturan tema gelap dan nama pengguna yang tersimpan di Hive. Pasang package dulu: <code>flutter pub add hive_ce hive_ce_flutter get</code>.</p>
+
+<h4>Langkah 1: Service</h4>
+<p class="code-file-label">📄 <code>lib/services/pengaturan_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/pengaturan_service.dart
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+class PengaturanService {
+  static const String namaBox = 'pengaturan';
+  static const String _kunciTemaGelap = 'tema_gelap';
+  static const String _kunciNama = 'nama_pengguna';
+
+  final Box _box;
+
+  PengaturanService(this._box);
+
+  static Future&lt;PengaturanService&gt; buka() async {
+    final box = await Hive.openBox(namaBox);
+    return PengaturanService(box);
+  }
+
+  bool get temaGelap =&gt; _box.get(_kunciTemaGelap, defaultValue: false) as bool;
+  Future&lt;void&gt; setTemaGelap(bool nilai) =&gt; _box.put(_kunciTemaGelap, nilai);
+
+  String get namaPengguna =&gt;
+      _box.get(_kunciNama, defaultValue: 'Mahasiswa') as String;
+  Future&lt;void&gt; setNamaPengguna(String nama) =&gt; _box.put(_kunciNama, nama);
+}
+</code></pre>
+
+<p>Nama box dan nama key disimpan sebagai konstanta privat. Seluruh aplikasi tidak perlu tahu bahwa tema disimpan dengan key <code>'tema_gelap'</code>, sehingga salah ketik key tidak tersebar di banyak file. Perhatikan juga bahwa service tidak mengimpor GetX sama sekali: ia hanya Dart + Hive.</p>
+
+<h4>Langkah 2: Controller</h4>
+<p class="code-file-label">📄 <code>lib/controllers/pengaturan_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/pengaturan_controller.dart
+import 'package:get/get.dart';
+
+import '../services/pengaturan_service.dart';
+
+class PengaturanController extends GetxController {
+  PengaturanController(this._service);
+  final PengaturanService _service;
+
+  // State reaktif privat
+  final _temaGelap = false.obs;
+  final _namaPengguna = ''.obs;
+
+  // Getter publik read-only
+  bool get temaGelap =&gt; _temaGelap.value;
+  String get namaPengguna =&gt; _namaPengguna.value;
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Nilai awal langsung dibaca dari Hive (sinkron, tanpa await)
+    _temaGelap.value = _service.temaGelap;
+    _namaPengguna.value = _service.namaPengguna;
+  }
+
+  Future&lt;void&gt; gantiTema(bool gelap) async {
+    await _service.setTemaGelap(gelap); // simpan permanen dulu
+    _temaGelap.value = gelap; // lalu kabari Obx
+  }
+
+  Future&lt;void&gt; gantiNama(String nama) async {
+    await _service.setNamaPengguna(nama);
+    _namaPengguna.value = nama;
+  }
+}
+</code></pre>
+<ul>
+  <li>Service masuk lewat constructor, persis seperti pola controller di Modul 08. Controller tidak tahu cara membuka box.</li>
+  <li>Nilai awal diisi di <code>onInit()</code>. Membaca box Hive itu sinkron, jadi tidak perlu <code>isLoading</code> atau <code>await</code>.</li>
+  <li>Setiap method tulis menyimpan ke Hive dulu, baru mengubah nilai <code>.obs</code>. Mengubah <code>.value</code> otomatis membuat setiap <code>Obx</code> yang membacanya dibangun ulang.</li>
+</ul>
+
+<h4>Langkah 3: main.dart dan view</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+import 'controllers/pengaturan_controller.dart';
+import 'services/pengaturan_service.dart';
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  final service = await PengaturanService.buka();
+  Get.put(PengaturanController(service));
+
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.find&lt;PengaturanController&gt;();
+    // Obx membangun ulang GetMaterialApp hanya saat temaGelap berubah
+    return Obx(
+      () =&gt; GetMaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(colorSchemeSeed: Colors.indigo),
+        darkTheme: ThemeData(
+          colorSchemeSeed: Colors.indigo,
+          brightness: Brightness.dark,
+        ),
+        themeMode: controller.temaGelap ? ThemeMode.dark : ThemeMode.light,
+        home: const PengaturanView(),
+      ),
+    );
+  }
+}
+
+class PengaturanView extends GetView&lt;PengaturanController&gt; {
+  const PengaturanView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Obx(() =&gt; Text('Halo, ${controller.namaPengguna}')),
+      ),
+      body: ListView(
+        children: [
+          Obx(
+            () =&gt; SwitchListTile(
+              title: const Text('Tema gelap'),
+              subtitle:
+                  const Text('Tersimpan di Hive, tetap ada saat dibuka lagi'),
+              value: controller.temaGelap,
+              onChanged: controller.gantiTema,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextFormField(
+              initialValue: controller.namaPengguna,
+              decoration: const InputDecoration(
+                labelText: 'Nama panggilan',
+                border: OutlineInputBorder(),
+              ),
+              onFieldSubmitted: (nama) =&gt; controller.gantiNama(nama.trim()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/pengaturan-terang.jpg" alt="Layar pengaturan dengan tema terang" loading="lazy">
+    <div class="screenshot-caption">Tema terang (nilai awal)</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11-hive/pengaturan-gelap.jpg" alt="Layar pengaturan setelah tema gelap diaktifkan" loading="lazy">
+    <div class="screenshot-caption">Setelah switch ditekan: tema gelap tersimpan dan tetap aktif saat aplikasi dibuka lagi</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li>Service dibuka di <code>main()</code> (async), lalu diberikan ke controller lewat constructor dan didaftarkan dengan <code>Get.put</code>. Dengan begitu controller tidak perlu berurusan dengan <code>await openBox</code>.</li>
+  <li><code>Obx</code> di <code>MyApp</code> membaca <code>controller.temaGelap</code>, sehingga <code>GetMaterialApp</code> dibangun ulang hanya saat tema berubah.</li>
+  <li><code>PengaturanView</code> memakai <code>GetView&lt;PengaturanController&gt;</code> sehingga getter <code>controller</code> langsung tersedia. Hanya judul AppBar dan switch yang dibungkus <code>Obx</code>, karena hanya bagian itu yang perlu berubah.</li>
+  <li>Di callback (<code>onChanged</code>, <code>onFieldSubmitted</code>) controller dipanggil langsung tanpa <code>Obx</code>, aturan yang sama dengan Modul 08.</li>
+  <li><code>TextFormField</code> memakai <code>initialValue</code> yang hanya dibaca sekali, jadi tidak perlu dibungkus <code>Obx</code>.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Bandingkan dengan Modul 10</h4><p>Di SharedPreferences, membaca nilai butuh <code>await SharedPreferences.getInstance()</code>, sehingga tema awal harus dimuat secara async. Dengan Hive, setelah box dibuka di <code>main()</code>, nilai bisa langsung dibaca di <code>onInit()</code> controller tanpa menunggu.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li>Memanggil <code>Hive.box(...)</code> langsung dari view. Biarkan hanya service yang tahu tentang box.</li>
+<li>Mengubah data di box tanpa mengubah <code>.obs</code> di controller. Box memang berubah, tetapi <code>Obx</code> tidak tahu dan layar tetap menampilkan nilai lama.</li>
+<li>Membungkus seluruh <code>Scaffold</code> dengan satu <code>Obx</code> besar. Bungkus hanya widget yang membaca nilai reaktif.</li>
+</ul></div>

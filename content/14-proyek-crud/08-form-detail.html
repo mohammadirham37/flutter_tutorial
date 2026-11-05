@@ -1,26 +1,27 @@
-<p class="lead">Satu layar form untuk dua keperluan, tambah dan edit, adalah pola yang sangat umum. Perbedaannya hanya ditentukan oleh ada atau tidaknya parameter <code>note</code>.</p>
+<p class="lead">Satu halaman form untuk dua keperluan, tambah dan edit, adalah pola yang sangat umum. Perbedaannya hanya ditentukan oleh ada atau tidaknya parameter <code>note</code>. Kedua View di section ini memakai <code>NotesController</code> yang sama dengan <code>HomeView</code>, diambil dengan <code>Get.find</code>.</p>
 
-<h4>File: <code>lib/screens/note_form_screen.dart</code></h4>
-<p class="code-file-label">📄 <code>lib/screens/note_form_screen.dart</code></p>
+<h4>File: <code>lib/views/note_form_view.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/views/note_form_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
+import '../controllers/notes_controller.dart';
 import '../models/note.dart';
-import '../providers/notes_provider.dart';
 
-/// Satu layar untuk dua keperluan:
+/// Satu halaman untuk dua keperluan:
 /// - note == null  -&gt; mode TAMBAH
 /// - note != null  -&gt; mode EDIT
-class NoteFormScreen extends StatefulWidget {
-  const NoteFormScreen({super.key, this.note});
+class NoteFormView extends StatefulWidget {
+  const NoteFormView({super.key, this.note});
 
   final Note? note;
 
   @override
-  State&lt;NoteFormScreen&gt; createState() =&gt; _NoteFormScreenState();
+  State&lt;NoteFormView&gt; createState() =&gt; _NoteFormViewState();
 }
 
-class _NoteFormScreenState extends State&lt;NoteFormScreen&gt; {
+class _NoteFormViewState extends State&lt;NoteFormView&gt; {
+  final _notes = Get.find&lt;NotesController&gt;();
   final _formKey = GlobalKey&lt;FormState&gt;();
   late final TextEditingController _titleController;
   late final TextEditingController _contentController;
@@ -52,13 +53,12 @@ class _NoteFormScreenState extends State&lt;NoteFormScreen&gt; {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() =&gt; _isSaving = true);
-    final provider = context.read&lt;NotesProvider&gt;();
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
 
     final String? error;
     if (_isEdit) {
-      error = await provider.updateNote(
+      error = await _notes.updateNote(
         widget.note!.copyWith(
           title: title,
           content: content,
@@ -66,7 +66,7 @@ class _NoteFormScreenState extends State&lt;NoteFormScreen&gt; {
         ),
       );
     } else {
-      error = await provider.addNote(
+      error = await _notes.addNote(
         title: title,
         content: content,
         category: _category,
@@ -83,7 +83,7 @@ class _NoteFormScreenState extends State&lt;NoteFormScreen&gt; {
           content: Text(_isEdit ? 'Catatan diperbarui' : 'Catatan disimpan'),
         ),
       );
-      Navigator.of(context).pop();
+      Get.back(); // kembali ke halaman sebelumnya
     } else {
       messenger.showSnackBar(
         SnackBar(
@@ -176,31 +176,32 @@ class _NoteFormScreenState extends State&lt;NoteFormScreen&gt; {
 }
 </code></pre>
 
-<h4>Membedah NoteFormScreen</h4>
+<h4>Membedah NoteFormView</h4>
 <ul>
-  <li><strong><code>bool get _isEdit =&gt; widget.note != null</code></strong> adalah satu sumber kebenaran untuk judul AppBar, pesan sukses, dan method provider yang dipanggil.</li>
-  <li><strong>Controller diisi di <code>initState</code></strong> dengan <code>widget.note?.title ?? ''</code>. Mode edit langsung menampilkan data lama, sedangkan mode tambah kosong.</li>
+  <li><strong><code>bool get _isEdit =&gt; widget.note != null</code></strong> adalah satu sumber kebenaran untuk judul AppBar, pesan sukses, dan method controller yang dipanggil.</li>
+  <li><strong><code>TextEditingController</code> diisi di <code>initState</code></strong> dengan <code>widget.note?.title ?? ''</code>. Mode edit langsung menampilkan data lama, sedangkan mode tambah kosong.</li>
   <li><strong><code>DropdownButtonFormField</code> dengan <code>initialValue</code></strong> memilih kategori awal. Itemnya diambil dari <code>Note.categories</code>.</li>
   <li><strong><code>maxLength: 100</code></strong> menampilkan penghitung karakter dan sejalan dengan <code>check</code> di SQL.</li>
-  <li><strong><code>_isSaving</code></strong> adalah state lokal (bukan di provider) karena hanya relevan untuk layar ini: menonaktifkan tombol dan menampilkan spinner.</li>
+  <li><strong><code>final _notes = Get.find&lt;NotesController&gt;()</code></strong> mengambil controller global. Form memanggil <code>_notes.addNote</code> atau <code>_notes.updateNote</code>, lalu menerima <code>null</code> (sukses) atau pesan error.</li>
+  <li><strong><code>_isSaving</code></strong> adalah state lokal dengan <code>setState</code> (bukan di controller) karena hanya relevan untuk halaman ini: menonaktifkan tombol dan menampilkan spinner. Tidak semua state harus masuk GetX. State yang hanya dipakai satu widget cukup disimpan di <code>State</code> widget itu.</li>
   <li><strong><code>final String? error;</code> diisi di if/else</strong>: Dart mengizinkan variabel <code>final</code> diisi tepat sekali di setiap cabang.</li>
-  <li><strong>Setelah <code>await</code>: <code>if (!mounted) return;</code></strong>, baru <code>setState</code>, SnackBar, dan <code>pop</code>.</li>
+  <li><strong>Setelah <code>await</code>: <code>if (!mounted) return;</code></strong>, baru <code>setState</code>, SnackBar, dan <code>Get.back()</code> untuk kembali ke halaman sebelumnya. SnackBar tetap terlihat setelah halaman ditutup karena <code>ScaffoldMessenger</code> berada di atas semua halaman.</li>
   <li><strong>Edit memakai <code>copyWith</code></strong>, sehingga id catatan lama tetap dipakai untuk filter <code>.eq('id', ...)</code>.</li>
 </ul>
 
-<h4>File: <code>lib/screens/note_detail_screen.dart</code></h4>
-<p class="code-file-label">📄 <code>lib/screens/note_detail_screen.dart</code></p>
+<h4>File: <code>lib/views/note_detail_view.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/views/note_detail_view.dart</code></p>
 <pre><code class="language-dart">import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 
+import '../controllers/notes_controller.dart';
 import '../models/note.dart';
-import '../providers/notes_provider.dart';
 import '../utils/date_format.dart';
 import '../widgets/confirm_dialog.dart';
-import 'note_form_screen.dart';
+import 'note_form_view.dart';
 
-class NoteDetailScreen extends StatelessWidget {
-  const NoteDetailScreen({super.key, required this.noteId});
+class NoteDetailView extends GetView&lt;NotesController&gt; {
+  const NoteDetailView({super.key, required this.noteId});
 
   final String noteId;
 
@@ -214,28 +215,29 @@ class NoteDetailScreen extends StatelessWidget {
     if (!yakin || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
-    final provider = context.read&lt;NotesProvider&gt;();
     // Tutup halaman detail dulu, baru hapus (optimistic delete).
-    Navigator.of(context).pop();
-    final error = await provider.deleteNote(note);
+    Get.back();
+    final error = await controller.deleteNote(note);
     messenger.showSnackBar(SnackBar(content: Text(error ?? 'Catatan dihapus')));
   }
 
   @override
   Widget build(BuildContext context) {
-    // Ambil versi terbaru catatan dari provider, sehingga setelah diedit
-    // halaman ini langsung menampilkan perubahan.
-    final note = context.select&lt;NotesProvider, Note?&gt;(
-      (provider) =&gt; provider.findById(noteId),
-    );
+    // Obx membaca versi terbaru catatan dari controller, sehingga setelah
+    // diedit halaman ini langsung menampilkan perubahan.
+    return Obx(() {
+      final note = controller.findById(noteId);
+      if (note == null) {
+        return Scaffold(
+          appBar: AppBar(),
+          body: const Center(child: Text('Catatan tidak ditemukan.')),
+        );
+      }
+      return _buildDetail(context, note);
+    });
+  }
 
-    if (note == null) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: Text('Catatan tidak ditemukan.')),
-      );
-    }
-
+  Widget _buildDetail(BuildContext context, Note note) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Detail Catatan'),
@@ -243,11 +245,7 @@ class NoteDetailScreen extends StatelessWidget {
           IconButton(
             tooltip: 'Edit',
             icon: const Icon(Icons.edit),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) =&gt; NoteFormScreen(note: note)),
-              );
-            },
+            onPressed: () =&gt; Get.to(() =&gt; NoteFormView(note: note)),
           ),
           IconButton(
             tooltip: 'Hapus',
@@ -284,9 +282,11 @@ class NoteDetailScreen extends StatelessWidget {
 }
 </code></pre>
 <ul>
-  <li><strong>Menerima <code>noteId</code>, bukan objek <code>Note</code></strong>. Dengan <code>context.select</code>, halaman detail selalu menampilkan versi <em>terbaru</em> dari provider. Setelah diedit dan form ditutup, detail langsung berubah tanpa refresh.</li>
-  <li><strong><code>context.select&lt;NotesProvider, Note?&gt;</code></strong> hanya me-rebuild halaman ini jika catatan dengan id tersebut berubah, bukan setiap kali provider berubah (misalnya saat mengetik pencarian).</li>
-  <li><strong>Hapus dari detail</strong>: halaman ditutup dulu (<code>pop</code>), baru optimistic delete berjalan, lalu SnackBar muncul di HomeScreen. Messenger dan provider diambil sebelum <code>pop</code>.</li>
+  <li><strong><code>extends GetView&lt;NotesController&gt;</code></strong>: <code>GetView</code> adalah <code>StatelessWidget</code> yang sudah punya getter <code>controller</code> (isinya <code>Get.find&lt;NotesController&gt;()</code>). Cocok untuk halaman tanpa state lokal seperti detail ini.</li>
+  <li><strong>Menerima <code>noteId</code>, bukan objek <code>Note</code></strong>. Di dalam <code>Obx</code>, halaman memanggil <code>controller.findById(noteId)</code>, sehingga selalu menampilkan versi <em>terbaru</em> dari controller. Setelah diedit dan form ditutup, detail langsung berubah tanpa refresh.</li>
+  <li><strong><code>Obx</code> hanya membaca <code>_notes</code></strong> (lewat <code>findById</code>), jadi halaman ini rebuild ketika daftar catatan berubah, tetapi <em>tidak</em> ketika <code>query</code> atau <code>categoryFilter</code> berubah. Inilah alasan kita memakai satu <code>Obx</code> kecil per kebutuhan.</li>
+  <li><strong>Hapus dari detail</strong>: halaman ditutup dulu (<code>Get.back()</code>), baru optimistic delete berjalan, lalu SnackBar muncul di <code>HomeView</code>. Messenger diambil sebelum <code>Get.back()</code> karena setelah halaman ditutup <code>context</code>-nya tidak boleh dipakai lagi.</li>
+  <li><strong>Edit</strong>: <code>Get.to(() =&gt; NoteFormView(note: note))</code> membuka form yang sama dalam mode edit.</li>
   <li><strong><code>SelectableText</code></strong> membuat isi catatan bisa disalin, berguna untuk catatan kuliah.</li>
 </ul>
 
@@ -297,7 +297,7 @@ class NoteDetailScreen extends StatelessWidget {
   </div>
   <div class="screenshot">
     <img src="assets/img/screenshots/14-proyek-crud/detail.jpg" alt="Detail catatan" loading="lazy">
-    <div class="screenshot-caption">NoteDetailScreen dengan tombol Edit dan Hapus</div>
+    <div class="screenshot-caption">NoteDetailView dengan tombol Edit dan Hapus</div>
   </div>
   <div class="screenshot">
     <img src="assets/img/screenshots/14-proyek-crud/form-edit.jpg" alt="Form edit" loading="lazy">

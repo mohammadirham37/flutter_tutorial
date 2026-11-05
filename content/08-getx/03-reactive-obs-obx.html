@@ -1,0 +1,207 @@
+<p class="lead">State reaktif adalah inti GetX: nilai yang dibungkus <code>.obs</code> akan "mengabari" siapa pun yang membacanya ketika berubah, dan widget <code>Obx</code> otomatis membangun ulang dirinya. Tidak ada <code>setState</code>, tidak ada panggilan "beri tahu" manual.</p>
+
+<h4>Tiga bahan utama</h4>
+<ol>
+  <li><strong><code>GetxController</code></strong>: class tempat state dan logika disimpan (huruf C pada MVC).</li>
+  <li><strong><code>.obs</code></strong>: mengubah nilai biasa menjadi nilai yang bisa diamati (<em>observable</em>). <code>0.obs</code> menghasilkan <code>RxInt</code>, <code>'Andi'.obs</code> menghasilkan <code>RxString</code>, dan seterusnya.</li>
+  <li><strong><code>Obx(() =&gt; ...)</code></strong>: widget yang membangun ulang isinya setiap kali observable yang <em>dibaca di dalamnya</em> berubah.</li>
+</ol>
+
+<h4>Jenis observable</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Ditulis</th><th>Tipe</th><th>Membaca / mengubah</th></tr></thead>
+    <tbody>
+      <tr><td><code>0.obs</code></td><td><code>RxInt</code></td><td><code>x.value</code>, <code>x.value++</code></td></tr>
+      <tr><td><code>'Andi'.obs</code></td><td><code>RxString</code></td><td><code>x.value = 'Bunga'</code></td></tr>
+      <tr><td><code>false.obs</code></td><td><code>RxBool</code></td><td><code>x.value = true</code>, <code>x.toggle()</code></td></tr>
+      <tr><td><code>&lt;String&gt;[].obs</code></td><td><code>RxList&lt;String&gt;</code></td><td>Langsung seperti list: <code>x.add(...)</code>, <code>x.remove(...)</code>, <code>x.length</code>, <code>x.assignAll(...)</code></td></tr>
+      <tr><td><code>RxnString()</code>, <code>Rxn&lt;User&gt;()</code></td><td>Nullable (<code>String?</code>, <code>User?</code>)</td><td><code>x.value = null</code> diperbolehkan</td></tr>
+      <tr><td><code>const Hitungan().obs</code></td><td><code>Rx&lt;Hitungan&gt;</code></td><td>Ganti objeknya: <code>x.value = Hitungan(...)</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Kunci yang sering terlupa: nilai aslinya ada di <strong><code>.value</code></strong>. <code>RxList</code> adalah pengecualian yang nyaman, karena method list (<code>add</code>, <code>remove</code>, <code>length</code>, <code>[]</code>) bisa dipanggil langsung dan otomatis memberi tahu pendengarnya.</p>
+
+<h4>Contoh kecil: tanpa UI sama sekali</h4>
+<p>Sebelum menyentuh widget, lihat bahwa observable sudah bisa "didengarkan". Worker <code>ever</code> menjalankan callback setiap kali nilainya berubah. Jalankan dengan <code>flutter run</code>, lalu lihat tulisan di Debug Console (layar emulator akan kosong karena tidak ada <code>runApp</code>).</p>
+<pre><code class="language-dart">// lib/main.dart — contoh tanpa UI, hasilnya muncul di konsol (Debug Console)
+import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
+
+class CounterController extends GetxController {
+  final nilai = 0.obs; // RxInt: int yang bisa "diamati"
+
+  void tambah() =&gt; nilai.value++;
+}
+
+void main() {
+  final c = CounterController();
+
+  // ever: jalankan callback SETIAP kali nilai berubah
+  ever&lt;int&gt;(c.nilai, (baru) =&gt; debugPrint('Nilai berubah menjadi $baru'));
+
+  c.tambah(); // Nilai berubah menjadi 1
+  c.tambah(); // Nilai berubah menjadi 2
+  c.nilai.value = 2; // TIDAK tercetak: nilainya sama dengan sebelumnya
+  debugPrint('Nilai akhir: ${c.nilai.value}'); // Nilai akhir: 2
+}
+</code></pre>
+<ul>
+  <li><code>0.obs</code> membuat <code>RxInt</code>. Nilainya dibaca dan diubah lewat <code>nilai.value</code>.</li>
+  <li><code>ever(observable, callback)</code> mendaftarkan fungsi yang dipanggil setiap kali nilai berubah. Kita akan memakai worker seperti ini lagi di section 9.</li>
+  <li>Mengisi nilai yang <strong>sama</strong> (<code>2</code> menjadi <code>2</code>) tidak memicu callback. GetX hanya memberi tahu jika nilainya benar-benar berubah, sehingga rebuild yang sia-sia dihindari.</li>
+  <li>Tidak ada pemanggilan "beri tahu pendengar" secara manual. Mengubah <code>.value</code> sudah cukup.</li>
+</ul>
+
+<h4>Contoh lengkap: absensi kelas dengan Obx</h4>
+<p>Contoh ini memakai kelima jenis observable sekaligus: <code>RxString</code>, <code>RxInt</code>, <code>RxBool</code>, <code>RxList</code>, dan <code>RxnString</code>.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Pastikan sudah: flutter pub add get
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+class AbsensiController extends GetxController {
+  final kelas = 'Pemrograman Mobile A'.obs; // RxString
+  final pertemuan = 1.obs; // RxInt
+  final terkunci = false.obs; // RxBool
+  final hadir = &lt;String&gt;[].obs; // RxList&lt;String&gt;
+  final terakhir = RxnString(); // Rxn: boleh bernilai null
+
+  final mahasiswa = const ['Andi', 'Bunga', 'Citra', 'Dodi', 'Eka'];
+
+  void toggleHadir(String nama) {
+    if (terkunci.value) return; // absensi dikunci, abaikan
+    if (hadir.contains(nama)) {
+      hadir.remove(nama); // RxList memberi tahu Obx otomatis
+    } else {
+      hadir.add(nama);
+    }
+    terakhir.value = nama;
+  }
+
+  void toggleKunci() =&gt; terkunci.toggle(); // sama dengan value = !value
+
+  void pertemuanBerikutnya() {
+    pertemuan.value++;
+    hadir.clear();
+    terakhir.value = null;
+    terkunci.value = false;
+  }
+}
+
+void main() {
+  Get.put(AbsensiController());
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const AbsensiView(),
+    );
+  }
+}
+
+// StatelessWidget: tidak ada setState sama sekali
+class AbsensiView extends StatelessWidget {
+  const AbsensiView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Get.find&lt;AbsensiController&gt;();
+
+    return Scaffold(
+      appBar: AppBar(
+        // Obx kecil 1: hanya membaca kelas dan pertemuan
+        title: Obx(() =&gt; Text('${c.kelas.value} • P${c.pertemuan.value}')),
+      ),
+      body: ListView(
+        children: [
+          // Obx kecil 2: ringkasan
+          Obx(
+            () =&gt; Card(
+              margin: const EdgeInsets.all(16),
+              child: ListTile(
+                leading: const Icon(Icons.how_to_reg),
+                title: Text('Hadir: ${c.hadir.length} dari ${c.mahasiswa.length}'),
+                subtitle: Text('Terakhir diubah: ${c.terakhir.value ?? '-'}'),
+              ),
+            ),
+          ),
+          // Obx kecil 3: saklar kunci
+          Obx(
+            () =&gt; SwitchListTile(
+              title: const Text('Kunci absensi'),
+              value: c.terkunci.value,
+              onChanged: (_) =&gt; c.toggleKunci(),
+            ),
+          ),
+          const Divider(),
+          // Satu Obx per baris: baris lain tidak ikut dibangun ulang
+          for (final nama in c.mahasiswa)
+            Obx(
+              () =&gt; CheckboxListTile(
+                title: Text(nama),
+                value: c.hadir.contains(nama),
+                onChanged: c.terkunci.value ? null : (_) =&gt; c.toggleHadir(nama),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: OutlinedButton.icon(
+              onPressed: c.pertemuanBerikutnya,
+              icon: const Icon(Icons.skip_next),
+              label: const Text('Pertemuan Berikutnya'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/obs-absensi.jpg" alt="Andi dan Citra hadir, absensi dikunci" loading="lazy">
+    <div class="screenshot-caption">Andi dan Citra dicentang, lalu absensi dikunci</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>AbsensiView</code> adalah <code>StatelessWidget</code>, tetapi ringkasan, saklar, dan checkbox tetap berubah. Yang memicu rebuild adalah <code>Obx</code>, bukan <code>setState</code>.</li>
+  <li>Setiap <code>Obx</code> hanya mendengarkan observable yang <strong>dibaca di dalamnya</strong>. Obx di <code>AppBar</code> membaca <code>kelas</code> dan <code>pertemuan</code>, sehingga tidak ikut dibangun ulang saat checkbox dicentang.</li>
+  <li>Setiap baris mahasiswa punya <code>Obx</code> sendiri. Baris itu membaca <code>hadir</code> dan <code>terkunci</code>, jadi ketika kunci diaktifkan semua checkbox langsung menjadi abu-abu (nonaktif).</li>
+  <li><code>terakhir</code> bertipe <code>RxnString</code> karena awalnya belum ada nama yang diubah (<code>null</code>). Di View kita tampilkan <code>'-'</code> dengan operator <code>??</code>.</li>
+  <li><code>hadir.clear()</code>, <code>hadir.add()</code>, dan <code>hadir.remove()</code> langsung memicu Obx karena <code>hadir</code> adalah <code>RxList</code>.</li>
+</ul>
+
+<h4>Bedanya dengan setState</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Aspek</th><th><code>setState</code></th><th>GetX (<code>.obs</code> + <code>Obx</code>)</th></tr></thead>
+    <tbody>
+      <tr><td>Letak state</td><td>Di dalam <code>State</code> milik satu widget</td><td>Di controller, terpisah dari widget</td></tr>
+      <tr><td>Siapa yang bisa membaca</td><td>Widget itu sendiri (dan anak yang dititipi lewat constructor)</td><td>Widget mana pun di halaman mana pun (lewat <code>Get.find</code>)</td></tr>
+      <tr><td>Yang dibangun ulang</td><td>Seluruh method <code>build</code> widget tersebut</td><td>Hanya isi <code>Obx</code> yang membaca observable yang berubah</td></tr>
+      <tr><td>Cara memicu</td><td>Memanggil <code>setState(() {...})</code> secara manual</td><td>Otomatis saat <code>.value</code> (atau isi <code>RxList</code>) berubah</td></tr>
+      <tr><td>Cocok untuk</td><td>State lokal: isi TextField, tab aktif, animasi</td><td>State bersama: keranjang, KRS, user login</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li><strong>Lupa <code>.value</code>.</strong> <code>Text('${c.pertemuan}')</code> memang menampilkan angka, tetapi biasakan menulis <code>c.pertemuan.value</code> agar jelas yang dibaca adalah isinya. Saat mengubah, <code>c.pertemuan = 2</code> bahkan error; yang benar <code>c.pertemuan.value = 2</code>.</li>
+  <li><strong>Obx yang tidak membaca observable apa pun.</strong> Misalnya <code>Obx(() =&gt; Text(namaBiasa))</code>. GetX akan melempar error "improper use of GetX" karena Obx tidak tahu harus mendengarkan apa.</li>
+  <li><strong>Membaca <code>.value</code> di luar Obx</strong>, misalnya <code>final n = c.pertemuan.value;</code> di awal <code>build</code> lalu dipakai di <code>Text</code> biasa. Nilai itu dibaca sekali dan tidak pernah diperbarui.</li>
+  <li>Membuat <code>.obs</code> di dalam method <code>build</code>. Setiap rebuild membuat observable baru dan state hilang. Simpan observable di controller.</li>
+</ul>
+</div>

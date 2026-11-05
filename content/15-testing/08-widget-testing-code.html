@@ -174,7 +174,7 @@ void main() {
 </div>
 
 <h4>Contoh 3: menguji validasi form login (Modul 13)</h4>
-<p>Form login Catatan Kuliah adalah kandidat ideal untuk widget test: banyak aturan validasi, dan bug di sini membuat pengguna tidak bisa masuk sama sekali. Agar mudah diuji, proses login <strong>tidak</strong> dipanggil langsung di dalam halaman, melainkan diterima lewat parameter <code>onLogin</code>. Di aplikasi asli isinya <code>context.read&lt;AuthProvider&gt;().signIn</code>; di test isinya fungsi palsu.</p>
+<p>Form login Catatan Kuliah adalah kandidat ideal untuk widget test: banyak aturan validasi, dan bug di sini membuat pengguna tidak bisa masuk sama sekali. Agar mudah diuji, proses login <strong>tidak</strong> dipanggil langsung di dalam halaman, melainkan diterima lewat parameter <code>onLogin</code>. Di aplikasi asli isinya <code>Get.find&lt;AuthController&gt;().signIn</code>; di test isinya fungsi palsu.</p>
 <p class="code-file-label">📄 <code>lib/pages/login_page.dart</code></p>
 <pre><code class="language-dart">// lib/pages/login_page.dart
 import 'package:flutter/material.dart';
@@ -184,7 +184,7 @@ import '../utils/validators.dart';
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required this.onLogin});
 
-  /// Dipanggil saat form valid. Di Modul 13 isinya AuthProvider.signIn.
+  /// Dipanggil saat form valid. Di Modul 13 isinya AuthController.signIn.
   final Future&lt;void&gt; Function(String email, String password) onLogin;
 
   @override
@@ -411,5 +411,5 @@ expect(find.text('Catatan 80'), findsOneWidget);</code></pre>
   <li>Lupa memanggil <code>pump()</code> setelah <code>tap()</code>, lalu bingung kenapa teks belum berubah.</li>
   <li>Memanggil <code>pumpAndSettle()</code> saat ada animasi tak berujung, sehingga test gagal dengan pesan <code>pumpAndSettle timed out</code>.</li>
   <li>Me-render halaman tanpa <code>MaterialApp</code>, menghasilkan error <code>No MediaQuery widget ancestor found</code> atau <code>No Material widget found</code>.</li>
-  <li>Halaman langsung memanggil <code>Supabase.instance.client</code>. Di test, Supabase belum diinisialisasi sehingga test crash. Pisahkan aksi lewat parameter atau provider (bagian berikutnya).</li>
+  <li>Halaman langsung memanggil <code>Supabase.instance.client</code>. Di test, Supabase belum diinisialisasi sehingga test crash. Pisahkan aksi lewat parameter atau controller dengan dependensi palsu (bagian berikutnya).</li>
 </ul></div>

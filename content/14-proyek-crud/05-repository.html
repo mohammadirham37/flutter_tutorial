@@ -1,4 +1,4 @@
-<p class="lead"><code>NoteRepository</code> adalah "satu pintu" untuk data catatan. Provider cukup memanggil <code>repository.getNotes()</code> tanpa perlu tahu apakah data datang dari Supabase atau dari cache Hive.</p>
+<p class="lead"><code>NoteRepository</code> adalah "satu pintu" untuk data catatan. Controller cukup memanggil <code>repository.getNotes()</code> tanpa perlu tahu apakah data datang dari Supabase atau dari cache Hive.</p>
 
 <h4>Strategi: <em>network first, cache fallback</em></h4>
 <pre><code class="language-text">getNotes()
@@ -36,7 +36,7 @@ class NotesResult {
   final bool fromCache;
 }
 
-/// Satu pintu untuk semua data catatan. Provider tidak perlu tahu
+/// Satu pintu untuk semua data catatan. Controller tidak perlu tahu
 /// apakah data berasal dari Supabase atau dari cache Hive.
 class NoteRepository {
   NoteRepository({

@@ -1,10 +1,10 @@
 <div class="callout callout-info">
   <h4>🏆 Ketentuan Capstone Project (Bobot 35% Nilai Akhir)</h4>
-  <p>Mahasiswa secara berkelompok (2-3 orang) atau mandiri membangun satu aplikasi mobile lengkap yang menyelesaikan permasalahan nyata di lingkungan kampus atau masyarakat. Capstone adalah tempat menggabungkan semua materi: widget dan layout (Modul 03-06), navigasi (07), Provider (08), API dan penyimpanan (09-12), arsitektur proyek (13-14), testing (15), dan rilis (16).</p>
+  <p>Mahasiswa secara berkelompok (2-3 orang) atau mandiri membangun satu aplikasi mobile lengkap yang menyelesaikan permasalahan nyata di lingkungan kampus atau masyarakat. Capstone adalah tempat menggabungkan semua materi: widget dan layout (Modul 03-06), navigasi (07), GetX dan pola MVC (08), API dan penyimpanan (09-12), arsitektur proyek (13-14), testing (15), dan rilis (16).</p>
 </div>
 
 <h4>Boleh memakai arsitektur Catatan Kuliah sebagai dasar</h4>
-<p>Anda <strong>diizinkan dan disarankan</strong> memakai struktur proyek Modul 13-14 sebagai kerangka: <code>AuthProvider</code> + <code>AuthGate</code> untuk login Supabase, pola <code>Repository</code> dengan remote data source (Supabase) dan cache Hive, serta Provider untuk state halaman. Syaratnya:</p>
+<p>Anda <strong>diizinkan dan disarankan</strong> memakai struktur proyek Modul 13-14 sebagai kerangka: <code>AuthController</code> + <code>AuthGate</code> untuk login Supabase, pola <code>Repository</code> dengan remote data source (Supabase) dan cache Hive, serta controller GetX untuk state halaman. Syaratnya:</p>
 <ul>
   <li>Domain aplikasi <strong>harus berbeda</strong> dari catatan kuliah (tabel, model, dan halaman baru, bukan sekadar mengganti judul).</li>
   <li>Minimal <strong>dua entitas data yang saling berhubungan</strong> (misalnya <code>laporan</code> dan <code>kategori</code>, atau <code>produk</code> dan <code>pesanan</code>), bukan hanya satu tabel.</li>
@@ -12,23 +12,23 @@
 </ul>
 <p>Struktur folder yang direkomendasikan:</p>
 <pre><code class="language-text">lib/
-├── main.dart              # inisialisasi Env, Supabase, Hive, MultiProvider
+├── main.dart              # inisialisasi Env, Supabase, Hive, GetMaterialApp + binding
 ├── config/env.dart        # konfigurasi --dart-define-from-file
 ├── models/                # class data + fromJson/toJson
 ├── data/                  # data source (Supabase, Hive) dan repository
-├── providers/             # AuthProvider dan provider fitur
-├── pages/                 # satu file per halaman
+├── controllers/           # AuthController dan controller fitur (GetxController)
+├── views/                 # satu file per halaman (xxx_view.dart)
 ├── widgets/               # widget yang dipakai ulang
 └── utils/                 # validator, formatter, konstanta
 test/
-├── unit/                  # validator, model, provider
+├── unit/                  # validator, model, controller
 ├── mock/                  # fake data source
 └── widget/                # halaman login, daftar, form</code></pre>
 
 <h4>Pilihan tema proyek</h4>
 <ol class="space-y-2 my-3">
   <li><strong>Sistem Pengaduan Sarana Kampus:</strong> laporan fasilitas rusak dengan foto kamera, kategori, dan status penanganan (baru, diproses, selesai).</li>
-  <li><strong>Marketplace UMKM Mahasiswa:</strong> katalog produk, keranjang belanja (Provider), riwayat pesanan per pengguna.</li>
+  <li><strong>Marketplace UMKM Mahasiswa:</strong> katalog produk, keranjang belanja (controller GetX), riwayat pesanan per pengguna.</li>
   <li><strong>Perpustakaan &amp; Peminjaman Buku:</strong> pencarian buku via REST API publik, daftar pinjaman di Supabase, bookmark offline.</li>
   <li><strong>Layanan Akademik:</strong> jadwal kuliah, pengajuan surat izin online, pengingat tugas.</li>
   <li><strong>Tema bebas</strong> dengan persetujuan dosen paling lambat minggu ke-2 periode capstone.</li>
@@ -42,11 +42,11 @@ test/
       <tr><td>1</td><td>Autentikasi</td><td>Register, login, logout, sesi tetap tersimpan saat aplikasi dibuka ulang (Modul 13)</td></tr>
       <tr><td>2</td><td>CRUD data online</td><td>Minimal 2 tabel berelasi di Supabase dengan Row Level Security aktif (Modul 12, 14)</td></tr>
       <tr><td>3</td><td>Penyimpanan lokal</td><td>Cache offline (Hive/SQLite) atau preferensi pengguna (SharedPreferences) yang benar-benar dipakai (Modul 10, 11, 14)</td></tr>
-      <tr><td>4</td><td>State management</td><td>Provider dengan pemisahan UI, provider, dan repository (Modul 08, 14)</td></tr>
+      <tr><td>4</td><td>State management</td><td>GetX dengan pola MVC: pemisahan View, controller, dan repository (Modul 08, 14)</td></tr>
       <tr><td>5</td><td>Navigasi</td><td>Minimal 5 halaman, ada passing data antarhalaman, ada bottom navigation atau drawer (Modul 07)</td></tr>
       <tr><td>6</td><td>Form tervalidasi</td><td>Minimal 2 form dengan validasi dan pesan error yang jelas (Modul 05)</td></tr>
       <tr><td>7</td><td>State UI lengkap</td><td>Setiap daftar menangani loading, kosong, error, dan offline</td></tr>
-      <tr><td>8</td><td>Testing</td><td>Minimal 10 test: unit test (validator/provider), test repository dengan fake, dan 2 widget test (Modul 15)</td></tr>
+      <tr><td>8</td><td>Testing</td><td>Minimal 10 test: unit test (validator/controller), test repository dengan fake, dan 2 widget test (Modul 15)</td></tr>
       <tr><td>9</td><td>Siap rilis</td><td>Ikon dan splash sendiri, nama dan application ID sendiri, key Supabase lewat <code>--dart-define-from-file</code>, APK release bertanda tangan (Modul 16)</td></tr>
     </tbody>
   </table>
@@ -68,7 +68,7 @@ test/
       </tr>
       <tr>
         <td><strong>Arsitektur &amp; kualitas kode</strong></td><td>20%</td>
-        <td>Lapisan UI/provider/repository jelas, <code>flutter analyze</code> 0 issue, nama dan struktur rapi</td>
+        <td>Lapisan View/controller/repository jelas, <code>flutter analyze</code> 0 issue, nama dan struktur rapi</td>
         <td>Ada pemisahan tetapi masih ada logika data di widget, beberapa lint</td>
         <td>Semua logika di dalam widget, banyak warning</td>
       </tr>
@@ -158,8 +158,8 @@ fasilitas yang rusak, memilih kategori, dan memantau status penanganannya.
 - Unggah foto ke Supabase Storage (bonus)
 
 ## Arsitektur
-UI (pages, widgets) -&gt; Provider -&gt; Repository -&gt; Data source (Supabase / Hive).
-Diadaptasi dari proyek Catatan Kuliah Modul 13-14: AuthGate, AuthProvider,
+View (views, widgets) -&gt; Controller -&gt; Repository -&gt; Data source (Supabase / Hive).
+Diadaptasi dari proyek Catatan Kuliah Modul 13-14: AuthGate, AuthController,
 pola NoteRepository (diganti menjadi LaporanRepository).
 
 ## Skema Database

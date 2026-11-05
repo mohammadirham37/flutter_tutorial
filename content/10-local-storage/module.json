@@ -14,7 +14,7 @@
     "Merancang skema tabel SQLite, model toMap/fromMap, dan operasi CRUD dengan sqflite.",
     "Mengelola perubahan skema dengan version, onCreate, dan onUpgrade tanpa menghilangkan data pengguna.",
     "Menulis query aman (whereArgs) untuk pencarian, filter, agregasi, serta memakai transaksi, batch, dan relasi foreign key.",
-    "Membangun aplikasi CRUD offline multi-file (Model, Database, Provider, Screen) dan menggunakan path_provider untuk file."
+    "Membangun aplikasi CRUD offline multi-file berpola MVC dengan GetX (Model, Service database, Controller, View) dan menggunakan path_provider untuk file."
   ],
   "sections": [
     {
@@ -95,7 +95,7 @@
       "Buat tabel <code>mata_kuliah</code> (id, nama, sks) dan <code>tugas</code> (id, judul, matkul_id, tenggat, isSelesai) dengan foreign key <code>ON DELETE CASCADE</code> dan <code>PRAGMA foreign_keys = ON</code>.",
       "Buat model <code>MataKuliah</code> dan <code>Tugas</code> lengkap dengan <code>toMap</code>, <code>fromMap</code>, dan <code>copyWith</code> (konversi bool dan DateTime).",
       "Buat kelas database singleton dengan operasi CRUD bertipe; semua filter wajib memakai <code>whereArgs</code>.",
-      "Tampilkan daftar tugas (hasil JOIN dengan nama mata kuliah) memakai Provider; tambah dan edit melalui satu form dengan validasi dan pemilih tanggal.",
+      "Tampilkan daftar tugas (hasil JOIN dengan nama mata kuliah) memakai controller GetX (<code>Obx</code>); tambah dan edit melalui satu form dengan validasi dan pemilih tanggal.",
       "Centang untuk menandai selesai (UPDATE) dan geser untuk menghapus (DELETE) dengan tombol URUNGKAN.",
       "Tambahkan pencarian judul (LIKE) dan filter per mata kuliah, serta ringkasan jumlah tugas per mata kuliah (GROUP BY).",
       "Naikkan versi database menjadi 2 dengan menambah kolom <code>prioritas</code> melalui <code>onUpgrade</code>, lalu buktikan data lama tidak hilang.",

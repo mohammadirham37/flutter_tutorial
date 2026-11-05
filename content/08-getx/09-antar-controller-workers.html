@@ -1,0 +1,279 @@
+<p class="lead">Kadang satu controller butuh data dari controller lain. Contoh: daftar catatan bergantung pada siapa yang sedang login. Di GetX, controller cukup mengambil controller lain dengan <code>Get.find</code>, lalu memasang <strong>worker</strong> agar otomatis bereaksi setiap kali observable di controller sumber berubah.</p>
+
+<h4>Mengambil controller lain</h4>
+<pre><code class="language-dart">class CatatanController extends GetxController {
+  late final AuthController _auth;
+
+  @override
+  void onInit() {
+    super.onInit();
+    _auth = Get.find&lt;AuthController&gt;(); // controller yang SUDAH terdaftar
+  }
+}
+</code></pre>
+<p>Syaratnya: <code>AuthController</code> sudah didaftarkan sebelum <code>CatatanController.onInit</code> berjalan. Di binding, tulis <code>Get.put(AuthController())</code> lebih dulu, atau daftarkan dengan <code>Get.lazyPut</code> sehingga urutan tidak lagi penting.</p>
+
+<h4>Worker: bereaksi terhadap perubahan observable</h4>
+<p>Worker adalah fungsi yang "mengawasi" sebuah observable dan menjalankan callback ketika nilainya berubah. Semuanya mengembalikan objek <code>Worker</code> yang harus dihentikan dengan <code>dispose()</code> di <code>onClose</code>.</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Worker</th><th>Callback dijalankan</th><th>Contoh pemakaian</th></tr></thead>
+    <tbody>
+      <tr><td><code>ever(rx, cb)</code></td><td>Setiap kali nilai berubah</td><td>Pengguna berganti, muat ulang data miliknya</td></tr>
+      <tr><td><code>once(rx, cb)</code></td><td>Hanya pada perubahan pertama, lalu berhenti sendiri</td><td>Menampilkan tutorial saat pertama kali login</td></tr>
+      <tr><td><code>debounce(rx, cb, time: ...)</code></td><td>Setelah nilai <em>berhenti</em> berubah selama <code>time</code> (bawaan 800 ms)</td><td>Kotak pencarian: cari setelah pengguna selesai mengetik</td></tr>
+      <tr><td><code>interval(rx, cb, time: ...)</code></td><td>Paling banyak satu kali per <code>time</code> (bawaan 1 detik), perubahan di antaranya diabaikan</td><td>Membatasi tombol yang ditekan beruntun</td></tr>
+    </tbody>
+  </table>
+</div>
+<pre><code class="language-dart">final _workers = &lt;Worker&gt;[];
+
+@override
+void onInit() {
+  super.onInit();
+  _workers.addAll([
+    ever&lt;String?&gt;(_auth.nimRx, (nim) =&gt; debugPrint('login sebagai $nim')),
+    once&lt;String?&gt;(_auth.nimRx, (_) =&gt; debugPrint('login pertama kali')),
+    debounce&lt;String&gt;(_kataKunci, (k) =&gt; debugPrint('cari $k'),
+        time: const Duration(milliseconds: 500)),
+    interval&lt;int&gt;(_jumlahKlik, (n) =&gt; debugPrint('klik ke-$n'),
+        time: const Duration(seconds: 1)),
+  ]);
+}
+
+@override
+void onClose() {
+  for (final w in _workers) {
+    w.dispose(); // hentikan semua worker
+  }
+  super.onClose();
+}
+</code></pre>
+
+<h4>Contoh lengkap: catatan per pengguna + pencarian</h4>
+<p><code>AuthController</code> menyimpan NIM yang sedang login. <code>CatatanController</code> memakai <code>ever</code> untuk mengganti daftar catatan setiap kali NIM berubah, dan <code>debounce</code> agar pencarian baru diterapkan setelah pengguna berhenti mengetik.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+// ================= CONTROLLER SUMBER =================
+class AuthController extends GetxController {
+  final _nim = RxnString();
+
+  String? get nim =&gt; _nim.value;
+
+  // Observable-nya dibuka (read-only lewat getter) agar controller lain
+  // bisa memasang worker. Ubah nilainya HANYA lewat method di bawah.
+  RxnString get nimRx =&gt; _nim;
+
+  void loginSebagai(String nim) =&gt; _nim.value = nim;
+}
+
+// ================= CONTROLLER YANG BERGANTUNG =================
+// CatatanController BERGANTUNG pada AuthController: catatan milik siapa?
+class CatatanController extends GetxController {
+  late final AuthController _auth;
+  final _workers = &lt;Worker&gt;[];
+
+  final Map&lt;String, List&lt;String&gt;&gt; _catatanPerNim = {};
+  final _catatan = &lt;String&gt;[].obs; // catatan milik pengguna aktif
+  final _kataKunci = ''.obs; // isi kotak pencarian (berubah tiap ketikan)
+  final _kataTerapan = ''.obs; // kata kunci yang SUDAH diterapkan (setelah debounce)
+
+  String get kataTerapan =&gt; _kataTerapan.value;
+  int get jumlah =&gt; _catatan.length;
+
+  List&lt;String&gt; get catatanTampil {
+    final k = _kataTerapan.value.toLowerCase();
+    if (k.isEmpty) return List.unmodifiable(_catatan);
+    return _catatan.where((c) =&gt; c.toLowerCase().contains(k)).toList();
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    _auth = Get.find&lt;AuthController&gt;(); // ambil controller lain
+
+    // ever: jalankan callback SETIAP kali nim berubah
+    _workers.add(ever&lt;String?&gt;(_auth.nimRx, _gantiPengguna));
+
+    // debounce: jalankan callback 500 ms setelah pengguna BERHENTI mengetik
+    _workers.add(debounce&lt;String&gt;(
+      _kataKunci,
+      (kata) {
+        debugPrint('mencari: "$kata"');
+        _kataTerapan.value = kata;
+      },
+      time: const Duration(milliseconds: 500),
+    ));
+
+    _gantiPengguna(_auth.nim); // nilai awal
+  }
+
+  void _gantiPengguna(String? nim) {
+    debugPrint('ever: pengguna berganti ke $nim');
+    _catatan.assignAll(nim == null ? const [] : _catatanPerNim[nim] ?? const []);
+  }
+
+  void ubahKataKunci(String kata) =&gt; _kataKunci.value = kata;
+
+  void tambah(String teks) {
+    final nim = _auth.nim;
+    if (nim == null) return;
+    _catatanPerNim.putIfAbsent(nim, () =&gt; []).add(teks);
+    _catatan.add(teks);
+  }
+
+  @override
+  void onClose() {
+    for (final w in _workers) {
+      w.dispose(); // hentikan semua worker
+    }
+    super.onClose();
+  }
+}
+
+// ================= BINDING =================
+class AppBinding extends Bindings {
+  @override
+  void dependencies() {
+    // AuthController didaftarkan LEBIH DULU karena dipakai di onInit CatatanController
+    Get.put(AuthController());
+    Get.put(CatatanController());
+  }
+}
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.purple),
+      initialBinding: AppBinding(),
+      home: const CatatanView(),
+    );
+  }
+}
+
+// ================= VIEW =================
+class CatatanView extends StatelessWidget {
+  const CatatanView({super.key});
+
+  static const contoh = [
+    'Tugas Basis Data',
+    'Kuis Pemrograman Mobile',
+    'Laporan Praktikum Basis Data',
+    'Presentasi Kecerdasan Buatan',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = Get.find&lt;AuthController&gt;();
+    final catatan = Get.find&lt;CatatanController&gt;();
+
+    return Scaffold(
+      appBar: AppBar(title: Obx(() =&gt; Text('Catatan milik: ${auth.nim ?? '-'}'))),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Obx(
+              () =&gt; Wrap(
+                spacing: 8,
+                children: [
+                  for (final n in ['H1D023001', 'H1D023002'])
+                    ChoiceChip(
+                      label: Text(n),
+                      selected: auth.nim == n,
+                      onSelected: (_) =&gt; auth.loginSebagai(n),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: TextField(
+              decoration: const InputDecoration(
+                labelText: 'Cari catatan',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: catatan.ubahKataKunci,
+            ),
+          ),
+          Expanded(
+            child: Obx(() {
+              final daftar = catatan.catatanTampil;
+              if (daftar.isEmpty) {
+                return const Center(child: Text('Belum ada catatan'));
+              }
+              return ListView(
+                children: [for (final c in daftar) ListTile(title: Text(c))],
+              );
+            }),
+          ),
+        ],
+      ),
+      floatingActionButton: Obx(
+        () =&gt; FloatingActionButton.extended(
+          icon: const Icon(Icons.add),
+          label: const Text('Tambah Catatan'),
+          onPressed: auth.nim == null
+              ? null
+              : () =&gt; catatan.tambah(contoh[catatan.jumlah % contoh.length]),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/workers-pengguna-a.jpg" alt="Tiga catatan milik H1D023001" loading="lazy">
+    <div class="screenshot-caption">Login sebagai H1D023001, tambah tiga catatan</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/workers-pengguna-b.jpg" alt="Ganti ke H1D023002: daftar kosong" loading="lazy">
+    <div class="screenshot-caption">Ganti ke H1D023002: worker ever mengganti daftar</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/workers-cari.jpg" alt="Mencari kata basis: dua catatan tersisa" loading="lazy">
+    <div class="screenshot-caption">Ketik "basis": debounce menerapkan pencarian</div>
+  </div>
+</div>
+<p>Log di konsol untuk skenario screenshot ketiga:</p>
+<pre><code class="language-text">I/flutter: ever: pengguna berganti ke null
+I/flutter: ever: pengguna berganti ke H1D023001
+I/flutter: mencari: "basis"
+</code></pre>
+<p>Perhatikan: walaupun ada lima ketikan (<code>b</code>, <code>a</code>, <code>s</code>, <code>i</code>, <code>s</code>), callback debounce hanya berjalan <strong>sekali</strong>. Jika pencarian memanggil server (Modul 09), ini menghemat empat request yang sia-sia.</p>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>AppBinding</code> mendaftarkan <code>AuthController</code> lebih dulu karena <code>CatatanController.onInit</code> langsung memanggil <code>Get.find&lt;AuthController&gt;()</code>.</li>
+  <li><code>AuthController</code> membuka observable-nya lewat getter <code>nimRx</code> supaya bisa diawasi worker. Nilainya tetap hanya diubah lewat method <code>loginSebagai</code>.</li>
+  <li><code>ever&lt;String?&gt;(_auth.nimRx, _gantiPengguna)</code>: setiap kali NIM berubah, <code>_gantiPengguna</code> mengisi ulang <code>_catatan</code> dari map. Data per NIM tetap tersimpan, jadi kembali ke H1D023001 memunculkan tiga catatannya lagi.</li>
+  <li><code>ever</code> tidak dijalankan untuk nilai awal, hanya untuk perubahan. Karena itu <code>_gantiPengguna(_auth.nim)</code> dipanggil sekali secara manual di akhir <code>onInit</code> (baris log pertama, NIM masih <code>null</code>).</li>
+  <li>Pencarian memakai dua observable: <code>_kataKunci</code> berubah setiap ketikan, sedangkan <code>_kataTerapan</code> baru berubah 500 ms setelah pengguna berhenti mengetik. <code>catatanTampil</code> hanya membaca <code>_kataTerapan</code>, jadi daftar tidak berkedip di setiap huruf.</li>
+  <li>Semua worker disimpan di <code>_workers</code> dan dihentikan di <code>onClose</code>. Controller di contoh ini hidup sepanjang aplikasi, tetapi kebiasaan ini wajib untuk controller per halaman (section 7).</li>
+  <li><code>onChanged: catatan.ubahKataKunci</code> mengoper method sebagai callback (<em>tear-off</em>), tanpa membuat fungsi anonim.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Seberapa sering dipakai?</h4><p>Untuk proyek kuliah, cara yang lebih sederhana juga sah: View memanggil <code>Get.find&lt;CatatanController&gt;().gantiPengguna(nim)</code> tepat setelah login berhasil. Worker <code>ever</code> lebih aman ketika status login bisa berubah dari banyak tempat (login, logout, sesi kedaluwarsa), karena controller tujuan pasti ikut bereaksi. Pola <code>ever</code> + auth ini muncul lagi di proyek Modul 14. Jika Anda pernah melihat <code>ProxyProvider</code> di package Provider, worker inilah padanannya di GetX.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Memasang worker di <code>build()</code> View. Setiap rebuild menambah worker baru, sehingga callback dipanggil berkali-kali. Worker selalu dibuat di <code>onInit</code> controller.</li>
+  <li>Lupa <code>dispose()</code> worker di <code>onClose</code>. Worker tetap mendengarkan observable milik controller lain yang masih hidup, sehingga callback berjalan pada controller yang sudah dihapus.</li>
+  <li>Urutan pendaftaran terbalik: <code>Get.put(CatatanController())</code> sebelum <code>Get.put(AuthController())</code> menghasilkan error <em>"AuthController" not found</em> di <code>onInit</code>.</li>
+  <li>Mengira <code>ever</code> langsung dijalankan untuk nilai awal. Panggil callback-nya sekali secara manual jika perlu.</li>
+</ul>
+</div>

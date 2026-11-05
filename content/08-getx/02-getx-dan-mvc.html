@@ -1,0 +1,207 @@
+<p class="lead"><strong>GetX</strong> (package <code>get</code>) adalah library Flutter yang menyediakan state management, dependency injection, dan navigasi dalam satu paket. Di kursus ini GetX selalu dipakai bersama pola <strong>MVC</strong> agar kode tetap rapi meskipun aplikasi membesar.</p>
+
+<h4>Tiga pilar GetX</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Pilar</th><th>Fungsinya</th><th>API yang akan sering dipakai</th></tr></thead>
+    <tbody>
+      <tr><td><strong>State management</strong></td><td>Menyimpan state di controller dan membangun ulang UI ketika state berubah</td><td><code>GetxController</code>, <code>.obs</code>, <code>Obx</code>, <code>GetBuilder</code> + <code>update()</code></td></tr>
+      <tr><td><strong>Dependency management</strong></td><td>Mendaftarkan objek sekali lalu mengambilnya dari mana saja, tanpa constructor berantai</td><td><code>Get.put</code>, <code>Get.find</code>, <code>Get.lazyPut</code>, <code>Bindings</code></td></tr>
+      <tr><td><strong>Route management</strong></td><td>Berpindah halaman tanpa perlu <code>BuildContext</code></td><td><code>Get.to</code>, <code>Get.back</code>, <code>Get.off</code>, <code>Get.toNamed</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Ketiganya bisa dipakai terpisah. Fokus modul ini adalah dua pilar pertama; navigasi GetX cukup dipakai seperlunya (<code>Get.to</code> dan <code>Get.back</code>).</p>
+
+<h4>Pola MVC: membagi tanggung jawab</h4>
+<p>MVC membagi kode menjadi tiga bagian dengan tugas yang jelas:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Bagian</th><th>Tanggung jawab</th><th>Boleh mengimpor</th><th>Contoh</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Model</strong></td><td>Bentuk data dan aturan kecil yang melekat pada data (mis. <code>toJson</code>, getter turunan)</td><td>Dart murni saja</td><td><code>MataKuliah</code>, <code>Tugas</code>, <code>Mahasiswa</code></td></tr>
+      <tr><td><strong>View</strong></td><td>Menampilkan state dan meneruskan aksi pengguna ke controller. Juga urusan tampilan: SnackBar, dialog, navigasi</td><td><code>material.dart</code>, <code>get.dart</code>, controller</td><td><code>KatalogKrsView</code>, <code>LoginView</code></td></tr>
+      <tr><td><strong>Controller</strong></td><td>Menyimpan state (reaktif), menjalankan logika bisnis, memanggil service</td><td><code>get.dart</code>, <code>foundation.dart</code>, model, service</td><td><code>KrsController</code>, <code>AuthController</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Untuk akses data (HTTP, database, Hive, Supabase) kita menambahkan satu lapisan lagi, yaitu <strong>Service</strong>. Arah ketergantungannya selalu satu arah:</p>
+<pre><code class="language-text">View  ──►  Controller  ──►  Service  ──►  Model
+(UI)       (state+logika)    (ambil/simpan data)  (bentuk data)
+
+View mengenal Controller, Controller mengenal Service,
+tetapi TIDAK sebaliknya: Controller tidak pernah mengimpor View.
+</code></pre>
+
+<h4>Aturan penting: controller tanpa UI</h4>
+<p>Di kursus ini controller <strong>tidak</strong> mengimpor <code>package:flutter/material.dart</code>, <strong>tidak</strong> menyimpan <code>BuildContext</code>, dan <strong>tidak</strong> menampilkan SnackBar, dialog, atau berpindah halaman. Controller cukup <em>mengembalikan hasil</em> (misalnya <code>bool</code> atau pesan error), lalu View yang memutuskan cara menampilkannya.</p>
+<pre><code class="language-dart">// Controller: hanya mengembalikan hasil
+bool tambahMatkul(MataKuliah mk) {
+  if (totalSks + mk.sks &gt; 24) return false;
+  _matkul.add(mk);
+  return true;
+}
+
+// View: memutuskan bagaimana memberi tahu pengguna
+onPressed: () {
+  if (!controller.tambahMatkul(mk)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Kuota SKS penuh')),
+    );
+  }
+},
+</code></pre>
+<p>Alasannya: controller yang bebas dari widget bisa di-<strong>unit test</strong> dengan Dart biasa, tanpa memompa widget dan tanpa emulator (dibahas di Modul 15). Selain itu, satu controller bisa dipakai beberapa View yang cara menampilkan pesannya berbeda.</p>
+<div class="callout callout-info"><h4>ℹ️ Bagaimana dengan Get.snackbar?</h4><p>GetX sebenarnya mengizinkan <code>Get.snackbar(...)</code>, <code>Get.dialog(...)</code>, dan <code>Get.to(...)</code> dipanggil langsung dari controller karena tidak butuh <code>BuildContext</code>. Kursus ini <strong>sengaja tidak</strong> melakukannya agar pemisahan tanggung jawab tetap jelas dan controller mudah diuji. Pemanggilan seperti itu kita letakkan di View.</p></div>
+
+<h4>Instalasi</h4>
+<pre><code class="language-bash">flutter pub add get
+</code></pre>
+<p>Lalu impor di file yang membutuhkannya:</p>
+<pre><code class="language-dart">import 'package:get/get.dart';
+</code></pre>
+
+<h4>GetMaterialApp</h4>
+<p>Ganti <code>MaterialApp</code> dengan <code>GetMaterialApp</code>. Parameternya sama (<code>home</code>, <code>theme</code>, <code>debugShowCheckedModeBanner</code>, dan seterusnya), ditambah fitur GetX seperti <code>initialBinding</code> dan <code>getPages</code>. <code>GetMaterialApp</code> wajib dipakai jika Anda memakai navigasi GetX (<code>Get.to</code>, <code>Get.back</code>) atau <code>Get.snackbar</code>.</p>
+<pre><code class="language-dart">return GetMaterialApp(
+  debugShowCheckedModeBanner: false,
+  theme: ThemeData(colorSchemeSeed: Colors.teal),
+  home: const CounterView(),
+);
+</code></pre>
+
+<h4>Contoh lengkap: counter dengan pola MVC</h4>
+<p>Agar mudah dicoba, Model, Controller, dan View ditulis dalam satu file dan dipisahkan dengan komentar. Di section 6 kita memecahnya menjadi beberapa file sesuai folder MVC. Jangan khawatir dulu tentang <code>.obs</code> dan <code>Obx</code>; keduanya dibahas tuntas di section 3.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Pastikan sudah: flutter pub add get
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+// ================== MODEL ==================
+// Data murni: tidak mengimpor Flutter maupun GetX.
+class Hitungan {
+  final int nilai;
+  final int batas;
+
+  const Hitungan({this.nilai = 0, this.batas = 10});
+
+  bool get penuh =&gt; nilai &gt;= batas;
+
+  Hitungan tambahSatu() =&gt; Hitungan(nilai: nilai + 1, batas: batas);
+}
+
+// ================ CONTROLLER ================
+// State + logika. Tidak memakai widget, BuildContext, atau SnackBar.
+class CounterController extends GetxController {
+  final hitungan = const Hitungan().obs; // state reaktif (dibahas di section 3)
+
+  /// Mengembalikan false jika batas sudah tercapai. View yang memutuskan
+  /// bagaimana memberi tahu pengguna.
+  bool tambah() {
+    if (hitungan.value.penuh) return false;
+    hitungan.value = hitungan.value.tambahSatu();
+    return true;
+  }
+
+  void reset() =&gt; hitungan.value = const Hitungan();
+}
+
+// =================== VIEW ===================
+void main() {
+  Get.put(CounterController()); // daftarkan controller sekali
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // GetMaterialApp = MaterialApp + fitur GetX (navigasi, binding, dll)
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const CounterView(),
+    );
+  }
+}
+
+class CounterView extends StatelessWidget {
+  const CounterView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Get.find&lt;CounterController&gt;(); // ambil controller
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Counter MVC dengan GetX')),
+      body: Center(
+        // Obx: bagian ini dibangun ulang otomatis saat hitungan berubah
+        child: Obx(() {
+          final h = c.hitungan.value;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${h.nilai} / ${h.batas}',
+                style: Theme.of(context).textTheme.displayMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(h.penuh ? 'Batas tercapai' : 'Masih bisa ditambah'),
+            ],
+          );
+        }),
+      ),
+      floatingActionButton: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            heroTag: 'reset',
+            tooltip: 'Reset',
+            onPressed: c.reset,
+            child: const Icon(Icons.refresh),
+          ),
+          const SizedBox(width: 12),
+          FloatingActionButton(
+            heroTag: 'tambah',
+            tooltip: 'Tambah',
+            onPressed: () {
+              final berhasil = c.tambah();
+              if (!berhasil) {
+                // Urusan tampilan (SnackBar) tetap di View
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Sudah mencapai batas 10')),
+                );
+              }
+            },
+            child: const Icon(Icons.add),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/mvc-counter.jpg" alt="Counter MVC setelah tiga kali Tambah" loading="lazy">
+    <div class="screenshot-caption">Setelah tiga kali Tambah, tanpa setState</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><strong>Model</strong> <code>Hitungan</code> hanya berisi data dan aturan kecil (<code>penuh</code>, <code>tambahSatu</code>). Ia tidak tahu apa-apa tentang Flutter.</li>
+  <li><strong>Controller</strong> <code>CounterController</code> menyimpan state <code>hitungan</code> dan memutuskan boleh/tidaknya menambah. Method <code>tambah()</code> mengembalikan <code>bool</code>, bukan menampilkan SnackBar.</li>
+  <li><strong>View</strong> <code>CounterView</code> adalah <code>StatelessWidget</code>. Ia mengambil controller dengan <code>Get.find</code>, menampilkan state di dalam <code>Obx</code>, dan menampilkan SnackBar saat <code>tambah()</code> mengembalikan <code>false</code>.</li>
+  <li><code>Get.put(CounterController())</code> di <code>main()</code> mendaftarkan controller sekali sebelum aplikasi berjalan. Cara lain mendaftarkan controller dibahas di section 4.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Tetap memakai <code>MaterialApp</code> lalu memanggil <code>Get.to</code> atau <code>Get.snackbar</code>. Navigasi dan snackbar GetX butuh <code>GetMaterialApp</code>.</li>
+  <li>Mengimpor <code>material.dart</code> di controller supaya bisa memanggil <code>showSnackBar</code> atau menyimpan <code>BuildContext</code>. Kembalikan hasil saja, biarkan View yang menampilkan.</li>
+  <li>Menaruh logika bisnis di <code>onPressed</code> View (misalnya cek batas di tombol). Jika ada dua tombol di dua halaman, aturannya harus ditulis dua kali.</li>
+</ul>
+</div>

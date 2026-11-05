@@ -5,7 +5,7 @@
   "title": "Backend as a Service dengan Supabase",
   "duration": "Pertemuan 12 (150 Menit) + Belajar Mandiri",
   "prerequisites": [
-    "Modul 08: State Management Provider",
+    "Modul 08: State Management dengan GetX + MVC",
     "Modul 09: REST API & JSON",
     "Modul 11: Hive",
     "Mata kuliah Basis Data (SQL dasar)"

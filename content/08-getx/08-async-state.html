@@ -1,0 +1,277 @@
+<p class="lead">Data dari internet atau database tidak datang seketika. Selama menunggu, View harus menampilkan <strong>loading</strong>; jika gagal, menampilkan <strong>error</strong> dengan tombol coba lagi; jika berhasil, menampilkan <strong>data</strong>. Pola tiga serangkai <code>isLoading</code> / <code>error</code> / <code>data</code> ini disimpan di controller dan akan dipakai ulang di Modul 09 (REST API) serta proyek CRUD Modul 13–14.</p>
+
+<h4>Pola di sisi View</h4>
+<pre><code class="language-dart">// Di dalam Obx. Urutan pengecekan: loading -&gt; error -&gt; kosong -&gt; data
+Obx(() {
+  if (controller.isLoading) return const CircularProgressIndicator();
+  if (controller.error != null) return Text(controller.error!);
+  if (controller.data.isEmpty) return const Text('Belum ada data');
+  return ListView(children: [for (final d in controller.data) Text(d.nama)]);
+})
+</code></pre>
+
+<h4>Pola di sisi controller</h4>
+<ol>
+  <li>Set <code>_isLoading.value = true</code> dan kosongkan <code>_error.value</code>. Karena keduanya observable, <code>Obx</code> langsung menampilkan loading tanpa perlu memanggil method pemberi tahu apa pun.</li>
+  <li><code>try</code>: panggil service dan simpan hasilnya dengan <code>_data.assignAll(...)</code>.</li>
+  <li><code>catch</code>: simpan pesan error.</li>
+  <li><code>finally</code>: set <code>_isLoading.value = false</code>. Bagian <code>finally</code> selalu dijalankan, sehingga loading tidak "macet".</li>
+  <li>Panggil method pemuatan itu di <code>onInit()</code> agar data dimuat sekali saat controller dibuat (section 7).</li>
+</ol>
+
+<h4>Contoh lengkap (multi-file)</h4>
+<pre><code class="language-text">lib/
+├── main.dart
+├── models/mahasiswa.dart
+├── services/mahasiswa_service.dart
+├── controllers/mahasiswa_controller.dart
+├── bindings/app_binding.dart
+└── views/mahasiswa_view.dart
+</code></pre>
+<p class="code-file-label">📄 <code>lib/models/mahasiswa.dart</code></p>
+<pre><code class="language-dart">// lib/models/mahasiswa.dart
+class Mahasiswa {
+  final String nim;
+  final String nama;
+  final double ipk;
+
+  const Mahasiswa({required this.nim, required this.nama, required this.ipk});
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/services/mahasiswa_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/mahasiswa_service.dart
+// Service = satu-satunya tempat yang tahu cara MENGAMBIL data.
+// Saat ini datanya palsu; di Modul 09 isi fungsi ini diganti dengan HTTP request.
+import '../models/mahasiswa.dart';
+
+class MahasiswaService {
+  Future&lt;List&lt;Mahasiswa&gt;&gt; ambilSemua({bool simulasiGagal = false}) async {
+    await Future.delayed(const Duration(seconds: 2)); // pura-pura menunggu server
+
+    if (simulasiGagal) {
+      throw Exception('Server tidak dapat dihubungi');
+    }
+
+    return const [
+      Mahasiswa(nim: 'H1D023001', nama: 'Andi Pratama', ipk: 3.45),
+      Mahasiswa(nim: 'H1D023002', nama: 'Bunga Lestari', ipk: 3.81),
+      Mahasiswa(nim: 'H1D023003', nama: 'Citra Ayu', ipk: 3.12),
+      Mahasiswa(nim: 'H1D023004', nama: 'Dimas Saputra', ipk: 3.67),
+    ];
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/controllers/mahasiswa_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/mahasiswa_controller.dart
+import 'package:get/get.dart';
+
+import '../models/mahasiswa.dart';
+import '../services/mahasiswa_service.dart';
+
+class MahasiswaController extends GetxController {
+  MahasiswaController(this._service); // service disuntikkan lewat constructor
+
+  final MahasiswaService _service;
+
+  // Tiga serangkai state async, semuanya observable
+  final _isLoading = false.obs;
+  final _error = RxnString(); // null = tidak ada error
+  final _data = &lt;Mahasiswa&gt;[].obs;
+
+  bool get isLoading =&gt; _isLoading.value;
+  String? get error =&gt; _error.value;
+  List&lt;Mahasiswa&gt; get data =&gt; List.unmodifiable(_data);
+
+  @override
+  void onInit() {
+    super.onInit();
+    muatData(); // pemuatan awal: sekali saat controller dibuat
+  }
+
+  Future&lt;void&gt; muatData({bool simulasiGagal = false}) async {
+    if (_isLoading.value) return; // cegah request ganda
+
+    _isLoading.value = true; // Obx langsung menampilkan loading
+    _error.value = null; // hapus error lama
+
+    try {
+      final hasil = await _service.ambilSemua(simulasiGagal: simulasiGagal);
+      _data.assignAll(hasil); // ganti seluruh isi list sekaligus
+    } catch (e) {
+      _error.value = 'Gagal memuat data: ${e.toString().replaceFirst('Exception: ', '')}';
+    } finally {
+      _isLoading.value = false; // SELALU dimatikan, berhasil maupun gagal
+    }
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/bindings/app_binding.dart</code></p>
+<pre><code class="language-dart">// lib/bindings/app_binding.dart
+import 'package:get/get.dart';
+
+import '../controllers/mahasiswa_controller.dart';
+import '../services/mahasiswa_service.dart';
+
+class AppBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.put(MahasiswaController(MahasiswaService()));
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/views/mahasiswa_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/mahasiswa_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/mahasiswa_controller.dart';
+
+class MahasiswaView extends GetView&lt;MahasiswaController&gt; {
+  const MahasiswaView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Data Mahasiswa'),
+        actions: [
+          IconButton(
+            tooltip: 'Simulasi gagal',
+            icon: const Icon(Icons.wifi_off),
+            onPressed: () =&gt; controller.muatData(simulasiGagal: true),
+          ),
+        ],
+      ),
+      // Satu Obx untuk isi halaman: membaca isLoading, error, dan data
+      body: Obx(() {
+        // 1. Loading pertama kali (belum ada data sama sekali)
+        if (controller.isLoading &amp;&amp; controller.data.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        // 2. Error
+        if (controller.error != null) {
+          return _TampilanError(
+            pesan: controller.error!,
+            onCobaLagi: controller.muatData,
+          );
+        }
+
+        // 3. Data kosong
+        if (controller.data.isEmpty) {
+          return const Center(child: Text('Belum ada data'));
+        }
+
+        // 4. Data tersedia (+ tarik ke bawah untuk memuat ulang)
+        final data = controller.data;
+        return RefreshIndicator(
+          onRefresh: controller.muatData, // harus mengembalikan Future
+          child: ListView.builder(
+            itemCount: data.length,
+            itemBuilder: (context, i) {
+              final m = data[i];
+              return ListTile(
+                leading: CircleAvatar(child: Text(m.nama[0])),
+                title: Text(m.nama),
+                subtitle: Text(m.nim),
+                trailing: Text('IPK ${m.ipk.toStringAsFixed(2)}'),
+              );
+            },
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _TampilanError extends StatelessWidget {
+  const _TampilanError({required this.pesan, required this.onCobaLagi});
+
+  final String pesan;
+  final VoidCallback onCobaLagi;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const SizedBox(height: 12),
+            Text(pesan, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              icon: const Icon(Icons.refresh),
+              label: const Text('Coba Lagi'),
+              onPressed: onCobaLagi,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'bindings/app_binding.dart';
+import 'views/mahasiswa_view.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      initialBinding: AppBinding(),
+      home: const MahasiswaView(),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/async-data.jpg" alt="State data: daftar mahasiswa tampil" loading="lazy">
+    <div class="screenshot-caption">State data (setelah loading 2 detik)</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/async-error.jpg" alt="State error dengan tombol Coba Lagi" loading="lazy">
+    <div class="screenshot-caption">State error setelah ikon wifi ditekan, lengkap dengan tombol Coba Lagi</div>
+  </div>
+</div>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><strong>Model</strong> (<code>Mahasiswa</code>) adalah Dart murni. <strong>Service</strong> hanya tahu cara mengambil data; ia tidak tahu apa pun soal GetX atau widget.</li>
+  <li><strong>Controller</strong> menerima service lewat constructor (<em>dependency injection</em>). Saat testing (Modul 15), service ini bisa diganti dengan versi palsu tanpa mengubah controller.</li>
+  <li><code>onInit()</code> memanggil <code>muatData()</code>. Tidak perlu <code>initState</code> atau <code>addPostFrameCallback</code> di View, karena controller sudah tahu kapan ia dibuat.</li>
+  <li><code>RxnString()</code> adalah observable yang boleh bernilai <code>null</code>. <code>null</code> berarti "tidak ada error".</li>
+  <li><code>_data.assignAll(hasil)</code> mengganti seluruh isi <code>RxList</code> dan memicu satu kali rebuild.</li>
+  <li><code>if (_isLoading.value) return;</code> mencegah request ganda saat tombol ditekan berkali-kali.</li>
+  <li>View memakai satu <code>Obx</code> untuk isi halaman. Obx itu otomatis mendengarkan <code>isLoading</code>, <code>error</code>, dan <code>data</code> karena ketiganya dibaca di dalam builder.</li>
+  <li>Kondisi loading ditulis <code>isLoading &amp;&amp; data.isEmpty</code>: saat refresh (data lama masih ada), daftar tetap tampil dan yang berputar adalah indikator <code>RefreshIndicator</code>.</li>
+  <li><code>onRefresh: controller.muatData</code> bisa langsung dipakai karena <code>muatData</code> mengembalikan <code>Future</code>; indikator berhenti berputar saat Future selesai.</li>
+  <li>Tombol ikon wifi mensimulasikan kegagalan sehingga tampilan error bisa dicoba tanpa mematikan internet. Tekan <strong>Coba Lagi</strong> untuk memuat ulang dengan normal.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Variasi: enum status</h4><p>Sebagian tim memakai <code>final status = Status.awal.obs;</code> dengan <code>enum Status { awal, loading, sukses, gagal }</code> sebagai pengganti beberapa boolean. Keduanya sah; yang penting View selalu menangani semua kemungkinan. GetX juga punya <code>StateMixin</code> dengan <code>obx(onLoading:, onError:)</code>, tetapi kursus ini memakai pola eksplisit di atas agar mudah dipindah ke state management lain.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Tidak memakai <code>finally</code>: jika terjadi error, <code>isLoading</code> tetap <code>true</code> selamanya dan View terjebak di loading.</li>
+  <li>Tidak mengosongkan <code>_error.value</code> saat mencoba lagi, sehingga pesan error lama tetap tampil walaupun request kedua berhasil.</li>
+  <li>Memanggil <code>muatData()</code> di <code>build()</code> View. Setiap rebuild memicu request baru, dan karena <code>isLoading</code> berubah, Obx rebuild lagi: request tidak pernah berhenti. Tempatnya di <code>onInit</code>.</li>
+  <li>Memanggil service langsung dari View. View hanya boleh bicara dengan controller.</li>
+</ul>
+</div>

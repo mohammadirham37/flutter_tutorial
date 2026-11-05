@@ -1,0 +1,245 @@
+<p class="lead">Sekarang kita gabungkan semua yang sudah dipelajari dalam satu contoh nyata yang dipecah menjadi beberapa file sesuai pola MVC: pengisian KRS dengan batas maksimal 24 SKS.</p>
+
+<h4>Struktur folder</h4>
+<pre><code class="language-text">lib/
+├── main.dart                       # GetMaterialApp + pendaftaran controller
+├── models/
+│   └── mata_kuliah.dart            # M: bentuk data
+├── controllers/
+│   └── krs_controller.dart         # C: state reaktif + aturan 24 SKS
+└── views/
+    └── katalog_krs_view.dart       # V: katalog + ringkasan KRS
+</code></pre>
+<p>Pasang package terlebih dahulu jika belum: <code>flutter pub add get</code>. Lalu buat folder <code>models</code>, <code>controllers</code>, dan <code>views</code> di dalam <code>lib/</code>.</p>
+
+<h4>Langkah 1: Model</h4>
+<p class="code-file-label">📄 <code>lib/models/mata_kuliah.dart</code></p>
+<pre><code class="language-dart">// lib/models/mata_kuliah.dart
+// MODEL: data murni, tanpa import Flutter maupun GetX
+class MataKuliah {
+  final String nama;
+  final int sks;
+
+  const MataKuliah(this.nama, this.sks);
+}
+</code></pre>
+<p>Model hanya berisi data. Tidak ada <code>import</code> sama sekali, sehingga bisa dipakai di mana saja, termasuk di unit test.</p>
+
+<h4>Langkah 2: Controller</h4>
+<p class="code-file-label">📄 <code>lib/controllers/krs_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/krs_controller.dart
+// CONTROLLER: state + aturan bisnis. Tidak mengimpor material.dart.
+import 'package:get/get.dart';
+
+import '../models/mata_kuliah.dart';
+
+class KrsController extends GetxController {
+  static const int batasMaksimalSks = 24;
+
+  // Katalog (data statis). Di section 8 data seperti ini diambil lewat service.
+  final List&lt;MataKuliah&gt; katalog = const [
+    MataKuliah('Pemrograman Mobile', 4),
+    MataKuliah('Basis Data Lanjut', 3),
+    MataKuliah('Kecerdasan Buatan', 3),
+    MataKuliah('Jaringan Komputer', 3),
+    MataKuliah('Rekayasa Perangkat Lunak', 3),
+    MataKuliah('Keamanan Siber', 3),
+    MataKuliah('Etika Profesi', 2),
+    MataKuliah('Kerja Praktik', 4),
+  ];
+
+  // State privat reaktif: hanya controller yang boleh mengubah
+  final _matkulTerpilih = &lt;MataKuliah&gt;[].obs;
+
+  // Getter publik read-only
+  List&lt;MataKuliah&gt; get matkulTerpilih =&gt; List.unmodifiable(_matkulTerpilih);
+
+  // Data turunan = getter, tidak disimpan terpisah
+  int get totalSks =&gt; _matkulTerpilih.fold(0, (total, mk) =&gt; total + mk.sks);
+
+  bool sudahDiambil(MataKuliah mk) =&gt; _matkulTerpilih.contains(mk);
+
+  /// Mengembalikan false jika kuota terlampaui (atau matkul sudah diambil).
+  /// Controller TIDAK menampilkan SnackBar; View yang memutuskan.
+  bool tambahMatkul(MataKuliah mk) {
+    if (sudahDiambil(mk)) return false;
+    if (totalSks + mk.sks &gt; batasMaksimalSks) return false;
+    _matkulTerpilih.add(mk); // RxList otomatis memberi tahu Obx
+    return true;
+  }
+
+  void hapusMatkul(int index) =&gt; _matkulTerpilih.removeAt(index);
+}
+</code></pre>
+<ul>
+  <li><code>_matkulTerpilih</code> adalah <code>RxList</code> <strong>privat</strong>. Dari luar file ini, satu-satunya cara mengubahnya adalah lewat <code>tambahMatkul</code> dan <code>hapusMatkul</code>, sehingga aturan 24 SKS tidak bisa dilewati.</li>
+  <li>Getter <code>matkulTerpilih</code> mengembalikan <code>List.unmodifiable</code>. Jika View mencoba <code>controller.matkulTerpilih.add(...)</code>, aplikasi langsung error dan kesalahan ketahuan sejak awal.</li>
+  <li><code>totalSks</code> adalah <strong>getter</strong> (data turunan), bukan field terpisah. Nilainya selalu dihitung dari isi list, jadi tidak mungkin "tidak sinkron". Karena getter ini membaca <code>_matkulTerpilih</code>, Obx yang memanggil <code>controller.totalSks</code> otomatis ikut mendengarkan list tersebut.</li>
+  <li><code>tambahMatkul</code> mengembalikan <code>bool</code>. Controller yang memutuskan boleh/tidaknya (aturan bisnis), sedangkan View yang menampilkan pesan.</li>
+  <li>Hanya <code>package:get/get.dart</code> yang diimpor, tanpa <code>material.dart</code>. Controller ini bisa diuji dengan unit test biasa.</li>
+</ul>
+
+<h4>Langkah 3: View</h4>
+<p class="code-file-label">📄 <code>lib/views/katalog_krs_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/katalog_krs_view.dart
+// VIEW: hanya menampilkan state dan meneruskan aksi ke controller
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/krs_controller.dart';
+
+class KatalogKrsView extends GetView&lt;KrsController&gt; {
+  const KatalogKrsView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pengisian KRS')),
+      body: Column(
+        children: [
+          const RingkasanKrs(),
+          Expanded(
+            child: ListView.builder(
+              itemCount: controller.katalog.length,
+              itemBuilder: (context, index) {
+                final mk = controller.katalog[index];
+                return ListTile(
+                  title: Text(mk.nama),
+                  subtitle: Text('${mk.sks} SKS'),
+                  // Obx kecil per baris: ikon berubah jika matkul sudah diambil
+                  trailing: Obx(() {
+                    final diambil = controller.sudahDiambil(mk);
+                    return IconButton(
+                      tooltip: 'Ambil ${mk.nama}',
+                      icon: Icon(
+                        diambil ? Icons.check_circle : Icons.add_circle,
+                        color: diambil ? Colors.green : Colors.indigo,
+                      ),
+                      onPressed: diambil
+                          ? null
+                          : () {
+                              final berhasil = controller.tambahMatkul(mk);
+                              if (!berhasil) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Kuota maksimal 24 SKS terlampaui!'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            },
+                    );
+                  }),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class RingkasanKrs extends GetView&lt;KrsController&gt; {
+  const RingkasanKrs({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Obx(() {
+          final total = controller.totalSks;
+          const batas = KrsController.batasMaksimalSks;
+          final terpilih = controller.matkulTerpilih;
+          return Column(
+            children: [
+              Text('Total SKS Diambil: $total / $batas SKS'),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                value: total / batas,
+                color: total &gt;= 20 ? Colors.orange : Colors.blue,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                children: [
+                  for (var i = 0; i &lt; terpilih.length; i++)
+                    InputChip(
+                      label: Text(terpilih[i].nama),
+                      onDeleted: () =&gt; controller.hapusMatkul(i),
+                    ),
+                ],
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Langkah 4: Mendaftarkan controller di main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart — salin SELURUH kode ini untuk menggantikan isi lib/main.dart
+// Pastikan sudah: (1) flutter pub add get, (2) membuat ketiga file di atas
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'controllers/krs_controller.dart';
+import 'views/katalog_krs_view.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      // Dijalankan sekali sebelum halaman pertama dibangun
+      initialBinding: BindingsBuilder(() {
+        Get.put(KrsController());
+      }),
+      home: const KatalogKrsView(),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/08-getx/mvc-krs-katalog.jpg" alt="Ringkasan SKS ikut berubah saat mata kuliah diambil" loading="lazy">
+    <div class="screenshot-caption">Setelah mengambil tiga mata kuliah: total 10 SKS, ikon berubah menjadi centang</div>
+  </div>
+</div>
+<p><code>initialBinding</code> dijalankan sekali sebelum halaman pertama dibangun, sehingga <code>KrsController</code> sudah terdaftar ketika <code>KatalogKrsView</code> membaca <code>controller</code>. Cara lain yang sama-sama benar adalah mendaftarkannya di <code>main()</code>:</p>
+<pre><code class="language-dart">void main() {
+  Get.put(KrsController(), permanent: true);
+  runApp(const MyApp());
+}
+</code></pre>
+<p>Pilih salah satu saja. Bindings yang lebih rapi (class <code>Bindings</code> sendiri dan binding per halaman) dibahas di section 7.</p>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>KatalogKrsView</code> tidak dibungkus Obx, sehingga daftar katalog tidak ikut dibangun ulang ketika SKS bertambah. Hanya ikon di setiap baris yang punya Obx kecil sendiri.</li>
+  <li><code>RingkasanKrs</code> membungkus isinya dengan satu <code>Obx</code>, sehingga total SKS, progress bar, dan chip selalu sinkron.</li>
+  <li><code>InputChip.onDeleted</code> memanggil <code>controller.hapusMatkul(i)</code>. Ikon di katalog otomatis kembali menjadi tombol tambah karena Obx barisnya membaca <code>sudahDiambil</code>.</li>
+  <li>SnackBar ditampilkan di View dengan <code>ScaffoldMessenger</code> berdasarkan nilai <code>bool</code> dari controller. Controller tidak tahu apa-apa tentang SnackBar.</li>
+  <li><code>RingkasanKrs</code> tidak menerima data apa pun lewat constructor. Bandingkan dengan contoh prop drilling di section 1.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Memeriksa batas SKS di View, bukan di controller. Jika ada dua tombol tambah di dua halaman, aturannya harus ditulis dua kali.</li>
+  <li>Mengembalikan <code>_matkulTerpilih</code> langsung dari getter, atau membuatnya publik. View bisa memanggil <code>.add()</code> dan melewati pengecekan kuota.</li>
+  <li>Menyimpan <code>totalSks</code> sebagai <code>.obs</code> terpisah lalu lupa memperbaruinya saat menghapus mata kuliah. Data turunan cukup ditulis sebagai getter.</li>
+  <li>Salah path import (misalnya <code>import 'krs_controller.dart';</code> dari folder <code>views/</code>). Dari <code>views/</code> gunakan <code>'../controllers/krs_controller.dart'</code>, dari <code>main.dart</code> gunakan <code>'controllers/krs_controller.dart'</code>.</li>
+</ul>
+</div>

@@ -5,17 +5,17 @@
   "title": "Debugging, DevTools & Pengujian Otomatis",
   "duration": "Pertemuan 15 (150 Menit) + Belajar Mandiri",
   "prerequisites": [
-    "Modul 08: State Management dengan Provider",
+    "Modul 08: Manajemen State Terstruktur dengan GetX & Pola MVC",
     "Modul 14: Proyek Catatan Kuliah Bagian 2 (CRUD & Cache Offline)"
   ],
-  "summary": "Memastikan aplikasi stabil sebelum dirilis. Dimulai dari membaca pesan error dan stack trace, debugPrint, breakpoint, Flutter DevTools, dan flutter analyze, lalu menulis unit test, test dengan fake/mock untuk repository Catatan Kuliah, widget test form login, test Provider, golden test, integration test, dan laporan coverage.",
+  "summary": "Memastikan aplikasi stabil sebelum dirilis. Dimulai dari membaca pesan error dan stack trace, debugPrint, breakpoint, Flutter DevTools, dan flutter analyze, lalu menulis unit test, test dengan fake/mock untuk repository Catatan Kuliah, widget test form login, test controller GetX, golden test, integration test, dan laporan coverage.",
   "learningOutcomes": [
-    "Membaca pesan error dan stack trace Flutter serta memperbaiki lima error yang paling umum (overflow, setState setelah dispose, null check, unbounded height, Provider tidak ditemukan).",
+    "Membaca pesan error dan stack trace Flutter serta memperbaiki lima error yang paling umum (overflow, setState setelah dispose, null check, unbounded height, controller GetX tidak ditemukan).",
     "Menggunakan debugPrint, developer.log, breakpoint VS Code, dan Flutter DevTools (Inspector, Performance, Network, Memory) untuk menemukan penyebab bug.",
     "Menjaga kualitas kode dengan flutter analyze, analysis_options.yaml, dan dart fix.",
     "Menulis unit test dengan test, expect, group, setUp, matcher, test async, dan test exception.",
     "Mengisolasi pengujian repository dari Supabase dan Hive menggunakan fake class dan mocktail.",
-    "Menulis widget test (pumpWidget, find, tap, enterText, pump, pumpAndSettle) untuk form login dan halaman yang memakai Provider.",
+    "Menulis widget test (pumpWidget, find, tap, enterText, pump, pumpAndSettle) untuk form login dan View yang memakai controller GetX (GetMaterialApp + Obx).",
     "Menjelaskan fungsi golden test dan integration test, serta mengukur coverage dengan flutter test --coverage."
   ],
   "sections": [
@@ -60,9 +60,9 @@
       "file": "08-widget-testing-code.html"
     },
     {
-      "id": "testing-provider",
-      "title": "9. Menguji Provider (NotesProvider)",
-      "file": "09-testing-provider.html"
+      "id": "testing-getx-controller",
+      "title": "9. Testing Controller GetX (NotesController)",
+      "file": "09-testing-getx.html"
     },
     {
       "id": "testing-golden-integration-coverage",
@@ -72,7 +72,7 @@
   ],
   "labAssignment": {
     "title": "Praktikum 15: Debugging & Suite Pengujian Otomatis Catatan Kuliah",
-    "objective": "Menemukan dan memperbaiki bug dengan alat debugging, lalu menulis rangkaian test otomatis (unit, fake/mock, widget, provider) untuk proyek Catatan Kuliah dari Modul 13-14 sehingga perubahan kode berikutnya tidak merusak fitur lama.",
+    "objective": "Menemukan dan memperbaiki bug dengan alat debugging, lalu menulis rangkaian test otomatis (unit, fake/mock, widget, controller) untuk proyek Catatan Kuliah dari Modul 13-14 sehingga perubahan kode berikutnya tidak merusak fitur lama.",
     "instructions": [
       "<strong>Bagian A - Debugging.</strong> Buat proyek latihan berisi kelima contoh kode “SALAH” dari bagian 1. Jalankan, salin kalimat pertama setiap pesan error dan baris stack trace yang menunjuk ke kode Anda ke dalam file <code>DEBUGGING.md</code>, lalu perbaiki satu per satu.",
       "Pasang breakpoint di dalam fungsi <code>getNotes()</code> pada repository Anda, jalankan dengan <kbd>F5</kbd>, dan catat nilai variabel <code>notes</code> yang terlihat di panel Variables. Lampirkan screenshot-nya.",
@@ -80,13 +80,13 @@
       "Jalankan <code>flutter analyze</code> pada proyek Catatan Kuliah, tambahkan aturan <code>prefer_final_locals</code> dan <code>unawaited_futures</code> ke <code>analysis_options.yaml</code>, lalu perbaiki hingga hasilnya <code>No issues found!</code>.",
       "<strong>Bagian B - Unit test.</strong> Pindahkan validator email/password ke <code>lib/utils/validators.dart</code> dan buat <code>test/unit/validators_test.dart</code> dengan minimal 6 test (positif, negatif, dan kasus batas).",
       "<strong>Bagian C - Fake.</strong> Pastikan <code>NoteRepository</code> menerima data source remote dan cache lewat konstruktor. Buat <code>test/mock/fakes.dart</code> dan <code>test/mock/note_repository_test.dart</code> yang menguji skenario online, offline dengan cache, offline tanpa cache, dan validasi judul kosong.",
-      "<strong>Bagian D - Provider.</strong> Buat <code>test/unit/notes_provider_test.dart</code> yang memeriksa urutan status (loading lalu loaded), penambahan catatan, dan pesan error saat offline.",
+      "<strong>Bagian D - Controller.</strong> Buat <code>test/unit/notes_controller_test.dart</code> dengan <code>Get.testMode = true</code>, <code>Get.put</code> berisi repository palsu, dan <code>tearDown(Get.reset)</code>. Periksa <code>isLoading</code> (true lalu false), data setelah dimuat, penambahan catatan, dan <code>error</code> saat offline.",
       "<strong>Bagian E - Widget test.</strong> Buat <code>test/widget/login_page_test.dart</code> yang menguji: form kosong, format email salah, password kurang dari 8 karakter, form valid memanggil fungsi login dengan data yang benar, dan SnackBar saat login gagal.",
-      "Buat <code>test/widget/notes_page_test.dart</code> yang memastikan halaman catatan menampilkan loading, daftar catatan, dan banner mode offline.",
-      "Jalankan <code>flutter test --coverage</code>, buat laporan HTML (genhtml atau Coverage Gutters), dan ambil screenshot persentase coverage folder <code>lib/data</code> dan <code>lib/providers</code>."
+      "Buat <code>test/widget/notes_view_test.dart</code> yang mendaftarkan controller dengan <code>Get.put</code>, me-render View di dalam <code>GetMaterialApp</code>, lalu memastikan halaman catatan menampilkan loading, daftar catatan, dan banner mode offline.",
+      "Jalankan <code>flutter test --coverage</code>, buat laporan HTML (genhtml atau Coverage Gutters), dan ambil screenshot persentase coverage folder <code>lib/data</code> dan <code>lib/controllers</code>."
     ],
-    "expectedOutput": "Repositori berisi file DEBUGGING.md, folder test/ dengan minimal 20 test yang semuanya lulus (output “All tests passed!”), flutter analyze tanpa issue, dan screenshot laporan coverage dengan coverage lib/data dan lib/providers minimal 70%.",
-    "rubric": "Laporan debugging lengkap dan perbaikan benar (20%), unit test validator dan provider (20%), test repository dengan fake/mock termasuk skenario gagal (25%), widget test form login dan halaman catatan (25%), flutter analyze bersih dan laporan coverage (10%)."
+    "expectedOutput": "Repositori berisi file DEBUGGING.md, folder test/ dengan minimal 20 test yang semuanya lulus (output “All tests passed!”), flutter analyze tanpa issue, dan screenshot laporan coverage dengan coverage lib/data dan lib/controllers minimal 70%.",
+    "rubric": "Laporan debugging lengkap dan perbaikan benar (20%), unit test validator dan controller (20%), test repository dengan fake/mock termasuk skenario gagal (25%), widget test form login dan halaman catatan (25%), flutter analyze bersih dan laporan coverage (10%)."
   },
   "quiz": [
     {
@@ -165,6 +165,17 @@
       ],
       "correctIndex": 0,
       "explanation": "tap hanya mengirim sentuhan. Perubahan state baru terlihat setelah frame berikutnya digambar dengan pump() (atau pumpAndSettle() jika ada animasi)."
+    },
+    {
+      "question": "Dua test NotesController lulus jika dijalankan satu per satu, tetapi test kedua gagal jika dijalankan bersama. Baris apa yang kemungkinan besar terlupa?",
+      "options": [
+        "Get.testMode = false;",
+        "tearDown(Get.reset); agar controller dari test sebelumnya dihapus",
+        "await tester.pump(); di dalam unit test",
+        "WidgetsFlutterBinding.ensureInitialized();"
+      ],
+      "correctIndex": 1,
+      "explanation": "Tanpa Get.reset, instance dari test pertama masih terdaftar dan Get.put untuk tipe yang sama tidak menggantinya. Test kedua diam-diam memakai controller lama beserta datanya."
     },
     {
       "question": "Perintah apa yang menghasilkan file coverage/lcov.info berisi data baris kode yang dijalankan oleh test?",

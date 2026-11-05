@@ -426,7 +426,7 @@ class DetailMatkulScreen extends StatelessWidget {
   <li><strong>Logout</strong> meminta konfirmasi lewat dialog, lalu membersihkan tumpukan dengan <code>pushAndRemoveUntil</code>.</li>
 </ul>
 
-<div class="callout callout-info"><h4>ℹ️ Menuju Modul 08</h4><p>Perhatikan bahwa <code>_diambil</code> harus dioper dari <code>MainScreen</code> ke tab-tabnya lewat constructor dan callback. Bayangkan jika halaman detail, halaman ringkasan KRS, dan badge di AppBar semuanya butuh data yang sama: constructor akan penuh dengan parameter "titipan". Masalah ini disebut <strong>prop drilling</strong>, dan diselesaikan dengan Provider di modul berikutnya.</p></div>
+<div class="callout callout-info"><h4>ℹ️ Menuju Modul 08</h4><p>Perhatikan bahwa <code>_diambil</code> harus dioper dari <code>MainScreen</code> ke tab-tabnya lewat constructor dan callback. Bayangkan jika halaman detail, halaman ringkasan KRS, dan badge di AppBar semuanya butuh data yang sama: constructor akan penuh dengan parameter "titipan". Masalah ini disebut <strong>prop drilling</strong>, dan diselesaikan dengan GetX (controller + pola MVC) di modul berikutnya.</p></div>
 
 <div class="callout callout-tip"><h4>💡 Tantangan tambahan</h4>
 <ul>

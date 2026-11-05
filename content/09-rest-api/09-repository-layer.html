@@ -2,11 +2,11 @@
 
 <h4>Pembagian Lapisan</h4>
 <pre><code class="language-text">┌───────────────────────────┐
-│ UI (Widget / Screen)      │  menampilkan data, menerima input
+│ View (Widget / halaman)   │  menampilkan data, menerima input
 └────────────┬──────────────┘
              │ memanggil
 ┌────────────▼──────────────┐
-│ Provider (Modul 08)       │  menyimpan state: loading / error / data
+│ Controller GetX (Modul 08)│  menyimpan state: loading / error / data
 └────────────┬──────────────┘
              │ memanggil
 ┌────────────▼──────────────┐
@@ -19,13 +19,14 @@
              ▼
         Server REST API
 </code></pre>
+<p>Jika dicocokkan dengan pola MVC di Modul 08: <strong>Repository</strong> dan <strong>ApiClient</strong> berperan sebagai lapisan <em>service</em> (akses data), <code>Post</code> adalah <em>model</em>, lalu controller dan view ditambahkan di section 12.</p>
 <div class="table-responsive">
   <table class="table-custom">
     <thead><tr><th>Lapisan</th><th>Tahu tentang</th><th>Tidak boleh tahu tentang</th></tr></thead>
     <tbody>
       <tr><td>ApiClient</td><td>HTTP, header, JSON mentah, status code</td><td>Model <code>Post</code>, widget</td></tr>
       <tr><td>Repository</td><td>Endpoint, model, <code>fromJson</code>/<code>toJson</code></td><td>Widget, <code>BuildContext</code></td></tr>
-      <tr><td>UI / Provider</td><td>Model dan method repository</td><td><code>http</code>, <code>jsonDecode</code>, URL</td></tr>
+      <tr><td>View / Controller</td><td>Model dan method repository</td><td><code>http</code>, <code>jsonDecode</code>, URL</td></tr>
     </tbody>
   </table>
 </div>
@@ -313,6 +314,6 @@ class _PostScreenState extends State&lt;PostScreen&gt; {
 <ul>
   <li>Mengimpor <code>package:flutter/material.dart</code> di repository atau ApiClient. Lapisan data tidak boleh bergantung pada UI.</li>
   <li>Membuat <code>http.Client()</code> baru di setiap method tanpa ditutup. Buat sekali dan gunakan ulang.</li>
-  <li>Menangkap error di repository lalu mengembalikan list kosong. UI jadi tidak tahu bahwa terjadi error; biarkan exception naik ke Provider/UI.</li>
+  <li>Menangkap error di repository lalu mengembalikan list kosong. UI jadi tidak tahu bahwa terjadi error; biarkan exception naik ke controller/UI.</li>
 </ul>
 </div>
