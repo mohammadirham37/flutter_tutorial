@@ -1,0 +1,122 @@
+<p class="lead">Halaman kedua adalah form yang dipakai untuk <strong>Create</strong> sekaligus <strong>Update</strong>. Mode form ditentukan oleh <code>controller.isEdit</code> yang sudah diatur sebelum halaman dibuka.</p>
+
+<p>Buat file <code>lib/views/mahasiswa_form_view.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/views/mahasiswa_form_view.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:get/get.dart';
+
+import '../controllers/mahasiswa_controller.dart';
+
+/// VIEW: halaman form untuk CREATE dan UPDATE.
+class MahasiswaFormView extends GetView&lt;MahasiswaController&gt; {
+  const MahasiswaFormView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(controller.isEdit ? 'Edit Mahasiswa' : 'Tambah Mahasiswa'),
+      ),
+      body: Form(
+        key: controller.formKey,
+        // pesan error diperbarui otomatis saat user mengetik
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: controller.nimC,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              validator: controller.validateNim,
+              decoration: const InputDecoration(
+                labelText: 'NIM',
+                prefixIcon: Icon(Icons.badge),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: controller.namaC,
+              textCapitalization: TextCapitalization.words,
+              validator: controller.validateNama,
+              decoration: const InputDecoration(
+                labelText: 'Nama Lengkap',
+                prefixIcon: Icon(Icons.person),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField&lt;String&gt;(
+              initialValue: controller.selectedProdi.value,
+              items: controller.daftarProdi
+                  .map((p) =&gt; DropdownMenuItem(value: p, child: Text(p)))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) controller.selectedProdi.value = v;
+              },
+              decoration: const InputDecoration(
+                labelText: 'Program Studi',
+                prefixIcon: Icon(Icons.school),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: controller.semesterC,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              validator: controller.validateSemester,
+              decoration: const InputDecoration(
+                labelText: 'Semester',
+                prefixIcon: Icon(Icons.calendar_month),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: controller.save,
+              icon: const Icon(Icons.save),
+              label: Text(controller.isEdit ? 'Perbarui' : 'Simpan'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><strong>Judul dan label tombol dinamis</strong>: <code>controller.isEdit ? 'Edit Mahasiswa' : 'Tambah Mahasiswa'</code>. Tidak perlu <code>Obx</code> karena nilainya sudah pasti saat halaman dibangun dan tidak berubah selama form terbuka.</li>
+  <li><strong><code>Form(key: controller.formKey)</code></strong> mengelompokkan semua field sehingga <code>validate()</code> di controller bisa memeriksa semuanya sekaligus.</li>
+  <li><strong><code>autovalidateMode: AutovalidateMode.onUserInteraction</code></strong>: setelah pengguna menyentuh sebuah field, pesan error diperbarui setiap kali ia mengetik. Pesan merah langsung hilang begitu input sudah benar.</li>
+  <li><strong><code>controller: controller.nimC</code></strong>: isi field disimpan di <code>TextEditingController</code> milik controller. Inilah yang membuat form mode edit langsung terisi.</li>
+  <li><strong><code>keyboardType: TextInputType.number</code></strong> menampilkan keyboard angka, dan <strong><code>FilteringTextInputFormatter.digitsOnly</code></strong> (dari <code>package:flutter/services.dart</code>) menolak karakter selain angka, misalnya jika pengguna menempel teks.</li>
+  <li><strong><code>textCapitalization: TextCapitalization.words</code></strong> membuat huruf pertama setiap kata otomatis kapital di keyboard.</li>
+  <li><strong><code>validator: controller.validateNim</code></strong>: fungsi validasi diambil dari controller (tear-off), sehingga aturan validasi ada di satu tempat.</li>
+  <li><strong><code>DropdownButtonFormField</code></strong>: <code>initialValue</code> diambil dari <code>selectedProdi</code> (saat edit berisi prodi lama). Saat pengguna memilih, <code>onChanged</code> menulis ke <code>controller.selectedProdi.value</code>, yang nanti dibaca <code>save()</code>.</li>
+  <li><strong><code>FilledButton.icon(onPressed: controller.save)</code></strong> menjalankan validasi lalu simpan.</li>
+</ul>
+
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/form-validasi.jpg" alt="Form dengan pesan validasi" loading="lazy">
+    <div class="screenshot-caption">Simpan ditekan saat form kosong</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/dropdown-prodi.jpg" alt="Dropdown program studi terbuka" loading="lazy">
+    <div class="screenshot-caption">Memilih program studi</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/form-edit.jpg" alt="Form edit sudah terisi data lama" loading="lazy">
+    <div class="screenshot-caption">Mode edit: field terisi, tombol berubah menjadi Perbarui</div>
+  </div>
+</div>
+
+<div class="callout callout-info"><h4>ℹ️ <code>initialValue</code> pada dropdown</h4><p>Di Flutter versi terbaru, parameter <code>value</code> pada <code>DropdownButtonFormField</code> sudah ditandai <em>deprecated</em> dan diganti <code>initialValue</code>. Jika Flutter di laptop Anda versi lama dan muncul error <em>No named parameter with the name 'initialValue'</em>, jalankan <code>flutter upgrade</code>, atau untuk sementara ganti <code>initialValue:</code> menjadi <code>value:</code>.</p></div>

@@ -8,7 +8,7 @@
     "Algoritma & Pemrograman Dasar",
     "Konsep Berorientasi Objek (OOP)"
   ],
-  "summary": "Rencana Pembelajaran Semester (RPS) untuk 17 modul (M00-M16) dalam 16 pertemuan, alur belajar dan alasan urutannya, cara memakai web tutorial, metode belajar yang disarankan, kontrak perkuliahan, serta persiapan perangkat untuk pengembangan aplikasi mobile dengan Flutter & Dart.",
+  "summary": "Rencana Pembelajaran Semester (RPS) untuk 18 modul (M00-M16 ditambah M11B) dalam 16 pertemuan, alur belajar dan alasan urutannya, cara memakai web tutorial, metode belajar yang disarankan, kontrak perkuliahan, serta persiapan perangkat untuk pengembangan aplikasi mobile dengan Flutter & Dart.",
   "learningOutcomes": [
     "Memahami roadmap pembelajaran Flutter dari dasar, data lokal dan cloud (Hive, Supabase), hingga rilis produksi.",
     "Menjelaskan alasan urutan modul dan keterkaitan antarmodul.",
@@ -64,7 +64,7 @@
       "Isi bagian 'Spesifikasi Laptop' di README (OS, prosesor, RAM, ruang SSD kosong) dan tulis rencana device uji Anda: emulator atau HP fisik.",
       "Commit dan push semua perubahan, lalu simpan tautan repositori untuk diserahkan ke sistem portal dosen."
     ],
-    "expectedOutput": "Repositori GitHub aktif dengan branch utama 'main', README berisi profil mahasiswa, tabel rekap 17 modul, spesifikasi laptop, dan tangkapan layar DartPad.",
+    "expectedOutput": "Repositori GitHub aktif dengan branch utama 'main', README berisi profil mahasiswa, tabel rekap 18 modul, spesifikasi laptop, dan tangkapan layar DartPad.",
     "rubric": "Kelengkapan profil dan README (40%), Format penamaan repositori standar (20%), Bukti menjalankan kode di DartPad (20%), Riwayat commit yang rapi (20%)."
   },
   "quiz": [

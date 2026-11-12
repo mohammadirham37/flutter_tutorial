@@ -1,0 +1,70 @@
+<p class="lead">Semua bagian sudah siap. File terakhir, <code>main.dart</code>, menyalakan Hive lalu menjalankan aplikasi dengan <code>GetMaterialApp</code>.</p>
+
+<p>Hapus <strong>seluruh</strong> isi <code>lib/main.dart</code> bawaan, lalu ganti dengan:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+import 'models/mahasiswa_adapter.dart';
+import 'models/mahasiswa_model.dart';
+import 'routes/app_pages.dart';
+import 'routes/app_routes.dart';
+import 'services/hive_service.dart';
+
+Future&lt;void&gt; main() async {
+  // 1. Pastikan binding Flutter siap sebelum memanggil kode async
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 2. Inisialisasi Hive (menentukan folder penyimpanan otomatis)
+  await Hive.initFlutter();
+
+  // 3. Daftarkan adapter untuk class Mahasiswa
+  Hive.registerAdapter(MahasiswaAdapter());
+
+  // 4. Buka box (seperti membuka "tabel")
+  await Hive.openBox&lt;Mahasiswa&gt;(HiveService.boxName);
+
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      title: 'CRUD Mahasiswa',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorSchemeSeed: Colors.indigo,
+        useMaterial3: true,
+      ),
+      initialRoute: AppRoutes.home,
+      getPages: AppPages.pages,
+    );
+  }
+}
+</code></pre>
+
+<h4>Empat langkah wajib sebelum <code>runApp</code></h4>
+<ol>
+  <li><strong><code>WidgetsFlutterBinding.ensureInitialized()</code></strong>: <code>main()</code> kita bersifat <code>async</code> dan memanggil plugin (Hive butuh lokasi folder dari sistem operasi). Baris ini memastikan "jembatan" Flutter ke sistem operasi sudah siap sebelum plugin dipakai.</li>
+  <li><strong><code>await Hive.initFlutter()</code></strong>: menentukan folder penyimpanan file box di HP secara otomatis.</li>
+  <li><strong><code>Hive.registerAdapter(MahasiswaAdapter())</code></strong>: memperkenalkan adapter ke Hive. Harus dilakukan <strong>sebelum</strong> membuka box yang berisi <code>Mahasiswa</code>, karena saat dibuka Hive langsung membaca isi file dan butuh adapter untuk menerjemahkannya.</li>
+  <li><strong><code>await Hive.openBox&lt;Mahasiswa&gt;(HiveService.boxName)</code></strong>: membuka box (mirip membuka tabel). Setelah ini, <code>Hive.box()</code> di <code>HiveService</code> bisa dipakai secara sinkron di mana saja.</li>
+</ol>
+<p>Jika urutan ini salah, Anda akan melihat error seperti di section 14.</p>
+
+<h4><code>GetMaterialApp</code></h4>
+<ul>
+  <li><code>GetMaterialApp</code> menggantikan <code>MaterialApp</code> agar fitur GetX (named route, <code>Get.snackbar</code>, <code>Get.dialog</code>, <code>Get.key</code>) bisa dipakai tanpa <code>BuildContext</code>.</li>
+  <li><code>initialRoute: AppRoutes.home</code> membuka halaman daftar pertama kali, dan saat itu <code>MahasiswaBinding</code> dijalankan sehingga <code>MahasiswaController</code> dibuat dan <code>onInit()</code> memuat data dari box.</li>
+  <li><code>getPages: AppPages.pages</code> adalah daftar semua route dari section 7.</li>
+  <li><code>colorSchemeSeed: Colors.indigo</code> membuat seluruh warna tema Material 3 dari satu warna dasar.</li>
+</ul>
+
+<h4>Cek sebelum menjalankan</h4>
+<pre><code class="language-bash">flutter analyze
+</code></pre>
+<p>Hasil yang diharapkan: <code>No issues found!</code>. Jika masih ada error, biasanya karena salah ketik nama file atau nama class. Bandingkan dengan listing lengkap di section 13.</p>

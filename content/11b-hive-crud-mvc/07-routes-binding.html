@@ -1,0 +1,66 @@
+<p class="lead">Sebelum membuat View, kita siapkan dua hal dari GetX: <strong>Routes</strong> (alamat setiap halaman) dan <strong>Binding</strong> (siapa yang membuat controller). Dengan keduanya, View tidak perlu membuat controller sendiri dan navigasi cukup memakai nama, misalnya <code>Get.toNamed('/form')</code>.</p>
+
+<h4>1. Nama route</h4>
+<p>Buat file <code>lib/routes/app_routes.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/routes/app_routes.dart</code></p>
+<pre><code class="language-dart">/// Daftar nama route aplikasi.
+abstract class AppRoutes {
+  static const home = '/';
+  static const form = '/form';
+}
+</code></pre>
+<p>Nama route ditulis sebagai konstanta agar tidak salah ketik. Menulis <code>Get.toNamed(AppRoutes.form)</code> akan dicek oleh compiler, sedangkan <code>Get.toNamed('/from')</code> (salah ketik) baru ketahuan saat aplikasi berjalan. <code>abstract class</code> dipakai agar class ini tidak bisa dibuat objeknya; ia hanya wadah konstanta.</p>
+
+<h4>2. Binding</h4>
+<p>Buat file <code>lib/bindings/mahasiswa_binding.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/bindings/mahasiswa_binding.dart</code></p>
+<pre><code class="language-dart">import 'package:get/get.dart';
+
+import '../controllers/mahasiswa_controller.dart';
+
+/// Binding: mendaftarkan dependency (controller) ke GetX
+/// sebelum halaman dibuka.
+class MahasiswaBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut&lt;MahasiswaController&gt;(() =&gt; MahasiswaController());
+  }
+}
+</code></pre>
+<ul>
+  <li><code>dependencies()</code> dipanggil GetX tepat sebelum halaman yang memakai binding ini dibuka.</li>
+  <li><code>Get.lazyPut</code> mendaftarkan "resep" pembuat controller. Controller baru benar-benar dibuat saat pertama kali dicari dengan <code>Get.find</code> (atau lewat properti <code>controller</code> milik <code>GetView</code>). Sesudah itu, objek yang <strong>sama</strong> dipakai di mana pun.</li>
+</ul>
+
+<h4>3. Pemetaan route ke halaman</h4>
+<p>Buat file <code>lib/routes/app_pages.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/routes/app_pages.dart</code></p>
+<pre><code class="language-dart">import 'package:get/get.dart';
+
+import '../bindings/mahasiswa_binding.dart';
+import '../views/mahasiswa_form_view.dart';
+import '../views/mahasiswa_list_view.dart';
+import 'app_routes.dart';
+
+/// Pemetaan route -&gt; halaman (+ binding).
+class AppPages {
+  static final pages = [
+    GetPage(
+      name: AppRoutes.home,
+      page: () =&gt; const MahasiswaListView(),
+      binding: MahasiswaBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.form,
+      page: () =&gt; const MahasiswaFormView(),
+    ),
+  ];
+}
+</code></pre>
+<p>Setiap <code>GetPage</code> menghubungkan nama route dengan widget halaman. Hal penting yang perlu diperhatikan:</p>
+<ul>
+  <li>Binding hanya dipasang di route <code>home</code>. Halaman form <strong>tidak</strong> memerlukan binding sendiri karena selalu dibuka dari halaman daftar, sehingga <code>MahasiswaController</code> sudah ada di memori. Halaman form memakai controller yang <strong>sama</strong> dengan halaman daftar, dan inilah yang membuat data form (yang diisi di <code>openEditForm</code>) langsung terbaca di halaman form.</li>
+  <li>Controller milik route <code>home</code> tetap hidup selama halaman daftar masih ada di tumpukan navigasi. Karena halaman daftar adalah halaman pertama, controller hidup sepanjang aplikasi berjalan.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Garis merah di <code>app_pages.dart</code></h4><p>File ini mengimpor <code>mahasiswa_list_view.dart</code> dan <code>mahasiswa_form_view.dart</code> yang belum dibuat, sehingga editor menampilkan error. Ini normal. Error akan hilang setelah kedua View dibuat di section 8 dan 9.</p></div>

@@ -1,0 +1,124 @@
+<p class="lead">Sekarang lapisan paling atas: <strong>View</strong>. Halaman pertama adalah daftar mahasiswa. Halaman ini menangani <strong>Read</strong> (menampilkan data), pencarian, serta tombol menuju <strong>Create</strong>, <strong>Update</strong>, dan <strong>Delete</strong>.</p>
+
+<p>Buat file <code>lib/views/mahasiswa_list_view.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/views/mahasiswa_list_view.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/mahasiswa_controller.dart';
+
+/// VIEW: halaman daftar mahasiswa (READ + tombol Edit/Hapus).
+/// `GetView&lt;T&gt;` otomatis menyediakan properti `controller`.
+class MahasiswaListView extends GetView&lt;MahasiswaController&gt; {
+  const MahasiswaListView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Data Mahasiswa'),
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          // ---------- Kolom pencarian ----------
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              onChanged: (v) =&gt; controller.keyword.value = v,
+              decoration: const InputDecoration(
+                hintText: 'Cari nama atau NIM...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+
+          // ---------- Daftar data (reaktif) ----------
+          Expanded(
+            child: Obx(() {
+              final data = controller.filteredList;
+
+              if (data.isEmpty) {
+                return const Center(
+                  child: Text('Belum ada data mahasiswa'),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.only(bottom: 80),
+                itemCount: data.length,
+                itemBuilder: (context, index) {
+                  final mhs = data[index];
+                  return Card(
+                    margin: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        child: Text(mhs.nama[0].toUpperCase()),
+                      ),
+                      title: Text(mhs.nama),
+                      subtitle: Text(
+                          'NIM ${mhs.nim}\n${mhs.prodi} • Smt ${mhs.semester}'),
+                      isThreeLine: true,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.edit, color: Colors.orange),
+                            onPressed: () =&gt; controller.openEditForm(mhs),
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () =&gt; controller.confirmDelete(mhs),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            }),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: controller.openAddForm,
+        icon: const Icon(Icons.add),
+        label: const Text('Tambah'),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Penjelasan kode</h4>
+<ul>
+  <li><strong><code>GetView&lt;MahasiswaController&gt;</code></strong> adalah <code>StatelessWidget</code> yang sudah punya properti <code>controller</code>. Di belakang layar properti ini memanggil <code>Get.find&lt;MahasiswaController&gt;()</code>, yaitu controller yang didaftarkan <code>MahasiswaBinding</code>. Kita tidak memerlukan <code>StatefulWidget</code> sama sekali.</li>
+  <li><strong>Kolom pencarian</strong>: setiap huruf yang diketik dikirim ke <code>controller.keyword.value</code>. Kolom ini tidak perlu dibungkus <code>Obx</code> karena ia tidak menampilkan state apa pun.</li>
+  <li><strong><code>Obx(() { ... })</code></strong> hanya membungkus bagian yang berubah, yaitu daftar data. Di dalamnya <code>controller.filteredList</code> dibaca, sehingga <code>Obx</code> otomatis "berlangganan" ke <code>keyword</code> dan <code>mahasiswaList</code>. AppBar, kolom cari, dan tombol Tambah tidak ikut dibangun ulang.</li>
+  <li><strong>Empty state</strong>: jika daftar kosong (belum ada data atau pencarian tidak menemukan hasil), tampil teks <em>Belum ada data mahasiswa</em> di tengah layar.</li>
+  <li><strong><code>ListView.builder</code></strong> membuat kartu hanya untuk item yang terlihat di layar (Modul 06). <code>padding bottom: 80</code> memberi ruang agar kartu terakhir tidak tertutup tombol Tambah.</li>
+  <li><strong>Isi kartu</strong>: <code>CircleAvatar</code> berisi huruf pertama nama, <code>subtitle</code> dua baris (NIM, lalu prodi dan semester) dengan <code>isThreeLine: true</code> agar tinggi kartu cukup.</li>
+  <li><strong>Tombol aksi</strong>: ikon pensil memanggil <code>controller.openEditForm(mhs)</code>, ikon tempat sampah memanggil <code>controller.confirmDelete(mhs)</code>, dan tombol <em>Tambah</em> memanggil <code>controller.openAddForm</code>. View hanya meneruskan klik; semua keputusan ada di controller.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 <code>onPressed: controller.openAddForm</code> vs <code>onPressed: () =&gt; controller.openEditForm(mhs)</code></h4><p>Jika method tidak butuh argumen, kita bisa langsung memberikan method-nya (<em>tear-off</em>) tanpa tanda kurung. Jika butuh argumen seperti <code>mhs</code>, bungkus dengan fungsi anonim <code>() =&gt; ...</code>. Kesalahan umum adalah menulis <code>onPressed: controller.openAddForm()</code> (dengan kurung), yang membuat method langsung dijalankan saat build, bukan saat tombol ditekan.</p></div>
+
+<p>Hasilnya saat aplikasi dijalankan (setelah section 10 selesai):</p>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/kosong.jpg" alt="Daftar mahasiswa masih kosong" loading="lazy">
+    <div class="screenshot-caption">Pertama kali dibuka: box masih kosong</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/daftar-terisi.jpg" alt="Daftar berisi tiga mahasiswa terurut nama" loading="lazy">
+    <div class="screenshot-caption">Setelah tiga data ditambahkan, terurut A-Z</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/cari.jpg" alt="Hasil pencarian 2201" loading="lazy">
+    <div class="screenshot-caption">Mengetik <code>2201</code>: hanya NIM yang cocok</div>
+  </div>
+</div>

@@ -1,0 +1,97 @@
+<p class="lead">Di modul ini kita membangun satu aplikasi utuh dari proyek kosong: <strong>CRUD Data Mahasiswa</strong>. Data disimpan di <strong>Hive</strong> (database lokal, jalan tanpa internet), state dan navigasi diatur oleh <strong>GetX</strong>, dan kodenya disusun dengan pola <strong>MVC</strong> (Model, View, Controller). Setiap file ditulis lengkap, jadi Anda bisa menyalinnya satu per satu lalu langsung menjalankannya.</p>
+
+<h4>Fitur aplikasi</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Operasi</th><th>Yang dilakukan pengguna</th><th>Method di controller</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Create</strong></td><td>Tekan tombol <em>Tambah</em>, isi NIM, nama, prodi, semester, lalu <em>Simpan</em></td><td><code>openAddForm()</code>, <code>save()</code></td></tr>
+      <tr><td><strong>Read</strong></td><td>Melihat daftar mahasiswa yang diurutkan berdasarkan nama</td><td><code>loadData()</code></td></tr>
+      <tr><td><strong>Update</strong></td><td>Tekan ikon pensil, ubah data, lalu <em>Perbarui</em></td><td><code>openEditForm()</code>, <code>save()</code></td></tr>
+      <tr><td><strong>Delete</strong></td><td>Tekan ikon tempat sampah, lalu konfirmasi <em>Hapus</em></td><td><code>confirmDelete()</code></td></tr>
+      <tr><td>Cari</td><td>Mengetik nama atau NIM di kolom pencarian</td><td><code>keyword</code> + <code>filteredList</code></td></tr>
+      <tr><td>Validasi</td><td>NIM wajib angka minimal 8 digit, nama wajib, semester 1-14, NIM tidak boleh ganda</td><td><code>validateNim()</code> dan kawan-kawan</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>Tampilan akhir aplikasi yang akan kita buat:</p>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/daftar-terisi.jpg" alt="Daftar mahasiswa berisi tiga data" loading="lazy">
+    <div class="screenshot-caption">Halaman daftar (Read)</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/form-tambah-isi.jpg" alt="Form tambah mahasiswa terisi" loading="lazy">
+    <div class="screenshot-caption">Form tambah (Create)</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/dialog-hapus.jpg" alt="Dialog konfirmasi hapus" loading="lazy">
+    <div class="screenshot-caption">Konfirmasi hapus (Delete)</div>
+  </div>
+</div>
+
+<h4>Apa itu MVC di proyek ini?</h4>
+<p>MVC membagi kode menjadi tiga peran supaya setiap file punya satu tugas yang jelas:</p>
+<ul>
+  <li><strong>Model (M)</strong>: bentuk data dan cara menyimpannya. Di sini: class <code>Mahasiswa</code>, <code>MahasiswaAdapter</code> (cara Hive mengubah objek menjadi byte), dan <code>HiveService</code> (satu-satunya kelas yang menyentuh database).</li>
+  <li><strong>View (V)</strong>: tampilan. Di sini: <code>MahasiswaListView</code> dan <code>MahasiswaFormView</code>. View hanya menampilkan data dan meneruskan klik ke controller. View <strong>tidak pernah</strong> memanggil Hive.</li>
+  <li><strong>Controller (C)</strong>: otak aplikasi. <code>MahasiswaController</code> menyimpan state reaktif (<code>.obs</code>), memvalidasi input, dan memanggil <code>HiveService</code> untuk tambah, ubah, dan hapus.</li>
+</ul>
+<p>Dua bagian pendukung dari GetX: <strong>Routes</strong> (daftar nama halaman) dan <strong>Binding</strong> (tempat mendaftarkan controller sebelum halaman dibuka).</p>
+
+<h4>Alur data (arah panah satu jalur)</h4>
+<pre><code class="language-text">┌──────────────────────────────┐
+│ VIEW                         │  MahasiswaListView, MahasiswaFormView
+│ Obx(() =&gt; ...) membaca state │  tombol memanggil controller.save(), dst.
+└──────────────┬───────────────┘
+               │ memanggil method
+               ▼
+┌──────────────────────────────┐
+│ CONTROLLER                   │  MahasiswaController (GetxController)
+│ mahasiswaList.obs, keyword   │  validasi, navigasi, snackbar, dialog
+└──────────────┬───────────────┘
+               │ create / getAll / update / delete
+               ▼
+┌──────────────────────────────┐
+│ MODEL                        │  HiveService  ──►  Box&lt;Mahasiswa&gt; 'mahasiswa_box'
+│                              │  Mahasiswa + MahasiswaAdapter (typeId 0)
+└──────────────────────────────┘
+</code></pre>
+<p>Contoh saat pengguna menekan <em>Simpan</em>:</p>
+<ol>
+  <li>View memanggil <code>controller.save()</code>.</li>
+  <li>Controller memvalidasi form, membuat objek <code>Mahasiswa</code>, lalu memanggil <code>_service.create(mhs)</code>.</li>
+  <li><code>HiveService</code> menulis objek ke box. <code>MahasiswaAdapter</code> mengubahnya menjadi byte di file.</li>
+  <li>Controller memanggil <code>loadData()</code> yang mengisi ulang <code>mahasiswaList</code> (sebuah <code>RxList</code>).</li>
+  <li>Karena <code>mahasiswaList</code> berubah, <code>Obx</code> di halaman daftar otomatis membangun ulang tampilannya. Tidak ada <code>setState</code> sama sekali.</li>
+</ol>
+
+<h4>Struktur folder akhir</h4>
+<pre><code class="language-text">crud_mahasiswa/
+├── pubspec.yaml
+├── lib/
+│   ├── main.dart                      # init Hive + GetMaterialApp
+│   ├── models/
+│   │   ├── mahasiswa_model.dart       # M: class Mahasiswa
+│   │   └── mahasiswa_adapter.dart     # M: TypeAdapter untuk Hive
+│   ├── services/
+│   │   └── hive_service.dart          # M: akses database Hive (CRUD)
+│   ├── controllers/
+│   │   └── mahasiswa_controller.dart  # C: state reaktif + logika CRUD
+│   ├── bindings/
+│   │   └── mahasiswa_binding.dart     # registrasi controller (GetX)
+│   ├── routes/
+│   │   ├── app_routes.dart            # nama-nama route
+│   │   └── app_pages.dart             # route -&gt; halaman + binding
+│   └── views/
+│       ├── mahasiswa_list_view.dart   # V: daftar, cari, edit, hapus
+│       └── mahasiswa_form_view.dart   # V: form tambah &amp; edit
+└── test/
+    ├── hive_service_test.dart         # unit test CRUD Hive
+    └── crud_flow_test.dart            # widget test alur CRUD lewat UI
+</code></pre>
+
+<div class="callout callout-tip"><h4>💡 Cara mengikuti modul ini</h4><p>Kerjakan section 2 sampai 10 <strong>berurutan</strong>, dari lapisan paling bawah (model) ke paling atas (view dan <code>main.dart</code>). Dengan urutan ini setiap file yang Anda tulis hanya bergantung pada file yang sudah ada. Garis merah di editor yang muncul karena file belum dibuat akan hilang sendiri setelah file tersebut ditulis. Jika ingin langsung jadi, buka section 13 (Listing Lengkap) dan salin semua file sekaligus.</p></div>
+
+<div class="callout callout-info"><h4>ℹ️ Prasyarat</h4><p>Modul ini merangkum materi Modul 05 (Form &amp; validasi), Modul 08 (GetX &amp; MVC), dan Modul 11 (Hive). Jika ada istilah yang terasa asing, misalnya <code>.obs</code>, <code>Obx</code>, <code>Bindings</code>, atau <code>TypeAdapter</code>, buka lagi modul tersebut.</p></div>

@@ -41,7 +41,7 @@ Klik ganda berkas `index.html` langsung dari Finder macOS. Semua dependensi data
 
 ---
 
-## 📚 Struktur Kurikulum 17 Modul (Lengkap & Terurut)
+## 📚 Struktur Kurikulum 18 Modul (Lengkap & Terurut)
 
 Kurikulum dirancang untuk 1 semester perkuliahan (16 pertemuan + UTS/UAS):
 
@@ -59,6 +59,7 @@ Kurikulum dirancang untuk 1 semester perkuliahan (16 pertemuan + UTS/UAS):
 | **09** | **Integrasi REST API (Networking)** | Jaringan | Package `http`, serialisasi JSON ke Model Dart (`fromJson`), `FutureBuilder`, dan Repository pattern. |
 | **10** | **Local Storage & SQLite** | Database | Persistensi data lokal `shared_preferences` (token/tema) dan SQLite database lokal offline-first (`sqflite`). |
 | **11** | **Hive: Database NoSQL Lokal** | Database | Box, TypeAdapter, `ValueListenableBuilder`, enkripsi, dan mini project CRUD catatan offline dengan `hive_ce`. |
+| **11B** | **Proyek CRUD Mahasiswa: Hive + GetX + MVC** | Proyek | Aplikasi CRUD data mahasiswa dari nol: model + TypeAdapter, `HiveService`, `MahasiswaController`, Binding & named routes, view daftar/form, unit & widget test, listing lengkap siap salin. |
 | **12** | **Supabase: Backend Cloud** | Backend | Postgres, SQL Editor, Row Level Security, query CRUD, Auth email/password, dan Realtime. |
 | **13** | **Proyek Bagian 1: Auth Login & Register** | Proyek | Arsitektur aplikasi "Catatan Kuliah", tabel profil + trigger, AuthService, AuthController (GetX), AuthGate, layar Login & Register. |
 | **14** | **Proyek Bagian 2: CRUD Supabase + Cache Hive** | Proyek | Tabel `notes` + RLS, repository remote/lokal, mode offline, pencarian, tambah/edit/hapus catatan. |
@@ -74,7 +75,7 @@ Kurikulum dirancang untuk 1 semester perkuliahan (16 pertemuan + UTS/UAS):
    - 💻 **Tugas Praktikum Mandiri:** Lembar tugas mahasiswa dilengkapi langkah pengerjaan dan rubrik penilaian dosen.
    - 🧠 **Kuis Evaluasi Pemahaman:** Kuis interaktif pilihan ganda yang langsung mengoreksi, menghitung skor, dan memberikan penjelasan jawaban benar.
 2. **Pencarian Cepat Global (`Cmd + K` / `Ctrl + K`):**
-   - Mahasiswa dapat mencari topik, kata kunci widget, atau potongan kode di seluruh 17 modul secara real-time.
+   - Mahasiswa dapat mencari topik, kata kunci widget, atau potongan kode di seluruh 18 modul secara real-time.
 3. **Pelacak Progres Mahasiswa (Student Progress Tracker):**
    - Mahasiswa dapat mencentang modul yang telah selesai dipelajari. Progres tersimpan secara otomatis di peramban (`localStorage`).
 4. **Efek Selebrasi (Confetti):**
@@ -124,7 +125,7 @@ node tools/build-pdf.mjs --only=11-hive   # satu modul saja
 
 Hasilnya ada di `assets/pdf/`: satu PDF per modul dan `modul-flutter-lengkap.pdf`.
 
-Perintah build materi menyusun ulang `assets/js/modules-data.js` (jangan edit file itu langsung). Urutan dan nomor modul mengikuti awalan angka nama folder. Gambar screenshot hasil kode ada di `assets/img/screenshots/`.
+Perintah build materi menyusun ulang `assets/js/modules-data.js` (jangan edit file itu langsung). Urutan dan nomor modul mengikuti awalan angka nama folder (modul sisipan boleh memakai huruf, misalnya `11b-...` tampil sebagai M11B). Gambar screenshot hasil kode ada di `assets/img/screenshots/`.
 
 File lain yang bisa diubah:
 - **`assets/js/cheatsheet-data.js`**: Tempat data perintah CLI dan shortcut editor.

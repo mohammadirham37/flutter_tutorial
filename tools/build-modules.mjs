@@ -6,7 +6,9 @@
 //   content/<NN>-<slug>/<file>.html   -> isi tiap section (HTML biasa, kode di <pre><code>)
 //
 // Urutan modul mengikuti awalan angka nama folder, dan nomor modul yang tampil
-// di web diambil dari awalan itu. Jalankan setelah mengubah isi folder content/:
+// di web diambil dari awalan itu. Modul sisipan boleh memakai huruf, misalnya
+// folder 11b-... tampil sebagai M11B dan diurutkan tepat setelah 11-...
+// Jalankan setelah mengubah isi folder content/:
 //   node tools/build-modules.mjs
 
 import fs from 'node:fs';
@@ -21,7 +23,7 @@ const errors = [];
 const seenIds = new Set();
 
 const folders = fs.readdirSync(contentDir, { withFileTypes: true })
-  .filter((d) => d.isDirectory() && /^\d{2}-/.test(d.name))
+  .filter((d) => d.isDirectory() && /^\d{2}[a-z]?-/.test(d.name))
   .map((d) => d.name)
   .sort();
 
@@ -55,7 +57,7 @@ const modules = folders.map((folder) => {
     }
   });
 
-  return { id: meta.id, number: folder.slice(0, 2), folder, pdf: `assets/pdf/${folder}.pdf`, ...meta, sections };
+  return { id: meta.id, number: folder.split('-')[0].toUpperCase(), folder, pdf: `assets/pdf/${folder}.pdf`, ...meta, sections };
 });
 
 if (errors.length) {

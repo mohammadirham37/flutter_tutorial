@@ -1,0 +1,153 @@
+<p class="lead">Menguji manual seperti section 11 memakan waktu dan mudah terlewat. Dua file test berikut menjalankan pengecekan yang sama secara otomatis dalam beberapa detik: satu <strong>unit test</strong> untuk <code>HiveService</code> dan satu <strong>widget test</strong> untuk alur CRUD lewat UI.</p>
+
+<h4>1. Unit test <code>HiveService</code></h4>
+<p>Buat file <code>test/hive_service_test.dart</code>:</p>
+<p class="code-file-label">📄 <code>test/hive_service_test.dart</code></p>
+<pre><code class="language-dart">import 'dart:io';
+
+import 'package:crud_mahasiswa/models/mahasiswa_adapter.dart';
+import 'package:crud_mahasiswa/models/mahasiswa_model.dart';
+import 'package:crud_mahasiswa/services/hive_service.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive_ce.dart';
+
+void main() {
+  late Directory dir;
+  final service = HiveService();
+
+  setUpAll(() async {
+    dir = await Directory.systemTemp.createTemp('hive_test');
+    Hive.init(dir.path);
+    Hive.registerAdapter(MahasiswaAdapter());
+    await Hive.openBox&lt;Mahasiswa&gt;(HiveService.boxName);
+  });
+
+  tearDownAll(() async {
+    await Hive.deleteFromDisk();
+    await dir.delete(recursive: true);
+  });
+
+  final budi = Mahasiswa(
+      id: '1', nim: '220101001', nama: 'Budi', prodi: 'Informatika', semester: 5);
+
+  test('CREATE &amp; READ', () async {
+    await service.create(budi);
+    final all = service.getAll();
+    expect(all.length, 1);
+    expect(all.first.nama, 'Budi');
+    expect(all.first.semester, 5);
+  });
+
+  test('UPDATE', () async {
+    await service.update(budi.copyWith(nama: 'Budi Santoso', semester: 6));
+    final all = service.getAll();
+    expect(all.length, 1);
+    expect(all.first.nama, 'Budi Santoso');
+    expect(all.first.semester, 6);
+  });
+
+  test('Data tetap ada setelah box ditutup &amp; dibuka lagi', () async {
+    await Hive.box&lt;Mahasiswa&gt;(HiveService.boxName).close();
+    await Hive.openBox&lt;Mahasiswa&gt;(HiveService.boxName);
+    expect(service.getAll().first.nama, 'Budi Santoso');
+  });
+
+  test('DELETE', () async {
+    await service.delete('1');
+    expect(service.getAll(), isEmpty);
+  });
+}
+</code></pre>
+<ul>
+  <li><strong><code>Hive.init(dir.path)</code></strong>, bukan <code>Hive.initFlutter()</code>. Saat test, tidak ada HP/emulator sehingga folder penyimpanan dibuat sendiri di folder sementara (<code>Directory.systemTemp.createTemp</code>). Data test tidak tercampur dengan data aplikasi.</li>
+  <li><strong><code>setUpAll</code></strong> berjalan sekali sebelum semua test: menyiapkan Hive, mendaftarkan adapter, dan membuka box.</li>
+  <li><strong><code>tearDownAll</code></strong> berjalan sekali setelah semua test: menghapus file box dan folder sementara.</li>
+  <li>Keempat test berjalan <strong>berurutan</strong> dan saling melanjutkan: CREATE menambah Budi, UPDATE mengubahnya, test ketiga menutup lalu membuka ulang box untuk membuktikan data benar-benar tertulis di file (mirip aplikasi ditutup lalu dibuka), dan DELETE menghapusnya.</li>
+</ul>
+
+<h4>2. Widget test alur CRUD</h4>
+<p>Buat file <code>test/crud_flow_test.dart</code>:</p>
+<p class="code-file-label">📄 <code>test/crud_flow_test.dart</code></p>
+<pre><code class="language-dart">import 'dart:io';
+
+import 'package:crud_mahasiswa/main.dart';
+import 'package:crud_mahasiswa/models/mahasiswa_adapter.dart';
+import 'package:crud_mahasiswa/models/mahasiswa_model.dart';
+import 'package:crud_mahasiswa/services/hive_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+import 'package:hive_ce/hive_ce.dart';
+
+/// Tap tombol lalu beri waktu nyata agar operasi IO Hive selesai.
+Future&lt;void&gt; tapDanTunggu(WidgetTester tester, Finder f) async {
+  await tester.tap(f);
+  for (var i = 0; i &lt; 5; i++) {
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.runAsync(
+        () =&gt; Future.delayed(const Duration(milliseconds: 100)));
+  }
+}
+
+void main() {
+  testWidgets('Alur CRUD lewat UI', (tester) async {
+    await tester.runAsync(() async {
+      final dir = await Directory.systemTemp.createTemp('hive_ui');
+      Hive.init(dir.path);
+      Hive.registerAdapter(MahasiswaAdapter());
+      await Hive.openBox&lt;Mahasiswa&gt;(HiveService.boxName);
+    });
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    expect(find.text('Belum ada data mahasiswa'), findsOneWidget);
+
+    // CREATE
+    await tester.tap(find.text('Tambah'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'NIM'), '22010100');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Nama Lengkap'), 'Siti');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Semester'), '3');
+    await tapDanTunggu(tester, find.text('Simpan'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Siti'), findsOneWidget);
+
+    // UPDATE
+    await tester.tap(find.byIcon(Icons.edit));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Nama Lengkap'), 'Siti Aminah');
+    await tapDanTunggu(tester, find.text('Perbarui'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Siti Aminah'), findsOneWidget);
+
+    // DELETE
+    await tester.tap(find.byIcon(Icons.delete));
+    await tester.pumpAndSettle();
+    await tapDanTunggu(tester, find.text('Hapus'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Belum ada data mahasiswa'), findsOneWidget);
+    Get.reset();
+  });
+}
+</code></pre>
+<ul>
+  <li>Test ini menjalankan <code>MyApp</code> sungguhan, lalu "menekan tombol" dan "mengetik" seperti pengguna: tambah Siti, ubah menjadi Siti Aminah, lalu hapus.</li>
+  <li><strong><code>tester.runAsync</code></strong>: widget test berjalan dengan jam palsu (<em>fake async</em>), sedangkan Hive membaca/menulis file sungguhan. Operasi file harus dibungkus <code>runAsync</code> agar benar-benar dijalankan. Helper <code>tapDanTunggu</code> memberi sedikit waktu nyata setelah tombol yang memicu penulisan ke Hive ditekan.</li>
+  <li><strong><code>pumpAndSettle(const Duration(seconds: 4))</code></strong> menunggu animasi pindah halaman dan snackbar selesai.</li>
+  <li><strong><code>find.widgetWithText(TextFormField, 'NIM')</code></strong> mencari field berdasarkan label-nya.</li>
+  <li><strong><code>Get.reset()</code></strong> di akhir membersihkan semua controller GetX agar tidak terbawa ke test lain.</li>
+</ul>
+
+<h4>3. Jalankan</h4>
+<pre><code class="language-bash">flutter analyze
+flutter test
+</code></pre>
+<p>Hasil yang diharapkan:</p>
+<pre><code class="language-text">Analyzing crud_mahasiswa...
+No issues found!
+
+00:03 +5: All tests passed!
+</code></pre>
+<p>Angka <code>+5</code> berarti lima test lulus: empat dari <code>hive_service_test.dart</code> dan satu dari <code>crud_flow_test.dart</code>.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Test gagal dengan pesan tentang <code>widget_test.dart</code>?</h4><p>Berarti file test bawaan belum dihapus (section 2). File itu mencari tombol <code>+</code> dan angka <code>0</code> milik aplikasi counter yang sudah tidak ada. Hapus file tersebut lalu jalankan ulang.</p></div>

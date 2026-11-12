@@ -20,7 +20,7 @@ content/11-hive/
 └── ...
 ```
 
-- Urutan modul = urutan nama folder. Nomor yang tampil di web (`M11`) diambil dari dua angka awal nama folder. Untuk menyisipkan modul, cukup ganti nama folder.
+- Urutan modul = urutan nama folder. Nomor yang tampil di web (`M11`) diambil dari awalan nama folder sebelum tanda hubung. Untuk menyisipkan modul tanpa menggeser nomor modul lain, beri huruf setelah angka, misalnya `11b-hive-crud-mvc` (tampil sebagai `M11B`, diurutkan setelah `11-hive`).
 - `id` modul di `module.json` dipakai untuk menyimpan progres mahasiswa di `localStorage`. Jangan ubah `id` modul yang sudah ada.
 
 ### Isi `module.json`

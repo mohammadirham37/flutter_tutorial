@@ -1,0 +1,72 @@
+<p class="lead">Saatnya menjalankan aplikasi dan menguji keempat operasi CRUD satu per satu. Ikuti skenario di bawah ini dan cocokkan hasilnya dengan screenshot.</p>
+
+<pre><code class="language-bash">flutter run
+</code></pre>
+
+<h4>Skenario 1: Validasi dan Create</h4>
+<ol>
+  <li>Tekan <em>Tambah</em>, lalu langsung tekan <em>Simpan</em> tanpa mengisi apa pun. Tiga pesan merah harus muncul.</li>
+  <li>Isi NIM <code>22010100</code>, nama <code>Siti Aminah</code>, prodi <em>Informatika</em>, semester <code>3</code>, lalu <em>Simpan</em>.</li>
+  <li>Aplikasi kembali ke daftar dan snackbar <em>Sukses: Data berhasil ditambahkan</em> muncul.</li>
+</ol>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/form-validasi.jpg" alt="Pesan validasi" loading="lazy">
+    <div class="screenshot-caption">Langkah 1: validasi berjalan</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/form-tambah-isi.jpg" alt="Form terisi" loading="lazy">
+    <div class="screenshot-caption">Langkah 2: form terisi benar</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/simpan-sukses.jpg" alt="Snackbar sukses" loading="lazy">
+    <div class="screenshot-caption">Langkah 3: data tampil di daftar</div>
+  </div>
+</div>
+<p>Tambahkan dua data lagi: <code>22010245</code> Budi Santoso (Sistem Informasi, semester 5) dan <code>23010017</code> Andi Pratama (Teknik Komputer, semester 1). Daftar akan terurut berdasarkan nama: Andi, Budi, Siti.</p>
+
+<h4>Skenario 2: NIM ganda ditolak</h4>
+<p>Tambah data baru dengan NIM <code>22010100</code> (milik Siti). Saat <em>Simpan</em>, form tidak tertutup dan muncul snackbar <em>Gagal: NIM 22010100 sudah terdaftar</em>.</p>
+
+<h4>Skenario 3: Update</h4>
+<p>Tekan ikon pensil di kartu Budi. Form terbuka dengan judul <em>Edit Mahasiswa</em> dan data lama sudah terisi. Ubah nama menjadi <code>Budi Santoso Putra</code> dan semester menjadi <code>6</code>, lalu <em>Perbarui</em>.</p>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/nim-ganda.jpg" alt="Snackbar NIM ganda" loading="lazy">
+    <div class="screenshot-caption">Skenario 2: NIM ganda ditolak</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/form-edit.jpg" alt="Form edit terisi" loading="lazy">
+    <div class="screenshot-caption">Skenario 3: form edit terisi data lama</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/edit-sukses.jpg" alt="Data berhasil diperbarui" loading="lazy">
+    <div class="screenshot-caption">Skenario 3: data Budi berubah</div>
+  </div>
+</div>
+
+<h4>Skenario 4: Cari</h4>
+<p>Ketik <code>2201</code> di kolom pencarian. Hanya Budi dan Siti yang tampil karena NIM keduanya mengandung <code>2201</code>. Coba juga ketik <code>siti</code> (huruf kecil): pencarian nama tidak membedakan huruf besar/kecil. Hapus isi kolom pencarian untuk menampilkan semua data lagi.</p>
+
+<h4>Skenario 5: Delete dan bukti data tersimpan</h4>
+<ol>
+  <li>Tekan ikon tempat sampah pada kartu Andi. Dialog konfirmasi muncul. Tekan <em>Batal</em> dulu dan pastikan data tidak terhapus.</li>
+  <li>Ulangi, lalu tekan <em>Hapus</em>. Andi hilang dari daftar dan snackbar <em>Terhapus</em> muncul.</li>
+  <li><strong>Tutup paksa aplikasi</strong> (geser dari daftar aplikasi terbaru, atau tekan <kbd>q</kbd> di terminal <code>flutter run</code>), lalu buka lagi. Data Budi dan Siti harus tetap ada. Inilah bukti data tersimpan di Hive, bukan hanya di memori.</li>
+</ol>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/cari.jpg" alt="Pencarian 2201" loading="lazy">
+    <div class="screenshot-caption">Skenario 4: hasil pencarian</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/dialog-hapus.jpg" alt="Dialog konfirmasi hapus" loading="lazy">
+    <div class="screenshot-caption">Skenario 5: konfirmasi hapus</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/11b-hive-crud-mvc/setelah-restart.jpg" alt="Data tetap ada setelah aplikasi dibuka ulang" loading="lazy">
+    <div class="screenshot-caption">Skenario 5: setelah ditutup paksa dan dibuka lagi</div>
+  </div>
+</div>
+
+<div class="callout callout-tip"><h4>💡 Ingin mengulang dari data kosong?</h4><p>Uninstall aplikasi dari emulator (tekan lama ikon aplikasi, lalu <em>Uninstall</em>) atau hapus data aplikasi lewat <em>Settings &gt; Apps &gt; crud_mahasiswa &gt; Storage &gt; Clear storage</em>. File box ikut terhapus.</p></div>

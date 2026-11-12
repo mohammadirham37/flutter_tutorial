@@ -1,0 +1,154 @@
+{
+  "id": "modul-hive-crud-mvc",
+  "badge": "Proyek Hive CRUD",
+  "category": "Proyek",
+  "title": "Proyek CRUD Mahasiswa: Hive + GetX + Pola MVC",
+  "duration": "Pertemuan 11 (lanjutan, 150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 05: Form & Validasi",
+    "Modul 08: State Management dengan GetX + MVC",
+    "Modul 11: Database NoSQL Lokal dengan Hive"
+  ],
+  "summary": "Membangun aplikasi CRUD Data Mahasiswa dari proyek kosong sampai jadi: model dan TypeAdapter manual, HiveService sebagai lapisan akses data, MahasiswaController (GetX) dengan state reaktif, validasi, cegah NIM ganda, dan dialog hapus, Binding dan named routes, view daftar dengan pencarian serta satu form untuk tambah dan edit, unit test dan widget test, listing lengkap siap salin, dan troubleshooting.",
+  "learningOutcomes": [
+    "Menyusun proyek Flutter dengan struktur folder MVC: models, services, controllers, bindings, routes, dan views.",
+    "Menulis model immutable dengan copyWith dan TypeAdapter manual dengan urutan read/write yang konsisten.",
+    "Membuat service yang membungkus Box Hive untuk operasi create, read, update, dan delete.",
+    "Mengelola state reaktif (RxList, RxString), validasi form, pencarian, dan mode tambah/edit di satu GetxController.",
+    "Mendaftarkan controller lewat Bindings dan berpindah halaman dengan named routes GetX.",
+    "Membangun View tipis dengan GetView dan Obx yang tidak pernah mengakses Hive secara langsung.",
+    "Menguji service Hive dengan unit test dan alur CRUD lewat UI dengan widget test."
+  ],
+  "sections": [
+    { "id": "hcm-gambaran", "title": "1. Gambaran Proyek & Arsitektur MVC", "file": "01-gambaran-proyek.html" },
+    { "id": "hcm-setup", "title": "2. Membuat Proyek & Memasang Package", "file": "02-setup-proyek.html" },
+    { "id": "hcm-model", "title": "3. Model Mahasiswa", "file": "03-model.html" },
+    { "id": "hcm-adapter", "title": "4. TypeAdapter Manual", "file": "04-adapter.html" },
+    { "id": "hcm-service", "title": "5. HiveService: Lapisan Akses Data", "file": "05-hive-service.html" },
+    { "id": "hcm-controller", "title": "6. MahasiswaController: State & Logika CRUD", "file": "06-controller.html" },
+    { "id": "hcm-routes-binding", "title": "7. Routes & Binding", "file": "07-routes-binding.html" },
+    { "id": "hcm-list-view", "title": "8. View Daftar Mahasiswa (Read, Cari, Hapus)", "file": "08-list-view.html" },
+    { "id": "hcm-form-view", "title": "9. View Form (Create & Update)", "file": "09-form-view.html" },
+    { "id": "hcm-main", "title": "10. main.dart: Inisialisasi Hive & GetMaterialApp", "file": "10-main.html" },
+    { "id": "hcm-menjalankan", "title": "11. Menjalankan & Menguji Alur CRUD", "file": "11-menjalankan.html" },
+    { "id": "hcm-testing", "title": "12. Unit Test & Widget Test", "file": "12-testing.html" },
+    { "id": "hcm-listing", "title": "13. Listing Lengkap (Siap Copy-Paste)", "file": "13-listing-lengkap.html" },
+    { "id": "hcm-kesalahan-umum", "title": "14. Kesalahan Umum & Ringkasan", "file": "14-kesalahan-umum.html" }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 11B: CRUD Data Mahasiswa dengan Hive + GetX + MVC",
+    "objective": "Membangun ulang aplikasi CRUD Mahasiswa dengan struktur MVC yang benar, lalu mengembangkannya dengan field dan fitur baru tanpa melanggar pemisahan lapisan.",
+    "instructions": [
+      "<strong>Tugas 1 (Wajib, 25 poin):</strong> Bangun ulang proyek dari section 2-10 sampai berjalan di emulator. Lampirkan screenshot skenario 1-5 dari section 11, termasuk bukti data tetap ada setelah aplikasi ditutup paksa.",
+      "<strong>Tugas 2 (Wajib, 20 poin):</strong> Tambahkan field <code>String email</code> pada model <code>Mahasiswa</code>, adapter, form (dengan validasi format email), dan kartu di daftar. Uninstall aplikasi sebelum menjalankan ulang, lalu jelaskan di laporan kenapa langkah ini diperlukan.",
+      "<strong>Tugas 3 (Wajib, 15 poin):</strong> Tambahkan filter prodi berupa deretan <code>ChoiceChip</code> (Semua, Informatika, Sistem Informasi, dan seterusnya) di bawah kolom pencarian. Simpan pilihan di controller sebagai <code>.obs</code> dan gabungkan dengan pencarian di <code>filteredList</code>.",
+      "<strong>Tugas 4 (Wajib, 15 poin):</strong> Tampilkan jumlah mahasiswa yang sedang tampil di AppBar, misalnya \"Data Mahasiswa (3)\", yang ikut berubah saat data ditambah, dihapus, atau dicari.",
+      "<strong>Tugas 5 (Wajib, 15 poin):</strong> Tambahkan halaman detail mahasiswa (route <code>/detail</code>) yang terbuka saat kartu diketuk, berisi semua field dan tombol Edit/Hapus. Daftarkan route di <code>AppPages</code>.",
+      "<strong>Tugas 6 (Wajib, 10 poin):</strong> Tambahkan minimal 2 unit test baru di <code>hive_service_test.dart</code> (misalnya menyimpan 3 data lalu memastikan <code>getAll</code> berisi 3, dan menghapus id yang tidak ada tidak menyebabkan error). Semua test harus lulus.",
+      "<strong>Bonus (+10 poin):</strong> Ganti tombol hapus dengan gestur geser <code>Dismissible</code> dan snackbar berisi aksi \"Batalkan\" yang mengembalikan data yang terhapus lewat <code>HiveService.create</code>."
+    ],
+    "expectedOutput": "Aplikasi CRUD Mahasiswa yang berjalan offline dengan field email, filter prodi, jumlah data di AppBar, halaman detail, serta data yang tetap ada setelah restart. Disertai output flutter analyze tanpa issue dan flutter test yang semua lulus.",
+    "rubric": "Tugas 1: kelengkapan CRUD dan bukti persistensi (25%). Tugas 2: field baru end-to-end beserta validasi (20%). Tugas 3: filter prodi reaktif (15%). Tugas 4: jumlah data reaktif (15%). Tugas 5: halaman detail dan route (15%). Tugas 6: unit test (10%). Bonus Dismissible + Batalkan (+10%). Pengurangan nilai jika View memanggil Hive secara langsung, memakai setState untuk data mahasiswa, atau flutter analyze masih menampilkan issue."
+  },
+  "quiz": [
+    {
+      "question": "Pada proyek ini, file mana yang SATU-SATUNYA boleh memanggil Hive.box() untuk operasi CRUD?",
+      "options": [
+        "mahasiswa_list_view.dart",
+        "mahasiswa_controller.dart",
+        "hive_service.dart",
+        "app_pages.dart"
+      ],
+      "correctIndex": 2,
+      "explanation": "HiveService adalah lapisan akses data. Controller memanggil service, dan View hanya memanggil controller. Dengan begitu, jika penyimpanan diganti (misalnya ke Supabase), cukup HiveService yang diubah."
+    },
+    {
+      "question": "Kenapa HiveService.create dan HiveService.update sama-sama memakai _box.put(mhs.id, mhs)?",
+      "options": [
+        "Karena Hive tidak punya cara untuk mengubah data",
+        "Karena put membuat data baru jika key belum ada dan menimpa data lama jika key sudah ada",
+        "Karena update harus menghapus data dulu lalu menambah ulang",
+        "Karena put selalu membuat key acak"
+      ],
+      "correctIndex": 1,
+      "explanation": "put dengan key yang sama menimpa value lama. Karena id dipakai sebagai key, mengedit data cukup dengan put memakai id lama."
+    },
+    {
+      "question": "Di MahasiswaAdapter, write menulis id, nim, nama, prodi, semester. Apa akibatnya jika read ditulis membaca nama sebelum nim?",
+      "options": [
+        "Tidak ada akibat, Hive mencocokkan berdasarkan nama field",
+        "Hive otomatis mengurutkan ulang field",
+        "Nilai nim dan nama tertukar saat data dibaca, karena adapter manual hanya mengandalkan urutan",
+        "Aplikasi tidak bisa dikompilasi"
+      ],
+      "correctIndex": 2,
+      "explanation": "Adapter manual tidak menyimpan nama field. Data dibaca persis sesuai urutan penulisan, sehingga urutan read harus sama dengan urutan write."
+    },
+    {
+      "question": "Manakah urutan yang benar di main() sebelum runApp?",
+      "options": [
+        "Hive.openBox, Hive.registerAdapter, Hive.initFlutter",
+        "WidgetsFlutterBinding.ensureInitialized, Hive.initFlutter, Hive.registerAdapter, Hive.openBox",
+        "Hive.registerAdapter, runApp, Hive.openBox",
+        "Hive.initFlutter, Hive.openBox, Hive.registerAdapter"
+      ],
+      "correctIndex": 1,
+      "explanation": "Binding harus siap sebelum memakai plugin, Hive harus tahu folder penyimpanan, adapter harus terdaftar sebelum box berisi objek Mahasiswa dibuka, dan box dibuka sebelum controller memakainya."
+    },
+    {
+      "question": "Setelah menyimpan data, controller memanggil loadData(). Apa yang terjadi jika baris ini dihapus?",
+      "options": [
+        "Data tidak tersimpan ke Hive",
+        "Data tersimpan di Hive, tetapi daftar di layar tidak berubah sampai aplikasi dibuka ulang",
+        "Aplikasi crash",
+        "Hive otomatis memperbarui Obx"
+      ],
+      "correctIndex": 1,
+      "explanation": "Obx mendengarkan mahasiswaList (RxList), bukan isi box. loadData() mengisi ulang mahasiswaList dengan assignAll sehingga Obx membangun ulang daftar."
+    },
+    {
+      "question": "Bagaimana satu halaman MahasiswaFormView bisa dipakai untuk tambah dan edit?",
+      "options": [
+        "Dengan membuat dua controller berbeda",
+        "Controller menyimpan editingId: null berarti mode tambah, berisi id berarti mode edit; judul, tombol, dan proses simpan menyesuaikan isEdit",
+        "Dengan mengirim parameter lewat constructor View",
+        "Dengan memakai dua route yang menunjuk widget berbeda"
+      ],
+      "correctIndex": 1,
+      "explanation": "openAddForm mengosongkan editingId dan field, openEditForm mengisinya dengan data lama. save() memakai isEdit untuk memilih update atau create dan id lama atau id baru."
+    },
+    {
+      "question": "Saat mengedit Budi tanpa mengubah NIM, kenapa pengecekan NIM ganda tidak menolak penyimpanan?",
+      "options": [
+        "Karena pengecekan hanya dilakukan saat mode tambah",
+        "Karena syarat m.id != editingId mengecualikan data yang sedang diedit",
+        "Karena NIM disimpan sebagai int",
+        "Karena Hive menolak key ganda secara otomatis"
+      ],
+      "correctIndex": 1,
+      "explanation": "any(...) mencari mahasiswa lain dengan NIM sama. Data milik sendiri dikecualikan lewat perbandingan id, sehingga edit tanpa mengubah NIM tetap diizinkan."
+    },
+    {
+      "question": "Kenapa MahasiswaBinding hanya dipasang pada route home dan tidak pada route form?",
+      "options": [
+        "Karena route form tidak boleh memakai GetX",
+        "Karena form selalu dibuka dari halaman daftar sehingga controller yang sama sudah ada di memori, dan form harus membaca data yang disiapkan openEditForm",
+        "Karena Binding hanya boleh dipakai sekali di seluruh aplikasi",
+        "Karena route form memakai StatefulWidget"
+      ],
+      "correctIndex": 1,
+      "explanation": "Halaman daftar dan form berbagi satu MahasiswaController. Data field form diisi controller sebelum pindah halaman, lalu dibaca oleh View form lewat Get.find."
+    },
+    {
+      "question": "Kenapa unit test memakai Hive.init(dir.path) dan bukan Hive.initFlutter()?",
+      "options": [
+        "Karena Hive.initFlutter lebih lambat",
+        "Karena saat test tidak ada perangkat sehingga folder penyimpanan ditentukan sendiri di folder sementara, dan data test tidak bercampur dengan data aplikasi",
+        "Karena Hive.init mengenkripsi data",
+        "Karena Hive.initFlutter tidak mendukung TypeAdapter"
+      ],
+      "correctIndex": 1,
+      "explanation": "Hive.initFlutter mencari folder dokumen aplikasi lewat plugin, yang tidak tersedia saat flutter test. Folder sementara juga mudah dihapus di tearDownAll."
+    }
+  ]
+}

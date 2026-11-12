@@ -1,0 +1,61 @@
+<p class="lead"><code>HiveService</code> adalah <strong>satu-satunya</strong> class yang berbicara langsung dengan Hive. Controller cukup memanggil <code>create</code>, <code>getAll</code>, <code>update</code>, atau <code>delete</code> tanpa perlu tahu nama box maupun cara Hive bekerja.</p>
+
+<p>Buat file <code>lib/services/hive_service.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/services/hive_service.dart</code></p>
+<pre><code class="language-dart">import 'package:hive_ce/hive_ce.dart';
+
+import '../models/mahasiswa_model.dart';
+
+/// Lapisan akses data (bagian dari MODEL pada MVC).
+/// Semua operasi CRUD ke Hive dikumpulkan di sini,
+/// sehingga Controller tidak perlu tahu detail database.
+class HiveService {
+  static const String boxName = 'mahasiswa_box';
+
+  Box&lt;Mahasiswa&gt; get _box =&gt; Hive.box&lt;Mahasiswa&gt;(boxName);
+
+  // READ
+  List&lt;Mahasiswa&gt; getAll() =&gt; _box.values.toList();
+
+  // CREATE (key = id mahasiswa)
+  Future&lt;void&gt; create(Mahasiswa mhs) =&gt; _box.put(mhs.id, mhs);
+
+  // UPDATE (put dengan key yang sama akan menimpa data lama)
+  Future&lt;void&gt; update(Mahasiswa mhs) =&gt; _box.put(mhs.id, mhs);
+
+  // DELETE
+  Future&lt;void&gt; delete(String id) =&gt; _box.delete(id);
+}
+</code></pre>
+
+<h4>Penjelasan per baris</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kode</th><th>Arti</th></tr></thead>
+    <tbody>
+      <tr><td><code>static const String boxName = 'mahasiswa_box';</code></td><td>Nama box disimpan di satu tempat. <code>main.dart</code> dan file test memakai <code>HiveService.boxName</code>, sehingga tidak ada salah ketik nama box.</td></tr>
+      <tr><td><code>Box&lt;Mahasiswa&gt; get _box =&gt; Hive.box&lt;Mahasiswa&gt;(boxName);</code></td><td>Mengambil box yang <strong>sudah dibuka</strong> di <code>main()</code>. <code>Hive.box()</code> bersifat sinkron dan hanya boleh dipanggil setelah <code>Hive.openBox()</code> selesai.</td></tr>
+      <tr><td><code>_box.values.toList()</code></td><td><strong>READ</strong>: semua objek <code>Mahasiswa</code> di box dalam bentuk <code>List</code>.</td></tr>
+      <tr><td><code>_box.put(mhs.id, mhs)</code></td><td><strong>CREATE</strong>: menyimpan objek dengan key = <code>id</code>. Jika key belum ada, data baru dibuat.</td></tr>
+      <tr><td><code>_box.put(mhs.id, mhs)</code> (lagi)</td><td><strong>UPDATE</strong>: kode yang sama! Jika key sudah ada, <code>put</code> menimpa data lama. Inilah alasan id dipakai sebagai key.</td></tr>
+      <tr><td><code>_box.delete(id)</code></td><td><strong>DELETE</strong>: menghapus data berdasarkan key.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>Jika dibandingkan dengan SQL di Modul 10, kira-kira seperti ini:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Operasi</th><th>SQLite (Modul 10)</th><th>Hive (proyek ini)</th></tr></thead>
+    <tbody>
+      <tr><td>Create</td><td><code>INSERT INTO mahasiswa ...</code></td><td><code>box.put(id, mhs)</code></td></tr>
+      <tr><td>Read</td><td><code>SELECT * FROM mahasiswa</code></td><td><code>box.values.toList()</code></td></tr>
+      <tr><td>Update</td><td><code>UPDATE mahasiswa SET ... WHERE id = ?</code></td><td><code>box.put(id, mhsBaru)</code></td></tr>
+      <tr><td>Delete</td><td><code>DELETE FROM mahasiswa WHERE id = ?</code></td><td><code>box.delete(id)</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-tip"><h4>💡 Kenapa create dan update dipisah kalau isinya sama?</h4><p>Supaya kode controller terbaca jelas: <code>_service.create(mhs)</code> dan <code>_service.update(mhs)</code> langsung memberi tahu maksudnya. Jika suatu saat penyimpanan diganti ke Supabase (Modul 12), create menjadi <code>insert</code> dan update menjadi <code>update</code>. Cukup isi <code>HiveService</code> yang diubah, controller dan view tidak perlu disentuh.</p></div>
+
+<div class="callout callout-info"><h4>ℹ️ <code>Future&lt;void&gt;</code></h4><p><code>put</code> dan <code>delete</code> menulis ke file sehingga butuh waktu sesaat. Keduanya mengembalikan <code>Future</code>, dan controller memanggilnya dengan <code>await</code> agar data benar-benar tersimpan sebelum daftar dimuat ulang. Sebaliknya <code>getAll()</code> sinkron karena Hive menyimpan salinan isi box di memori.</p></div>

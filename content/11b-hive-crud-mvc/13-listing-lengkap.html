@@ -1,0 +1,734 @@
+<p class="lead">Section ini berisi <strong>seluruh</strong> file proyek dalam bentuk final, siap disalin. Gunakan untuk membandingkan jika aplikasi Anda error, atau untuk membuat ulang proyek dari nol dengan cepat. Semua kode di bawah sudah diverifikasi dengan <code>flutter analyze</code> (tanpa masalah), <code>flutter test</code> (5 test lulus), dan dijalankan di Android Emulator.</p>
+
+<h4>Langkah dari proyek kosong</h4>
+<pre><code class="language-bash">flutter create crud_mahasiswa
+cd crud_mahasiswa
+flutter pub add get hive_ce hive_ce_flutter
+rm test/widget_test.dart
+mkdir -p lib/models lib/services lib/controllers lib/bindings lib/routes lib/views
+</code></pre>
+<p>Lalu buat 12 file di bawah ini (10 file di <code>lib/</code>, 2 file di <code>test/</code>), dan jalankan:</p>
+<pre><code class="language-bash">flutter analyze
+flutter test
+flutter run
+</code></pre>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>No</th><th>File</th><th>Lapisan</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>lib/main.dart</code></td><td>Titik awal aplikasi</td></tr>
+      <tr><td>2</td><td><code>lib/models/mahasiswa_model.dart</code></td><td>Model</td></tr>
+      <tr><td>3</td><td><code>lib/models/mahasiswa_adapter.dart</code></td><td>Model</td></tr>
+      <tr><td>4</td><td><code>lib/services/hive_service.dart</code></td><td>Model (akses data)</td></tr>
+      <tr><td>5</td><td><code>lib/controllers/mahasiswa_controller.dart</code></td><td>Controller</td></tr>
+      <tr><td>6</td><td><code>lib/bindings/mahasiswa_binding.dart</code></td><td>GetX (DI)</td></tr>
+      <tr><td>7</td><td><code>lib/routes/app_routes.dart</code></td><td>GetX (route)</td></tr>
+      <tr><td>8</td><td><code>lib/routes/app_pages.dart</code></td><td>GetX (route)</td></tr>
+      <tr><td>9</td><td><code>lib/views/mahasiswa_list_view.dart</code></td><td>View</td></tr>
+      <tr><td>10</td><td><code>lib/views/mahasiswa_form_view.dart</code></td><td>View</td></tr>
+      <tr><td>11</td><td><code>test/hive_service_test.dart</code></td><td>Unit test</td></tr>
+      <tr><td>12</td><td><code>test/crud_flow_test.dart</code></td><td>Widget test</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>pubspec.yaml (bagian dependencies)</h4>
+<p>Bagian ini dibuat otomatis oleh <code>flutter pub add</code>. Nomor versi di laptop Anda boleh lebih baru.</p>
+<pre><code class="language-yaml">dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  get: ^4.7.3
+  hive_ce: ^2.23.3
+  hive_ce_flutter: ^2.5.0
+</code></pre>
+
+<h4>1. main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+import 'models/mahasiswa_adapter.dart';
+import 'models/mahasiswa_model.dart';
+import 'routes/app_pages.dart';
+import 'routes/app_routes.dart';
+import 'services/hive_service.dart';
+
+Future&lt;void&gt; main() async {
+  // 1. Pastikan binding Flutter siap sebelum memanggil kode async
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 2. Inisialisasi Hive (menentukan folder penyimpanan otomatis)
+  await Hive.initFlutter();
+
+  // 3. Daftarkan adapter untuk class Mahasiswa
+  Hive.registerAdapter(MahasiswaAdapter());
+
+  // 4. Buka box (seperti membuka "tabel")
+  await Hive.openBox&lt;Mahasiswa&gt;(HiveService.boxName);
+
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      title: 'CRUD Mahasiswa',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorSchemeSeed: Colors.indigo,
+        useMaterial3: true,
+      ),
+      initialRoute: AppRoutes.home,
+      getPages: AppPages.pages,
+    );
+  }
+}
+</code></pre>
+
+<h4>2. Model Mahasiswa</h4>
+<p class="code-file-label">📄 <code>lib/models/mahasiswa_model.dart</code></p>
+<pre><code class="language-dart">/// MODEL: representasi data Mahasiswa.
+/// Class ini murni berisi data (tidak tahu soal UI maupun GetX).
+class Mahasiswa {
+  final String id;
+  final String nim;
+  final String nama;
+  final String prodi;
+  final int semester;
+
+  Mahasiswa({
+    required this.id,
+    required this.nim,
+    required this.nama,
+    required this.prodi,
+    required this.semester,
+  });
+
+  /// Membuat salinan objek dengan sebagian field yang diubah.
+  Mahasiswa copyWith({
+    String? nim,
+    String? nama,
+    String? prodi,
+    int? semester,
+  }) {
+    return Mahasiswa(
+      id: id,
+      nim: nim ?? this.nim,
+      nama: nama ?? this.nama,
+      prodi: prodi ?? this.prodi,
+      semester: semester ?? this.semester,
+    );
+  }
+}
+</code></pre>
+
+<h4>3. TypeAdapter</h4>
+<p class="code-file-label">📄 <code>lib/models/mahasiswa_adapter.dart</code></p>
+<pre><code class="language-dart">import 'package:hive_ce/hive_ce.dart';
+
+import 'mahasiswa_model.dart';
+
+/// TypeAdapter memberi tahu Hive cara menyimpan (write)
+/// dan membaca (read) objek Mahasiswa dalam bentuk biner.
+///
+/// ATURAN PENTING:
+/// 1. typeId harus unik per class (0 - 223).
+/// 2. Urutan read HARUS sama persis dengan urutan write.
+class MahasiswaAdapter extends TypeAdapter&lt;Mahasiswa&gt; {
+  @override
+  final int typeId = 0;
+
+  @override
+  Mahasiswa read(BinaryReader reader) {
+    return Mahasiswa(
+      id: reader.readString(),
+      nim: reader.readString(),
+      nama: reader.readString(),
+      prodi: reader.readString(),
+      semester: reader.readInt(),
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, Mahasiswa obj) {
+    writer.writeString(obj.id);
+    writer.writeString(obj.nim);
+    writer.writeString(obj.nama);
+    writer.writeString(obj.prodi);
+    writer.writeInt(obj.semester);
+  }
+}
+</code></pre>
+
+<h4>4. HiveService</h4>
+<p class="code-file-label">📄 <code>lib/services/hive_service.dart</code></p>
+<pre><code class="language-dart">import 'package:hive_ce/hive_ce.dart';
+
+import '../models/mahasiswa_model.dart';
+
+/// Lapisan akses data (bagian dari MODEL pada MVC).
+/// Semua operasi CRUD ke Hive dikumpulkan di sini,
+/// sehingga Controller tidak perlu tahu detail database.
+class HiveService {
+  static const String boxName = 'mahasiswa_box';
+
+  Box&lt;Mahasiswa&gt; get _box =&gt; Hive.box&lt;Mahasiswa&gt;(boxName);
+
+  // READ
+  List&lt;Mahasiswa&gt; getAll() =&gt; _box.values.toList();
+
+  // CREATE (key = id mahasiswa)
+  Future&lt;void&gt; create(Mahasiswa mhs) =&gt; _box.put(mhs.id, mhs);
+
+  // UPDATE (put dengan key yang sama akan menimpa data lama)
+  Future&lt;void&gt; update(Mahasiswa mhs) =&gt; _box.put(mhs.id, mhs);
+
+  // DELETE
+  Future&lt;void&gt; delete(String id) =&gt; _box.delete(id);
+}
+</code></pre>
+
+<h4>5. MahasiswaController</h4>
+<p class="code-file-label">📄 <code>lib/controllers/mahasiswa_controller.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../models/mahasiswa_model.dart';
+import '../routes/app_routes.dart';
+import '../services/hive_service.dart';
+
+/// CONTROLLER: penghubung antara View dan Model.
+/// Menyimpan state (reaktif) dan berisi seluruh logika CRUD.
+class MahasiswaController extends GetxController {
+  final HiveService _service = HiveService();
+
+  // ------------------ STATE REAKTIF ------------------
+  final mahasiswaList = &lt;Mahasiswa&gt;[].obs;
+  final keyword = ''.obs;
+  final selectedProdi = 'Informatika'.obs;
+
+  final List&lt;String&gt; daftarProdi = const [
+    'Informatika',
+    'Sistem Informasi',
+    'Teknik Komputer',
+    'Data Science',
+  ];
+
+  // ------------------ STATE FORM ------------------
+  final formKey = GlobalKey&lt;FormState&gt;();
+  final nimC = TextEditingController();
+  final namaC = TextEditingController();
+  final semesterC = TextEditingController();
+
+  /// null  -&gt; mode TAMBAH
+  /// berisi id -&gt; mode EDIT
+  String? editingId;
+  bool get isEdit =&gt; editingId != null;
+
+  /// Data yang ditampilkan (sudah difilter pencarian).
+  List&lt;Mahasiswa&gt; get filteredList {
+    final q = keyword.value.toLowerCase();
+    if (q.isEmpty) return mahasiswaList;
+    return mahasiswaList
+        .where((m) =&gt;
+            m.nama.toLowerCase().contains(q) || m.nim.contains(q))
+        .toList();
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadData();
+  }
+
+  // ------------------ READ ------------------
+  void loadData() {
+    final data = _service.getAll()
+      ..sort((a, b) =&gt; a.nama.toLowerCase().compareTo(b.nama.toLowerCase()));
+    mahasiswaList.assignAll(data);
+  }
+
+  // ------------------ NAVIGASI KE FORM ------------------
+  void openAddForm() {
+    editingId = null;
+    nimC.clear();
+    namaC.clear();
+    semesterC.clear();
+    selectedProdi.value = daftarProdi.first;
+    Get.toNamed(AppRoutes.form);
+  }
+
+  void openEditForm(Mahasiswa mhs) {
+    editingId = mhs.id;
+    nimC.text = mhs.nim;
+    namaC.text = mhs.nama;
+    semesterC.text = mhs.semester.toString();
+    selectedProdi.value = mhs.prodi;
+    Get.toNamed(AppRoutes.form);
+  }
+
+  // ------------------ CREATE &amp; UPDATE ------------------
+  Future&lt;void&gt; save() async {
+    if (!formKey.currentState!.validate()) return;
+
+    final nim = nimC.text.trim();
+
+    // Cegah NIM ganda
+    final nimSudahAda =
+        mahasiswaList.any((m) =&gt; m.nim == nim &amp;&amp; m.id != editingId);
+    if (nimSudahAda) {
+      Get.snackbar('Gagal', 'NIM $nim sudah terdaftar',
+          snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+
+    final mhs = Mahasiswa(
+      id: editingId ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      nim: nim,
+      nama: namaC.text.trim(),
+      prodi: selectedProdi.value,
+      semester: int.parse(semesterC.text.trim()),
+    );
+
+    if (isEdit) {
+      await _service.update(mhs);
+    } else {
+      await _service.create(mhs);
+    }
+
+    final pesan = isEdit ? 'Data berhasil diperbarui' : 'Data berhasil ditambahkan';
+    loadData();
+    tutup(); // kembali ke halaman daftar
+    Get.snackbar('Sukses', pesan, snackPosition: SnackPosition.BOTTOM);
+  }
+
+  // ------------------ DELETE ------------------
+  Future&lt;void&gt; confirmDelete(Mahasiswa mhs) async {
+    final yakin = await Get.dialog&lt;bool&gt;(
+      AlertDialog(
+        title: const Text('Hapus Data'),
+        content: Text('Yakin ingin menghapus ${mhs.nama}?'),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; tutup(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; tutup(true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (yakin == true) {
+      await _service.delete(mhs.id);
+      loadData();
+      Get.snackbar('Terhapus', '${mhs.nama} telah dihapus',
+          snackPosition: SnackPosition.BOTTOM);
+    }
+  }
+
+  // ------------------ HELPER NAVIGASI ------------------
+  /// Menutup halaman / dialog paling atas (opsional membawa [result]).
+  ///
+  /// Kenapa tidak memakai Get.back()? Pada GetX 4.x, jika masih ada
+  /// snackbar yang tampil, Get.back() HANYA menutup snackbar tersebut,
+  /// sehingga halaman form / dialog tidak tertutup. Get.key adalah
+  /// navigator milik GetMaterialApp, jadi pop() selalu menutup route.
+  void tutup&lt;T&gt;([T? result]) =&gt; Get.key.currentState?.pop&lt;T&gt;(result);
+
+  // ------------------ VALIDATOR ------------------
+  String? validateNim(String? v) {
+    if (v == null || v.trim().isEmpty) return 'NIM wajib diisi';
+    if (int.tryParse(v.trim()) == null) return 'NIM harus berupa angka';
+    if (v.trim().length &lt; 8) return 'NIM minimal 8 digit';
+    return null;
+  }
+
+  String? validateNama(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Nama wajib diisi';
+    return null;
+  }
+
+  String? validateSemester(String? v) {
+    final s = int.tryParse(v?.trim() ?? '');
+    if (s == null) return 'Semester wajib berupa angka';
+    if (s &lt; 1 || s &gt; 14) return 'Semester antara 1 - 14';
+    return null;
+  }
+
+  @override
+  void onClose() {
+    nimC.dispose();
+    namaC.dispose();
+    semesterC.dispose();
+    super.onClose();
+  }
+}
+</code></pre>
+
+<h4>6. Binding</h4>
+<p class="code-file-label">📄 <code>lib/bindings/mahasiswa_binding.dart</code></p>
+<pre><code class="language-dart">import 'package:get/get.dart';
+
+import '../controllers/mahasiswa_controller.dart';
+
+/// Binding: mendaftarkan dependency (controller) ke GetX
+/// sebelum halaman dibuka.
+class MahasiswaBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut&lt;MahasiswaController&gt;(() =&gt; MahasiswaController());
+  }
+}
+</code></pre>
+
+<h4>7. Nama route</h4>
+<p class="code-file-label">📄 <code>lib/routes/app_routes.dart</code></p>
+<pre><code class="language-dart">/// Daftar nama route aplikasi.
+abstract class AppRoutes {
+  static const home = '/';
+  static const form = '/form';
+}
+</code></pre>
+
+<h4>8. Pemetaan route</h4>
+<p class="code-file-label">📄 <code>lib/routes/app_pages.dart</code></p>
+<pre><code class="language-dart">import 'package:get/get.dart';
+
+import '../bindings/mahasiswa_binding.dart';
+import '../views/mahasiswa_form_view.dart';
+import '../views/mahasiswa_list_view.dart';
+import 'app_routes.dart';
+
+/// Pemetaan route -&gt; halaman (+ binding).
+class AppPages {
+  static final pages = [
+    GetPage(
+      name: AppRoutes.home,
+      page: () =&gt; const MahasiswaListView(),
+      binding: MahasiswaBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.form,
+      page: () =&gt; const MahasiswaFormView(),
+    ),
+  ];
+}
+</code></pre>
+
+<h4>9. View daftar</h4>
+<p class="code-file-label">📄 <code>lib/views/mahasiswa_list_view.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/mahasiswa_controller.dart';
+
+/// VIEW: halaman daftar mahasiswa (READ + tombol Edit/Hapus).
+/// `GetView&lt;T&gt;` otomatis menyediakan properti `controller`.
+class MahasiswaListView extends GetView&lt;MahasiswaController&gt; {
+  const MahasiswaListView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Data Mahasiswa'),
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          // ---------- Kolom pencarian ----------
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              onChanged: (v) =&gt; controller.keyword.value = v,
+              decoration: const InputDecoration(
+                hintText: 'Cari nama atau NIM...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+
+          // ---------- Daftar data (reaktif) ----------
+          Expanded(
+            child: Obx(() {
+              final data = controller.filteredList;
+
+              if (data.isEmpty) {
+                return const Center(
+                  child: Text('Belum ada data mahasiswa'),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.only(bottom: 80),
+                itemCount: data.length,
+                itemBuilder: (context, index) {
+                  final mhs = data[index];
+                  return Card(
+                    margin: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        child: Text(mhs.nama[0].toUpperCase()),
+                      ),
+                      title: Text(mhs.nama),
+                      subtitle: Text(
+                          'NIM ${mhs.nim}\n${mhs.prodi} • Smt ${mhs.semester}'),
+                      isThreeLine: true,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.edit, color: Colors.orange),
+                            onPressed: () =&gt; controller.openEditForm(mhs),
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () =&gt; controller.confirmDelete(mhs),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            }),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: controller.openAddForm,
+        icon: const Icon(Icons.add),
+        label: const Text('Tambah'),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>10. View form</h4>
+<p class="code-file-label">📄 <code>lib/views/mahasiswa_form_view.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:get/get.dart';
+
+import '../controllers/mahasiswa_controller.dart';
+
+/// VIEW: halaman form untuk CREATE dan UPDATE.
+class MahasiswaFormView extends GetView&lt;MahasiswaController&gt; {
+  const MahasiswaFormView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(controller.isEdit ? 'Edit Mahasiswa' : 'Tambah Mahasiswa'),
+      ),
+      body: Form(
+        key: controller.formKey,
+        // pesan error diperbarui otomatis saat user mengetik
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: controller.nimC,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              validator: controller.validateNim,
+              decoration: const InputDecoration(
+                labelText: 'NIM',
+                prefixIcon: Icon(Icons.badge),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: controller.namaC,
+              textCapitalization: TextCapitalization.words,
+              validator: controller.validateNama,
+              decoration: const InputDecoration(
+                labelText: 'Nama Lengkap',
+                prefixIcon: Icon(Icons.person),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField&lt;String&gt;(
+              initialValue: controller.selectedProdi.value,
+              items: controller.daftarProdi
+                  .map((p) =&gt; DropdownMenuItem(value: p, child: Text(p)))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) controller.selectedProdi.value = v;
+              },
+              decoration: const InputDecoration(
+                labelText: 'Program Studi',
+                prefixIcon: Icon(Icons.school),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: controller.semesterC,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              validator: controller.validateSemester,
+              decoration: const InputDecoration(
+                labelText: 'Semester',
+                prefixIcon: Icon(Icons.calendar_month),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: controller.save,
+              icon: const Icon(Icons.save),
+              label: Text(controller.isEdit ? 'Perbarui' : 'Simpan'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>11. Unit test HiveService</h4>
+<p class="code-file-label">📄 <code>test/hive_service_test.dart</code></p>
+<pre><code class="language-dart">import 'dart:io';
+
+import 'package:crud_mahasiswa/models/mahasiswa_adapter.dart';
+import 'package:crud_mahasiswa/models/mahasiswa_model.dart';
+import 'package:crud_mahasiswa/services/hive_service.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive_ce.dart';
+
+void main() {
+  late Directory dir;
+  final service = HiveService();
+
+  setUpAll(() async {
+    dir = await Directory.systemTemp.createTemp('hive_test');
+    Hive.init(dir.path);
+    Hive.registerAdapter(MahasiswaAdapter());
+    await Hive.openBox&lt;Mahasiswa&gt;(HiveService.boxName);
+  });
+
+  tearDownAll(() async {
+    await Hive.deleteFromDisk();
+    await dir.delete(recursive: true);
+  });
+
+  final budi = Mahasiswa(
+      id: '1', nim: '220101001', nama: 'Budi', prodi: 'Informatika', semester: 5);
+
+  test('CREATE &amp; READ', () async {
+    await service.create(budi);
+    final all = service.getAll();
+    expect(all.length, 1);
+    expect(all.first.nama, 'Budi');
+    expect(all.first.semester, 5);
+  });
+
+  test('UPDATE', () async {
+    await service.update(budi.copyWith(nama: 'Budi Santoso', semester: 6));
+    final all = service.getAll();
+    expect(all.length, 1);
+    expect(all.first.nama, 'Budi Santoso');
+    expect(all.first.semester, 6);
+  });
+
+  test('Data tetap ada setelah box ditutup &amp; dibuka lagi', () async {
+    await Hive.box&lt;Mahasiswa&gt;(HiveService.boxName).close();
+    await Hive.openBox&lt;Mahasiswa&gt;(HiveService.boxName);
+    expect(service.getAll().first.nama, 'Budi Santoso');
+  });
+
+  test('DELETE', () async {
+    await service.delete('1');
+    expect(service.getAll(), isEmpty);
+  });
+}
+</code></pre>
+
+<h4>12. Widget test alur CRUD</h4>
+<p class="code-file-label">📄 <code>test/crud_flow_test.dart</code></p>
+<pre><code class="language-dart">import 'dart:io';
+
+import 'package:crud_mahasiswa/main.dart';
+import 'package:crud_mahasiswa/models/mahasiswa_adapter.dart';
+import 'package:crud_mahasiswa/models/mahasiswa_model.dart';
+import 'package:crud_mahasiswa/services/hive_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+import 'package:hive_ce/hive_ce.dart';
+
+/// Tap tombol lalu beri waktu nyata agar operasi IO Hive selesai.
+Future&lt;void&gt; tapDanTunggu(WidgetTester tester, Finder f) async {
+  await tester.tap(f);
+  for (var i = 0; i &lt; 5; i++) {
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.runAsync(
+        () =&gt; Future.delayed(const Duration(milliseconds: 100)));
+  }
+}
+
+void main() {
+  testWidgets('Alur CRUD lewat UI', (tester) async {
+    await tester.runAsync(() async {
+      final dir = await Directory.systemTemp.createTemp('hive_ui');
+      Hive.init(dir.path);
+      Hive.registerAdapter(MahasiswaAdapter());
+      await Hive.openBox&lt;Mahasiswa&gt;(HiveService.boxName);
+    });
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    expect(find.text('Belum ada data mahasiswa'), findsOneWidget);
+
+    // CREATE
+    await tester.tap(find.text('Tambah'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'NIM'), '22010100');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Nama Lengkap'), 'Siti');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Semester'), '3');
+    await tapDanTunggu(tester, find.text('Simpan'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Siti'), findsOneWidget);
+
+    // UPDATE
+    await tester.tap(find.byIcon(Icons.edit));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Nama Lengkap'), 'Siti Aminah');
+    await tapDanTunggu(tester, find.text('Perbarui'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Siti Aminah'), findsOneWidget);
+
+    // DELETE
+    await tester.tap(find.byIcon(Icons.delete));
+    await tester.pumpAndSettle();
+    await tapDanTunggu(tester, find.text('Hapus'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Belum ada data mahasiswa'), findsOneWidget);
+    Get.reset();
+  });
+}
+</code></pre>

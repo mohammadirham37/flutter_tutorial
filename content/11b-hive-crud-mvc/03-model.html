@@ -1,0 +1,72 @@
+<p class="lead">Kita mulai dari lapisan paling bawah: <strong>Model</strong>. Model adalah class Dart biasa yang mendeskripsikan bentuk satu data mahasiswa. Class ini tidak tahu apa-apa tentang tampilan, GetX, maupun Hive.</p>
+
+<p>Buat file baru <code>lib/models/mahasiswa_model.dart</code>, lalu salin kode berikut:</p>
+<p class="code-file-label">📄 <code>lib/models/mahasiswa_model.dart</code></p>
+<pre><code class="language-dart">/// MODEL: representasi data Mahasiswa.
+/// Class ini murni berisi data (tidak tahu soal UI maupun GetX).
+class Mahasiswa {
+  final String id;
+  final String nim;
+  final String nama;
+  final String prodi;
+  final int semester;
+
+  Mahasiswa({
+    required this.id,
+    required this.nim,
+    required this.nama,
+    required this.prodi,
+    required this.semester,
+  });
+
+  /// Membuat salinan objek dengan sebagian field yang diubah.
+  Mahasiswa copyWith({
+    String? nim,
+    String? nama,
+    String? prodi,
+    int? semester,
+  }) {
+    return Mahasiswa(
+      id: id,
+      nim: nim ?? this.nim,
+      nama: nama ?? this.nama,
+      prodi: prodi ?? this.prodi,
+      semester: semester ?? this.semester,
+    );
+  }
+}
+</code></pre>
+
+<h4>Penjelasan kode</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Field</th><th>Tipe</th><th>Keterangan</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td><code>String</code></td><td>Penanda unik setiap data. Dipakai sebagai <strong>key</strong> di box Hive. Dibuat otomatis oleh controller, pengguna tidak pernah melihatnya.</td></tr>
+      <tr><td><code>nim</code></td><td><code>String</code></td><td>Nomor induk mahasiswa. Disimpan sebagai teks (bukan <code>int</code>) karena NIM bisa diawali angka 0 dan tidak pernah dihitung.</td></tr>
+      <tr><td><code>nama</code></td><td><code>String</code></td><td>Nama lengkap.</td></tr>
+      <tr><td><code>prodi</code></td><td><code>String</code></td><td>Program studi, dipilih dari dropdown.</td></tr>
+      <tr><td><code>semester</code></td><td><code>int</code></td><td>Semester 1 sampai 14. Bertipe angka agar mudah dibandingkan dan divalidasi.</td></tr>
+    </tbody>
+  </table>
+</div>
+<ul>
+  <li><strong>Semua field <code>final</code></strong>: setelah objek dibuat, isinya tidak bisa diubah. Objek seperti ini disebut <em>immutable</em>. Keuntungannya, data tidak bisa berubah diam-diam dari tempat lain sehingga bug lebih mudah dilacak.</li>
+  <li><strong><code>required</code></strong> di constructor memaksa semua field diisi. Lupa mengisi satu field langsung menjadi error saat kompilasi, bukan saat aplikasi berjalan.</li>
+  <li><strong><code>copyWith</code></strong>: karena objek tidak bisa diubah, cara "mengedit" adalah membuat salinan dengan sebagian field diganti. Field yang tidak dikirim (<code>null</code>) memakai nilai lama berkat operator <code>??</code>. Perhatikan bahwa <code>id</code> sengaja tidak bisa diganti, karena id adalah identitas data.</li>
+</ul>
+
+<p>Contoh penggunaan <code>copyWith</code> (dipakai di unit test section 12):</p>
+<pre><code class="language-dart">final budi = Mahasiswa(
+  id: '1', nim: '220101001', nama: 'Budi', prodi: 'Informatika', semester: 5,
+);
+
+final budiBaru = budi.copyWith(nama: 'Budi Santoso', semester: 6);
+// budiBaru.id    -&gt; '1'            (tetap)
+// budiBaru.nim   -&gt; '220101001'    (tetap)
+// budiBaru.nama  -&gt; 'Budi Santoso' (diganti)
+// budiBaru.semester -&gt; 6           (diganti)
+// budi.nama      -&gt; 'Budi'         (objek lama tidak berubah)
+</code></pre>
+
+<div class="callout callout-info"><h4>ℹ️ Kenapa model tidak memakai anotasi Hive?</h4><p>Di Modul 11 Anda melihat dua cara: TypeAdapter manual dan adapter hasil generate (<code>@GenerateAdapters</code>). Proyek ini memakai cara <strong>manual</strong> agar model tetap bersih dan Anda melihat sendiri bagaimana Hive menyimpan data. Kode Hive-nya dipisah ke file adapter di section berikutnya.</p></div>

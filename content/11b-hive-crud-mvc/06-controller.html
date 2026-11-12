@@ -1,0 +1,258 @@
+<p class="lead"><code>MahasiswaController</code> adalah inti aplikasi. Semua yang "berpikir" ada di sini: menyimpan daftar mahasiswa sebagai state reaktif, menyaring pencarian, membuka form tambah/edit, memvalidasi input, menyimpan, dan menghapus. View cukup menampilkan isi controller dan memanggil method-nya.</p>
+
+<p>Buat file <code>lib/controllers/mahasiswa_controller.dart</code>. File ini paling panjang, jadi salin utuh dulu lalu baca penjelasan per bagian di bawahnya:</p>
+<p class="code-file-label">📄 <code>lib/controllers/mahasiswa_controller.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../models/mahasiswa_model.dart';
+import '../routes/app_routes.dart';
+import '../services/hive_service.dart';
+
+/// CONTROLLER: penghubung antara View dan Model.
+/// Menyimpan state (reaktif) dan berisi seluruh logika CRUD.
+class MahasiswaController extends GetxController {
+  final HiveService _service = HiveService();
+
+  // ------------------ STATE REAKTIF ------------------
+  final mahasiswaList = &lt;Mahasiswa&gt;[].obs;
+  final keyword = ''.obs;
+  final selectedProdi = 'Informatika'.obs;
+
+  final List&lt;String&gt; daftarProdi = const [
+    'Informatika',
+    'Sistem Informasi',
+    'Teknik Komputer',
+    'Data Science',
+  ];
+
+  // ------------------ STATE FORM ------------------
+  final formKey = GlobalKey&lt;FormState&gt;();
+  final nimC = TextEditingController();
+  final namaC = TextEditingController();
+  final semesterC = TextEditingController();
+
+  /// null  -&gt; mode TAMBAH
+  /// berisi id -&gt; mode EDIT
+  String? editingId;
+  bool get isEdit =&gt; editingId != null;
+
+  /// Data yang ditampilkan (sudah difilter pencarian).
+  List&lt;Mahasiswa&gt; get filteredList {
+    final q = keyword.value.toLowerCase();
+    if (q.isEmpty) return mahasiswaList;
+    return mahasiswaList
+        .where((m) =&gt;
+            m.nama.toLowerCase().contains(q) || m.nim.contains(q))
+        .toList();
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadData();
+  }
+
+  // ------------------ READ ------------------
+  void loadData() {
+    final data = _service.getAll()
+      ..sort((a, b) =&gt; a.nama.toLowerCase().compareTo(b.nama.toLowerCase()));
+    mahasiswaList.assignAll(data);
+  }
+
+  // ------------------ NAVIGASI KE FORM ------------------
+  void openAddForm() {
+    editingId = null;
+    nimC.clear();
+    namaC.clear();
+    semesterC.clear();
+    selectedProdi.value = daftarProdi.first;
+    Get.toNamed(AppRoutes.form);
+  }
+
+  void openEditForm(Mahasiswa mhs) {
+    editingId = mhs.id;
+    nimC.text = mhs.nim;
+    namaC.text = mhs.nama;
+    semesterC.text = mhs.semester.toString();
+    selectedProdi.value = mhs.prodi;
+    Get.toNamed(AppRoutes.form);
+  }
+
+  // ------------------ CREATE &amp; UPDATE ------------------
+  Future&lt;void&gt; save() async {
+    if (!formKey.currentState!.validate()) return;
+
+    final nim = nimC.text.trim();
+
+    // Cegah NIM ganda
+    final nimSudahAda =
+        mahasiswaList.any((m) =&gt; m.nim == nim &amp;&amp; m.id != editingId);
+    if (nimSudahAda) {
+      Get.snackbar('Gagal', 'NIM $nim sudah terdaftar',
+          snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+
+    final mhs = Mahasiswa(
+      id: editingId ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      nim: nim,
+      nama: namaC.text.trim(),
+      prodi: selectedProdi.value,
+      semester: int.parse(semesterC.text.trim()),
+    );
+
+    if (isEdit) {
+      await _service.update(mhs);
+    } else {
+      await _service.create(mhs);
+    }
+
+    final pesan = isEdit ? 'Data berhasil diperbarui' : 'Data berhasil ditambahkan';
+    loadData();
+    tutup(); // kembali ke halaman daftar
+    Get.snackbar('Sukses', pesan, snackPosition: SnackPosition.BOTTOM);
+  }
+
+  // ------------------ DELETE ------------------
+  Future&lt;void&gt; confirmDelete(Mahasiswa mhs) async {
+    final yakin = await Get.dialog&lt;bool&gt;(
+      AlertDialog(
+        title: const Text('Hapus Data'),
+        content: Text('Yakin ingin menghapus ${mhs.nama}?'),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; tutup(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; tutup(true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (yakin == true) {
+      await _service.delete(mhs.id);
+      loadData();
+      Get.snackbar('Terhapus', '${mhs.nama} telah dihapus',
+          snackPosition: SnackPosition.BOTTOM);
+    }
+  }
+
+  // ------------------ HELPER NAVIGASI ------------------
+  /// Menutup halaman / dialog paling atas (opsional membawa [result]).
+  ///
+  /// Kenapa tidak memakai Get.back()? Pada GetX 4.x, jika masih ada
+  /// snackbar yang tampil, Get.back() HANYA menutup snackbar tersebut,
+  /// sehingga halaman form / dialog tidak tertutup. Get.key adalah
+  /// navigator milik GetMaterialApp, jadi pop() selalu menutup route.
+  void tutup&lt;T&gt;([T? result]) =&gt; Get.key.currentState?.pop&lt;T&gt;(result);
+
+  // ------------------ VALIDATOR ------------------
+  String? validateNim(String? v) {
+    if (v == null || v.trim().isEmpty) return 'NIM wajib diisi';
+    if (int.tryParse(v.trim()) == null) return 'NIM harus berupa angka';
+    if (v.trim().length &lt; 8) return 'NIM minimal 8 digit';
+    return null;
+  }
+
+  String? validateNama(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Nama wajib diisi';
+    return null;
+  }
+
+  String? validateSemester(String? v) {
+    final s = int.tryParse(v?.trim() ?? '');
+    if (s == null) return 'Semester wajib berupa angka';
+    if (s &lt; 1 || s &gt; 14) return 'Semester antara 1 - 14';
+    return null;
+  }
+
+  @override
+  void onClose() {
+    nimC.dispose();
+    namaC.dispose();
+    semesterC.dispose();
+    super.onClose();
+  }
+}
+</code></pre>
+
+<h4>Bagian 1: State reaktif</h4>
+<pre><code class="language-dart">final mahasiswaList = &lt;Mahasiswa&gt;[].obs;   // RxList&lt;Mahasiswa&gt;
+final keyword = ''.obs;                     // RxString
+final selectedProdi = 'Informatika'.obs;    // RxString
+</code></pre>
+<p>Akhiran <code>.obs</code> mengubah nilai biasa menjadi nilai yang bisa "diamati". Setiap <code>Obx</code> di View yang membaca nilai ini akan otomatis dibangun ulang saat nilainya berubah. Ingat cara membaca dan mengubahnya:</p>
+<ul>
+  <li><code>keyword.value = 'budi'</code> untuk <code>RxString</code>/<code>RxInt</code> (pakai <code>.value</code>).</li>
+  <li><code>mahasiswaList.assignAll(data)</code> untuk <code>RxList</code> (mengganti seluruh isi list sekaligus dan memicu satu kali rebuild).</li>
+</ul>
+<p><code>daftarProdi</code> tidak diberi <code>.obs</code> karena isinya tidak pernah berubah.</p>
+
+<h4>Bagian 2: State form</h4>
+<p><code>formKey</code> dan tiga <code>TextEditingController</code> disimpan di controller (bukan di View) agar isi form bisa diisi dari controller saat mode edit, dan dibaca saat <code>save()</code>. Variabel <code>editingId</code> menentukan mode form:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th><code>editingId</code></th><th><code>isEdit</code></th><th>Judul form</th><th>Tombol</th><th>Saat disimpan</th></tr></thead>
+    <tbody>
+      <tr><td><code>null</code></td><td><code>false</code></td><td>Tambah Mahasiswa</td><td>Simpan</td><td>id baru dibuat, <code>_service.create()</code></td></tr>
+      <tr><td>berisi id</td><td><code>true</code></td><td>Edit Mahasiswa</td><td>Perbarui</td><td>id lama dipakai, <code>_service.update()</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Dengan cara ini <strong>satu halaman form</strong> dipakai untuk tambah sekaligus edit.</p>
+
+<h4>Bagian 3: <code>filteredList</code> (pencarian)</h4>
+<p>Getter ini mengembalikan seluruh data jika kata kunci kosong, atau hanya data yang nama (huruf kecil) atau NIM-nya mengandung kata kunci. Karena getter ini membaca <code>keyword.value</code> dan <code>mahasiswaList</code>, <code>Obx</code> di View yang memanggilnya akan rebuild setiap kali pengguna mengetik <strong>atau</strong> data berubah. Pencarian dilakukan di memori, jadi hasilnya instan.</p>
+
+<h4>Bagian 4: Siklus hidup <code>onInit</code> dan <code>onClose</code></h4>
+<ul>
+  <li><code>onInit()</code> dijalankan sekali saat controller pertama kali dibuat. Di sini kita memanggil <code>loadData()</code> sehingga daftar langsung terisi saat aplikasi dibuka.</li>
+  <li><code>onClose()</code> dijalankan saat controller dihapus dari memori. Di sini <code>TextEditingController</code> di-<code>dispose()</code> agar tidak bocor memori (sama seperti <code>dispose()</code> pada <code>StatefulWidget</code>).</li>
+</ul>
+
+<h4>Bagian 5: READ dengan <code>loadData()</code></h4>
+<p>Mengambil semua data dari <code>HiveService</code>, mengurutkannya berdasarkan nama tanpa membedakan huruf besar/kecil, lalu memasukkannya ke <code>mahasiswaList</code>. Tanda <code>..</code> (cascade) berarti "panggil <code>sort</code> pada list yang sama, lalu kembalikan list-nya". Method ini dipanggil ulang setiap kali data berubah, sehingga <code>mahasiswaList</code> selalu sama dengan isi box.</p>
+
+<h4>Bagian 6: Membuka form</h4>
+<ul>
+  <li><code>openAddForm()</code> mengosongkan <code>editingId</code> dan semua field, mengembalikan prodi ke pilihan pertama, lalu pindah ke route <code>/form</code>.</li>
+  <li><code>openEditForm(mhs)</code> mengisi <code>editingId</code> dan semua field dengan data mahasiswa yang dipilih (semester diubah ke teks dengan <code>toString()</code>), lalu pindah ke <code>/form</code>.</li>
+</ul>
+<p>Karena isi field disiapkan <strong>sebelum</strong> pindah halaman, form langsung tampil terisi saat dibuka.</p>
+
+<h4>Bagian 7: CREATE &amp; UPDATE dengan <code>save()</code></h4>
+<ol>
+  <li><code>formKey.currentState!.validate()</code> menjalankan semua validator di form. Jika ada yang gagal, pesan merah muncul di bawah field dan fungsi berhenti.</li>
+  <li><strong>Cek NIM ganda</strong>: <code>any(...)</code> mencari mahasiswa lain dengan NIM yang sama. Syarat <code>m.id != editingId</code> penting: saat mengedit, data milik sendiri tidak dihitung sebagai duplikat.</li>
+  <li>Membuat objek <code>Mahasiswa</code>. Saat tambah, id dibuat dari <code>DateTime.now().millisecondsSinceEpoch</code> (jumlah milidetik sejak 1970), cukup unik untuk satu perangkat. Saat edit, id lama dipakai agar <code>put</code> menimpa data yang sama.</li>
+  <li><code>await</code> create atau update, lalu <code>loadData()</code> agar daftar ikut berubah.</li>
+  <li><code>tutup()</code> kembali ke halaman daftar, lalu <code>Get.snackbar</code> menampilkan pesan sukses.</li>
+</ol>
+<p>Perhatikan bahwa variabel <code>pesan</code> dihitung sebelum menutup form. Ini kebiasaan baik: ambil semua nilai yang dibutuhkan dulu, baru pindah halaman.</p>
+
+<h4>Bagian 8: DELETE dengan <code>confirmDelete()</code></h4>
+<p><code>Get.dialog&lt;bool&gt;(...)</code> menampilkan dialog dan <strong>menunggu</strong> sampai dialog ditutup. Tombol <em>Batal</em> menutup dengan nilai <code>false</code>, tombol <em>Hapus</em> dengan nilai <code>true</code>. Jika pengguna mengetuk area di luar dialog, hasilnya <code>null</code>. Karena itu pengecekannya <code>yakin == true</code>, bukan sekadar <code>if (yakin)</code>. Setelah yakin, data dihapus, daftar dimuat ulang, dan snackbar ditampilkan.</p>
+
+<h4>Bagian 9: Helper <code>tutup()</code></h4>
+<pre><code class="language-dart">void tutup&lt;T&gt;([T? result]) =&gt; Get.key.currentState?.pop&lt;T&gt;(result);
+</code></pre>
+<p>Kenapa tidak memakai <code>Get.back()</code> seperti biasa? Pada GetX 4.x, jika masih ada snackbar yang tampil (misalnya snackbar "NIM sudah terdaftar"), <code>Get.back()</code> hanya menutup snackbar tersebut dan halaman form tetap terbuka. Pengguna merasa tombolnya tidak bekerja. <code>Get.key</code> adalah navigator milik <code>GetMaterialApp</code>, sehingga <code>pop()</code> selalu menutup halaman atau dialog paling atas. Parameter <code>result</code> dipakai dialog hapus untuk mengirim <code>true</code>/<code>false</code>.</p>
+
+<h4>Bagian 10: Validator</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Validator</th><th>Aturan</th><th>Pesan error</th></tr></thead>
+    <tbody>
+      <tr><td><code>validateNim</code></td><td>Tidak kosong, hanya angka, minimal 8 digit</td><td>NIM wajib diisi / NIM harus berupa angka / NIM minimal 8 digit</td></tr>
+      <tr><td><code>validateNama</code></td><td>Tidak kosong (spasi saja dianggap kosong)</td><td>Nama wajib diisi</td></tr>
+      <tr><td><code>validateSemester</code></td><td>Berupa angka 1 sampai 14</td><td>Semester wajib berupa angka / Semester antara 1 - 14</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Aturannya sama dengan Modul 05: validator mengembalikan <code>null</code> jika valid, atau teks pesan error jika tidak valid. <code>trim()</code> membuang spasi di awal dan akhir sehingga input "&nbsp;&nbsp;&nbsp;" tidak lolos.</p>
+
+<div class="callout callout-info"><h4>ℹ️ Controller ini mengimpor <code>material.dart</code></h4><p>Di Modul 08 dan 11 dianjurkan agar controller tidak mengimpor <code>material.dart</code> supaya mudah di-unit-test. Proyek ini sengaja mengambil jalan yang lebih praktis untuk pemula: <code>GlobalKey&lt;FormState&gt;</code>, <code>TextEditingController</code>, dan <code>AlertDialog</code> ditaruh di controller sehingga View menjadi sangat tipis dan semua logika ada di satu tempat. Untuk proyek besar, Anda bisa memindahkan bagian form dan dialog ke View, lalu controller hanya menerima data bersih seperti <code>simpan(nim, nama, prodi, semester)</code>. Keduanya tetap MVC; yang berbeda hanya seberapa tipis View-nya.</p></div>

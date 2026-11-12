@@ -1,0 +1,57 @@
+<p class="lead">Hive hanya mengerti tipe dasar seperti <code>String</code>, <code>int</code>, <code>bool</code>, <code>List</code>, dan <code>Map</code>. Agar Hive bisa menyimpan objek <code>Mahasiswa</code>, kita perlu memberi "kamus terjemahan" yang disebut <strong>TypeAdapter</strong>: bagaimana objek ditulis menjadi byte (<code>write</code>) dan bagaimana byte dibaca kembali menjadi objek (<code>read</code>).</p>
+
+<p>Buat file <code>lib/models/mahasiswa_adapter.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/models/mahasiswa_adapter.dart</code></p>
+<pre><code class="language-dart">import 'package:hive_ce/hive_ce.dart';
+
+import 'mahasiswa_model.dart';
+
+/// TypeAdapter memberi tahu Hive cara menyimpan (write)
+/// dan membaca (read) objek Mahasiswa dalam bentuk biner.
+///
+/// ATURAN PENTING:
+/// 1. typeId harus unik per class (0 - 223).
+/// 2. Urutan read HARUS sama persis dengan urutan write.
+class MahasiswaAdapter extends TypeAdapter&lt;Mahasiswa&gt; {
+  @override
+  final int typeId = 0;
+
+  @override
+  Mahasiswa read(BinaryReader reader) {
+    return Mahasiswa(
+      id: reader.readString(),
+      nim: reader.readString(),
+      nama: reader.readString(),
+      prodi: reader.readString(),
+      semester: reader.readInt(),
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, Mahasiswa obj) {
+    writer.writeString(obj.id);
+    writer.writeString(obj.nim);
+    writer.writeString(obj.nama);
+    writer.writeString(obj.prodi);
+    writer.writeInt(obj.semester);
+  }
+}
+</code></pre>
+
+<h4>Cara kerja adapter</h4>
+<p>Bayangkan Hive menulis data ke file seperti menulis di satu baris panjang tanpa nama kolom. Saat menyimpan Siti Aminah, isi file kira-kira seperti ini:</p>
+<pre><code class="language-text">[typeId 0] "1731300000000" "22010100" "Siti Aminah" "Informatika" 3
+            └─ id ──────┘  └─ nim ─┘  └─ nama ────┘ └─ prodi ───┘ └ semester
+</code></pre>
+<ul>
+  <li><strong><code>typeId = 0</code></strong>: Hive menulis angka ini di depan setiap objek. Saat membaca, Hive melihat angka 0 lalu tahu harus memakai <code>MahasiswaAdapter</code>. Setiap class yang punya adapter wajib memakai <code>typeId</code> berbeda (0 sampai 223).</li>
+  <li><strong><code>write</code></strong> menulis kelima field secara berurutan: <code>id</code>, <code>nim</code>, <code>nama</code>, <code>prodi</code> (semuanya <code>writeString</code>), lalu <code>semester</code> (<code>writeInt</code>).</li>
+  <li><strong><code>read</code></strong> membaca dengan urutan dan tipe yang <strong>sama persis</strong>. Karena tidak ada nama kolom, satu-satunya penanda field adalah urutannya.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Dua aturan yang tidak boleh dilanggar</h4>
+<ol>
+  <li><strong>Urutan <code>read</code> = urutan <code>write</code>.</strong> Jika <code>write</code> menulis nim lalu nama, tetapi <code>read</code> membaca nama lalu nim, data akan tertukar. Jika tipenya berbeda (misalnya <code>readInt</code> untuk data yang ditulis <code>writeString</code>), aplikasi akan crash saat membuka box.</li>
+  <li><strong>Jangan mengubah <code>typeId</code></strong> setelah ada data tersimpan. Data lama tercatat dengan id 0; jika adapter diganti menjadi 1, Hive tidak menemukan adapter untuk data lama.</li>
+</ol>
+<p>Jika selama latihan Anda terlanjur mengubah urutan field dan aplikasi crash, cara tercepat adalah <strong>uninstall aplikasi</strong> dari emulator agar file box lama terhapus, lalu jalankan ulang. Cara aman menambah field tanpa menghapus data dibahas di Modul 11 section 5 (byte versi).</p></div>

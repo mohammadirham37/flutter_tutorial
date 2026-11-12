@@ -1,0 +1,34 @@
+<p class="lead">Berikut error yang paling sering muncul saat mahasiswa mengerjakan proyek ini, beserta penyebab dan cara memperbaikinya.</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Pesan error / gejala</th><th>Penyebab</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr><td><code>HiveError: Box not found. Did you forget to call Hive.openBox()?</code></td><td><code>Hive.box()</code> dipanggil sebelum box dibuka, atau <code>await</code> pada <code>openBox</code> terlupa</td><td>Pastikan <code>await Hive.openBox&lt;Mahasiswa&gt;(HiveService.boxName)</code> ada di <code>main()</code> sebelum <code>runApp</code></td></tr>
+      <tr><td><code>HiveError: Cannot read, unknown typeId: 0. Did you forget to register an adapter?</code></td><td><code>registerAdapter</code> terlupa atau dipanggil setelah <code>openBox</code></td><td>Panggil <code>Hive.registerAdapter(MahasiswaAdapter())</code> sebelum <code>openBox</code></td></tr>
+      <tr><td><code>HiveError: There is already a TypeAdapter for typeId 0.</code></td><td>Dua adapter berbeda (misalnya <code>MahasiswaAdapter</code> dan adapter model baru) memakai typeId yang sama</td><td>Beri setiap adapter typeId berbeda (0, 1, 2, ...) dan daftarkan semuanya di <code>main()</code></td></tr>
+      <tr><td>Aplikasi crash saat dibuka setelah mengubah adapter (<code>RangeError</code>, <code>type 'int' is not a subtype of type 'String'</code>)</td><td>Urutan atau tipe <code>read</code> tidak cocok dengan data lama yang ditulis <code>write</code> versi sebelumnya</td><td>Samakan urutan <code>read</code> dan <code>write</code>, lalu uninstall aplikasi agar file box lama terhapus</td></tr>
+      <tr><td><code>"MahasiswaController" not found. You need to call "Get.put(MahasiswaController())" or "Get.lazyPut(()=&gt;MahasiswaController())"</code></td><td>Binding tidak terpasang di <code>GetPage</code>, atau memakai <code>MaterialApp</code>/<code>home:</code> bukan <code>GetMaterialApp</code> + <code>initialRoute</code></td><td>Pastikan <code>binding: MahasiswaBinding()</code> ada di route home dan <code>main.dart</code> memakai <code>getPages</code></td></tr>
+      <tr><td>Data tersimpan tetapi daftar tidak berubah</td><td><code>loadData()</code> tidak dipanggil setelah create/update/delete, atau daftar tidak dibungkus <code>Obx</code></td><td>Panggil <code>loadData()</code> setelah setiap perubahan; pastikan <code>controller.filteredList</code> dibaca di dalam <code>Obx</code></td></tr>
+      <tr><td><code>[Get] the improper use of a GetX has been detected</code></td><td><code>Obx</code> membungkus widget yang tidak membaca satu pun nilai <code>.obs</code></td><td>Letakkan <code>Obx</code> hanya di sekitar widget yang membaca state reaktif</td></tr>
+      <tr><td>Tombol Simpan ditekan, snackbar muncul, tapi form tidak tertutup</td><td>Memakai <code>Get.back()</code> saat masih ada snackbar; GetX hanya menutup snackbar</td><td>Gunakan helper <code>tutup()</code> yang memanggil <code>Get.key.currentState?.pop()</code></td></tr>
+      <tr><td>Form tambah masih berisi data dari edit sebelumnya</td><td>Field tidak dikosongkan sebelum membuka form tambah</td><td>Panggil <code>openAddForm()</code> (yang memanggil <code>clear()</code>) alih-alih <code>Get.toNamed(AppRoutes.form)</code> langsung</td></tr>
+      <tr><td>Mengedit data membuat data baru (duplikat)</td><td>id baru dibuat saat edit sehingga <code>put</code> memakai key berbeda</td><td>Saat edit, pakai id lama: <code>id: editingId ?? ...</code></td></tr>
+      <tr><td>Edit data sendiri ditolak dengan pesan "NIM sudah terdaftar"</td><td>Pengecekan duplikat tidak mengecualikan data yang sedang diedit</td><td>Tambahkan syarat <code>m.id != editingId</code></td></tr>
+      <tr><td><code>A TextEditingController was used after being disposed</code></td><td>Controller GetX dihapus lalu View lama masih memakai field-nya, biasanya karena <code>Get.delete</code> manual atau binding dipasang di route form</td><td>Pasang binding hanya di route home seperti section 7; jangan menghapus controller secara manual</td></tr>
+      <tr><td><code>Target of URI doesn't exist: 'package:hive/hive.dart'</code></td><td>Package yang dipasang <code>hive_ce</code> tetapi import masih <code>hive</code> (atau sebaliknya)</td><td>Samakan import dengan package di <code>pubspec.yaml</code> (lihat section 2)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Ringkasan modul</h4>
+<ul>
+  <li><strong>Model</strong> (<code>Mahasiswa</code>) adalah data murni; <strong>TypeAdapter</strong> mengajari Hive cara menulis dan membaca objek tersebut dengan urutan field yang sama.</li>
+  <li><strong><code>HiveService</code></strong> menjadi satu-satunya pintu ke database: <code>put</code> untuk create dan update, <code>values</code> untuk read, <code>delete</code> untuk delete.</li>
+  <li><strong><code>MahasiswaController</code></strong> menyimpan state reaktif (<code>.obs</code>), memvalidasi, mencegah NIM ganda, menyimpan, menghapus, dan memanggil <code>loadData()</code> setelah setiap perubahan.</li>
+  <li><strong>View</strong> (<code>GetView</code>) hanya menampilkan state lewat <code>Obx</code> dan meneruskan klik ke controller. View tidak pernah menyentuh Hive.</li>
+  <li><strong>Binding + Routes</strong> membuat controller otomatis dan memungkinkan navigasi memakai nama.</li>
+  <li>Hive harus diinisialisasi dengan urutan: <code>ensureInitialized</code> → <code>initFlutter</code> → <code>registerAdapter</code> → <code>openBox</code> → <code>runApp</code>.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Selanjutnya</h4><p>Pola yang sama (model, service, controller, view) dipakai lagi di Modul 13-14. Bedanya, di sana sumber data utama adalah Supabase dan Hive dipakai sebagai cache offline. Jika Anda paham proyek ini, Anda sudah memegang separuh kerangka proyek besar tersebut.</p></div>

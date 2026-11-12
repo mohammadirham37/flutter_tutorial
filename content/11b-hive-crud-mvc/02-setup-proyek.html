@@ -1,0 +1,57 @@
+<p class="lead">Langkah pertama: membuat proyek Flutter baru, memasang tiga package, lalu menyiapkan folder MVC.</p>
+
+<h4>1. Buat proyek</h4>
+<p>Buka terminal di folder tempat Anda menyimpan proyek, lalu jalankan:</p>
+<pre><code class="language-bash">flutter create crud_mahasiswa
+cd crud_mahasiswa
+</code></pre>
+<div class="callout callout-warning"><h4>⚠️ Nama proyek harus <code>crud_mahasiswa</code></h4><p>File test di section 12 mengimpor <code>package:crud_mahasiswa/...</code>. Nama package diambil dari nama proyek, jadi jika Anda memakai nama lain, ganti juga bagian import di file test.</p></div>
+
+<h4>2. Pasang package</h4>
+<pre><code class="language-bash">flutter pub add get hive_ce hive_ce_flutter
+</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Package</th><th>Kegunaan di proyek ini</th></tr></thead>
+    <tbody>
+      <tr><td><code>get</code></td><td>State reaktif (<code>.obs</code>, <code>Obx</code>), dependency injection (<code>Bindings</code>, <code>GetView</code>), named route, snackbar, dan dialog</td></tr>
+      <tr><td><code>hive_ce</code></td><td>Database NoSQL lokal: <code>Box</code>, <code>TypeAdapter</code>, <code>put</code>, <code>delete</code></td></tr>
+      <tr><td><code>hive_ce_flutter</code></td><td><code>Hive.initFlutter()</code> yang otomatis memilih folder penyimpanan di HP</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Setelah perintah di atas, bagian <code>dependencies</code> di <code>pubspec.yaml</code> kira-kira menjadi seperti ini (nomor versi di laptop Anda boleh lebih baru):</p>
+<p class="code-file-label">📄 <code>pubspec.yaml</code> (bagian dependencies)</p>
+<pre><code class="language-yaml">dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  get: ^4.7.3
+  hive_ce: ^2.23.3
+  hive_ce_flutter: ^2.5.0
+</code></pre>
+
+<div class="callout callout-info"><h4>ℹ️ Kenapa <code>hive_ce</code>, bukan <code>hive</code>?</h4><p>Package <code>hive</code> versi 2.x sudah tidak dirawat lagi oleh pembuatnya. <code>hive_ce</code> (Community Edition) adalah lanjutannya dengan API yang sama persis, seperti dibahas di Modul 11. Jika di laboratorium Anda terpaksa memakai <code>hive</code> + <code>hive_flutter</code> lama, kode di modul ini tetap berjalan. Cukup ganti baris import di <code>main.dart</code>, <code>mahasiswa_adapter.dart</code>, <code>hive_service.dart</code>, dan kedua file test:</p>
+<pre><code class="language-dart">// Versi modul ini (hive_ce)
+import 'package:hive_ce/hive_ce.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+// Versi package lama (hive)
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+</code></pre></div>
+
+<h4>3. Siapkan folder MVC dan hapus test bawaan</h4>
+<pre><code class="language-bash"># macOS / Linux / Git Bash
+mkdir -p lib/models lib/services lib/controllers lib/bindings lib/routes lib/views
+rm test/widget_test.dart
+</code></pre>
+<pre><code class="language-text"># Windows PowerShell
+mkdir lib/models, lib/services, lib/controllers, lib/bindings, lib/routes, lib/views
+Remove-Item test/widget_test.dart
+</code></pre>
+<p>File <code>test/widget_test.dart</code> bawaan menguji aplikasi counter. Karena aplikasi counter akan kita ganti, test itu pasti gagal, jadi kita hapus. Test baru ditulis di section 12.</p>
+<p>Isi <code>lib/main.dart</code> biarkan dulu. Kita menggantinya di section 10 setelah semua file lain siap.</p>
+
+<div class="callout callout-tip"><h4>💡 Cek cepat</h4><p>Jalankan <code>flutter pub get</code> lalu pastikan tidak ada pesan error. Jika muncul <em>version solving failed</em>, jalankan <code>flutter upgrade</code> agar SDK Flutter Anda versi stabil terbaru, lalu ulangi <code>flutter pub add</code>.</p></div>
