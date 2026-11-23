@@ -1,0 +1,134 @@
+<p class="lead">Jalankan aplikasi lalu ikuti tujuh skenario di bawah secara berurutan. Setiap skenario menguji satu bagian kode dan sebaiknya dicek juga di dashboard Supabase, supaya Anda melihat bahwa data benar-benar tersimpan di cloud.</p>
+
+<pre><code class="language-bash">flutter run --dart-define-from-file=env.json
+</code></pre>
+
+<h4>Skenario 1: Validasi dan login gagal</h4>
+<ol>
+  <li>Aplikasi terbuka di halaman login, karena belum ada user yang login dan <code>AuthMiddleware</code> mengalihkan dari <code>/</code> ke <code>/login</code>.</li>
+  <li>Tekan <em>Masuk</em> dengan form kosong. Pesan "Email wajib diisi" dan "Password wajib diisi" muncul.</li>
+  <li>Isi email yang belum terdaftar dan password sembarang, lalu tekan <em>Masuk</em>. Tombol sempat berputar, lalu muncul snackbar "Email atau password salah."</li>
+</ol>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/login-validasi.jpg" alt="Validasi form login" loading="lazy">
+    <div class="screenshot-caption">Validasi form login</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/login-gagal.jpg" alt="Login ditolak server" loading="lazy">
+    <div class="screenshot-caption">Login ditolak server</div>
+  </div>
+</div>
+
+<h4>Skenario 2: Register</h4>
+<ol>
+  <li>Tekan <em>Belum punya akun? Daftar</em>. Email yang tadi diketik ikut terisi.</li>
+  <li>Isi password dan isi <em>Ulangi Password</em> dengan nilai berbeda. Pesan "Konfirmasi password tidak sama" muncul.</li>
+  <li>Samakan kedua password lalu tekan <em>Daftar</em>. Aplikasi langsung membuka halaman daftar yang masih kosong, dengan tulisan "Masuk sebagai ...".</li>
+  <li><strong>Cek di dashboard</strong>: buka <strong>Authentication &rarr; Users</strong>. Akun baru Anda ada di sana.</li>
+</ol>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/register-konfirmasi-beda.jpg" alt="Password tidak sama" loading="lazy">
+    <div class="screenshot-caption">Password tidak sama</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/home-kosong.jpg" alt="Register berhasil" loading="lazy">
+    <div class="screenshot-caption">Register berhasil</div>
+  </div>
+</div>
+
+<h4>Skenario 3: Create dan NIM ganda</h4>
+<ol>
+  <li>Tambahkan tiga mahasiswa: Budi Santoso (220101001, Informatika, 5), Siti Aminah (220102015, Sistem Informasi, 3), Andi Pratama (220103007, Informatika, 7).</li>
+  <li>Daftar tampil urut A-Z: Andi, Budi, Siti.</li>
+  <li>Coba tambah lagi dengan NIM <code>220101001</code>. Snackbar "NIM 220101001 sudah terdaftar" muncul dan form tidak tertutup.</li>
+  <li><strong>Cek di dashboard</strong>: buka <strong>Table Editor &rarr; mahasiswa</strong>. Ada tiga baris, dan kolom <code>user_id</code> pada ketiganya sama dengan id akun Anda di menu Users.</li>
+</ol>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/form-tambah-isi.jpg" alt="Mengisi form" loading="lazy">
+    <div class="screenshot-caption">Mengisi form</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/daftar-terisi.jpg" alt="Tiga data, urut nama" loading="lazy">
+    <div class="screenshot-caption">Tiga data, urut nama</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/nim-ganda.jpg" alt="NIM ganda ditolak" loading="lazy">
+    <div class="screenshot-caption">NIM ganda ditolak</div>
+  </div>
+</div>
+
+<h4>Skenario 4: Update, Delete, dan Cari</h4>
+<ol>
+  <li>Tekan ikon pensil pada Siti Aminah. Ubah nama menjadi "Siti Aminah Putri" dan semester menjadi 4, lalu tekan <em>Perbarui</em>.</li>
+  <li>Tekan ikon tempat sampah pada Andi Pratama, lalu pilih <em>Hapus</em> di dialog.</li>
+  <li>Ketik <code>siti</code> di kolom pencarian. Hanya satu kartu yang tampil.</li>
+  <li><strong>Cek di dashboard</strong>: refresh Table Editor. Data Siti sudah berubah dan baris Andi sudah hilang.</li>
+</ol>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/form-edit.jpg" alt="Form edit terisi data lama" loading="lazy">
+    <div class="screenshot-caption">Form edit terisi data lama</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/edit-sukses.jpg" alt="Data diperbarui" loading="lazy">
+    <div class="screenshot-caption">Data diperbarui</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/dialog-hapus.jpg" alt="Konfirmasi hapus" loading="lazy">
+    <div class="screenshot-caption">Konfirmasi hapus</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/hapus-sukses.jpg" alt="Data terhapus" loading="lazy">
+    <div class="screenshot-caption">Data terhapus</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/cari.jpg" alt="Pencarian" loading="lazy">
+    <div class="screenshot-caption">Pencarian</div>
+  </div>
+</div>
+
+<h4>Skenario 5: Sesi tersimpan</h4>
+<ol>
+  <li>Tutup aplikasi sepenuhnya (geser dari daftar aplikasi terbaru), lalu buka lagi dari ikon di HP.</li>
+  <li>Aplikasi langsung membuka halaman daftar tanpa meminta login, dan datanya tetap ada.</li>
+</ol>
+<p>Ini terjadi karena <code>Supabase.initialize</code> memulihkan sesi yang tersimpan, sehingga <code>AuthMiddleware</code> menganggap user sudah login.</p>
+
+<h4>Skenario 6: Logout dan bukti RLS</h4>
+<ol>
+  <li>Tekan ikon Keluar di AppBar, lalu pilih <em>Keluar</em>. Aplikasi kembali ke halaman login.</li>
+  <li>Daftarkan akun <strong>kedua</strong> dengan email lain. Halaman daftar <strong>kosong</strong>, walaupun di Table Editor ada data milik akun pertama. Inilah kerja RLS.</li>
+  <li>Dengan akun kedua, tambahkan mahasiswa dengan NIM <code>220101001</code> (sama dengan Budi milik akun pertama). Penyimpanan <strong>berhasil</strong>, karena constraint-nya <code>unique (user_id, nim)</code>, bukan <code>unique (nim)</code>.</li>
+  <li>Logout, lalu login lagi dengan akun pertama. Hanya data milik akun pertama yang tampil.</li>
+</ol>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/dialog-logout.jpg" alt="Konfirmasi logout" loading="lazy">
+    <div class="screenshot-caption">Konfirmasi logout</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/rls-akun-lain.jpg" alt="Akun kedua: data akun pertama tidak terlihat" loading="lazy">
+    <div class="screenshot-caption">Akun kedua: data akun pertama tidak terlihat</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/rls-akun-ani.jpg" alt="NIM yang sama boleh di akun berbeda" loading="lazy">
+    <div class="screenshot-caption">NIM yang sama boleh di akun berbeda</div>
+  </div>
+</div>
+
+<h4>Skenario 7: Tanpa internet</h4>
+<ol>
+  <li>Aktifkan mode pesawat di HP atau emulator, lalu tutup dan buka ulang aplikasi.</li>
+  <li>Halaman daftar menampilkan "Tidak dapat terhubung ke server. Periksa internet." dan tombol <em>Coba Lagi</em>. Aplikasi tetap berada di halaman daftar karena sesi tersimpan di HP.</li>
+  <li>Matikan mode pesawat, lalu tekan <em>Coba Lagi</em>. Data kembali tampil.</li>
+</ol>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/offline.jpg" alt="Tanpa internet" loading="lazy">
+    <div class="screenshot-caption">Tanpa internet</div>
+  </div>
+</div>
+<div class="callout callout-info"><h4>ℹ️ Supabase vs Hive saat offline</h4><p>Versi Hive dari Modul 11B tetap jalan tanpa internet, sedangkan versi ini tidak. Itulah tukar-tambahnya: data di cloud bisa diakses dari banyak HP dan aman per akun, tetapi butuh koneksi. Modul 14 menunjukkan cara menggabungkan keduanya, yaitu Supabase sebagai sumber utama dan Hive sebagai cache offline.</p></div>

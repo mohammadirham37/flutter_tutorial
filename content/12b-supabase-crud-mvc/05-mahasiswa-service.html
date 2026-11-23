@@ -1,0 +1,72 @@
+<p class="lead"><code>MahasiswaService</code> menggantikan <code>HiveService</code>. Tugasnya tetap sama: menjadi <strong>satu-satunya</strong> kelas yang berbicara dengan database. Bedanya, sekarang databasenya ada di internet sehingga semua method bersifat <code>async</code>.</p>
+
+<p>Buat file <code>lib/services/mahasiswa_service.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/services/mahasiswa_service.dart</code></p>
+<pre><code class="language-dart">import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../models/mahasiswa_model.dart';
+
+/// Lapisan akses data (bagian dari MODEL pada MVC).
+/// Pengganti HiveService: semua operasi CRUD ke tabel `mahasiswa`
+/// di Supabase dikumpulkan di sini.
+class MahasiswaService {
+  MahasiswaService(this._client);
+
+  final SupabaseClient _client;
+
+  static const String table = 'mahasiswa';
+
+  // READ: RLS otomatis membatasi hanya data milik user yang login.
+  Future&lt;List&lt;Mahasiswa&gt;&gt; getAll() async {
+    final rows = await _client
+        .from(table)
+        .select()
+        .order('nama', ascending: true);
+    return rows.map(Mahasiswa.fromJson).toList();
+  }
+
+  // CREATE: id dan user_id diisi otomatis oleh database.
+  Future&lt;void&gt; create(Mahasiswa mhs) async {
+    await _client.from(table).insert(mhs.toJson());
+  }
+
+  // UPDATE: ubah baris dengan id tertentu.
+  Future&lt;void&gt; update(String id, Mahasiswa mhs) async {
+    await _client.from(table).update(mhs.toJson()).eq('id', id);
+  }
+
+  // DELETE
+  Future&lt;void&gt; delete(String id) async {
+    await _client.from(table).delete().eq('id', id);
+  }
+}
+</code></pre>
+
+<h4>Membandingkan dengan HiveService</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Operasi</th><th>HiveService (Modul 11B)</th><th>MahasiswaService (Supabase)</th></tr></thead>
+    <tbody>
+      <tr><td>Read</td><td><code>_box.values.toList()</code> (langsung, tanpa <code>await</code>)</td><td><code>await _client.from('mahasiswa').select().order('nama', ascending: true)</code></td></tr>
+      <tr><td>Create</td><td><code>_box.put(mhs.id, mhs)</code></td><td><code>insert(mhs.toJson())</code></td></tr>
+      <tr><td>Update</td><td><code>_box.put(mhs.id, mhs)</code> (menimpa key yang sama)</td><td><code>update(mhs.toJson()).eq('id', id)</code></td></tr>
+      <tr><td>Delete</td><td><code>_box.delete(id)</code></td><td><code>delete().eq('id', id)</code></td></tr>
+      <tr><td>Tipe kembalian Read</td><td><code>List&lt;Mahasiswa&gt;</code></td><td><code>Future&lt;List&lt;Mahasiswa&gt;&gt;</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Penjelasan baris penting</h4>
+<ul>
+  <li><strong><code>MahasiswaService(this._client)</code></strong>: client Supabase diterima lewat constructor, tidak diambil sendiri dari <code>Supabase.instance</code>. Teknik ini disebut <em>dependency injection</em>. Manfaatnya terlihat di section 14: saat testing kita bisa memakai service palsu tanpa internet.</li>
+  <li><strong><code>_client.from(table)</code></strong>: memilih tabel, mirip <code>Hive.box()</code>.</li>
+  <li><strong><code>.select()</code></strong>: mengambil semua kolom. Hasilnya <code>List&lt;Map&lt;String, dynamic&gt;&gt;</code>, lalu setiap Map diubah menjadi objek dengan <code>rows.map(Mahasiswa.fromJson).toList()</code>.</li>
+  <li><strong><code>.order('nama', ascending: true)</code></strong>: data diurutkan oleh database berdasarkan nama, A ke Z.</li>
+  <li><strong><code>.eq('id', id)</code></strong>: filter "kolom <code>id</code> sama dengan ...". Artinya sama dengan <code>WHERE id = '...'</code> di SQL.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Jebakan: <code>order()</code> defaultnya Z ke A</h4><p>Di <code>supabase_flutter</code>, parameter <code>ascending</code> pada <code>order()</code> bernilai <strong><code>false</code></strong> secara bawaan. Jika Anda hanya menulis <code>.order('nama')</code>, daftar justru tampil terbalik (Siti, Budi, Andi). Kesalahan ini kami temukan sendiri saat menguji modul ini, jadi selalu tulis <code>ascending: true</code> secara eksplisit.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Update/delete tanpa <code>.eq()</code></h4><p>Jangan pernah memanggil <code>update(...)</code> atau <code>delete()</code> tanpa filter. Supabase menolak update/delete tanpa filter, dan seandainya diizinkan, perintah itu akan mengenai <strong>semua</strong> baris milik user tersebut.</p></div>
+
+<div class="callout callout-info"><h4>ℹ️ Tidak ada filter <code>user_id</code></h4><p>Perhatikan bahwa <code>getAll()</code> tidak memfilter <code>user_id</code>, tetapi Budi tetap hanya mendapat datanya sendiri. Penyaringan ini dilakukan RLS di server (section 2), dan inilah alasan RLS wajib diaktifkan.</p></div>

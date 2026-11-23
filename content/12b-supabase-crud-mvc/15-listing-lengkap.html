@@ -1,0 +1,1600 @@
+<p class="lead">Section ini berisi <strong>seluruh</strong> file proyek dalam bentuk final, siap disalin. Semua kode sudah diverifikasi dengan <code>flutter analyze</code> (tanpa masalah) dan <code>flutter test</code> (6 test lulus), lalu dijalankan di Android Emulator yang terhubung ke project Supabase sungguhan.</p>
+
+<h4>Langkah dari proyek kosong</h4>
+<pre><code class="language-bash">flutter create crud_mahasiswa
+cd crud_mahasiswa
+flutter pub add get supabase_flutter
+rm test/widget_test.dart
+mkdir -p lib/config lib/models lib/services lib/controllers lib/bindings lib/middlewares lib/routes lib/views supabase test/helpers
+</code></pre>
+<p>Lalu jalankan <code>supabase/setup.sql</code> di SQL Editor (section 2), buat <code>env.json</code> (section 3), buat semua file di bawah, dan jalankan:</p>
+<pre><code class="language-bash">flutter analyze
+flutter test
+flutter run --dart-define-from-file=env.json
+</code></pre>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>No</th><th>File</th><th>Lapisan</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>supabase/setup.sql</code></td><td>Database</td></tr>
+      <tr><td>2</td><td><code>lib/main.dart</code></td><td>Titik awal aplikasi</td></tr>
+      <tr><td>3</td><td><code>lib/config/env.dart</code></td><td>Konfigurasi</td></tr>
+      <tr><td>4</td><td><code>lib/models/mahasiswa_model.dart</code></td><td>Model</td></tr>
+      <tr><td>5</td><td><code>lib/services/auth_service.dart</code></td><td>Model (akses Auth)</td></tr>
+      <tr><td>6</td><td><code>lib/services/mahasiswa_service.dart</code></td><td>Model (akses data)</td></tr>
+      <tr><td>7</td><td><code>lib/controllers/auth_controller.dart</code></td><td>Controller</td></tr>
+      <tr><td>8</td><td><code>lib/controllers/mahasiswa_controller.dart</code></td><td>Controller</td></tr>
+      <tr><td>9</td><td><code>lib/middlewares/auth_middleware.dart</code></td><td>GetX (penjaga route)</td></tr>
+      <tr><td>10</td><td><code>lib/bindings/mahasiswa_binding.dart</code></td><td>GetX (DI)</td></tr>
+      <tr><td>11</td><td><code>lib/routes/app_routes.dart</code></td><td>GetX (route)</td></tr>
+      <tr><td>12</td><td><code>lib/routes/app_pages.dart</code></td><td>GetX (route)</td></tr>
+      <tr><td>13</td><td><code>lib/views/login_view.dart</code></td><td>View</td></tr>
+      <tr><td>14</td><td><code>lib/views/register_view.dart</code></td><td>View</td></tr>
+      <tr><td>15</td><td><code>lib/views/mahasiswa_list_view.dart</code></td><td>View</td></tr>
+      <tr><td>16</td><td><code>lib/views/mahasiswa_form_view.dart</code></td><td>View</td></tr>
+      <tr><td>17</td><td><code>test/helpers/fakes.dart</code></td><td>Test</td></tr>
+      <tr><td>18</td><td><code>test/mahasiswa_model_test.dart</code></td><td>Unit test</td></tr>
+      <tr><td>19</td><td><code>test/auth_flow_test.dart</code></td><td>Widget test</td></tr>
+      <tr><td>20</td><td><code>test/crud_flow_test.dart</code></td><td>Widget test</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>env.json dan .gitignore</h4>
+<p class="code-file-label">📄 <code>env.json</code> (isi dengan nilai project Anda, jangan di-commit)</p>
+<pre><code class="language-json">{
+  "SUPABASE_URL": "https://YOUR-PROJECT-REF.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_YOUR_KEY"
+}
+</code></pre>
+<p class="code-file-label">📄 <code>.gitignore</code> (tambahkan di baris paling bawah)</p>
+<pre><code class="language-text">env.json
+</code></pre>
+
+<h4>pubspec.yaml (bagian dependencies)</h4>
+<pre><code class="language-yaml">dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  get: ^4.7.3
+  supabase_flutter: ^2.18.3
+</code></pre>
+
+<h4>1. SQL Supabase</h4>
+<p class="code-file-label">📄 <code>supabase/setup.sql</code></p>
+<pre><code class="language-sql">-- 1. Tabel mahasiswa: setiap baris dimiliki satu user (user_id)
+create table if not exists public.mahasiswa (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid()
+    references auth.users (id) on delete cascade,
+  nim text not null,
+  nama text not null,
+  prodi text not null,
+  semester int not null check (semester between 1 and 14),
+  created_at timestamptz not null default now(),
+  unique (user_id, nim)
+);
+
+-- 2. Izinkan user yang login memakai tabel ini lewat API
+grant select, insert, update, delete on public.mahasiswa to authenticated;
+
+-- 3. Kunci tabel dengan Row Level Security
+alter table public.mahasiswa enable row level security;
+
+-- 4. Policy: user hanya boleh menyentuh baris miliknya sendiri
+drop policy if exists "Lihat data sendiri" on public.mahasiswa;
+create policy "Lihat data sendiri"
+on public.mahasiswa for select
+to authenticated
+using ((select auth.uid()) = user_id);
+
+drop policy if exists "Tambah data sendiri" on public.mahasiswa;
+create policy "Tambah data sendiri"
+on public.mahasiswa for insert
+to authenticated
+with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Ubah data sendiri" on public.mahasiswa;
+create policy "Ubah data sendiri"
+on public.mahasiswa for update
+to authenticated
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Hapus data sendiri" on public.mahasiswa;
+create policy "Hapus data sendiri"
+on public.mahasiswa for delete
+to authenticated
+using ((select auth.uid()) = user_id);
+
+-- 5. Index agar filter berdasarkan user_id tetap cepat
+create index if not exists mahasiswa_user_id_idx on public.mahasiswa (user_id);
+</code></pre>
+<h4>2. main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'config/env.dart';
+import 'controllers/auth_controller.dart';
+import 'routes/app_pages.dart';
+import 'routes/app_routes.dart';
+import 'services/auth_service.dart';
+import 'services/mahasiswa_service.dart';
+
+Future&lt;void&gt; main() async {
+  // 1. Pastikan binding Flutter siap sebelum memanggil kode async
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 2. Cek konfigurasi: lupa --dart-define-from-file=env.json?
+  if (!Env.isConfigured) {
+    runApp(const KonfigurasiKosongApp());
+    return;
+  }
+
+  // 3. Inisialisasi Supabase (sesi login lama otomatis dipulihkan)
+  await Supabase.initialize(
+    url: Env.supabaseUrl,
+    publishableKey: Env.supabaseKey,
+  );
+  final client = Supabase.instance.client;
+
+  // 4. Daftarkan service &amp; AuthController sekali untuk seluruh aplikasi
+  Get.put(AuthService(client), permanent: true);
+  Get.put(MahasiswaService(client), permanent: true);
+  Get.put(AuthController(Get.find()), permanent: true);
+
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      title: 'CRUD Mahasiswa',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
+      // Selalu menuju home. Jika belum login, AuthMiddleware
+      // mengalihkan ke halaman login.
+      initialRoute: AppRoutes.home,
+      getPages: AppPages.pages,
+    );
+  }
+}
+
+/// Ditampilkan jika aplikasi dijalankan tanpa env.json.
+class KonfigurasiKosongApp extends StatelessWidget {
+  const KonfigurasiKosongApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY belum diisi.\n\n'
+              'Jalankan dengan:\n'
+              'flutter run --dart-define-from-file=env.json',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<h4>3. Env</h4>
+<p class="code-file-label">📄 <code>lib/config/env.dart</code></p>
+<pre><code class="language-dart">/// Konfigurasi Supabase yang dibaca saat build lewat --dart-define.
+///
+/// Jalankan aplikasi dengan:
+///   flutter run --dart-define-from-file=env.json
+class Env {
+  static const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  static const String supabaseKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+  );
+
+  /// true jika kedua nilai sudah diisi.
+  static bool get isConfigured =&gt;
+      supabaseUrl.isNotEmpty &amp;&amp; supabaseKey.isNotEmpty;
+}
+</code></pre>
+<h4>4. Model Mahasiswa</h4>
+<p class="code-file-label">📄 <code>lib/models/mahasiswa_model.dart</code></p>
+<pre><code class="language-dart">/// MODEL: representasi data Mahasiswa.
+/// Class ini murni berisi data (tidak tahu soal UI maupun GetX).
+class Mahasiswa {
+  /// null  -&gt; data baru, belum tersimpan di Supabase.
+  /// berisi -&gt; uuid yang dibuat otomatis oleh Postgres.
+  final String? id;
+  final String nim;
+  final String nama;
+  final String prodi;
+  final int semester;
+
+  Mahasiswa({
+    this.id,
+    required this.nim,
+    required this.nama,
+    required this.prodi,
+    required this.semester,
+  });
+
+  /// Map dari Supabase (satu baris tabel) -&gt; objek Mahasiswa.
+  factory Mahasiswa.fromJson(Map&lt;String, dynamic&gt; json) {
+    return Mahasiswa(
+      id: json['id'] as String,
+      nim: json['nim'] as String,
+      nama: json['nama'] as String,
+      prodi: json['prodi'] as String,
+      semester: json['semester'] as int,
+    );
+  }
+
+  /// Objek Mahasiswa -&gt; Map untuk insert / update.
+  /// id dan user_id TIDAK dikirim: keduanya diisi otomatis oleh database.
+  Map&lt;String, dynamic&gt; toJson() {
+    return {'nim': nim, 'nama': nama, 'prodi': prodi, 'semester': semester};
+  }
+
+  /// Membuat salinan objek dengan sebagian field yang diubah.
+  Mahasiswa copyWith({
+    String? nim,
+    String? nama,
+    String? prodi,
+    int? semester,
+  }) {
+    return Mahasiswa(
+      id: id,
+      nim: nim ?? this.nim,
+      nama: nama ?? this.nama,
+      prodi: prodi ?? this.prodi,
+      semester: semester ?? this.semester,
+    );
+  }
+}
+</code></pre>
+<h4>5. AuthService</h4>
+<p class="code-file-label">📄 <code>lib/services/auth_service.dart</code></p>
+<pre><code class="language-dart">import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// Lapisan akses Supabase Auth (bagian dari MODEL pada MVC).
+/// Hanya class ini yang berbicara langsung dengan Supabase Auth.
+class AuthService {
+  AuthService(this._client);
+
+  final SupabaseClient _client;
+
+  GoTrueClient get _auth =&gt; _client.auth;
+
+  /// User yang sedang login, atau null jika belum login.
+  User? get currentUser =&gt; _auth.currentUser;
+
+  /// Stream yang memancarkan event setiap status login berubah
+  /// (signedIn, signedOut, tokenRefreshed, ...).
+  Stream&lt;AuthState&gt; get authStateChanges =&gt; _auth.onAuthStateChange;
+
+  Future&lt;AuthResponse&gt; signUp({
+    required String email,
+    required String password,
+  }) {
+    return _auth.signUp(email: email, password: password);
+  }
+
+  Future&lt;AuthResponse&gt; signIn({
+    required String email,
+    required String password,
+  }) {
+    return _auth.signInWithPassword(email: email, password: password);
+  }
+
+  Future&lt;void&gt; signOut() =&gt; _auth.signOut();
+}
+</code></pre>
+<h4>6. MahasiswaService</h4>
+<p class="code-file-label">📄 <code>lib/services/mahasiswa_service.dart</code></p>
+<pre><code class="language-dart">import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../models/mahasiswa_model.dart';
+
+/// Lapisan akses data (bagian dari MODEL pada MVC).
+/// Pengganti HiveService: semua operasi CRUD ke tabel `mahasiswa`
+/// di Supabase dikumpulkan di sini.
+class MahasiswaService {
+  MahasiswaService(this._client);
+
+  final SupabaseClient _client;
+
+  static const String table = 'mahasiswa';
+
+  // READ: RLS otomatis membatasi hanya data milik user yang login.
+  Future&lt;List&lt;Mahasiswa&gt;&gt; getAll() async {
+    final rows = await _client
+        .from(table)
+        .select()
+        .order('nama', ascending: true);
+    return rows.map(Mahasiswa.fromJson).toList();
+  }
+
+  // CREATE: id dan user_id diisi otomatis oleh database.
+  Future&lt;void&gt; create(Mahasiswa mhs) async {
+    await _client.from(table).insert(mhs.toJson());
+  }
+
+  // UPDATE: ubah baris dengan id tertentu.
+  Future&lt;void&gt; update(String id, Mahasiswa mhs) async {
+    await _client.from(table).update(mhs.toJson()).eq('id', id);
+  }
+
+  // DELETE
+  Future&lt;void&gt; delete(String id) async {
+    await _client.from(table).delete().eq('id', id);
+  }
+}
+</code></pre>
+<h4>7. AuthController</h4>
+<p class="code-file-label">📄 <code>lib/controllers/auth_controller.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../routes/app_routes.dart';
+import '../services/auth_service.dart';
+
+/// CONTROLLER untuk login, register, dan logout.
+class AuthController extends GetxController {
+  AuthController(this._authService);
+
+  final AuthService _authService;
+
+  // ------------------ STATE REAKTIF ------------------
+  final isLoading = false.obs;
+  final hidePassword = true.obs;
+
+  // ------------------ STATE FORM ------------------
+  // Login dan register punya form sendiri-sendiri, karena saat halaman
+  // register dibuka, halaman login masih ada di bawahnya.
+  final loginFormKey = GlobalKey&lt;FormState&gt;();
+  final registerFormKey = GlobalKey&lt;FormState&gt;();
+  final emailC = TextEditingController();
+  final passwordC = TextEditingController();
+  final regEmailC = TextEditingController();
+  final regPasswordC = TextEditingController();
+  final regKonfirmasiC = TextEditingController();
+
+  StreamSubscription&lt;AuthState&gt;? _authSub;
+
+  bool get isLoggedIn =&gt; _authService.currentUser != null;
+  String get email =&gt; _authService.currentUser?.email ?? '';
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Jika sesi berakhir (logout, token kedaluwarsa, akun dihapus),
+    // kembalikan pengguna ke halaman login dari halaman mana pun.
+    _authSub = _authService.authStateChanges.listen((data) {
+      if (data.event == AuthChangeEvent.signedOut) {
+        Get.offAllNamed(AppRoutes.login);
+      }
+    });
+  }
+
+  // ------------------ LOGIN ------------------
+  Future&lt;void&gt; login() async {
+    if (!loginFormKey.currentState!.validate()) return;
+
+    isLoading.value = true;
+    try {
+      await _authService.signIn(
+        email: emailC.text.trim(),
+        password: passwordC.text,
+      );
+      passwordC.clear();
+      Get.offAllNamed(AppRoutes.home);
+    } on AuthException catch (e) {
+      _tampilkanError(_pesanAuth(e));
+    } catch (e) {
+      _tampilkanError('Tidak dapat terhubung ke server. Periksa internet.');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // ------------------ REGISTER ------------------
+  void openRegister() {
+    regEmailC.text = emailC.text.trim();
+    regPasswordC.clear();
+    regKonfirmasiC.clear();
+    Get.toNamed(AppRoutes.register);
+  }
+
+  Future&lt;void&gt; register() async {
+    if (!registerFormKey.currentState!.validate()) return;
+
+    isLoading.value = true;
+    try {
+      final res = await _authService.signUp(
+        email: regEmailC.text.trim(),
+        password: regPasswordC.text,
+      );
+
+      if (res.session != null) {
+        // "Confirm email" dimatikan: user langsung login.
+        Get.offAllNamed(AppRoutes.home);
+        Get.snackbar(
+          'Berhasil',
+          'Akun dibuat, selamat datang!',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      } else {
+        // "Confirm email" aktif: user harus klik link di email dulu.
+        emailC.text = regEmailC.text.trim();
+        tutup(); // kembali ke halaman login
+        Get.snackbar(
+          'Cek email Anda',
+          'Klik link verifikasi di email, lalu login.',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 5),
+        );
+      }
+    } on AuthException catch (e) {
+      _tampilkanError(_pesanAuth(e));
+    } catch (e) {
+      _tampilkanError('Tidak dapat terhubung ke server. Periksa internet.');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // ------------------ LOGOUT ------------------
+  Future&lt;void&gt; confirmLogout() async {
+    final yakin = await Get.dialog&lt;bool&gt;(
+      AlertDialog(
+        title: const Text('Keluar'),
+        content: const Text('Yakin ingin keluar dari akun ini?'),
+        actions: [
+          TextButton(onPressed: () =&gt; tutup(false), child: const Text('Batal')),
+          FilledButton(
+            onPressed: () =&gt; tutup(true),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
+    );
+    if (yakin == true) {
+      // Tidak perlu navigasi di sini: listener di onInit menerima event
+      // signedOut lalu membuka halaman login.
+      await _authService.signOut();
+    }
+  }
+
+  // ------------------ HELPER ------------------
+  /// Menutup halaman / dialog paling atas (sama seperti di Modul 11B).
+  void tutup&lt;T&gt;([T? result]) =&gt; Get.key.currentState?.pop&lt;T&gt;(result);
+
+  void _tampilkanError(String pesan) {
+    Get.snackbar('Gagal', pesan, snackPosition: SnackPosition.BOTTOM);
+  }
+
+  /// Menerjemahkan kode error Supabase Auth ke bahasa Indonesia.
+  String _pesanAuth(AuthException e) {
+    if (e is AuthRetryableFetchException) {
+      return 'Tidak dapat terhubung ke server. Periksa internet.';
+    }
+    switch (e.code) {
+      case 'invalid_credentials':
+        return 'Email atau password salah.';
+      case 'email_not_confirmed':
+        return 'Email belum diverifikasi. Buka link di inbox Anda.';
+      case 'user_already_exists':
+      case 'email_exists':
+        return 'Email sudah terdaftar. Silakan login.';
+      case 'weak_password':
+        return 'Password terlalu lemah (minimal 6 karakter).';
+      case 'email_address_invalid':
+        return 'Alamat email ditolak server.';
+      case 'over_email_send_rate_limit':
+      case 'over_request_rate_limit':
+        return 'Terlalu banyak percobaan. Tunggu beberapa menit.';
+    }
+    return e.message;
+  }
+
+  // ------------------ VALIDATOR ------------------
+  String? validateEmail(String? v) {
+    final text = v?.trim() ?? '';
+    if (text.isEmpty) return 'Email wajib diisi';
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(text)) {
+      return 'Format email tidak valid';
+    }
+    return null;
+  }
+
+  String? validatePassword(String? v) {
+    if (v == null || v.isEmpty) return 'Password wajib diisi';
+    if (v.length &lt; 6) return 'Password minimal 6 karakter';
+    return null;
+  }
+
+  String? validateKonfirmasi(String? v) {
+    if (v == null || v.isEmpty) return 'Ulangi password wajib diisi';
+    if (v != regPasswordC.text) return 'Konfirmasi password tidak sama';
+    return null;
+  }
+
+  @override
+  void onClose() {
+    _authSub?.cancel();
+    emailC.dispose();
+    passwordC.dispose();
+    regEmailC.dispose();
+    regPasswordC.dispose();
+    regKonfirmasiC.dispose();
+    super.onClose();
+  }
+}
+</code></pre>
+<h4>8. MahasiswaController</h4>
+<p class="code-file-label">📄 <code>lib/controllers/mahasiswa_controller.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../models/mahasiswa_model.dart';
+import '../routes/app_routes.dart';
+import '../services/mahasiswa_service.dart';
+
+/// CONTROLLER: penghubung antara View dan Model.
+/// Isinya hampir sama dengan versi Hive. Perbedaannya: semua akses data
+/// sekarang async (lewat internet), jadi ada state loading dan error.
+class MahasiswaController extends GetxController {
+  MahasiswaController(this._service);
+
+  final MahasiswaService _service;
+
+  // ------------------ STATE REAKTIF ------------------
+  final mahasiswaList = &lt;Mahasiswa&gt;[].obs;
+  final keyword = ''.obs;
+  final selectedProdi = 'Informatika'.obs;
+  final isLoading = false.obs; // sedang memuat daftar
+  final isSaving = false.obs; // sedang menyimpan form
+  final errorMessage = RxnString(); // null = tidak ada error
+
+  final List&lt;String&gt; daftarProdi = const [
+    'Informatika',
+    'Sistem Informasi',
+    'Teknik Komputer',
+    'Data Science',
+  ];
+
+  // ------------------ STATE FORM ------------------
+  final formKey = GlobalKey&lt;FormState&gt;();
+  final nimC = TextEditingController();
+  final namaC = TextEditingController();
+  final semesterC = TextEditingController();
+
+  /// null  -&gt; mode TAMBAH
+  /// berisi id -&gt; mode EDIT
+  String? editingId;
+  bool get isEdit =&gt; editingId != null;
+
+  /// Data yang ditampilkan (sudah difilter pencarian).
+  List&lt;Mahasiswa&gt; get filteredList {
+    final q = keyword.value.toLowerCase();
+    if (q.isEmpty) return mahasiswaList;
+    return mahasiswaList
+        .where((m) =&gt; m.nama.toLowerCase().contains(q) || m.nim.contains(q))
+        .toList();
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadData();
+  }
+
+  // ------------------ READ ------------------
+  Future&lt;void&gt; loadData() async {
+    isLoading.value = true;
+    errorMessage.value = null;
+    try {
+      final data = await _service.getAll();
+      mahasiswaList.assignAll(data);
+    } catch (e) {
+      errorMessage.value = _pesanError(e);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // ------------------ NAVIGASI KE FORM ------------------
+  void openAddForm() {
+    editingId = null;
+    nimC.clear();
+    namaC.clear();
+    semesterC.clear();
+    selectedProdi.value = daftarProdi.first;
+    Get.toNamed(AppRoutes.form);
+  }
+
+  void openEditForm(Mahasiswa mhs) {
+    editingId = mhs.id;
+    nimC.text = mhs.nim;
+    namaC.text = mhs.nama;
+    semesterC.text = mhs.semester.toString();
+    selectedProdi.value = mhs.prodi;
+    Get.toNamed(AppRoutes.form);
+  }
+
+  // ------------------ CREATE &amp; UPDATE ------------------
+  Future&lt;void&gt; save() async {
+    if (isSaving.value) return; // cegah tombol ditekan dua kali
+    if (!formKey.currentState!.validate()) return;
+
+    final nim = nimC.text.trim();
+
+    // Cegah NIM ganda (cek cepat di memori sebelum ke server)
+    final nimSudahAda = mahasiswaList.any(
+      (m) =&gt; m.nim == nim &amp;&amp; m.id != editingId,
+    );
+    if (nimSudahAda) {
+      Get.snackbar(
+        'Gagal',
+        'NIM $nim sudah terdaftar',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    final mhs = Mahasiswa(
+      nim: nim,
+      nama: namaC.text.trim(),
+      prodi: selectedProdi.value,
+      semester: int.parse(semesterC.text.trim()),
+    );
+
+    isSaving.value = true;
+    try {
+      if (isEdit) {
+        await _service.update(editingId!, mhs);
+      } else {
+        await _service.create(mhs);
+      }
+
+      final pesan = isEdit
+          ? 'Data berhasil diperbarui'
+          : 'Data berhasil ditambahkan';
+      await loadData();
+      tutup(); // kembali ke halaman daftar
+      Get.snackbar('Sukses', pesan, snackPosition: SnackPosition.BOTTOM);
+    } catch (e) {
+      Get.snackbar(
+        'Gagal',
+        _pesanError(e),
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } finally {
+      isSaving.value = false;
+    }
+  }
+
+  // ------------------ DELETE ------------------
+  Future&lt;void&gt; confirmDelete(Mahasiswa mhs) async {
+    final yakin = await Get.dialog&lt;bool&gt;(
+      AlertDialog(
+        title: const Text('Hapus Data'),
+        content: Text('Yakin ingin menghapus ${mhs.nama}?'),
+        actions: [
+          TextButton(onPressed: () =&gt; tutup(false), child: const Text('Batal')),
+          FilledButton(
+            onPressed: () =&gt; tutup(true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (yakin != true) return;
+
+    try {
+      await _service.delete(mhs.id!);
+      await loadData();
+      Get.snackbar(
+        'Terhapus',
+        '${mhs.nama} telah dihapus',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Gagal',
+        _pesanError(e),
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+
+  // ------------------ HELPER ------------------
+  /// Menutup halaman / dialog paling atas (opsional membawa [result]).
+  void tutup&lt;T&gt;([T? result]) =&gt; Get.key.currentState?.pop&lt;T&gt;(result);
+
+  /// Mengubah exception menjadi pesan yang mudah dipahami pengguna.
+  String _pesanError(Object e) {
+    if (e is PostgrestException) {
+      if (e.code == '23505') return 'NIM sudah terdaftar';
+      if (e.code == '42501') return 'Akses ditolak. Silakan login ulang.';
+      return 'Kesalahan database: ${e.message}';
+    }
+    return 'Tidak dapat terhubung ke server. Periksa internet.';
+  }
+
+  // ------------------ VALIDATOR ------------------
+  String? validateNim(String? v) {
+    if (v == null || v.trim().isEmpty) return 'NIM wajib diisi';
+    if (int.tryParse(v.trim()) == null) return 'NIM harus berupa angka';
+    if (v.trim().length &lt; 8) return 'NIM minimal 8 digit';
+    return null;
+  }
+
+  String? validateNama(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Nama wajib diisi';
+    return null;
+  }
+
+  String? validateSemester(String? v) {
+    final s = int.tryParse(v?.trim() ?? '');
+    if (s == null) return 'Semester wajib berupa angka';
+    if (s &lt; 1 || s &gt; 14) return 'Semester antara 1 - 14';
+    return null;
+  }
+
+  @override
+  void onClose() {
+    nimC.dispose();
+    namaC.dispose();
+    semesterC.dispose();
+    super.onClose();
+  }
+}
+</code></pre>
+<h4>9. AuthMiddleware</h4>
+<p class="code-file-label">📄 <code>lib/middlewares/auth_middleware.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/auth_controller.dart';
+import '../routes/app_routes.dart';
+
+/// "Satpam" route: dipasang pada halaman yang wajib login.
+/// Jika user belum login, GetX diarahkan ke halaman login.
+class AuthMiddleware extends GetMiddleware {
+  @override
+  RouteSettings? redirect(String? route) {
+    final auth = Get.find&lt;AuthController&gt;();
+    if (auth.isLoggedIn) return null; // boleh lanjut
+    return const RouteSettings(name: AppRoutes.login);
+  }
+}
+</code></pre>
+<h4>10. Binding</h4>
+<p class="code-file-label">📄 <code>lib/bindings/mahasiswa_binding.dart</code></p>
+<pre><code class="language-dart">import 'package:get/get.dart';
+
+import '../controllers/mahasiswa_controller.dart';
+
+/// Binding: mendaftarkan MahasiswaController sebelum halaman daftar dibuka.
+/// MahasiswaService sudah didaftarkan di main(), tinggal diambil Get.find().
+class MahasiswaBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut&lt;MahasiswaController&gt;(() =&gt; MahasiswaController(Get.find()));
+  }
+}
+</code></pre>
+<h4>11. Nama route</h4>
+<p class="code-file-label">📄 <code>lib/routes/app_routes.dart</code></p>
+<pre><code class="language-dart">/// Daftar nama route aplikasi.
+abstract class AppRoutes {
+  static const login = '/login';
+  static const register = '/register';
+  static const home = '/';
+  static const form = '/form';
+}
+</code></pre>
+<h4>12. Pemetaan route</h4>
+<p class="code-file-label">📄 <code>lib/routes/app_pages.dart</code></p>
+<pre><code class="language-dart">import 'package:get/get.dart';
+
+import '../bindings/mahasiswa_binding.dart';
+import '../middlewares/auth_middleware.dart';
+import '../views/login_view.dart';
+import '../views/mahasiswa_form_view.dart';
+import '../views/mahasiswa_list_view.dart';
+import '../views/register_view.dart';
+import 'app_routes.dart';
+
+/// Pemetaan route -&gt; halaman (+ binding + middleware).
+class AppPages {
+  static final pages = [
+    GetPage(name: AppRoutes.login, page: () =&gt; const LoginView()),
+    GetPage(name: AppRoutes.register, page: () =&gt; const RegisterView()),
+    GetPage(
+      name: AppRoutes.home,
+      page: () =&gt; const MahasiswaListView(),
+      binding: MahasiswaBinding(),
+      middlewares: [AuthMiddleware()],
+    ),
+    GetPage(
+      name: AppRoutes.form,
+      page: () =&gt; const MahasiswaFormView(),
+      middlewares: [AuthMiddleware()],
+    ),
+  ];
+}
+</code></pre>
+<h4>13. LoginView</h4>
+<p class="code-file-label">📄 <code>lib/views/login_view.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/auth_controller.dart';
+
+/// VIEW: halaman login.
+class LoginView extends GetView&lt;AuthController&gt; {
+  const LoginView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Form(
+          key: controller.loginFormKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          child: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              const SizedBox(height: 40),
+              const Icon(Icons.school, size: 72, color: Colors.indigo),
+              const SizedBox(height: 12),
+              Text(
+                'CRUD Mahasiswa',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const Text(
+                'Masuk untuk mengelola data',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              TextFormField(
+                controller: controller.emailC,
+                keyboardType: TextInputType.emailAddress,
+                validator: controller.validateEmail,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Obx(
+                () =&gt; TextFormField(
+                  controller: controller.passwordC,
+                  obscureText: controller.hidePassword.value,
+                  validator: controller.validatePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    prefixIcon: const Icon(Icons.lock),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        controller.hidePassword.value
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed: controller.hidePassword.toggle,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Obx(
+                () =&gt; FilledButton(
+                  // null = tombol nonaktif selama proses login
+                  onPressed: controller.isLoading.value
+                      ? null
+                      : controller.login,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: controller.isLoading.value
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Masuk'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: controller.openRegister,
+                child: const Text('Belum punya akun? Daftar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<h4>14. RegisterView</h4>
+<p class="code-file-label">📄 <code>lib/views/register_view.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/auth_controller.dart';
+
+/// VIEW: halaman daftar akun baru.
+class RegisterView extends GetView&lt;AuthController&gt; {
+  const RegisterView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Daftar Akun')),
+      body: Form(
+        key: controller.registerFormKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            TextFormField(
+              controller: controller.regEmailC,
+              keyboardType: TextInputType.emailAddress,
+              validator: controller.validateEmail,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                prefixIcon: Icon(Icons.email),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Obx(
+              () =&gt; TextFormField(
+                controller: controller.regPasswordC,
+                obscureText: controller.hidePassword.value,
+                validator: controller.validatePassword,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: const Icon(Icons.lock),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      controller.hidePassword.value
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                    ),
+                    onPressed: controller.hidePassword.toggle,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Obx(
+              () =&gt; TextFormField(
+                controller: controller.regKonfirmasiC,
+                obscureText: controller.hidePassword.value,
+                validator: controller.validateKonfirmasi,
+                decoration: const InputDecoration(
+                  labelText: 'Ulangi Password',
+                  prefixIcon: Icon(Icons.lock_outline),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Obx(
+              () =&gt; FilledButton(
+                onPressed: controller.isLoading.value
+                    ? null
+                    : controller.register,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: controller.isLoading.value
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Daftar'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<h4>15. View daftar</h4>
+<p class="code-file-label">📄 <code>lib/views/mahasiswa_list_view.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/auth_controller.dart';
+import '../controllers/mahasiswa_controller.dart';
+
+/// VIEW: halaman daftar mahasiswa (READ + tombol Edit/Hapus + Logout).
+class MahasiswaListView extends GetView&lt;MahasiswaController&gt; {
+  const MahasiswaListView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = Get.find&lt;AuthController&gt;();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Data Mahasiswa'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Keluar',
+            icon: const Icon(Icons.logout),
+            onPressed: auth.confirmLogout,
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // ---------- Info akun ----------
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: Row(
+              children: [
+                const Icon(Icons.account_circle, size: 18),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Masuk sebagai ${auth.email}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ---------- Kolom pencarian ----------
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              onChanged: (v) =&gt; controller.keyword.value = v,
+              decoration: const InputDecoration(
+                hintText: 'Cari nama atau NIM...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+
+          // ---------- Daftar data (reaktif) ----------
+          Expanded(
+            child: Obx(() {
+              final data = controller.filteredList;
+
+              // 1. Loading pertama kali (belum ada data sama sekali)
+              if (controller.isLoading.value &amp;&amp;
+                  controller.mahasiswaList.isEmpty) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              // 2. Gagal memuat (misalnya tidak ada internet)
+              final error = controller.errorMessage.value;
+              if (error != null) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.cloud_off, size: 48),
+                        const SizedBox(height: 8),
+                        Text(error, textAlign: TextAlign.center),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: controller.loadData,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Coba Lagi'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              // 3. Data ada / kosong. RefreshIndicator = tarik ke bawah.
+              return RefreshIndicator(
+                onRefresh: controller.loadData,
+                child: data.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: const [
+                          SizedBox(height: 120),
+                          Center(child: Text('Belum ada data mahasiswa')),
+                        ],
+                      )
+                    : ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.only(bottom: 80),
+                        itemCount: data.length,
+                        itemBuilder: (context, index) {
+                          final mhs = data[index];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                child: Text(mhs.nama[0].toUpperCase()),
+                              ),
+                              title: Text(mhs.nama),
+                              subtitle: Text(
+                                'NIM ${mhs.nim}\n${mhs.prodi} • Smt ${mhs.semester}',
+                              ),
+                              isThreeLine: true,
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    icon: const Icon(
+                                      Icons.edit,
+                                      color: Colors.orange,
+                                    ),
+                                    onPressed: () =&gt;
+                                        controller.openEditForm(mhs),
+                                  ),
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    icon: const Icon(
+                                      Icons.delete,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () =&gt;
+                                        controller.confirmDelete(mhs),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              );
+            }),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: controller.openAddForm,
+        icon: const Icon(Icons.add),
+        label: const Text('Tambah'),
+      ),
+    );
+  }
+}
+</code></pre>
+<h4>16. View form</h4>
+<p class="code-file-label">📄 <code>lib/views/mahasiswa_form_view.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:get/get.dart';
+
+import '../controllers/mahasiswa_controller.dart';
+
+/// VIEW: halaman form untuk CREATE dan UPDATE.
+class MahasiswaFormView extends GetView&lt;MahasiswaController&gt; {
+  const MahasiswaFormView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(controller.isEdit ? 'Edit Mahasiswa' : 'Tambah Mahasiswa'),
+      ),
+      body: Form(
+        key: controller.formKey,
+        // pesan error diperbarui otomatis saat user mengetik
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: controller.nimC,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              validator: controller.validateNim,
+              decoration: const InputDecoration(
+                labelText: 'NIM',
+                prefixIcon: Icon(Icons.badge),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: controller.namaC,
+              textCapitalization: TextCapitalization.words,
+              validator: controller.validateNama,
+              decoration: const InputDecoration(
+                labelText: 'Nama Lengkap',
+                prefixIcon: Icon(Icons.person),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField&lt;String&gt;(
+              initialValue: controller.selectedProdi.value,
+              items: controller.daftarProdi
+                  .map((p) =&gt; DropdownMenuItem(value: p, child: Text(p)))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) controller.selectedProdi.value = v;
+              },
+              decoration: const InputDecoration(
+                labelText: 'Program Studi',
+                prefixIcon: Icon(Icons.school),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: controller.semesterC,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              validator: controller.validateSemester,
+              decoration: const InputDecoration(
+                labelText: 'Semester',
+                prefixIcon: Icon(Icons.calendar_month),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Obx(
+              () =&gt; FilledButton.icon(
+                // nonaktif selama proses simpan ke Supabase
+                onPressed: controller.isSaving.value ? null : controller.save,
+                icon: controller.isSaving.value
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save),
+                label: Text(controller.isEdit ? 'Perbarui' : 'Simpan'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<h4>17. Service palsu untuk test</h4>
+<p class="code-file-label">📄 <code>test/helpers/fakes.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+
+import 'package:crud_mahasiswa/models/mahasiswa_model.dart';
+import 'package:crud_mahasiswa/services/auth_service.dart';
+import 'package:crud_mahasiswa/services/mahasiswa_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// AuthService palsu: tidak menghubungi Supabase sama sekali.
+/// Hanya satu akun yang dianggap benar: budi@kampus.ac.id / rahasia123.
+class FakeAuthService implements AuthService {
+  FakeAuthService({bool sudahLogin = false}) {
+    if (sudahLogin) _user = _buatUser('budi@kampus.ac.id');
+  }
+
+  final _events = StreamController&lt;AuthState&gt;.broadcast();
+  User? _user;
+
+  User _buatUser(String email) =&gt; User(
+    id: 'user-1',
+    appMetadata: const {},
+    userMetadata: const {},
+    aud: 'authenticated',
+    email: email,
+    createdAt: DateTime.now().toIso8601String(),
+  );
+
+  @override
+  User? get currentUser =&gt; _user;
+
+  @override
+  Stream&lt;AuthState&gt; get authStateChanges =&gt; _events.stream;
+
+  @override
+  Future&lt;AuthResponse&gt; signIn({
+    required String email,
+    required String password,
+  }) async {
+    if (email != 'budi@kampus.ac.id' || password != 'rahasia123') {
+      throw const AuthApiException(
+        'Invalid login credentials',
+        code: 'invalid_credentials',
+        statusCode: '400',
+      );
+    }
+    _user = _buatUser(email);
+    final session = Session(
+      accessToken: 'token',
+      tokenType: 'bearer',
+      user: _user!,
+    );
+    _events.add(AuthState(AuthChangeEvent.signedIn, session));
+    return AuthResponse(session: session);
+  }
+
+  @override
+  Future&lt;AuthResponse&gt; signUp({
+    required String email,
+    required String password,
+  }) async {
+    _user = _buatUser(email);
+    final session = Session(
+      accessToken: 'token',
+      tokenType: 'bearer',
+      user: _user!,
+    );
+    return AuthResponse(session: session);
+  }
+
+  @override
+  Future&lt;void&gt; signOut() async {
+    _user = null;
+    _events.add(const AuthState(AuthChangeEvent.signedOut, null));
+  }
+}
+
+/// MahasiswaService palsu: data disimpan di List biasa (memori).
+class FakeMahasiswaService implements MahasiswaService {
+  final List&lt;Mahasiswa&gt; _data = [];
+  int _nextId = 1;
+
+  @override
+  Future&lt;List&lt;Mahasiswa&gt;&gt; getAll() async {
+    final hasil = [..._data]..sort((a, b) =&gt; a.nama.compareTo(b.nama));
+    return hasil;
+  }
+
+  @override
+  Future&lt;void&gt; create(Mahasiswa mhs) async {
+    if (_data.any((m) =&gt; m.nim == mhs.nim)) {
+      // tiru error unique constraint dari Postgres
+      throw const PostgrestException(message: 'duplicate', code: '23505');
+    }
+    _data.add(
+      Mahasiswa(
+        id: '${_nextId++}',
+        nim: mhs.nim,
+        nama: mhs.nama,
+        prodi: mhs.prodi,
+        semester: mhs.semester,
+      ),
+    );
+  }
+
+  @override
+  Future&lt;void&gt; update(String id, Mahasiswa mhs) async {
+    final i = _data.indexWhere((m) =&gt; m.id == id);
+    _data[i] = Mahasiswa(
+      id: id,
+      nim: mhs.nim,
+      nama: mhs.nama,
+      prodi: mhs.prodi,
+      semester: mhs.semester,
+    );
+  }
+
+  @override
+  Future&lt;void&gt; delete(String id) async {
+    _data.removeWhere((m) =&gt; m.id == id);
+  }
+}
+</code></pre>
+<h4>18. Unit test model</h4>
+<p class="code-file-label">📄 <code>test/mahasiswa_model_test.dart</code></p>
+<pre><code class="language-dart">import 'package:crud_mahasiswa/models/mahasiswa_model.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('fromJson membaca satu baris dari Supabase', () {
+    final mhs = Mahasiswa.fromJson({
+      'id': 'a1b2',
+      'user_id': 'u1',
+      'nim': '220101001',
+      'nama': 'Budi',
+      'prodi': 'Informatika',
+      'semester': 5,
+      'created_at': '2026-11-23T08:00:00+00:00',
+    });
+
+    expect(mhs.id, 'a1b2');
+    expect(mhs.nama, 'Budi');
+    expect(mhs.semester, 5);
+  });
+
+  test('toJson tidak mengirim id dan user_id', () {
+    final json = Mahasiswa(
+      nim: '220101001',
+      nama: 'Budi',
+      prodi: 'Informatika',
+      semester: 5,
+    ).toJson();
+
+    expect(json.containsKey('id'), isFalse);
+    expect(json.containsKey('user_id'), isFalse);
+    expect(json['nim'], '220101001');
+  });
+}
+</code></pre>
+<h4>19. Widget test login</h4>
+<p class="code-file-label">📄 <code>test/auth_flow_test.dart</code></p>
+<pre><code class="language-dart">import 'package:crud_mahasiswa/controllers/auth_controller.dart';
+import 'package:crud_mahasiswa/main.dart';
+import 'package:crud_mahasiswa/services/auth_service.dart';
+import 'package:crud_mahasiswa/services/mahasiswa_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+
+import 'helpers/fakes.dart';
+
+void main() {
+  setUp(() {
+    // Sama seperti main(), tetapi memakai service palsu.
+    final auth = FakeAuthService();
+    Get.put&lt;AuthService&gt;(auth, permanent: true);
+    Get.put&lt;MahasiswaService&gt;(FakeMahasiswaService(), permanent: true);
+    Get.put(AuthController(auth), permanent: true);
+  });
+
+  tearDown(Get.reset);
+
+  testWidgets('Belum login: diarahkan ke halaman login', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    expect(find.text('Masuk'), findsOneWidget);
+    expect(find.text('Data Mahasiswa'), findsNothing);
+  });
+
+  testWidgets('Validasi form login', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Masuk'));
+    await tester.pump();
+    expect(find.text('Email wajib diisi'), findsOneWidget);
+    expect(find.text('Password wajib diisi'), findsOneWidget);
+  });
+
+  testWidgets('Login salah, login benar, lalu logout', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    // Password salah
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Email'),
+      'budi@kampus.ac.id',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Password'),
+      'salah123',
+    );
+    await tester.tap(find.text('Masuk'));
+    await tester.pump(); // proses login (palsu) selesai
+    await tester.pump(const Duration(seconds: 1)); // snackbar muncul
+    expect(find.text('Email atau password salah.'), findsOneWidget);
+    await tester.pumpAndSettle(const Duration(seconds: 4)); // tunggu hilang
+    expect(find.text('Data Mahasiswa'), findsNothing);
+
+    // Password benar
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Password'),
+      'rahasia123',
+    );
+    await tester.tap(find.text('Masuk'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Data Mahasiswa'), findsOneWidget);
+    expect(find.text('Masuk sebagai budi@kampus.ac.id'), findsOneWidget);
+
+    // Logout
+    await tester.tap(find.byIcon(Icons.logout));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Keluar'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Masuk'), findsOneWidget);
+    expect(find.text('Data Mahasiswa'), findsNothing);
+  });
+}
+</code></pre>
+<h4>20. Widget test CRUD</h4>
+<p class="code-file-label">📄 <code>test/crud_flow_test.dart</code></p>
+<pre><code class="language-dart">import 'package:crud_mahasiswa/controllers/auth_controller.dart';
+import 'package:crud_mahasiswa/main.dart';
+import 'package:crud_mahasiswa/services/auth_service.dart';
+import 'package:crud_mahasiswa/services/mahasiswa_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+
+import 'helpers/fakes.dart';
+
+void main() {
+  setUp(() {
+    // Anggap user sudah login sehingga aplikasi langsung ke halaman daftar.
+    final auth = FakeAuthService(sudahLogin: true);
+    Get.put&lt;AuthService&gt;(auth, permanent: true);
+    Get.put&lt;MahasiswaService&gt;(FakeMahasiswaService(), permanent: true);
+    Get.put(AuthController(auth), permanent: true);
+  });
+
+  tearDown(Get.reset);
+
+  testWidgets('Alur CRUD lewat UI', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    expect(find.text('Belum ada data mahasiswa'), findsOneWidget);
+
+    // CREATE
+    await tester.tap(find.text('Tambah'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'NIM'),
+      '22010100',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Nama Lengkap'),
+      'Siti',
+    );
+    await tester.enterText(find.widgetWithText(TextFormField, 'Semester'), '3');
+    await tester.tap(find.text('Simpan'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Siti'), findsOneWidget);
+
+    // UPDATE
+    await tester.tap(find.byIcon(Icons.edit));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Nama Lengkap'),
+      'Siti Aminah',
+    );
+    await tester.tap(find.text('Perbarui'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Siti Aminah'), findsOneWidget);
+
+    // DELETE
+    await tester.tap(find.byIcon(Icons.delete));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hapus'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Belum ada data mahasiswa'), findsOneWidget);
+  });
+}
+</code></pre>

@@ -1,0 +1,61 @@
+<p class="lead"><code>AuthService</code> adalah pasangan <code>MahasiswaService</code> untuk urusan akun. Kelas ini satu-satunya yang memanggil Supabase Auth, sehingga controller tidak perlu tahu detail Supabase.</p>
+
+<p>Buat file <code>lib/services/auth_service.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/services/auth_service.dart</code></p>
+<pre><code class="language-dart">import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// Lapisan akses Supabase Auth (bagian dari MODEL pada MVC).
+/// Hanya class ini yang berbicara langsung dengan Supabase Auth.
+class AuthService {
+  AuthService(this._client);
+
+  final SupabaseClient _client;
+
+  GoTrueClient get _auth =&gt; _client.auth;
+
+  /// User yang sedang login, atau null jika belum login.
+  User? get currentUser =&gt; _auth.currentUser;
+
+  /// Stream yang memancarkan event setiap status login berubah
+  /// (signedIn, signedOut, tokenRefreshed, ...).
+  Stream&lt;AuthState&gt; get authStateChanges =&gt; _auth.onAuthStateChange;
+
+  Future&lt;AuthResponse&gt; signUp({
+    required String email,
+    required String password,
+  }) {
+    return _auth.signUp(email: email, password: password);
+  }
+
+  Future&lt;AuthResponse&gt; signIn({
+    required String email,
+    required String password,
+  }) {
+    return _auth.signInWithPassword(email: email, password: password);
+  }
+
+  Future&lt;void&gt; signOut() =&gt; _auth.signOut();
+}
+</code></pre>
+
+<h4>Isi kelas</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Anggota</th><th>Kegunaan</th></tr></thead>
+    <tbody>
+      <tr><td><code>currentUser</code></td><td>Data user yang sedang login (id, email, ...), atau <code>null</code> jika belum login. Dipakai <code>AuthMiddleware</code> untuk memutuskan boleh masuk atau tidak.</td></tr>
+      <tr><td><code>authStateChanges</code></td><td><em>Stream</em> yang memancarkan event setiap kali status login berubah: <code>signedIn</code>, <code>signedOut</code>, <code>tokenRefreshed</code>, dan lainnya.</td></tr>
+      <tr><td><code>signUp(email, password)</code></td><td>Membuat akun baru di tabel <code>auth.users</code>.</td></tr>
+      <tr><td><code>signIn(email, password)</code></td><td>Login dengan email dan password. Jika salah, melempar <code>AuthException</code>.</td></tr>
+      <tr><td><code>signOut()</code></td><td>Logout dan menghapus sesi yang tersimpan di HP.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Apa itu "sesi" dan di mana disimpan?</h4>
+<p>Setelah login berhasil, Supabase memberi aplikasi sebuah <strong>sesi</strong>: berisi <em>access token</em> (berlaku sekitar 1 jam) dan <em>refresh token</em> (untuk meminta token baru). <code>supabase_flutter</code> menyimpan sesi ini di penyimpanan HP secara otomatis dan memperbaruinya sebelum kedaluwarsa. Akibatnya:</p>
+<ul>
+  <li>Setelah aplikasi ditutup lalu dibuka lagi, pengguna <strong>tidak perlu login ulang</strong>. <code>currentUser</code> langsung terisi.</li>
+  <li>Setiap query ke tabel <code>mahasiswa</code> otomatis membawa token ini. Dari token itulah <code>auth.uid()</code> di policy RLS mengetahui siapa yang meminta data.</li>
+</ul>
+<div class="callout callout-tip"><h4>💡 Kenapa dibungkus lagi, padahal bisa langsung <code>Supabase.instance.client.auth</code>?</h4><p>Supaya hanya ada satu pintu menuju Supabase Auth. Jika suatu saat Anda pindah ke Firebase Auth, cukup kelas ini yang diganti. Alasan kedua, kelas ini bisa diganti dengan versi palsu saat testing.</p></div>

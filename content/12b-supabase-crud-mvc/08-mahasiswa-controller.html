@@ -1,0 +1,289 @@
+<p class="lead"><code>MahasiswaController</code> dari Modul 11B hanya perlu diubah di beberapa tempat. Logika form, validator, pencarian, dan dialog hapus tetap sama. Yang berubah: data sekarang diambil lewat internet, sehingga perlu <code>await</code>, indikator loading, dan penanganan error.</p>
+
+<p>Ganti seluruh isi <code>lib/controllers/mahasiswa_controller.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/controllers/mahasiswa_controller.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../models/mahasiswa_model.dart';
+import '../routes/app_routes.dart';
+import '../services/mahasiswa_service.dart';
+
+/// CONTROLLER: penghubung antara View dan Model.
+/// Isinya hampir sama dengan versi Hive. Perbedaannya: semua akses data
+/// sekarang async (lewat internet), jadi ada state loading dan error.
+class MahasiswaController extends GetxController {
+  MahasiswaController(this._service);
+
+  final MahasiswaService _service;
+
+  // ------------------ STATE REAKTIF ------------------
+  final mahasiswaList = &lt;Mahasiswa&gt;[].obs;
+  final keyword = ''.obs;
+  final selectedProdi = 'Informatika'.obs;
+  final isLoading = false.obs; // sedang memuat daftar
+  final isSaving = false.obs; // sedang menyimpan form
+  final errorMessage = RxnString(); // null = tidak ada error
+
+  final List&lt;String&gt; daftarProdi = const [
+    'Informatika',
+    'Sistem Informasi',
+    'Teknik Komputer',
+    'Data Science',
+  ];
+
+  // ------------------ STATE FORM ------------------
+  final formKey = GlobalKey&lt;FormState&gt;();
+  final nimC = TextEditingController();
+  final namaC = TextEditingController();
+  final semesterC = TextEditingController();
+
+  /// null  -&gt; mode TAMBAH
+  /// berisi id -&gt; mode EDIT
+  String? editingId;
+  bool get isEdit =&gt; editingId != null;
+
+  /// Data yang ditampilkan (sudah difilter pencarian).
+  List&lt;Mahasiswa&gt; get filteredList {
+    final q = keyword.value.toLowerCase();
+    if (q.isEmpty) return mahasiswaList;
+    return mahasiswaList
+        .where((m) =&gt; m.nama.toLowerCase().contains(q) || m.nim.contains(q))
+        .toList();
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadData();
+  }
+
+  // ------------------ READ ------------------
+  Future&lt;void&gt; loadData() async {
+    isLoading.value = true;
+    errorMessage.value = null;
+    try {
+      final data = await _service.getAll();
+      mahasiswaList.assignAll(data);
+    } catch (e) {
+      errorMessage.value = _pesanError(e);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // ------------------ NAVIGASI KE FORM ------------------
+  void openAddForm() {
+    editingId = null;
+    nimC.clear();
+    namaC.clear();
+    semesterC.clear();
+    selectedProdi.value = daftarProdi.first;
+    Get.toNamed(AppRoutes.form);
+  }
+
+  void openEditForm(Mahasiswa mhs) {
+    editingId = mhs.id;
+    nimC.text = mhs.nim;
+    namaC.text = mhs.nama;
+    semesterC.text = mhs.semester.toString();
+    selectedProdi.value = mhs.prodi;
+    Get.toNamed(AppRoutes.form);
+  }
+
+  // ------------------ CREATE &amp; UPDATE ------------------
+  Future&lt;void&gt; save() async {
+    if (isSaving.value) return; // cegah tombol ditekan dua kali
+    if (!formKey.currentState!.validate()) return;
+
+    final nim = nimC.text.trim();
+
+    // Cegah NIM ganda (cek cepat di memori sebelum ke server)
+    final nimSudahAda = mahasiswaList.any(
+      (m) =&gt; m.nim == nim &amp;&amp; m.id != editingId,
+    );
+    if (nimSudahAda) {
+      Get.snackbar(
+        'Gagal',
+        'NIM $nim sudah terdaftar',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    final mhs = Mahasiswa(
+      nim: nim,
+      nama: namaC.text.trim(),
+      prodi: selectedProdi.value,
+      semester: int.parse(semesterC.text.trim()),
+    );
+
+    isSaving.value = true;
+    try {
+      if (isEdit) {
+        await _service.update(editingId!, mhs);
+      } else {
+        await _service.create(mhs);
+      }
+
+      final pesan = isEdit
+          ? 'Data berhasil diperbarui'
+          : 'Data berhasil ditambahkan';
+      await loadData();
+      tutup(); // kembali ke halaman daftar
+      Get.snackbar('Sukses', pesan, snackPosition: SnackPosition.BOTTOM);
+    } catch (e) {
+      Get.snackbar(
+        'Gagal',
+        _pesanError(e),
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } finally {
+      isSaving.value = false;
+    }
+  }
+
+  // ------------------ DELETE ------------------
+  Future&lt;void&gt; confirmDelete(Mahasiswa mhs) async {
+    final yakin = await Get.dialog&lt;bool&gt;(
+      AlertDialog(
+        title: const Text('Hapus Data'),
+        content: Text('Yakin ingin menghapus ${mhs.nama}?'),
+        actions: [
+          TextButton(onPressed: () =&gt; tutup(false), child: const Text('Batal')),
+          FilledButton(
+            onPressed: () =&gt; tutup(true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (yakin != true) return;
+
+    try {
+      await _service.delete(mhs.id!);
+      await loadData();
+      Get.snackbar(
+        'Terhapus',
+        '${mhs.nama} telah dihapus',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Gagal',
+        _pesanError(e),
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+
+  // ------------------ HELPER ------------------
+  /// Menutup halaman / dialog paling atas (opsional membawa [result]).
+  void tutup&lt;T&gt;([T? result]) =&gt; Get.key.currentState?.pop&lt;T&gt;(result);
+
+  /// Mengubah exception menjadi pesan yang mudah dipahami pengguna.
+  String _pesanError(Object e) {
+    if (e is PostgrestException) {
+      if (e.code == '23505') return 'NIM sudah terdaftar';
+      if (e.code == '42501') return 'Akses ditolak. Silakan login ulang.';
+      return 'Kesalahan database: ${e.message}';
+    }
+    return 'Tidak dapat terhubung ke server. Periksa internet.';
+  }
+
+  // ------------------ VALIDATOR ------------------
+  String? validateNim(String? v) {
+    if (v == null || v.trim().isEmpty) return 'NIM wajib diisi';
+    if (int.tryParse(v.trim()) == null) return 'NIM harus berupa angka';
+    if (v.trim().length &lt; 8) return 'NIM minimal 8 digit';
+    return null;
+  }
+
+  String? validateNama(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Nama wajib diisi';
+    return null;
+  }
+
+  String? validateSemester(String? v) {
+    final s = int.tryParse(v?.trim() ?? '');
+    if (s == null) return 'Semester wajib berupa angka';
+    if (s &lt; 1 || s &gt; 14) return 'Semester antara 1 - 14';
+    return null;
+  }
+
+  @override
+  void onClose() {
+    nimC.dispose();
+    namaC.dispose();
+    semesterC.dispose();
+    super.onClose();
+  }
+}
+</code></pre>
+
+<h4>Daftar perubahan dibanding Modul 11B</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Bagian</th><th>Modul 11B (Hive)</th><th>Sekarang (Supabase)</th></tr></thead>
+    <tbody>
+      <tr><td>Sumber service</td><td><code>final HiveService _service = HiveService();</code></td><td><code>MahasiswaController(this._service);</code> (diterima lewat constructor)</td></tr>
+      <tr><td>State baru</td><td>-</td><td><code>isLoading</code>, <code>isSaving</code>, <code>errorMessage</code></td></tr>
+      <tr><td><code>loadData()</code></td><td><code>void</code>, langsung baca box, urutkan di Dart</td><td><code>Future&lt;void&gt;</code>, <code>await _service.getAll()</code>, urutan dari database, ada <code>try/catch</code></td></tr>
+      <tr><td>Id data baru</td><td><code>DateTime.now().millisecondsSinceEpoch</code></td><td>Tidak diisi (<code>null</code>), dibuat database</td></tr>
+      <tr><td>Update</td><td><code>_service.update(mhs)</code></td><td><code>_service.update(editingId!, mhs)</code></td></tr>
+      <tr><td>Setelah simpan/hapus</td><td><code>loadData();</code></td><td><code>await loadData();</code></td></tr>
+      <tr><td>Error</td><td>Hampir tidak mungkin terjadi</td><td>Ditangkap lalu ditampilkan lewat snackbar atau tampilan error</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Tiga state baru</h4>
+<pre><code class="language-dart">final isLoading = false.obs;        // sedang memuat daftar
+final isSaving = false.obs;         // sedang menyimpan form
+final errorMessage = RxnString();   // null = tidak ada error
+</code></pre>
+<ul>
+  <li><code>RxnString</code> adalah versi reaktif dari <code>String?</code> (boleh <code>null</code>). Huruf <strong>n</strong> berarti <em>nullable</em>. Bentuk panjangnya <code>Rxn&lt;String&gt;()</code>.</li>
+  <li>View membaca ketiganya di dalam <code>Obx</code>, sehingga tampilan berganti sendiri antara loading, error, kosong, dan daftar data.</li>
+</ul>
+
+<h4><code>loadData()</code> dengan pola try / catch / finally</h4>
+<pre><code class="language-dart">Future&lt;void&gt; loadData() async {
+  isLoading.value = true;
+  errorMessage.value = null;          // hapus error lama
+  try {
+    final data = await _service.getAll();
+    mahasiswaList.assignAll(data);
+  } catch (e) {
+    errorMessage.value = _pesanError(e);
+  } finally {
+    isLoading.value = false;          // selalu dimatikan
+  }
+}
+</code></pre>
+<p>Pola ini dipakai di semua method yang menghubungi server. Hafalkan urutannya: <strong>nyalakan loading, coba, tangkap error, matikan loading</strong>. Method ini mengembalikan <code>Future</code> agar bisa dipakai oleh <code>RefreshIndicator</code> (tarik layar ke bawah) yang menunggu sampai proses selesai.</p>
+
+<h4><code>save()</code>: mencegah tombol ditekan dua kali</h4>
+<p>Baris pertama <code>if (isSaving.value) return;</code> menghentikan penyimpanan kedua jika tombol ditekan saat proses pertama belum selesai. Tanpa baris ini, koneksi yang lambat bisa membuat data tersimpan dua kali. Tombol juga dinonaktifkan dari View selama <code>isSaving</code> bernilai <code>true</code>.</p>
+
+<h4>Lapisan pengaman NIM ganda</h4>
+<ol>
+  <li><strong>Di aplikasi</strong>: <code>mahasiswaList.any(...)</code> mengecek daftar yang sudah dimuat, sama seperti Modul 11B. Hasilnya cepat dan tidak butuh internet.</li>
+  <li><strong>Di database</strong>: constraint <code>unique (user_id, nim)</code>. Jika lapisan pertama terlewat (misalnya data ditambah dari HP lain), Postgres menolak dengan kode error <code>23505</code>, lalu <code>_pesanError</code> menerjemahkannya menjadi "NIM sudah terdaftar".</li>
+</ol>
+
+<h4><code>_pesanError</code>: menerjemahkan error database</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Error</th><th>Artinya</th><th>Pesan</th></tr></thead>
+    <tbody>
+      <tr><td><code>PostgrestException</code> kode <code>23505</code></td><td>Melanggar constraint unique</td><td>NIM sudah terdaftar</td></tr>
+      <tr><td><code>PostgrestException</code> kode <code>42501</code></td><td>Ditolak oleh RLS atau izin</td><td>Akses ditolak. Silakan login ulang.</td></tr>
+      <tr><td><code>PostgrestException</code> lainnya</td><td>Kesalahan database lain</td><td>Kesalahan database: ...</td></tr>
+      <tr><td>Selain itu</td><td>Umumnya tidak ada internet atau server tidak terjangkau</td><td>Tidak dapat terhubung ke server. Periksa internet.</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout callout-tip"><h4>💡 <code>mhs.id!</code> di <code>confirmDelete</code></h4><p>Tanda seru berarti "saya yakin nilai ini tidak null". Ini aman karena data yang tampil di daftar selalu berasal dari <code>fromJson</code>, sehingga pasti punya id.</p></div>

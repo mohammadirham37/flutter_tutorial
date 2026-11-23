@@ -1,0 +1,110 @@
+<p class="lead">Aplikasi sekarang punya empat halaman, dan dua di antaranya (daftar dan form) hanya boleh dibuka setelah login. Di section ini kita menambah route baru, membuat <strong>middleware</strong> sebagai penjaga, dan memperbarui binding.</p>
+
+<h4>1. Nama route</h4>
+<p>Ganti isi <code>lib/routes/app_routes.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/routes/app_routes.dart</code></p>
+<pre><code class="language-dart">/// Daftar nama route aplikasi.
+abstract class AppRoutes {
+  static const login = '/login';
+  static const register = '/register';
+  static const home = '/';
+  static const form = '/form';
+}
+</code></pre>
+<p>Route <code>home</code> tetap <code>'/'</code> (halaman daftar) seperti di Modul 11B. Ada dua route baru: <code>/login</code> dan <code>/register</code>.</p>
+
+<h4>2. Middleware: satpam di depan halaman</h4>
+<p><em>Middleware</em> adalah kode yang dijalankan GetX <strong>sebelum</strong> sebuah halaman dibuka. Di sini kita memakainya untuk menolak pengguna yang belum login. Buat file <code>lib/middlewares/auth_middleware.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/middlewares/auth_middleware.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/auth_controller.dart';
+import '../routes/app_routes.dart';
+
+/// "Satpam" route: dipasang pada halaman yang wajib login.
+/// Jika user belum login, GetX diarahkan ke halaman login.
+class AuthMiddleware extends GetMiddleware {
+  @override
+  RouteSettings? redirect(String? route) {
+    final auth = Get.find&lt;AuthController&gt;();
+    if (auth.isLoggedIn) return null; // boleh lanjut
+    return const RouteSettings(name: AppRoutes.login);
+  }
+}
+</code></pre>
+<ul>
+  <li><code>redirect</code> dipanggil setiap kali route yang memakai middleware ini akan dibuka.</li>
+  <li>Mengembalikan <code>null</code> berarti "silakan lewat".</li>
+  <li>Mengembalikan <code>RouteSettings(name: AppRoutes.login)</code> berarti "jangan buka halaman ini, buka halaman login".</li>
+  <li><code>Get.find&lt;AuthController&gt;()</code> bisa dipakai karena <code>AuthController</code> sudah didaftarkan di <code>main.dart</code> sebelum aplikasi berjalan.</li>
+</ul>
+<div class="callout callout-info"><h4>ℹ️ Kenapa tidak cukup menyembunyikan tombol?</h4><p>Halaman bisa dibuka dari banyak jalan: <code>initialRoute</code>, <code>Get.toNamed</code>, atau tombol Back. Dengan middleware, aturannya ditulis sekali di route, jadi semua jalan itu terjaga. Ingat juga bahwa keamanan data yang sesungguhnya tetap ada di RLS. Middleware hanya mengatur tampilan agar pengguna tidak melihat halaman kosong yang gagal memuat data.</p></div>
+
+<h4>3. Binding</h4>
+<p>Ganti isi <code>lib/bindings/mahasiswa_binding.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/bindings/mahasiswa_binding.dart</code></p>
+<pre><code class="language-dart">import 'package:get/get.dart';
+
+import '../controllers/mahasiswa_controller.dart';
+
+/// Binding: mendaftarkan MahasiswaController sebelum halaman daftar dibuka.
+/// MahasiswaService sudah didaftarkan di main(), tinggal diambil Get.find().
+class MahasiswaBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut&lt;MahasiswaController&gt;(() =&gt; MahasiswaController(Get.find()));
+  }
+}
+</code></pre>
+<p>Bedanya dengan Modul 11B hanya pada <code>MahasiswaController(Get.find())</code>. Controller sekarang meminta service lewat constructor, dan <code>Get.find()</code> mengambil <code>MahasiswaService</code> yang sudah didaftarkan di <code>main.dart</code>. Dart bisa menebak tipe yang dicari dari parameter constructor, jadi <code>Get.find()</code> tidak perlu ditulis <code>Get.find&lt;MahasiswaService&gt;()</code>.</p>
+
+<h4>4. Pemetaan route</h4>
+<p>Ganti isi <code>lib/routes/app_pages.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/routes/app_pages.dart</code></p>
+<pre><code class="language-dart">import 'package:get/get.dart';
+
+import '../bindings/mahasiswa_binding.dart';
+import '../middlewares/auth_middleware.dart';
+import '../views/login_view.dart';
+import '../views/mahasiswa_form_view.dart';
+import '../views/mahasiswa_list_view.dart';
+import '../views/register_view.dart';
+import 'app_routes.dart';
+
+/// Pemetaan route -&gt; halaman (+ binding + middleware).
+class AppPages {
+  static final pages = [
+    GetPage(name: AppRoutes.login, page: () =&gt; const LoginView()),
+    GetPage(name: AppRoutes.register, page: () =&gt; const RegisterView()),
+    GetPage(
+      name: AppRoutes.home,
+      page: () =&gt; const MahasiswaListView(),
+      binding: MahasiswaBinding(),
+      middlewares: [AuthMiddleware()],
+    ),
+    GetPage(
+      name: AppRoutes.form,
+      page: () =&gt; const MahasiswaFormView(),
+      middlewares: [AuthMiddleware()],
+    ),
+  ];
+}
+</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Route</th><th>Halaman</th><th>Binding</th><th>Middleware</th></tr></thead>
+    <tbody>
+      <tr><td><code>/login</code></td><td><code>LoginView</code></td><td>-</td><td>-</td></tr>
+      <tr><td><code>/register</code></td><td><code>RegisterView</code></td><td>-</td><td>-</td></tr>
+      <tr><td><code>/</code></td><td><code>MahasiswaListView</code></td><td><code>MahasiswaBinding</code></td><td><code>AuthMiddleware</code></td></tr>
+      <tr><td><code>/form</code></td><td><code>MahasiswaFormView</code></td><td>-</td><td><code>AuthMiddleware</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<ul>
+  <li>Halaman login dan register tidak butuh binding, karena <code>AuthController</code> sudah ada sejak <code>main.dart</code>.</li>
+  <li><code>MahasiswaBinding</code> tetap dipasang hanya di route home, dengan alasan yang sama seperti Modul 11B: halaman form memakai controller yang sama dengan halaman daftar.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Bonus: data tidak tercampur antar-akun</h4><p>Saat logout, <code>Get.offAllNamed(AppRoutes.login)</code> menutup halaman daftar. GetX ikut menghapus <code>MahasiswaController</code> dari memori karena halaman yang memakainya sudah tidak ada. Ketika akun lain login, controller dibuat baru dan <code>onInit</code> memuat data milik akun tersebut. Jadi daftar milik akun sebelumnya tidak sempat terlihat.</p></div>

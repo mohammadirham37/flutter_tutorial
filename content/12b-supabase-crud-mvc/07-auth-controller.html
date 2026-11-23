@@ -1,0 +1,279 @@
+<p class="lead"><code>AuthController</code> adalah "otak" halaman login dan register. Polanya sama persis dengan <code>MahasiswaController</code> di Modul 11B: state reaktif (<code>.obs</code>), <code>TextEditingController</code> dan <code>formKey</code> disimpan di controller, validator, lalu method yang dipanggil tombol.</p>
+
+<p>Buat file <code>lib/controllers/auth_controller.dart</code>. Salin utuh dulu, lalu baca penjelasan per bagian di bawahnya:</p>
+<p class="code-file-label">📄 <code>lib/controllers/auth_controller.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../routes/app_routes.dart';
+import '../services/auth_service.dart';
+
+/// CONTROLLER untuk login, register, dan logout.
+class AuthController extends GetxController {
+  AuthController(this._authService);
+
+  final AuthService _authService;
+
+  // ------------------ STATE REAKTIF ------------------
+  final isLoading = false.obs;
+  final hidePassword = true.obs;
+
+  // ------------------ STATE FORM ------------------
+  // Login dan register punya form sendiri-sendiri, karena saat halaman
+  // register dibuka, halaman login masih ada di bawahnya.
+  final loginFormKey = GlobalKey&lt;FormState&gt;();
+  final registerFormKey = GlobalKey&lt;FormState&gt;();
+  final emailC = TextEditingController();
+  final passwordC = TextEditingController();
+  final regEmailC = TextEditingController();
+  final regPasswordC = TextEditingController();
+  final regKonfirmasiC = TextEditingController();
+
+  StreamSubscription&lt;AuthState&gt;? _authSub;
+
+  bool get isLoggedIn =&gt; _authService.currentUser != null;
+  String get email =&gt; _authService.currentUser?.email ?? '';
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Jika sesi berakhir (logout, token kedaluwarsa, akun dihapus),
+    // kembalikan pengguna ke halaman login dari halaman mana pun.
+    _authSub = _authService.authStateChanges.listen((data) {
+      if (data.event == AuthChangeEvent.signedOut) {
+        Get.offAllNamed(AppRoutes.login);
+      }
+    });
+  }
+
+  // ------------------ LOGIN ------------------
+  Future&lt;void&gt; login() async {
+    if (!loginFormKey.currentState!.validate()) return;
+
+    isLoading.value = true;
+    try {
+      await _authService.signIn(
+        email: emailC.text.trim(),
+        password: passwordC.text,
+      );
+      passwordC.clear();
+      Get.offAllNamed(AppRoutes.home);
+    } on AuthException catch (e) {
+      _tampilkanError(_pesanAuth(e));
+    } catch (e) {
+      _tampilkanError('Tidak dapat terhubung ke server. Periksa internet.');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // ------------------ REGISTER ------------------
+  void openRegister() {
+    regEmailC.text = emailC.text.trim();
+    regPasswordC.clear();
+    regKonfirmasiC.clear();
+    Get.toNamed(AppRoutes.register);
+  }
+
+  Future&lt;void&gt; register() async {
+    if (!registerFormKey.currentState!.validate()) return;
+
+    isLoading.value = true;
+    try {
+      final res = await _authService.signUp(
+        email: regEmailC.text.trim(),
+        password: regPasswordC.text,
+      );
+
+      if (res.session != null) {
+        // "Confirm email" dimatikan: user langsung login.
+        Get.offAllNamed(AppRoutes.home);
+        Get.snackbar(
+          'Berhasil',
+          'Akun dibuat, selamat datang!',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      } else {
+        // "Confirm email" aktif: user harus klik link di email dulu.
+        emailC.text = regEmailC.text.trim();
+        tutup(); // kembali ke halaman login
+        Get.snackbar(
+          'Cek email Anda',
+          'Klik link verifikasi di email, lalu login.',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 5),
+        );
+      }
+    } on AuthException catch (e) {
+      _tampilkanError(_pesanAuth(e));
+    } catch (e) {
+      _tampilkanError('Tidak dapat terhubung ke server. Periksa internet.');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // ------------------ LOGOUT ------------------
+  Future&lt;void&gt; confirmLogout() async {
+    final yakin = await Get.dialog&lt;bool&gt;(
+      AlertDialog(
+        title: const Text('Keluar'),
+        content: const Text('Yakin ingin keluar dari akun ini?'),
+        actions: [
+          TextButton(onPressed: () =&gt; tutup(false), child: const Text('Batal')),
+          FilledButton(
+            onPressed: () =&gt; tutup(true),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
+    );
+    if (yakin == true) {
+      // Tidak perlu navigasi di sini: listener di onInit menerima event
+      // signedOut lalu membuka halaman login.
+      await _authService.signOut();
+    }
+  }
+
+  // ------------------ HELPER ------------------
+  /// Menutup halaman / dialog paling atas (sama seperti di Modul 11B).
+  void tutup&lt;T&gt;([T? result]) =&gt; Get.key.currentState?.pop&lt;T&gt;(result);
+
+  void _tampilkanError(String pesan) {
+    Get.snackbar('Gagal', pesan, snackPosition: SnackPosition.BOTTOM);
+  }
+
+  /// Menerjemahkan kode error Supabase Auth ke bahasa Indonesia.
+  String _pesanAuth(AuthException e) {
+    if (e is AuthRetryableFetchException) {
+      return 'Tidak dapat terhubung ke server. Periksa internet.';
+    }
+    switch (e.code) {
+      case 'invalid_credentials':
+        return 'Email atau password salah.';
+      case 'email_not_confirmed':
+        return 'Email belum diverifikasi. Buka link di inbox Anda.';
+      case 'user_already_exists':
+      case 'email_exists':
+        return 'Email sudah terdaftar. Silakan login.';
+      case 'weak_password':
+        return 'Password terlalu lemah (minimal 6 karakter).';
+      case 'email_address_invalid':
+        return 'Alamat email ditolak server.';
+      case 'over_email_send_rate_limit':
+      case 'over_request_rate_limit':
+        return 'Terlalu banyak percobaan. Tunggu beberapa menit.';
+    }
+    return e.message;
+  }
+
+  // ------------------ VALIDATOR ------------------
+  String? validateEmail(String? v) {
+    final text = v?.trim() ?? '';
+    if (text.isEmpty) return 'Email wajib diisi';
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(text)) {
+      return 'Format email tidak valid';
+    }
+    return null;
+  }
+
+  String? validatePassword(String? v) {
+    if (v == null || v.isEmpty) return 'Password wajib diisi';
+    if (v.length &lt; 6) return 'Password minimal 6 karakter';
+    return null;
+  }
+
+  String? validateKonfirmasi(String? v) {
+    if (v == null || v.isEmpty) return 'Ulangi password wajib diisi';
+    if (v != regPasswordC.text) return 'Konfirmasi password tidak sama';
+    return null;
+  }
+
+  @override
+  void onClose() {
+    _authSub?.cancel();
+    emailC.dispose();
+    passwordC.dispose();
+    regEmailC.dispose();
+    regPasswordC.dispose();
+    regKonfirmasiC.dispose();
+    super.onClose();
+  }
+}
+</code></pre>
+
+<h4>Bagian 1: Constructor dan state</h4>
+<pre><code class="language-dart">AuthController(this._authService);
+
+final isLoading = false.obs;     // tombol menampilkan loading
+final hidePassword = true.obs;   // ikon mata: sembunyikan/tampilkan password
+</code></pre>
+<p><code>AuthService</code> diterima lewat constructor (didaftarkan di <code>main.dart</code>). <code>isLoading</code> bernilai <code>true</code> selama menunggu jawaban server. Selama itu tombol dinonaktifkan supaya tidak ditekan dua kali.</p>
+
+<h4>Bagian 2: Dua form terpisah</h4>
+<p>Login dan register punya <code>GlobalKey&lt;FormState&gt;</code> dan <code>TextEditingController</code> sendiri-sendiri. Alasannya, saat halaman register dibuka dengan <code>Get.toNamed</code>, halaman login <strong>masih ada</strong> di bawahnya. Satu <code>GlobalKey</code> tidak boleh dipakai dua widget sekaligus, karena Flutter akan menampilkan error <em>Duplicate GlobalKey detected</em>.</p>
+
+<h4>Bagian 3: Mendengarkan perubahan status login di <code>onInit</code></h4>
+<pre><code class="language-dart">_authSub = _authService.authStateChanges.listen((data) {
+  if (data.event == AuthChangeEvent.signedOut) {
+    Get.offAllNamed(AppRoutes.login);
+  }
+});
+</code></pre>
+<p>Setiap kali Supabase memancarkan event <code>signedOut</code>, aplikasi pindah ke halaman login dan seluruh halaman lain dihapus dari tumpukan. Event ini muncul saat pengguna menekan Keluar, dan juga saat sesi tidak bisa diperpanjang lagi (misalnya akun dihapus admin). Jadi kita cukup menulis navigasi ke login di <strong>satu tempat</strong> ini. <code>StreamSubscription</code> disimpan di <code>_authSub</code> agar bisa dihentikan di <code>onClose</code>.</p>
+
+<h4>Bagian 4: <code>login()</code></h4>
+<ol>
+  <li>Validasi form. Jika ada field yang salah, berhenti.</li>
+  <li><code>isLoading.value = true</code> sehingga tombol berubah menjadi indikator loading.</li>
+  <li>Panggil <code>signIn</code>. Jika berhasil, password dikosongkan lalu <code>Get.offAllNamed(AppRoutes.home)</code> membuka halaman daftar dan membuang halaman login dari tumpukan. Akibatnya tombol Back di halaman daftar menutup aplikasi, bukan kembali ke login.</li>
+  <li>Jika gagal, <code>AuthException</code> ditangkap dan diterjemahkan menjadi pesan berbahasa Indonesia oleh <code>_pesanAuth</code>. Error lain (misalnya tidak ada internet) ditangkap oleh <code>catch (e)</code> umum.</li>
+  <li><code>finally</code> selalu dijalankan, baik berhasil maupun gagal, sehingga loading pasti dimatikan.</li>
+</ol>
+
+<h4>Bagian 5: <code>register()</code> dan dua kemungkinan hasil</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Pengaturan Confirm email</th><th>Isi <code>res.session</code></th><th>Yang dilakukan aplikasi</th></tr></thead>
+    <tbody>
+      <tr><td>Mati (praktikum)</td><td>Berisi sesi, user langsung login</td><td>Buka halaman daftar + snackbar "Akun dibuat"</td></tr>
+      <tr><td>Aktif (produksi)</td><td><code>null</code>, user harus verifikasi email</td><td>Kembali ke login, email terisi otomatis, snackbar "Cek email Anda"</td></tr>
+    </tbody>
+  </table>
+</div>
+<p><code>openRegister()</code> menyalin email yang sudah diketik di halaman login ke halaman register, supaya pengguna tidak perlu mengetik ulang.</p>
+
+<h4>Bagian 6: <code>confirmLogout()</code></h4>
+<p>Menampilkan dialog konfirmasi seperti dialog hapus di Modul 11B. Jika pengguna memilih Keluar, cukup panggil <code>signOut()</code>. Kita <strong>tidak</strong> memanggil <code>Get.offAllNamed</code> di sini, karena listener di Bagian 3 akan menerima event <code>signedOut</code> lalu membuka halaman login.</p>
+
+<h4>Bagian 7: Menerjemahkan error</h4>
+<p>Supabase mengirim kode error dalam bahasa Inggris, misalnya <code>invalid_credentials</code>. <code>_pesanAuth</code> mengubahnya menjadi kalimat yang dipahami pengguna:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kode dari Supabase</th><th>Pesan di aplikasi</th></tr></thead>
+    <tbody>
+      <tr><td><code>invalid_credentials</code></td><td>Email atau password salah.</td></tr>
+      <tr><td><code>email_not_confirmed</code></td><td>Email belum diverifikasi. Buka link di inbox Anda.</td></tr>
+      <tr><td><code>user_already_exists</code> / <code>email_exists</code></td><td>Email sudah terdaftar. Silakan login.</td></tr>
+      <tr><td><code>weak_password</code></td><td>Password terlalu lemah (minimal 6 karakter).</td></tr>
+      <tr><td><code>over_request_rate_limit</code></td><td>Terlalu banyak percobaan. Tunggu beberapa menit.</td></tr>
+      <tr><td><code>AuthRetryableFetchException</code></td><td>Tidak dapat terhubung ke server. Periksa internet.</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout callout-info"><h4>ℹ️ Kenapa "Email atau password salah", bukan "Email tidak terdaftar"?</h4><p>Supabase sengaja tidak memberi tahu mana yang salah. Jika aplikasi bilang "email tidak terdaftar", penyerang bisa menebak-nebak email mana saja yang punya akun. Pesan yang samar justru lebih aman.</p></div>
+
+<h4>Bagian 8: Validator</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Validator</th><th>Aturan</th></tr></thead>
+    <tbody>
+      <tr><td><code>validateEmail</code></td><td>Wajib diisi dan berbentuk <code>nama@domain.tld</code> (dicek dengan <code>RegExp</code>)</td></tr>
+      <tr><td><code>validatePassword</code></td><td>Wajib diisi, minimal 6 karakter (batas minimal bawaan Supabase)</td></tr>
+      <tr><td><code>validateKonfirmasi</code></td><td>Wajib diisi dan harus sama dengan isi field Password</td></tr>
+    </tbody>
+  </table>
+</div>

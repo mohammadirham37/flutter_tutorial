@@ -1,0 +1,39 @@
+<p class="lead">Daftar masalah yang paling sering muncul saat memindahkan aplikasi dari Hive ke Supabase, beserta penyebab dan solusinya. Cocokkan pesan error di layar atau di terminal dengan kolom pertama.</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Gejala / pesan error</th><th>Penyebab</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr><td>Layar "SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY belum diisi"</td><td>Aplikasi dijalankan tanpa flag</td><td>Jalankan <code>flutter run --dart-define-from-file=env.json</code>, atau atur <code>launch.json</code> (section 12)</td></tr>
+      <tr><td>Snackbar "Email atau password salah." padahal baru register</td><td><em>Confirm email</em> masih aktif dan email belum diverifikasi, atau password salah ketik</td><td>Matikan Confirm email (section 2), lalu hapus akun di Authentication &rarr; Users dan daftar ulang</td></tr>
+      <tr><td>Setelah register, aplikasi kembali ke login dengan pesan "Cek email Anda"</td><td><em>Confirm email</em> aktif</td><td>Klik link di email, atau matikan Confirm email untuk praktikum</td></tr>
+      <tr><td>"Alamat email ditolak server."</td><td>Supabase menolak format atau domain email tersebut</td><td>Pakai domain lain, misalnya <code>@kampus.test</code></td></tr>
+      <tr><td>"Terlalu banyak percobaan. Tunggu beberapa menit."</td><td>Batas permintaan (rate limit) Supabase tercapai, sering terjadi jika satu kelas memakai satu project</td><td>Tunggu beberapa menit, atau setiap mahasiswa memakai project Supabase sendiri</td></tr>
+      <tr><td>Kesalahan database: <em>Could not find the table 'public.mahasiswa'</em></td><td>SQL section 2 belum dijalankan, atau dijalankan di project lain</td><td>Jalankan <code>setup.sql</code> di project yang URL-nya sama dengan <code>env.json</code></td></tr>
+      <tr><td>"Akses ditolak. Silakan login ulang." (kode error <code>42501</code>)</td><td>Baris <code>grant ... to authenticated</code> belum dijalankan, policy insert/update tidak ada, atau <code>user_id</code> tidak sama dengan <code>auth.uid()</code></td><td>Jalankan ulang seluruh <code>setup.sql</code>, cek Authentication &rarr; Policies, dan pastikan <code>toJson</code> tidak mengirim <code>user_id</code></td></tr>
+      <tr><td>Data tersimpan (terlihat di Table Editor) tetapi daftar di aplikasi kosong</td><td>Policy <code>select</code> tidak ada atau salah</td><td>Jalankan ulang <code>setup.sql</code></td></tr>
+      <tr><td>Semua akun bisa melihat data akun lain</td><td>RLS belum aktif, atau ada policy select dengan <code>using (true)</code></td><td>Pastikan baris <code>enable row level security</code> dijalankan dan hapus policy lain di tabel ini</td></tr>
+      <tr><td>Daftar tampil terbalik (Z ke A)</td><td>Menulis <code>.order('nama')</code> tanpa <code>ascending: true</code></td><td>Tambahkan <code>ascending: true</code> (section 5)</td></tr>
+      <tr><td><em>Could not find the 'Nama' column of 'mahasiswa'</em></td><td>Nama key di <code>toJson</code> berbeda dengan nama kolom</td><td>Samakan persis, termasuk huruf kecil: <code>'nama'</code></td></tr>
+      <tr><td><em>type 'Null' is not a subtype of type 'String'</em> di <code>fromJson</code></td><td>Kolom bernilai null, atau nama key salah ketik</td><td>Cek nama key dan pastikan kolom di SQL <code>not null</code></td></tr>
+      <tr><td><em>"AuthService" not found. You need to call "Get.put(AuthService())"</em></td><td>Urutan <code>Get.put</code> di <code>main.dart</code> terbalik, atau lupa didaftarkan</td><td>Daftarkan service sebelum controller (section 12)</td></tr>
+      <tr><td><em>Duplicate GlobalKey detected in widget tree</em></td><td>Login dan register memakai <code>formKey</code> yang sama</td><td>Pakai <code>loginFormKey</code> dan <code>registerFormKey</code> terpisah (section 7)</td></tr>
+      <tr><td>Setelah login, tombol Back kembali ke halaman login</td><td>Memakai <code>Get.toNamed</code>, bukan <code>Get.offAllNamed</code></td><td>Gunakan <code>Get.offAllNamed(AppRoutes.home)</code></td></tr>
+      <tr><td>APK rilis selalu "Tidak dapat terhubung ke server", padahal saat debug lancar</td><td>Izin INTERNET belum ditambahkan</td><td>Tambahkan <code>uses-permission</code> INTERNET di <code>AndroidManifest.xml</code> (section 3)</td></tr>
+      <tr><td>Error setelah mengganti isi <code>env.json</code></td><td>Hot reload tidak membaca ulang konfigurasi</td><td>Hentikan aplikasi lalu <code>flutter run</code> ulang</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-tip"><h4>💡 Cara melihat error asli dari Supabase</h4><p>Pesan di snackbar sengaja disederhanakan. Untuk melihat detailnya saat debugging, tambahkan sementara <code>debugPrint('$e');</code> di dalam <code>catch</code>, lalu lihat terminal tempat <code>flutter run</code> berjalan. Log di sisi server bisa dilihat di dashboard pada menu <strong>Logs</strong>.</p></div>
+
+<h4>Ringkasan modul</h4>
+<ul>
+  <li>Berkat pola MVC, memindahkan database dari Hive ke Supabase hampir hanya mengubah lapisan <strong>Model</strong>: <code>HiveService</code> diganti <code>MahasiswaService</code>, dan model mendapat <code>fromJson</code>/<code>toJson</code>. View daftar dan form nyaris tidak berubah.</li>
+  <li>Akses ke cloud bersifat <code>async</code> dan bisa gagal, sehingga controller perlu state <code>isLoading</code>, <code>isSaving</code>, dan <code>errorMessage</code> dengan pola <strong>try / catch / finally</strong>.</li>
+  <li><strong>Row Level Security</strong> dengan syarat <code>auth.uid() = user_id</code> membuat setiap akun hanya bisa melihat dan mengubah datanya sendiri. Aplikasi tidak perlu memfilter <code>user_id</code>, dan publishable key aman dipasang di aplikasi.</li>
+  <li><code>AuthService</code> + <code>AuthController</code> menangani register, login, dan logout. Sesi tersimpan otomatis, jadi pengguna tidak perlu login ulang.</li>
+  <li><code>AuthMiddleware</code> menjaga route yang wajib login, dan listener <code>onAuthStateChange</code> mengembalikan pengguna ke halaman login saat sesi berakhir.</li>
+  <li>Service yang disuntikkan lewat constructor dan <code>Get.put</code> bisa diganti versi palsu saat testing, sehingga <code>flutter test</code> berjalan tanpa internet.</li>
+</ul>
+<p>Langkah selanjutnya: Modul 13 dan 14 membangun proyek "Catatan Kuliah" yang lebih besar dengan pola yang sama, ditambah tabel profil, mode offline dengan cache Hive, dan fitur yang lebih lengkap.</p>

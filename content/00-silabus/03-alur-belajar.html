@@ -13,9 +13,13 @@
                       │
         ┌─────────────┘
         v
-  M09 REST API ──&gt; M10 SharedPreferences &amp; SQLite ──&gt; M11 Hive ──&gt; M11B Proyek CRUD Hive ──&gt; M12 Supabase
+  M09 REST API ──&gt; M10 SharedPreferences &amp; SQLite ──&gt; M11 Hive ──&gt; M11B Proyek CRUD Hive
                                                                        │
         ┌──────────────────────────────────────────────────────────────┘
+        v
+  M12 Supabase ──&gt; M12B Proyek CRUD Supabase + Auth
+                      │
+        ┌─────────────┘
         v
   M13 Proyek: Auth ──&gt; M14 Proyek: CRUD + Offline ──&gt; M15 Testing ──&gt; M16 Rilis  [UAS]</code></pre>
 
@@ -28,7 +32,7 @@
       <tr><td><strong>Dart sebelum widget (M02)</strong></td><td>Widget ditulis dengan Dart. Konsep class, constructor, named parameter, dan null safety muncul di setiap baris Flutter. Belajar Dart di DartPad lebih ringan daripada langsung di aplikasi.</td></tr>
       <tr><td><strong>Widget, layout, form, list (M03 - M06)</strong></td><td>Dari yang paling kecil (satu widget) ke yang paling umum dipakai (daftar data). Setelah ini Anda bisa membuat hampir semua tampilan satu halaman.</td></tr>
       <tr><td><strong>Navigasi lalu GetX (M07 - M08)</strong></td><td>Saat aplikasi punya banyak halaman, data harus bisa dibagi antar halaman. Itulah masalah yang diselesaikan controller GetX dengan pola MVC, sehingga GetX baru masuk akal setelah navigasi.</td></tr>
-      <tr><td><strong>Data: API, lokal, cloud (M09 - M12)</strong></td><td>Dimulai dari membaca data (REST API), lalu menyimpan di perangkat (SharedPreferences, SQLite, Hive), terakhir backend lengkap dengan login (Supabase). Hive dibahas sebelum Supabase karena nanti dipakai sebagai cache offline.</td></tr>
+      <tr><td><strong>Data: API, lokal, cloud (M09 - M12)</strong></td><td>Dimulai dari membaca data (REST API), lalu menyimpan di perangkat (SharedPreferences, SQLite, Hive), terakhir backend lengkap dengan login (Supabase). Hive dibahas sebelum Supabase karena nanti dipakai sebagai cache offline. Proyek CRUD Mahasiswa dibuat dua kali: versi Hive (M11B), lalu dipindahkan ke Supabase + login (M12B), sehingga terlihat jelas bagian mana yang berubah saat database diganti.</td></tr>
       <tr><td><strong>Proyek terpadu (M13 - M14)</strong></td><td>Semua konsep sebelumnya digabung dalam satu aplikasi nyata: Auth, CRUD, GetX (MVC), Hive. Proyek ini menjadi pola dasar capstone Anda.</td></tr>
       <tr><td><strong>Testing dan rilis (M15 - M16)</strong></td><td>Setelah aplikasinya ada, barulah kita memastikan kualitasnya (test) dan mengemasnya untuk pengguna (build rilis).</td></tr>
     </tbody>

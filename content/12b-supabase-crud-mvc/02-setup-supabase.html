@@ -1,0 +1,112 @@
+<p class="lead">Sebelum menulis kode Flutter, kita siapkan dulu "gudang data" di Supabase: satu tabel <code>mahasiswa</code> yang dikunci dengan Row Level Security (RLS), sehingga setiap akun hanya bisa membaca dan mengubah datanya sendiri.</p>
+
+<h4>Langkah 1: Siapkan project Supabase</h4>
+<p>Jika belum punya project, buat dulu di <a href="https://supabase.com/dashboard" target="_blank" rel="noopener">supabase.com/dashboard</a> seperti di Modul 12 section 2. Lalu catat dua nilai yang nanti diisi ke <code>env.json</code>:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Nilai</th><th>Tempat mencarinya</th><th>Contoh bentuk</th></tr></thead>
+    <tbody>
+      <tr><td>Project URL</td><td>Tombol <strong>Connect</strong> di bagian atas dashboard, atau <strong>Project Settings &rarr; Data API</strong></td><td><code>https://abcdefghijkl.supabase.co</code></td></tr>
+      <tr><td>Publishable key</td><td><strong>Project Settings &rarr; API Keys</strong></td><td><code>sb_publishable_xxxxxxxx</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout callout-warning"><h4>⚠️ Jangan pakai secret key</h4><p>Di halaman API Keys juga ada <strong>secret key</strong> (<code>sb_secret_...</code>, dulu bernama <code>service_role</code>). Key ini mengabaikan semua RLS, jadi <strong>tidak boleh</strong> dimasukkan ke aplikasi mobile. Aplikasi cukup memakai <strong>publishable key</strong>, karena keamanannya dijaga oleh RLS.</p></div>
+
+<h4>Langkah 2: Buat tabel dan RLS lewat SQL Editor</h4>
+<p>Buka <strong>SQL Editor &rarr; New query</strong>, tempel seluruh SQL di bawah, lalu klik <strong>Run</strong>. Simpan juga SQL ini di proyek sebagai <code>supabase/setup.sql</code> sebagai dokumentasi. SQL ini aman dijalankan ulang karena memakai <code>if not exists</code> dan <code>drop policy if exists</code>.</p>
+<p class="code-file-label">📄 <code>supabase/setup.sql</code></p>
+<pre><code class="language-sql">-- 1. Tabel mahasiswa: setiap baris dimiliki satu user (user_id)
+create table if not exists public.mahasiswa (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid()
+    references auth.users (id) on delete cascade,
+  nim text not null,
+  nama text not null,
+  prodi text not null,
+  semester int not null check (semester between 1 and 14),
+  created_at timestamptz not null default now(),
+  unique (user_id, nim)
+);
+
+-- 2. Izinkan user yang login memakai tabel ini lewat API
+grant select, insert, update, delete on public.mahasiswa to authenticated;
+
+-- 3. Kunci tabel dengan Row Level Security
+alter table public.mahasiswa enable row level security;
+
+-- 4. Policy: user hanya boleh menyentuh baris miliknya sendiri
+drop policy if exists "Lihat data sendiri" on public.mahasiswa;
+create policy "Lihat data sendiri"
+on public.mahasiswa for select
+to authenticated
+using ((select auth.uid()) = user_id);
+
+drop policy if exists "Tambah data sendiri" on public.mahasiswa;
+create policy "Tambah data sendiri"
+on public.mahasiswa for insert
+to authenticated
+with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Ubah data sendiri" on public.mahasiswa;
+create policy "Ubah data sendiri"
+on public.mahasiswa for update
+to authenticated
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Hapus data sendiri" on public.mahasiswa;
+create policy "Hapus data sendiri"
+on public.mahasiswa for delete
+to authenticated
+using ((select auth.uid()) = user_id);
+
+-- 5. Index agar filter berdasarkan user_id tetap cepat
+create index if not exists mahasiswa_user_id_idx on public.mahasiswa (user_id);
+</code></pre>
+<p>Jika berhasil, di bagian bawah muncul tulisan <em>Success. No rows returned</em>.</p>
+
+<h4>Penjelasan per bagian</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kode</th><th>Penjelasan</th></tr></thead>
+    <tbody>
+      <tr><td><code>id uuid primary key default gen_random_uuid()</code></td><td>Id dibuat otomatis oleh database berupa teks acak unik, misalnya <code>3f2b9c1e-...</code>. Aplikasi tidak perlu membuat id sendiri seperti di Hive.</td></tr>
+      <tr><td><code>user_id uuid not null default auth.uid()</code></td><td>Pemilik baris. <code>auth.uid()</code> adalah id user yang sedang login, dan karena menjadi nilai <em>default</em>, aplikasi <strong>tidak perlu</strong> mengirim <code>user_id</code> saat insert.</td></tr>
+      <tr><td><code>references auth.users (id) on delete cascade</code></td><td>Relasi ke tabel user milik Supabase. Jika akun dihapus, semua data mahasiswa miliknya ikut terhapus.</td></tr>
+      <tr><td><code>check (semester between 1 and 14)</code></td><td>Validasi di sisi database. Walaupun validasi di aplikasi terlewat, database tetap menolak semester 0 atau 20.</td></tr>
+      <tr><td><code>unique (user_id, nim)</code></td><td>NIM tidak boleh ganda <strong>dalam satu akun</strong>. Akun berbeda boleh punya NIM yang sama.</td></tr>
+      <tr><td><code>grant ... to authenticated</code></td><td>Memberi izin dasar ke role <code>authenticated</code> (user yang sudah login) untuk memakai tabel lewat API. Pada sebagian project baru, izin ini tidak diberikan otomatis, jadi kita tulis secara eksplisit.</td></tr>
+      <tr><td><code>enable row level security</code></td><td>Mengunci tabel. Setelah baris ini, <strong>tidak ada</strong> yang bisa membaca atau menulis kecuali diizinkan oleh policy.</td></tr>
+      <tr><td>Empat <code>create policy</code></td><td>Satu policy untuk setiap operasi (select, insert, update, delete). Semuanya memakai syarat yang sama: <code>auth.uid() = user_id</code>, artinya hanya baris milik sendiri.</td></tr>
+      <tr><td><code>using (...)</code> vs <code>with check (...)</code></td><td><code>using</code> menyaring baris <strong>lama</strong> yang boleh dilihat/diubah/dihapus. <code>with check</code> memeriksa baris <strong>baru</strong> hasil insert/update, sehingga user tidak bisa menyisipkan data atas nama orang lain.</td></tr>
+      <tr><td><code>(select auth.uid())</code></td><td>Dibungkus <code>select</code> supaya Postgres cukup menghitungnya sekali per query, bukan sekali per baris. Hasilnya sama, tetapi lebih cepat.</td></tr>
+      <tr><td><code>create index ... (user_id)</code></td><td>Karena setiap query difilter berdasarkan <code>user_id</code>, index membuat pencarian tetap cepat walaupun datanya banyak.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-info"><h4>ℹ️ Kenapa query di Flutter tidak perlu <code>.eq('user_id', ...)</code>?</h4><p>Karena RLS sudah menyaring di server. Saat Budi menjalankan <code>select()</code>, Postgres otomatis menambahkan syarat "hanya baris dengan <code>user_id</code> milik Budi". Ini juga lebih aman: walaupun ada yang mengubah kode aplikasi, data akun lain tetap tidak bisa diambil.</p></div>
+
+<h4>Langkah 3: Matikan "Confirm email" (khusus praktikum)</h4>
+<p>Secara bawaan, Supabase mengirim email verifikasi setelah register, dan akun baru belum bisa login sebelum link di email diklik. Untuk praktikum di kelas, fitur ini kita matikan supaya register langsung login dan tidak terkena batas pengiriman email.</p>
+<ol>
+  <li>Di sidebar kiri, buka <strong>Authentication</strong> (ikon gembok).</li>
+  <li>Di bagian <strong>CONFIGURATION</strong>, klik <strong>Sign In / Providers</strong> (nomor 1 pada gambar). Jangan tertukar dengan menu <strong>Emails</strong> di bagian NOTIFICATIONS, karena menu itu hanya mengatur isi template email.</li>
+  <li>Pada kotak <strong>User Signups</strong>, matikan toggle <strong>Confirm email</strong> (nomor 2) sampai berwarna abu-abu.</li>
+  <li>Klik <strong>Save changes</strong> (nomor 3).</li>
+</ol>
+<div class="screenshot-row">
+  <div class="screenshot" style="max-width:100%">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/dashboard-confirm-email.jpg" alt="Dashboard Supabase: Authentication, Sign In / Providers, toggle Confirm email dimatikan" loading="lazy">
+    <div class="screenshot-caption">Authentication &rarr; Sign In / Providers &rarr; matikan <em>Confirm email</em> &rarr; Save changes</div>
+  </div>
+</div>
+<p>Pastikan juga <strong>Allow new users to sign up</strong> tetap aktif (hijau). Jika dimatikan, register akan selalu gagal.</p>
+<div class="callout callout-tip"><h4>💡 Untuk aplikasi sungguhan</h4><p>Di aplikasi produksi, <em>Confirm email</em> sebaiknya <strong>diaktifkan</strong> agar orang tidak bisa mendaftar memakai email orang lain. Kode di modul ini sudah menangani kedua kondisi: jika Confirm email aktif, setelah register aplikasi kembali ke halaman login dan menampilkan pesan "Cek email Anda".</p></div>
+
+<h4>Langkah 4: Cek hasilnya</h4>
+<ol>
+  <li>Buka <strong>Table Editor</strong>. Tabel <code>mahasiswa</code> harus muncul dan isinya masih kosong.</li>
+  <li>Buka <strong>Authentication &rarr; Policies</strong>. Pada tabel <code>mahasiswa</code> harus ada empat policy: Lihat, Tambah, Ubah, dan Hapus data sendiri. RLS harus berstatus aktif (<em>enabled</em>).</li>
+</ol>

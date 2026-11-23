@@ -1,0 +1,128 @@
+<p class="lead">File terakhir. <code>main.dart</code> sekarang menyalakan Supabase (bukan Hive), mendaftarkan service dan <code>AuthController</code> ke GetX, lalu menjalankan aplikasi.</p>
+
+<p>Hapus <strong>seluruh</strong> isi <code>lib/main.dart</code>, lalu ganti dengan:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'config/env.dart';
+import 'controllers/auth_controller.dart';
+import 'routes/app_pages.dart';
+import 'routes/app_routes.dart';
+import 'services/auth_service.dart';
+import 'services/mahasiswa_service.dart';
+
+Future&lt;void&gt; main() async {
+  // 1. Pastikan binding Flutter siap sebelum memanggil kode async
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 2. Cek konfigurasi: lupa --dart-define-from-file=env.json?
+  if (!Env.isConfigured) {
+    runApp(const KonfigurasiKosongApp());
+    return;
+  }
+
+  // 3. Inisialisasi Supabase (sesi login lama otomatis dipulihkan)
+  await Supabase.initialize(
+    url: Env.supabaseUrl,
+    publishableKey: Env.supabaseKey,
+  );
+  final client = Supabase.instance.client;
+
+  // 4. Daftarkan service &amp; AuthController sekali untuk seluruh aplikasi
+  Get.put(AuthService(client), permanent: true);
+  Get.put(MahasiswaService(client), permanent: true);
+  Get.put(AuthController(Get.find()), permanent: true);
+
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      title: 'CRUD Mahasiswa',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
+      // Selalu menuju home. Jika belum login, AuthMiddleware
+      // mengalihkan ke halaman login.
+      initialRoute: AppRoutes.home,
+      getPages: AppPages.pages,
+    );
+  }
+}
+
+/// Ditampilkan jika aplikasi dijalankan tanpa env.json.
+class KonfigurasiKosongApp extends StatelessWidget {
+  const KonfigurasiKosongApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY belum diisi.\n\n'
+              'Jalankan dengan:\n'
+              'flutter run --dart-define-from-file=env.json',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Langkah di dalam <code>main()</code></h4>
+<ol>
+  <li><strong><code>WidgetsFlutterBinding.ensureInitialized()</code></strong>: sama seperti Modul 11B, wajib ada karena <code>main()</code> memanggil plugin sebelum <code>runApp</code>.</li>
+  <li><strong>Cek konfigurasi</strong>: jika aplikasi dijalankan tanpa <code>--dart-define-from-file=env.json</code>, tampilkan layar berisi petunjuk lalu berhenti (<code>return</code>).</li>
+  <li><strong><code>await Supabase.initialize(...)</code></strong>: menyambungkan aplikasi ke project Supabase. Fungsi ini juga memulihkan sesi login yang tersimpan, sehingga setelah baris ini <code>currentUser</code> sudah terisi jika pengguna pernah login.</li>
+  <li><strong>Tiga <code>Get.put(..., permanent: true)</code></strong>: mendaftarkan <code>AuthService</code>, <code>MahasiswaService</code>, dan <code>AuthController</code>. <code>permanent: true</code> berarti objek tidak pernah dihapus GetX selama aplikasi berjalan, karena ketiganya dibutuhkan di semua halaman.</li>
+</ol>
+
+<h4>Pembanding dengan Modul 11B</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Modul 11B</th><th>Sekarang</th></tr></thead>
+    <tbody>
+      <tr><td><code>await Hive.initFlutter();</code></td><td><code>await Supabase.initialize(url: ..., publishableKey: ...);</code></td></tr>
+      <tr><td><code>Hive.registerAdapter(MahasiswaAdapter());</code></td><td>Tidak perlu</td></tr>
+      <tr><td><code>await Hive.openBox&lt;Mahasiswa&gt;(...)</code></td><td>Tidak perlu (tabel sudah ada di cloud)</td></tr>
+      <tr><td>-</td><td><code>Get.put(AuthService(...))</code>, <code>Get.put(MahasiswaService(...))</code>, <code>Get.put(AuthController(...))</code></td></tr>
+      <tr><td><code>initialRoute: AppRoutes.home</code></td><td>Sama. Middleware yang memutuskan login atau tidak.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Urutan <code>Get.put</code> itu penting</h4>
+<p><code>AuthController(Get.find())</code> mencari <code>AuthService</code>, jadi <code>AuthService</code> harus didaftarkan <strong>lebih dulu</strong>. Jika urutannya dibalik, muncul error <em>"AuthService" not found. You need to call "Get.put(AuthService())"</em>.</p>
+
+<h4>Menjalankan aplikasi</h4>
+<p>Mulai sekarang, aplikasi <strong>selalu</strong> dijalankan dengan flag berikut:</p>
+<pre><code class="language-bash">flutter analyze
+flutter run --dart-define-from-file=env.json
+</code></pre>
+<div class="callout callout-tip"><h4>💡 Supaya tidak lupa flag-nya (VS Code)</h4><p>Buat file <code>.vscode/launch.json</code> berikut, lalu jalankan aplikasi dengan menekan <kbd>F5</kbd>:</p>
+<pre><code class="language-json">{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "crud_mahasiswa",
+      "request": "launch",
+      "type": "dart",
+      "args": ["--dart-define-from-file=env.json"]
+    }
+  ]
+}
+</code></pre>
+<p>Di Android Studio: <strong>Run &rarr; Edit Configurations &rarr; Additional run args</strong>, lalu isi <code>--dart-define-from-file=env.json</code>.</p></div>
+<div class="callout callout-warning"><h4>⚠️ Hot reload tidak membaca ulang <code>env.json</code></h4><p>Nilai dari <code>env.json</code> ditanam saat kompilasi. Jika Anda mengubah isi <code>env.json</code>, hentikan aplikasi lalu jalankan ulang <code>flutter run</code>. Hot reload saja tidak cukup.</p></div>

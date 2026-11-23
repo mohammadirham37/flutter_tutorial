@@ -1,0 +1,166 @@
+{
+  "id": "modul-supabase-crud-mvc",
+  "badge": "Proyek Supabase CRUD",
+  "category": "Proyek",
+  "title": "Proyek CRUD Mahasiswa (Lanjutan): Supabase + Auth + GetX + Pola MVC",
+  "duration": "Pertemuan 12 (lanjutan, 150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 11B: Proyek CRUD Mahasiswa dengan Hive + GetX + MVC",
+    "Modul 12: Supabase (project, SQL Editor, Row Level Security)"
+  ],
+  "summary": "Melanjutkan aplikasi CRUD Data Mahasiswa dari Modul 11B: data dipindahkan dari Hive ke tabel Supabase yang dikunci Row Level Security, lalu ditambah register, login, dan logout dengan Supabase Auth. Struktur MVC + GetX tetap sama: model dengan fromJson/toJson, MahasiswaService dan AuthService, AuthController dan MahasiswaController dengan state loading/error, AuthMiddleware sebagai penjaga route, halaman login dan register, widget test dengan service palsu, listing lengkap siap salin, dan troubleshooting.",
+  "learningOutcomes": [
+    "Membuat tabel Supabase dengan kolom pemilik (user_id default auth.uid()), constraint, dan empat policy RLS agar setiap akun hanya mengakses datanya sendiri.",
+    "Mengganti lapisan akses data Hive dengan Supabase tanpa mengubah View, sebagai bukti manfaat pola MVC.",
+    "Menulis model dengan fromJson/toJson dan service CRUD async (select, insert, update, delete) memakai supabase_flutter.",
+    "Membangun AuthService dan AuthController (GetX) untuk register, login, logout, menerjemahkan error, dan bereaksi terhadap onAuthStateChange.",
+    "Melindungi route dengan GetMiddleware dan menavigasi dengan Get.offAllNamed setelah login/logout.",
+    "Mengelola state isLoading, isSaving, dan errorMessage dengan pola try/catch/finally, serta menampilkan loading, error, dan tarik-untuk-refresh di View.",
+    "Menguji controller dan alur UI dengan service palsu yang disuntikkan lewat Get.put, tanpa internet."
+  ],
+  "sections": [
+    { "id": "scm-gambaran", "title": "1. Gambaran: Dari Hive ke Supabase + Login", "file": "01-gambaran.html" },
+    { "id": "scm-setup-supabase", "title": "2. Setup Supabase: Tabel, RLS & Confirm Email", "file": "02-setup-supabase.html" },
+    { "id": "scm-setup-proyek", "title": "3. Menyiapkan Proyek: Package, env.json & Izin Internet", "file": "03-setup-proyek.html" },
+    { "id": "scm-model", "title": "4. Model Mahasiswa: fromJson & toJson", "file": "04-model.html" },
+    { "id": "scm-mahasiswa-service", "title": "5. MahasiswaService: CRUD ke Supabase", "file": "05-mahasiswa-service.html" },
+    { "id": "scm-auth-service", "title": "6. AuthService: Register, Login, Logout", "file": "06-auth-service.html" },
+    { "id": "scm-auth-controller", "title": "7. AuthController: State & Logika Autentikasi", "file": "07-auth-controller.html" },
+    { "id": "scm-mahasiswa-controller", "title": "8. MahasiswaController Versi Async", "file": "08-mahasiswa-controller.html" },
+    { "id": "scm-routes-middleware", "title": "9. Routes, Middleware & Binding", "file": "09-routes-middleware.html" },
+    { "id": "scm-login-register", "title": "10. View Login & Register", "file": "10-login-register-view.html" },
+    { "id": "scm-list-form", "title": "11. View Daftar & Form (Loading, Error, Logout)", "file": "11-list-form-view.html" },
+    { "id": "scm-main", "title": "12. main.dart: Inisialisasi Supabase & GetX", "file": "12-main.html" },
+    { "id": "scm-menjalankan", "title": "13. Menjalankan & Menguji (termasuk Bukti RLS)", "file": "13-menjalankan.html" },
+    { "id": "scm-testing", "title": "14. Testing dengan Service Palsu", "file": "14-testing.html" },
+    { "id": "scm-listing", "title": "15. Listing Lengkap (Siap Copy-Paste)", "file": "15-listing-lengkap.html" },
+    { "id": "scm-kesalahan-umum", "title": "16. Kesalahan Umum & Ringkasan", "file": "16-kesalahan-umum.html" }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 12B: CRUD Mahasiswa dengan Supabase + Auth + GetX + MVC",
+    "objective": "Memindahkan aplikasi CRUD Mahasiswa dari Hive ke Supabase, menambahkan autentikasi, dan membuktikan bahwa Row Level Security memisahkan data setiap akun.",
+    "instructions": [
+      "<strong>Tugas 1 (Wajib, 25 poin):</strong> Bangun aplikasi dari section 2-12 di project Supabase Anda sendiri. Lampirkan screenshot skenario 1-5 dari section 13, serta screenshot Table Editor yang menampilkan kolom <code>user_id</code> pada data Anda.",
+      "<strong>Tugas 2 (Wajib, 20 poin):</strong> Lakukan skenario 6 (dua akun). Lampirkan screenshot halaman daftar kedua akun dan screenshot Table Editor yang memperlihatkan baris milik kedua akun. Jelaskan di laporan kenapa akun kedua tidak bisa melihat data akun pertama padahal <code>getAll()</code> tidak memfilter <code>user_id</code>.",
+      "<strong>Tugas 3 (Wajib, 15 poin):</strong> Tambahkan kolom <code>email text</code> di tabel (dengan <code>alter table</code>), lalu tambahkan field <code>email</code> di model (<code>fromJson</code>/<code>toJson</code>), form (dengan validasi format), dan kartu di daftar.",
+      "<strong>Tugas 4 (Wajib, 15 poin):</strong> Tambahkan field <strong>Nama Lengkap</strong> di halaman register, kirim sebagai metadata (<code>signUp(..., data: {'full_name': nama})</code>), lalu tampilkan \"Halo, &lt;nama&gt;\" di halaman daftar menggantikan teks \"Masuk sebagai\".",
+      "<strong>Tugas 5 (Wajib, 15 poin):</strong> Tambahkan tombol <em>Lupa password?</em> di halaman login yang memanggil <code>resetPasswordForEmail</code> lewat AuthService dan AuthController, lalu tampilkan snackbar hasilnya.",
+      "<strong>Tugas 6 (Wajib, 10 poin):</strong> Tambahkan minimal 2 test baru, misalnya: register lewat UI dengan <code>FakeAuthService</code>, dan menyimpan NIM ganda menampilkan pesan \"NIM ... sudah terdaftar\". Semua test harus lulus.",
+      "<strong>Bonus (+10 poin):</strong> Tambahkan tombol <em>Impor dari Hive</em> yang membaca data lama di box <code>mahasiswa_box</code> (Modul 11B) lalu meng-insert-nya ke Supabase lewat <code>MahasiswaService.create</code>, dengan melewati NIM yang sudah ada."
+    ],
+    "expectedOutput": "Aplikasi CRUD Mahasiswa yang menyimpan data di Supabase, memiliki register/login/logout, sesi tersimpan, data terpisah per akun (dibuktikan dengan dua akun), field email, sapaan nama, lupa password, serta output flutter analyze tanpa issue dan flutter test yang semua lulus.",
+    "rubric": "Tugas 1: CRUD ke Supabase + bukti user_id (25%). Tugas 2: bukti dan penjelasan RLS (20%). Tugas 3: kolom email end-to-end (15%). Tugas 4: nama lengkap via metadata (15%). Tugas 5: lupa password (15%). Tugas 6: test baru (10%). Bonus impor Hive (+10%). Pengurangan nilai jika View memanggil Supabase secara langsung, secret key dipakai di aplikasi, env.json ikut di-commit, RLS dimatikan, atau flutter analyze masih menampilkan issue."
+  },
+  "quiz": [
+    {
+      "question": "Setelah pindah dari Hive ke Supabase, file mana yang TIDAK perlu diubah sama sekali secara konsep, karena berkat MVC tidak pernah menyentuh database?",
+      "options": [
+        "mahasiswa_service.dart",
+        "mahasiswa_model.dart",
+        "Logika tampilan kartu di mahasiswa_list_view.dart dan field di mahasiswa_form_view.dart",
+        "main.dart"
+      ],
+      "correctIndex": 2,
+      "explanation": "View hanya membaca state controller dan memanggil method controller. Karena View tidak pernah memanggil Hive, tampilan kartu dan field form tetap sama. Tambahan di View hanya untuk fitur baru seperti loading, error, dan logout."
+    },
+    {
+      "question": "Kenapa toJson() tidak mengirim user_id saat insert?",
+      "options": [
+        "Karena Supabase tidak punya kolom user_id",
+        "Karena kolom user_id punya default auth.uid(), sehingga database mengisinya dengan id user yang login, dan policy with check menolak nilai milik orang lain",
+        "Karena user_id hanya boleh diisi lewat dashboard",
+        "Karena Flutter tidak bisa mengetahui id user"
+      ],
+      "correctIndex": 1,
+      "explanation": "Default auth.uid() mengisi pemilik secara otomatis dan tidak bisa dipalsukan, karena policy insert memeriksa (select auth.uid()) = user_id."
+    },
+    {
+      "question": "Budi dan Ani memakai aplikasi yang sama. MahasiswaService.getAll() hanya menjalankan select() tanpa filter. Apa yang dilihat Ani?",
+      "options": [
+        "Semua data, termasuk milik Budi",
+        "Error karena query tanpa filter dilarang",
+        "Hanya data miliknya sendiri, karena RLS menambahkan syarat auth.uid() = user_id di server",
+        "Daftar kosong selamanya"
+      ],
+      "correctIndex": 2,
+      "explanation": "Policy select dengan using ((select auth.uid()) = user_id) menyaring baris di Postgres berdasarkan token login yang ikut terkirim pada setiap request."
+    },
+    {
+      "question": "Apa akibatnya jika MahasiswaService menulis .order('nama') tanpa ascending: true?",
+      "options": [
+        "Data tidak terurut sama sekali",
+        "Data diurutkan Z ke A, karena nilai default ascending pada supabase_flutter adalah false",
+        "Error kompilasi",
+        "Data diurutkan berdasarkan id"
+      ],
+      "correctIndex": 1,
+      "explanation": "Pada supabase_flutter, order() memakai ascending: false sebagai bawaan, sehingga hasilnya menurun. Tulis ascending: true secara eksplisit."
+    },
+    {
+      "question": "Apa fungsi AuthMiddleware yang dipasang pada route '/' dan '/form'?",
+      "options": [
+        "Mengenkripsi data sebelum dikirim",
+        "Sebelum halaman dibuka, memeriksa isLoggedIn. Jika belum login, mengalihkan ke /login",
+        "Menyimpan sesi ke Hive",
+        "Menggantikan Row Level Security"
+      ],
+      "correctIndex": 1,
+      "explanation": "redirect() mengembalikan null untuk mengizinkan, atau RouteSettings(name: '/login') untuk mengalihkan. Keamanan data tetap dijaga RLS. Middleware hanya mengatur navigasi."
+    },
+    {
+      "question": "Kenapa setelah login berhasil dipakai Get.offAllNamed(AppRoutes.home), bukan Get.toNamed?",
+      "options": [
+        "Karena Get.toNamed tidak bisa membuka route '/'",
+        "Agar halaman login dihapus dari tumpukan, sehingga tombol Back di halaman daftar tidak kembali ke login",
+        "Agar data dimuat lebih cepat",
+        "Karena Get.toNamed menghapus sesi"
+      ],
+      "correctIndex": 1,
+      "explanation": "offAllNamed membuka halaman baru dan membuang semua halaman sebelumnya. Hal yang sama dipakai saat logout menuju /login."
+    },
+    {
+      "question": "Saat pengguna menekan Keluar, confirmLogout() hanya memanggil signOut(). Siapa yang membuka halaman login?",
+      "options": [
+        "Tidak ada, pengguna harus menutup aplikasi",
+        "MahasiswaListView memanggil Get.toNamed('/login')",
+        "Listener onAuthStateChange di AuthController.onInit yang menerima event signedOut lalu memanggil Get.offAllNamed(AppRoutes.login)",
+        "Supabase membuka halaman login secara otomatis"
+      ],
+      "correctIndex": 2,
+      "explanation": "Navigasi ke login ditulis di satu tempat, yaitu listener event signedOut. Dengan begitu, logout manual maupun sesi yang berakhir sendiri ditangani dengan cara yang sama."
+    },
+    {
+      "question": "Kenapa login dan register memakai loginFormKey dan registerFormKey yang berbeda?",
+      "options": [
+        "Karena GetX melarang satu controller memiliki dua form",
+        "Karena saat halaman register dibuka, halaman login masih ada di tumpukan, dan satu GlobalKey tidak boleh dipakai dua widget sekaligus (Duplicate GlobalKey)",
+        "Agar password terenkripsi",
+        "Karena Supabase membutuhkan dua key"
+      ],
+      "correctIndex": 1,
+      "explanation": "Get.toNamed menumpuk RegisterView di atas LoginView. Kedua Form hidup bersamaan sehingga masing-masing butuh GlobalKey sendiri."
+    },
+    {
+      "question": "Bagaimana widget test bisa berjalan tanpa internet dan tanpa env.json?",
+      "options": [
+        "flutter test otomatis memakai Supabase lokal",
+        "Di setUp, FakeAuthService dan FakeMahasiswaService didaftarkan dengan Get.put, sehingga controller memakai service palsu yang menyimpan data di memori",
+        "Test dijalankan di emulator",
+        "Test memakai Hive sebagai pengganti"
+      ],
+      "correctIndex": 1,
+      "explanation": "Controller menerima service lewat constructor/Get.find, bukan membuatnya sendiri. Karena itu objek palsu yang mengimplementasikan AuthService dan MahasiswaService bisa disuntikkan saat test."
+    },
+    {
+      "question": "Akun Ani berhasil menyimpan NIM 220101001 walaupun NIM itu sudah dipakai Budi. Kenapa?",
+      "options": [
+        "Karena pengecekan NIM ganda di controller rusak",
+        "Karena constraint-nya unique (user_id, nim), sehingga NIM hanya harus unik di dalam satu akun",
+        "Karena RLS mematikan semua constraint",
+        "Karena NIM disimpan sebagai angka"
+      ],
+      "correctIndex": 1,
+      "explanation": "Kombinasi user_id dan nim yang harus unik. Pengecekan di controller pun hanya melihat mahasiswaList milik akun yang login."
+    }
+  ]
+}

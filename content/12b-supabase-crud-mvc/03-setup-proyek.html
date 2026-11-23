@@ -1,0 +1,84 @@
+<p class="lead">Kita lanjutkan proyek <code>crud_mahasiswa</code> dari Modul 11B. Di section ini kita mengganti package Hive dengan Supabase, membuang file yang tidak dipakai lagi, dan menyimpan URL serta key Supabase dengan aman.</p>
+
+<div class="callout callout-tip"><h4>💡 Simpan dulu versi Hive</h4><p>Sebelum mengubah apa pun, simpan hasil Modul 11B, misalnya dengan <code>git commit -am "Versi Hive selesai"</code> atau dengan menyalin folder proyek menjadi <code>crud_mahasiswa_hive</code>. Dengan begitu Anda bisa membandingkan kedua versi.</p></div>
+
+<h4>1. Ganti package</h4>
+<p>Buka terminal di folder proyek <code>crud_mahasiswa</code>:</p>
+<pre><code class="language-bash">flutter pub remove hive_ce hive_ce_flutter
+flutter pub add supabase_flutter
+</code></pre>
+<p>Package <code>get</code> sudah terpasang sejak Modul 11B. Jika Anda memulai dari proyek kosong, jalankan <code>flutter pub add get supabase_flutter</code>.</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Package</th><th>Kegunaan di proyek ini</th></tr></thead>
+    <tbody>
+      <tr><td><code>get</code></td><td>State reaktif, dependency injection, named route, middleware, snackbar, dan dialog</td></tr>
+      <tr><td><code>supabase_flutter</code></td><td>Koneksi ke Supabase: Auth (register, login, logout, menyimpan sesi) dan database (<code>select</code>, <code>insert</code>, <code>update</code>, <code>delete</code>)</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Bagian <code>dependencies</code> di <code>pubspec.yaml</code> kira-kira menjadi seperti ini (nomor versi di laptop Anda boleh lebih baru):</p>
+<p class="code-file-label">📄 <code>pubspec.yaml</code> (bagian dependencies)</p>
+<pre><code class="language-yaml">dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  get: ^4.7.3
+  supabase_flutter: ^2.18.3
+</code></pre>
+
+<h4>2. Hapus file Hive dan siapkan folder baru</h4>
+<pre><code class="language-bash"># macOS / Linux / Git Bash
+rm lib/models/mahasiswa_adapter.dart lib/services/hive_service.dart
+rm -f test/hive_service_test.dart test/crud_flow_test.dart
+mkdir -p lib/config lib/middlewares supabase test/helpers
+</code></pre>
+<pre><code class="language-text"># Windows PowerShell
+Remove-Item lib/models/mahasiswa_adapter.dart, lib/services/hive_service.dart
+Remove-Item test/hive_service_test.dart, test/crud_flow_test.dart -ErrorAction SilentlyContinue
+mkdir lib/config, lib/middlewares, supabase, test/helpers
+</code></pre>
+<p>Setelah langkah ini editor akan menampilkan banyak garis merah, misalnya di <code>main.dart</code> dan <code>mahasiswa_controller.dart</code>, karena keduanya masih mengimpor file Hive yang baru dihapus. Ini normal. Semua error hilang setelah file-file diperbarui di section berikutnya.</p>
+
+<h4>3. Simpan URL dan key di <code>env.json</code></h4>
+<p>URL dan key Supabase <strong>tidak</strong> ditulis langsung di kode Dart, supaya tidak ikut ter-upload ke GitHub. Buat file <code>env.json</code> di root proyek (sejajar dengan <code>pubspec.yaml</code>) dan isi dengan nilai dari section 2:</p>
+<p class="code-file-label">📄 <code>env.json</code></p>
+<pre><code class="language-json">{
+  "SUPABASE_URL": "https://YOUR-PROJECT-REF.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_YOUR_KEY"
+}
+</code></pre>
+<p>Tambahkan baris berikut di bagian paling bawah <code>.gitignore</code>:</p>
+<p class="code-file-label">📄 <code>.gitignore</code> (tambahan)</p>
+<pre><code class="language-text"># Kunci Supabase
+env.json
+</code></pre>
+
+<h4>4. Kelas <code>Env</code> untuk membaca konfigurasi</h4>
+<p class="code-file-label">📄 <code>lib/config/env.dart</code></p>
+<pre><code class="language-dart">/// Konfigurasi Supabase yang dibaca saat build lewat --dart-define.
+///
+/// Jalankan aplikasi dengan:
+///   flutter run --dart-define-from-file=env.json
+class Env {
+  static const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  static const String supabaseKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+  );
+
+  /// true jika kedua nilai sudah diisi.
+  static bool get isConfigured =&gt;
+      supabaseUrl.isNotEmpty &amp;&amp; supabaseKey.isNotEmpty;
+}
+</code></pre>
+<ul>
+  <li><code>String.fromEnvironment('SUPABASE_URL')</code> membaca nilai yang dikirim saat build lewat <code>--dart-define-from-file=env.json</code>. Nilainya ditanam ke aplikasi saat kompilasi, bukan dibaca dari file saat aplikasi berjalan.</li>
+  <li>Jika aplikasi dijalankan tanpa flag tersebut, nilainya string kosong. <code>isConfigured</code> dipakai di <code>main.dart</code> untuk menampilkan pesan yang jelas, bukan error yang membingungkan.</li>
+</ul>
+
+<h4>5. Izin internet (Android)</h4>
+<p>Mode debug otomatis punya izin internet, tetapi APK rilis tidak. Buka <code>android/app/src/main/AndroidManifest.xml</code> dan tambahkan baris ini tepat <strong>di atas</strong> tag <code>&lt;application</code>:</p>
+<pre><code class="language-text">&lt;uses-permission android:name="android.permission.INTERNET"/&gt;
+</code></pre>
+<div class="callout callout-warning"><h4>⚠️ Lupa izin internet = aplikasi rilis selalu "Tidak dapat terhubung"</h4><p>Kesalahan ini sering baru ketahuan setelah APK dibagikan ke teman, karena saat <code>flutter run</code> semuanya lancar. Tambahkan izinnya sekarang.</p></div>

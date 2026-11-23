@@ -1,0 +1,336 @@
+<p class="lead">Test di Modul 11B memakai Hive di folder sementara. Kali ini kita tidak bisa menguji dengan Supabase sungguhan setiap kali menjalankan <code>flutter test</code>, karena butuh internet, lambat, dan bisa mengotori data. Solusinya: buat <strong>service palsu</strong> (<em>fake</em>) yang menyimpan data di memori, lalu suntikkan ke aplikasi sebagai pengganti service asli.</p>
+
+<h4>Kenapa ini bisa dilakukan?</h4>
+<p>Karena sejak awal controller tidak membuat service sendiri, tetapi mengambilnya dari <code>Get.find()</code>, dan service menerima client Supabase lewat constructor. Saat test, kita cukup memanggil <code>Get.put</code> dengan objek palsu sebelum aplikasi dijalankan. Controller tidak tahu bedanya.</p>
+<pre><code class="language-text">Aplikasi asli:  AuthController ──► AuthService      ──► Supabase Auth (internet)
+Saat test:      AuthController ──► FakeAuthService  ──► variabel di memori
+</code></pre>
+
+<h4>1. Service palsu</h4>
+<p>Buat file <code>test/helpers/fakes.dart</code>:</p>
+<p class="code-file-label">📄 <code>test/helpers/fakes.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+
+import 'package:crud_mahasiswa/models/mahasiswa_model.dart';
+import 'package:crud_mahasiswa/services/auth_service.dart';
+import 'package:crud_mahasiswa/services/mahasiswa_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// AuthService palsu: tidak menghubungi Supabase sama sekali.
+/// Hanya satu akun yang dianggap benar: budi@kampus.ac.id / rahasia123.
+class FakeAuthService implements AuthService {
+  FakeAuthService({bool sudahLogin = false}) {
+    if (sudahLogin) _user = _buatUser('budi@kampus.ac.id');
+  }
+
+  final _events = StreamController&lt;AuthState&gt;.broadcast();
+  User? _user;
+
+  User _buatUser(String email) =&gt; User(
+    id: 'user-1',
+    appMetadata: const {},
+    userMetadata: const {},
+    aud: 'authenticated',
+    email: email,
+    createdAt: DateTime.now().toIso8601String(),
+  );
+
+  @override
+  User? get currentUser =&gt; _user;
+
+  @override
+  Stream&lt;AuthState&gt; get authStateChanges =&gt; _events.stream;
+
+  @override
+  Future&lt;AuthResponse&gt; signIn({
+    required String email,
+    required String password,
+  }) async {
+    if (email != 'budi@kampus.ac.id' || password != 'rahasia123') {
+      throw const AuthApiException(
+        'Invalid login credentials',
+        code: 'invalid_credentials',
+        statusCode: '400',
+      );
+    }
+    _user = _buatUser(email);
+    final session = Session(
+      accessToken: 'token',
+      tokenType: 'bearer',
+      user: _user!,
+    );
+    _events.add(AuthState(AuthChangeEvent.signedIn, session));
+    return AuthResponse(session: session);
+  }
+
+  @override
+  Future&lt;AuthResponse&gt; signUp({
+    required String email,
+    required String password,
+  }) async {
+    _user = _buatUser(email);
+    final session = Session(
+      accessToken: 'token',
+      tokenType: 'bearer',
+      user: _user!,
+    );
+    return AuthResponse(session: session);
+  }
+
+  @override
+  Future&lt;void&gt; signOut() async {
+    _user = null;
+    _events.add(const AuthState(AuthChangeEvent.signedOut, null));
+  }
+}
+
+/// MahasiswaService palsu: data disimpan di List biasa (memori).
+class FakeMahasiswaService implements MahasiswaService {
+  final List&lt;Mahasiswa&gt; _data = [];
+  int _nextId = 1;
+
+  @override
+  Future&lt;List&lt;Mahasiswa&gt;&gt; getAll() async {
+    final hasil = [..._data]..sort((a, b) =&gt; a.nama.compareTo(b.nama));
+    return hasil;
+  }
+
+  @override
+  Future&lt;void&gt; create(Mahasiswa mhs) async {
+    if (_data.any((m) =&gt; m.nim == mhs.nim)) {
+      // tiru error unique constraint dari Postgres
+      throw const PostgrestException(message: 'duplicate', code: '23505');
+    }
+    _data.add(
+      Mahasiswa(
+        id: '${_nextId++}',
+        nim: mhs.nim,
+        nama: mhs.nama,
+        prodi: mhs.prodi,
+        semester: mhs.semester,
+      ),
+    );
+  }
+
+  @override
+  Future&lt;void&gt; update(String id, Mahasiswa mhs) async {
+    final i = _data.indexWhere((m) =&gt; m.id == id);
+    _data[i] = Mahasiswa(
+      id: id,
+      nim: mhs.nim,
+      nama: mhs.nama,
+      prodi: mhs.prodi,
+      semester: mhs.semester,
+    );
+  }
+
+  @override
+  Future&lt;void&gt; delete(String id) async {
+    _data.removeWhere((m) =&gt; m.id == id);
+  }
+}
+</code></pre>
+<ul>
+  <li><strong><code>implements AuthService</code></strong>: kelas palsu berjanji punya semua method yang sama dengan <code>AuthService</code>, sehingga bisa dipakai di tempat mana pun yang meminta <code>AuthService</code>. Kata kunci <code>@override</code> menandai method yang menggantikan versi aslinya.</li>
+  <li><strong><code>FakeAuthService</code></strong> hanya menerima satu akun: <code>budi@kampus.ac.id</code> / <code>rahasia123</code>. Untuk akun lain ia melempar <code>AuthApiException</code> dengan kode <code>invalid_credentials</code>, sama seperti Supabase asli.</li>
+  <li><strong><code>StreamController.broadcast()</code></strong> dipakai untuk memancarkan event <code>signedIn</code>/<code>signedOut</code> seperti <code>onAuthStateChange</code>.</li>
+  <li><strong><code>FakeMahasiswaService</code></strong> menyimpan data di <code>List</code> biasa dan meniru error <code>23505</code> jika NIM ganda.</li>
+</ul>
+
+<h4>2. Unit test model</h4>
+<p class="code-file-label">📄 <code>test/mahasiswa_model_test.dart</code></p>
+<pre><code class="language-dart">import 'package:crud_mahasiswa/models/mahasiswa_model.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('fromJson membaca satu baris dari Supabase', () {
+    final mhs = Mahasiswa.fromJson({
+      'id': 'a1b2',
+      'user_id': 'u1',
+      'nim': '220101001',
+      'nama': 'Budi',
+      'prodi': 'Informatika',
+      'semester': 5,
+      'created_at': '2026-11-23T08:00:00+00:00',
+    });
+
+    expect(mhs.id, 'a1b2');
+    expect(mhs.nama, 'Budi');
+    expect(mhs.semester, 5);
+  });
+
+  test('toJson tidak mengirim id dan user_id', () {
+    final json = Mahasiswa(
+      nim: '220101001',
+      nama: 'Budi',
+      prodi: 'Informatika',
+      semester: 5,
+    ).toJson();
+
+    expect(json.containsKey('id'), isFalse);
+    expect(json.containsKey('user_id'), isFalse);
+    expect(json['nim'], '220101001');
+  });
+}
+</code></pre>
+<p>Test ini memastikan <code>fromJson</code> membaca kolom dengan benar, dan bahwa <code>toJson</code> tidak mengirim <code>id</code> maupun <code>user_id</code>.</p>
+
+<h4>3. Widget test alur login</h4>
+<p class="code-file-label">📄 <code>test/auth_flow_test.dart</code></p>
+<pre><code class="language-dart">import 'package:crud_mahasiswa/controllers/auth_controller.dart';
+import 'package:crud_mahasiswa/main.dart';
+import 'package:crud_mahasiswa/services/auth_service.dart';
+import 'package:crud_mahasiswa/services/mahasiswa_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+
+import 'helpers/fakes.dart';
+
+void main() {
+  setUp(() {
+    // Sama seperti main(), tetapi memakai service palsu.
+    final auth = FakeAuthService();
+    Get.put&lt;AuthService&gt;(auth, permanent: true);
+    Get.put&lt;MahasiswaService&gt;(FakeMahasiswaService(), permanent: true);
+    Get.put(AuthController(auth), permanent: true);
+  });
+
+  tearDown(Get.reset);
+
+  testWidgets('Belum login: diarahkan ke halaman login', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    expect(find.text('Masuk'), findsOneWidget);
+    expect(find.text('Data Mahasiswa'), findsNothing);
+  });
+
+  testWidgets('Validasi form login', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Masuk'));
+    await tester.pump();
+    expect(find.text('Email wajib diisi'), findsOneWidget);
+    expect(find.text('Password wajib diisi'), findsOneWidget);
+  });
+
+  testWidgets('Login salah, login benar, lalu logout', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    // Password salah
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Email'),
+      'budi@kampus.ac.id',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Password'),
+      'salah123',
+    );
+    await tester.tap(find.text('Masuk'));
+    await tester.pump(); // proses login (palsu) selesai
+    await tester.pump(const Duration(seconds: 1)); // snackbar muncul
+    expect(find.text('Email atau password salah.'), findsOneWidget);
+    await tester.pumpAndSettle(const Duration(seconds: 4)); // tunggu hilang
+    expect(find.text('Data Mahasiswa'), findsNothing);
+
+    // Password benar
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Password'),
+      'rahasia123',
+    );
+    await tester.tap(find.text('Masuk'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Data Mahasiswa'), findsOneWidget);
+    expect(find.text('Masuk sebagai budi@kampus.ac.id'), findsOneWidget);
+
+    // Logout
+    await tester.tap(find.byIcon(Icons.logout));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Keluar'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Masuk'), findsOneWidget);
+    expect(find.text('Data Mahasiswa'), findsNothing);
+  });
+}
+</code></pre>
+<ul>
+  <li><strong><code>setUp</code></strong> meniru isi <code>main()</code>, tetapi memakai service palsu. Bagian ini dijalankan sebelum <em>setiap</em> test.</li>
+  <li><strong><code>tearDown(Get.reset)</code></strong> menghapus semua yang didaftarkan ke GetX setelah setiap test, sehingga test berikutnya mulai dari keadaan bersih.</li>
+  <li>Test pertama membuktikan bahwa <code>AuthMiddleware</code> mengalihkan ke halaman login.</li>
+  <li>Test ketiga menguji alur lengkap: login salah, login benar, lalu logout. Perhatikan bahwa snackbar dicek setelah <code>pump(Duration(seconds: 1))</code>. Snackbar GetX hilang setelah 3 detik, jadi jika kita langsung menunggu dengan <code>pumpAndSettle(Duration(seconds: 4))</code>, snackbar sudah lenyap sebelum dicek.</li>
+</ul>
+
+<h4>4. Widget test alur CRUD</h4>
+<p class="code-file-label">📄 <code>test/crud_flow_test.dart</code></p>
+<pre><code class="language-dart">import 'package:crud_mahasiswa/controllers/auth_controller.dart';
+import 'package:crud_mahasiswa/main.dart';
+import 'package:crud_mahasiswa/services/auth_service.dart';
+import 'package:crud_mahasiswa/services/mahasiswa_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+
+import 'helpers/fakes.dart';
+
+void main() {
+  setUp(() {
+    // Anggap user sudah login sehingga aplikasi langsung ke halaman daftar.
+    final auth = FakeAuthService(sudahLogin: true);
+    Get.put&lt;AuthService&gt;(auth, permanent: true);
+    Get.put&lt;MahasiswaService&gt;(FakeMahasiswaService(), permanent: true);
+    Get.put(AuthController(auth), permanent: true);
+  });
+
+  tearDown(Get.reset);
+
+  testWidgets('Alur CRUD lewat UI', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    expect(find.text('Belum ada data mahasiswa'), findsOneWidget);
+
+    // CREATE
+    await tester.tap(find.text('Tambah'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'NIM'),
+      '22010100',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Nama Lengkap'),
+      'Siti',
+    );
+    await tester.enterText(find.widgetWithText(TextFormField, 'Semester'), '3');
+    await tester.tap(find.text('Simpan'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Siti'), findsOneWidget);
+
+    // UPDATE
+    await tester.tap(find.byIcon(Icons.edit));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Nama Lengkap'),
+      'Siti Aminah',
+    );
+    await tester.tap(find.text('Perbarui'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Siti Aminah'), findsOneWidget);
+
+    // DELETE
+    await tester.tap(find.byIcon(Icons.delete));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hapus'));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+    expect(find.text('Belum ada data mahasiswa'), findsOneWidget);
+  });
+}
+</code></pre>
+<p>Isinya hampir sama dengan test di Modul 11B. Bedanya, <code>FakeAuthService(sudahLogin: true)</code> membuat aplikasi langsung membuka halaman daftar, dan data disimpan di <code>FakeMahasiswaService</code>, bukan di Hive.</p>
+
+<h4>Menjalankan test</h4>
+<pre><code class="language-bash">flutter test
+</code></pre>
+<p>Hasil yang diharapkan:</p>
+<pre><code class="language-text">00:01 +6: All tests passed!
+</code></pre>
+<div class="callout callout-tip"><h4>💡 Test tidak butuh <code>env.json</code></h4><p><code>flutter test</code> tidak menjalankan <code>main()</code> dan tidak menghubungi Supabase, jadi test tetap lulus walaupun laptop tidak tersambung ke internet. Inilah keuntungan memisahkan service dari controller.</p></div>

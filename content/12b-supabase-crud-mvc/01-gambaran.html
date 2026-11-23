@@ -1,0 +1,134 @@
+<p class="lead">Di Modul 11B kita sudah membuat aplikasi <strong>CRUD Data Mahasiswa</strong> yang menyimpan data di Hive, jadi datanya hanya ada di satu HP. Di modul ini aplikasi yang <strong>sama</strong> kita pindahkan ke <strong>Supabase</strong> (database cloud), lalu kita tambahkan <strong>login dan register</strong> supaya setiap pengguna hanya melihat datanya sendiri. Polanya tetap <strong>MVC + GetX</strong>, dan sebagian besar file dari Modul 11B tetap dipakai.</p>
+
+<h4>Apa yang berubah dibanding Modul 11B?</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Aspek</th><th>Modul 11B (Hive)</th><th>Modul 12B (Supabase)</th></tr></thead>
+    <tbody>
+      <tr><td>Tempat data</td><td>File di HP (offline)</td><td>Tabel Postgres di cloud Supabase</td></tr>
+      <tr><td>Siapa yang bisa melihat data</td><td>Siapa pun yang memegang HP</td><td>Hanya pemilik akun (dijaga <em>Row Level Security</em>)</td></tr>
+      <tr><td>Data pindah HP</td><td>Hilang</td><td>Tetap ada, cukup login dengan akun yang sama</td></tr>
+      <tr><td>Akses data</td><td>Sinkron dan instan (<code>_box.values</code>)</td><td><code>async</code> lewat internet, bisa lambat atau gagal</td></tr>
+      <tr><td>Id data</td><td>Dibuat aplikasi dari waktu (<code>millisecondsSinceEpoch</code>)</td><td>Dibuat database (<code>uuid</code>)</td></tr>
+      <tr><td>Halaman</td><td>Daftar, Form</td><td>Login, Register, Daftar, Form</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>Tampilan akhir aplikasi (semua screenshot di modul ini diambil dari aplikasi yang benar-benar terhubung ke Supabase):</p>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/login-validasi.jpg" alt="Halaman login" loading="lazy">
+    <div class="screenshot-caption">Halaman login</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/daftar-terisi.jpg" alt="Daftar mahasiswa milik akun yang login" loading="lazy">
+    <div class="screenshot-caption">Daftar mahasiswa milik akun yang login</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/rls-akun-lain.jpg" alt="Akun lain tidak bisa melihat data tersebut" loading="lazy">
+    <div class="screenshot-caption">Akun lain tidak bisa melihat data tersebut</div>
+  </div>
+</div>
+
+<h4>Nasib setiap file dari Modul 11B</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>File</th><th>Status</th><th>Keterangan</th></tr></thead>
+    <tbody>
+      <tr><td><code>models/mahasiswa_model.dart</code></td><td>🔧 Diubah</td><td><code>id</code> menjadi nullable, ditambah <code>fromJson</code>/<code>toJson</code></td></tr>
+      <tr><td><code>models/mahasiswa_adapter.dart</code></td><td>🗑️ Dihapus</td><td>Supabase memakai JSON, tidak butuh TypeAdapter</td></tr>
+      <tr><td><code>services/hive_service.dart</code></td><td>🗑️ Dihapus</td><td>Digantikan <code>mahasiswa_service.dart</code></td></tr>
+      <tr><td><code>services/mahasiswa_service.dart</code></td><td>🆕 Baru</td><td>CRUD ke tabel Supabase</td></tr>
+      <tr><td><code>services/auth_service.dart</code></td><td>🆕 Baru</td><td>Register, login, logout ke Supabase Auth</td></tr>
+      <tr><td><code>config/env.dart</code></td><td>🆕 Baru</td><td>Membaca URL dan key Supabase dari <code>env.json</code></td></tr>
+      <tr><td><code>controllers/auth_controller.dart</code></td><td>🆕 Baru</td><td>State dan logika login/register/logout</td></tr>
+      <tr><td><code>controllers/mahasiswa_controller.dart</code></td><td>🔧 Diubah</td><td>Method menjadi <code>async</code>, ada state loading dan error</td></tr>
+      <tr><td><code>middlewares/auth_middleware.dart</code></td><td>🆕 Baru</td><td>"Satpam" yang menolak halaman jika belum login</td></tr>
+      <tr><td><code>bindings/mahasiswa_binding.dart</code></td><td>🔧 Diubah</td><td>Controller menerima service lewat constructor</td></tr>
+      <tr><td><code>routes/app_routes.dart</code>, <code>app_pages.dart</code></td><td>🔧 Diubah</td><td>Tambah route login dan register, pasang middleware</td></tr>
+      <tr><td><code>views/login_view.dart</code>, <code>register_view.dart</code></td><td>🆕 Baru</td><td>Halaman login dan register</td></tr>
+      <tr><td><code>views/mahasiswa_list_view.dart</code></td><td>🔧 Diubah</td><td>Tombol logout, loading, error, tarik untuk refresh</td></tr>
+      <tr><td><code>views/mahasiswa_form_view.dart</code></td><td>🔧 Diubah sedikit</td><td>Tombol simpan menampilkan loading</td></tr>
+      <tr><td><code>main.dart</code></td><td>🔧 Diubah</td><td>Inisialisasi Supabase, bukan Hive</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Perhatikan bahwa View daftar dan form hampir tidak berubah. Inilah keuntungan MVC: karena View tidak pernah menyentuh Hive secara langsung, mengganti database cukup dilakukan di lapisan Model (service) dan sedikit di Controller.</p>
+
+<h4>Arsitektur MVC setelah ditambah Auth</h4>
+<pre><code class="language-text">┌─────────────────────────────────────────────────────────────┐
+│ VIEW                                                        │
+│ LoginView, RegisterView,                                    │
+│ MahasiswaListView, MahasiswaFormView                        │
+└─────────────┬─────────────────────────────────┬─────────────┘
+              │ memanggil method                │
+              ▼                                 ▼
+┌───────────────────────────┐  ┌──────────────────────────────┐
+│ CONTROLLER                │  │ CONTROLLER                   │
+│ AuthController            │  │ MahasiswaController          │
+│ isLoading, form login     │  │ mahasiswaList, isLoading,    │
+│ login/register/logout     │  │ errorMessage, CRUD           │
+└─────────────┬─────────────┘  └──────────────┬───────────────┘
+              ▼                               ▼
+┌───────────────────────────┐  ┌──────────────────────────────┐
+│ MODEL: AuthService        │  │ MODEL: MahasiswaService      │
+│        │                  │  │        + class Mahasiswa     │
+│        ▼                  │  │        │                     │
+│ Supabase Auth (auth.users)│  │        ▼                     │
+│                           │  │ Tabel public.mahasiswa       │
+└───────────────────────────┘  └──────────────────────────────┘
+
+AuthMiddleware: sebelum membuka halaman Daftar/Form,
+cek AuthController.isLoggedIn. Belum login -&gt; ke /login.
+</code></pre>
+
+<h4>Alur yang dilalui pengguna</h4>
+<ol>
+  <li>Aplikasi dibuka dan selalu menuju route <code>/</code> (daftar mahasiswa).</li>
+  <li><code>AuthMiddleware</code> memeriksa apakah ada user yang login. Jika belum, pengguna dialihkan ke <code>/login</code>. Jika sudah (sesi tersimpan dari pembukaan sebelumnya), halaman daftar langsung tampil.</li>
+  <li>Di halaman login, pengguna bisa masuk atau membuka halaman register.</li>
+  <li>Setelah login berhasil, <code>Get.offAllNamed('/')</code> membuka halaman daftar dan menghapus halaman login dari tumpukan, sehingga tombol Back tidak kembali ke login.</li>
+  <li>Di halaman daftar, pengguna melakukan CRUD seperti di Modul 11B. Bedanya, setiap operasi dikirim ke Supabase.</li>
+  <li>Saat logout, Supabase memancarkan event <code>signedOut</code>, lalu <code>AuthController</code> membuka halaman login.</li>
+</ol>
+
+<h4>Struktur folder akhir</h4>
+<pre><code class="language-text">crud_mahasiswa/
+├── env.json                         # URL &amp; key Supabase (JANGAN di-commit)
+├── supabase/
+│   └── setup.sql                    # SQL tabel + RLS (dokumentasi)
+├── lib/
+│   ├── main.dart                    # init Supabase + Get.put + GetMaterialApp
+│   ├── config/
+│   │   └── env.dart                 # baca --dart-define
+│   ├── models/
+│   │   └── mahasiswa_model.dart     # M: class Mahasiswa + fromJson/toJson
+│   ├── services/
+│   │   ├── auth_service.dart        # M: Supabase Auth
+│   │   └── mahasiswa_service.dart   # M: CRUD tabel mahasiswa
+│   ├── controllers/
+│   │   ├── auth_controller.dart     # C: login, register, logout
+│   │   └── mahasiswa_controller.dart# C: state + logika CRUD
+│   ├── middlewares/
+│   │   └── auth_middleware.dart     # penjaga route
+│   ├── bindings/
+│   │   └── mahasiswa_binding.dart
+│   ├── routes/
+│   │   ├── app_routes.dart
+│   │   └── app_pages.dart
+│   └── views/
+│       ├── login_view.dart
+│       ├── register_view.dart
+│       ├── mahasiswa_list_view.dart
+│       └── mahasiswa_form_view.dart
+└── test/
+    ├── helpers/fakes.dart           # service palsu untuk test
+    ├── mahasiswa_model_test.dart
+    ├── auth_flow_test.dart
+    └── crud_flow_test.dart
+</code></pre>
+
+<div class="callout callout-tip"><h4>💡 Cara mengikuti modul ini</h4><p>Kerjakan section 2 sampai 12 <strong>berurutan</strong>. Urutannya sama seperti Modul 11B: siapkan database dulu, lalu tulis kode dari lapisan paling bawah (model dan service), naik ke controller, route, view, dan terakhir <code>main.dart</code>. Garis merah di editor karena file yang diimpor belum dibuat akan hilang sendiri setelah file tersebut ditulis. Jika ingin langsung jadi, salin semua file dari section 15 (Listing Lengkap).</p></div>
+
+<div class="callout callout-info"><h4>ℹ️ Prasyarat</h4><p>Anda sudah menyelesaikan proyek <code>crud_mahasiswa</code> di Modul 11B, dan sudah membaca Modul 12 (membuat project Supabase, SQL Editor, dan Row Level Security). Jika proyek Modul 11B belum ada, buat dulu dengan <code>flutter create crud_mahasiswa</code>. Semua file yang dibutuhkan tetap ditulis lengkap di modul ini.</p></div>

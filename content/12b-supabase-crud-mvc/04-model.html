@@ -1,0 +1,93 @@
+<p class="lead">Model <code>Mahasiswa</code> tetap menjadi bentuk data di seluruh aplikasi. Supabase mengirim dan menerima data dalam bentuk <strong>JSON</strong> (di Dart menjadi <code>Map&lt;String, dynamic&gt;</code>), jadi model perlu bisa diubah dari dan ke Map. Pengubah biner (<code>TypeAdapter</code>) dari Modul 11B tidak dipakai lagi.</p>
+
+<p>Ganti seluruh isi <code>lib/models/mahasiswa_model.dart</code>:</p>
+<p class="code-file-label">📄 <code>lib/models/mahasiswa_model.dart</code></p>
+<pre><code class="language-dart">/// MODEL: representasi data Mahasiswa.
+/// Class ini murni berisi data (tidak tahu soal UI maupun GetX).
+class Mahasiswa {
+  /// null  -&gt; data baru, belum tersimpan di Supabase.
+  /// berisi -&gt; uuid yang dibuat otomatis oleh Postgres.
+  final String? id;
+  final String nim;
+  final String nama;
+  final String prodi;
+  final int semester;
+
+  Mahasiswa({
+    this.id,
+    required this.nim,
+    required this.nama,
+    required this.prodi,
+    required this.semester,
+  });
+
+  /// Map dari Supabase (satu baris tabel) -&gt; objek Mahasiswa.
+  factory Mahasiswa.fromJson(Map&lt;String, dynamic&gt; json) {
+    return Mahasiswa(
+      id: json['id'] as String,
+      nim: json['nim'] as String,
+      nama: json['nama'] as String,
+      prodi: json['prodi'] as String,
+      semester: json['semester'] as int,
+    );
+  }
+
+  /// Objek Mahasiswa -&gt; Map untuk insert / update.
+  /// id dan user_id TIDAK dikirim: keduanya diisi otomatis oleh database.
+  Map&lt;String, dynamic&gt; toJson() {
+    return {'nim': nim, 'nama': nama, 'prodi': prodi, 'semester': semester};
+  }
+
+  /// Membuat salinan objek dengan sebagian field yang diubah.
+  Mahasiswa copyWith({
+    String? nim,
+    String? nama,
+    String? prodi,
+    int? semester,
+  }) {
+    return Mahasiswa(
+      id: id,
+      nim: nim ?? this.nim,
+      nama: nama ?? this.nama,
+      prodi: prodi ?? this.prodi,
+      semester: semester ?? this.semester,
+    );
+  }
+}
+</code></pre>
+
+<h4>Perubahan 1: <code>id</code> menjadi nullable (<code>String?</code>)</h4>
+<p>Di versi Hive, id dibuat oleh aplikasi sebelum data disimpan. Sekarang id dibuat oleh database (<code>gen_random_uuid()</code>), sehingga objek yang baru diisi di form <strong>belum punya id</strong>:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kapan</th><th>Nilai <code>id</code></th></tr></thead>
+    <tbody>
+      <tr><td>Objek dibuat dari form (belum disimpan)</td><td><code>null</code></td></tr>
+      <tr><td>Objek dibaca dari Supabase lewat <code>fromJson</code></td><td>uuid, misalnya <code>"3f2b9c1e-8d1a-4c55-..."</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Karena itu di constructor ditulis <code>this.id</code> tanpa <code>required</code>.</p>
+
+<h4>Perubahan 2: <code>fromJson</code> (Map &rarr; objek)</h4>
+<p>Satu baris tabel yang dikirim Supabase berbentuk seperti ini:</p>
+<pre><code class="language-json">{
+  "id": "3f2b9c1e-8d1a-4c55-9a0e-6c1f0f8f2a10",
+  "user_id": "9b7e...",
+  "nim": "220101001",
+  "nama": "Budi Santoso",
+  "prodi": "Informatika",
+  "semester": 5,
+  "created_at": "2026-11-23T08:00:00+00:00"
+}
+</code></pre>
+<p><code>fromJson</code> mengambil kolom yang kita perlukan saja. Kolom <code>user_id</code> dan <code>created_at</code> diabaikan karena tidak ditampilkan. Tanda <code>as String</code> dan <code>as int</code> memberi tahu Dart tipe setiap nilai. Kolom <code>semester</code> bertipe <code>int</code> di Postgres, sehingga di JSON pun sudah berupa angka.</p>
+<p>Kata kunci <code>factory</code> berarti constructor ini boleh menjalankan logika lalu mengembalikan objek. Cara memakainya: <code>Mahasiswa.fromJson(map)</code>.</p>
+
+<h4>Perubahan 3: <code>toJson</code> (objek &rarr; Map)</h4>
+<p>Dipakai saat insert dan update. Hanya empat kolom yang dikirim. <code>id</code> dan <code>user_id</code> sengaja <strong>tidak</strong> dikirim:</p>
+<ul>
+  <li><code>id</code> diisi database saat insert, dan tidak boleh diubah saat update.</li>
+  <li><code>user_id</code> diisi otomatis oleh <code>default auth.uid()</code>. Jika aplikasi boleh mengirim <code>user_id</code> sendiri, policy <code>with check</code> tetap akan menolak nilai yang bukan milik user tersebut.</li>
+</ul>
+<div class="callout callout-warning"><h4>⚠️ Nama key harus sama persis dengan nama kolom</h4><p><code>'nama'</code> di <code>toJson</code> harus sama dengan kolom <code>nama</code> di tabel, termasuk huruf besar dan kecilnya. Jika Anda menulis <code>'Nama'</code>, Supabase menolak dengan error <em>Could not find the 'Nama' column</em>.</p></div>

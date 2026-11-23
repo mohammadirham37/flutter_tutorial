@@ -41,7 +41,7 @@ Klik ganda berkas `index.html` langsung dari Finder macOS. Semua dependensi data
 
 ---
 
-## 📚 Struktur Kurikulum 18 Modul (Lengkap & Terurut)
+## 📚 Struktur Kurikulum 25 Modul (Lengkap & Terurut)
 
 Kurikulum dirancang untuk 1 semester perkuliahan (16 pertemuan + UTS/UAS):
 
@@ -61,10 +61,17 @@ Kurikulum dirancang untuk 1 semester perkuliahan (16 pertemuan + UTS/UAS):
 | **11** | **Hive: Database NoSQL Lokal** | Database | Box, TypeAdapter, `ValueListenableBuilder`, enkripsi, dan mini project CRUD catatan offline dengan `hive_ce`. |
 | **11B** | **Proyek CRUD Mahasiswa: Hive + GetX + MVC** | Proyek | Aplikasi CRUD data mahasiswa dari nol: model + TypeAdapter, `HiveService`, `MahasiswaController`, Binding & named routes, view daftar/form, unit & widget test, listing lengkap siap salin. |
 | **12** | **Supabase: Backend Cloud** | Backend | Postgres, SQL Editor, Row Level Security, query CRUD, Auth email/password, dan Realtime. |
+| **12B** | **Proyek CRUD Mahasiswa Lanjutan: Supabase + Auth + GetX + MVC** | Proyek | Aplikasi CRUD dari M11B dipindahkan ke Supabase: tabel + RLS per akun, `MahasiswaService` & `AuthService`, `AuthController` (register/login/logout), `AuthMiddleware`, state loading/error, widget test dengan service palsu, listing lengkap siap salin.
 | **13** | **Proyek Bagian 1: Auth Login & Register** | Proyek | Arsitektur aplikasi "Catatan Kuliah", tabel profil + trigger, AuthService, AuthController (GetX), AuthGate, layar Login & Register. |
 | **14** | **Proyek Bagian 2: CRUD Supabase + Cache Hive** | Proyek | Tabel `notes` + RLS, repository remote/lokal, mode offline, pencarian, tambah/edit/hapus catatan. |
 | **15** | **Debugging & Automated Testing** | Kualitas | Membaca error, Flutter DevTools, unit test, fake/mock repository, widget test form login, testing controller GetX, integration test. |
 | **16** | **Build Rilis & Capstone Project** | Produksi | App icon, splash, keystore, `--dart-define-from-file`, `flutter build apk --split-per-abi`, dan panduan Tugas Besar. |
+| **17** | **Izin Akses (Permission) & Arsitektur Hardware** | Hardware | Plugin & platform channel (`MethodChannel`/`EventChannel`), runtime permission Android/iOS dengan `permission_handler`, UX izin, `PermissionService` + controller GetX. |
+| **18** | **Kamera & Galeri** | Hardware | `image_picker` vs package `camera` (preview, ambil foto, lifecycle), simpan foto lokal, unggah ke Supabase Storage, studi kasus foto profil kartu mahasiswa. |
+| **19** | **Lokasi & GPS** | Hardware | `geolocator` (posisi, stream, jarak), `geocoding`, peta OpenStreetMap dengan `flutter_map`, studi kasus presensi kampus berbasis radius. |
+| **20** | **Sensor Gerak & Kompas** | Hardware | `sensors_plus` (akselerometer, giroskop, magnetometer), filter, deteksi guncangan, waterpass, kompas dengan kompensasi kemiringan. |
+| **21** | **Autentikasi Biometrik** | Hardware | `local_auth` 3.x (sidik jari/wajah), penanganan lockout, sesi aman dengan `flutter_secure_storage`, kunci aplikasi Catatan Kuliah. |
+| **22** | **Bluetooth, WiFi & Konektivitas** | Hardware | `connectivity_plus`, `network_info_plus`, banner offline & sinkronisasi ulang, BLE dengan `flutter_blue_plus` (scan, connect, GATT). |
 
 ---
 
@@ -75,7 +82,7 @@ Kurikulum dirancang untuk 1 semester perkuliahan (16 pertemuan + UTS/UAS):
    - 💻 **Tugas Praktikum Mandiri:** Lembar tugas mahasiswa dilengkapi langkah pengerjaan dan rubrik penilaian dosen.
    - 🧠 **Kuis Evaluasi Pemahaman:** Kuis interaktif pilihan ganda yang langsung mengoreksi, menghitung skor, dan memberikan penjelasan jawaban benar.
 2. **Pencarian Cepat Global (`Cmd + K` / `Ctrl + K`):**
-   - Mahasiswa dapat mencari topik, kata kunci widget, atau potongan kode di seluruh 18 modul secara real-time.
+   - Mahasiswa dapat mencari topik, kata kunci widget, atau potongan kode di seluruh 25 modul secara real-time.
 3. **Pelacak Progres Mahasiswa (Student Progress Tracker):**
    - Mahasiswa dapat mencentang modul yang telah selesai dipelajari. Progres tersimpan secara otomatis di peramban (`localStorage`).
 4. **Efek Selebrasi (Confetti):**
@@ -124,6 +131,22 @@ node tools/build-pdf.mjs --only=11-hive   # satu modul saja
 ```
 
 Hasilnya ada di `assets/pdf/`: satu PDF per modul dan `modul-flutter-lengkap.pdf`.
+
+### 📖 Versi Buku (B5, siap cetak)
+
+Seluruh materi juga bisa disusun menjadi buku *Pemrograman Mobile dengan Flutter & Dart* (Ir. Mohammad Irham Akbar, S.Kom., M.Cs. & Azis Amirulbahar, S.Pd., M.T.I.), lengkap dengan sampul, kata pengantar, daftar isi bernomor halaman, 7 bagian / 23 bab, rangkuman, latihan, uji pemahaman, lampiran, glosarium, daftar pustaka, dan bookmark PDF. Butuh Google Chrome serta Python 3 + PyMuPDF (`pip install pymupdf`).
+
+```bash
+node tools/build-modules.mjs && node tools/build-book.mjs
+node tools/build-book.mjs --only=05-form-input   # buku contoh berisi bab tertentu (cepat, untuk mencoba desain)
+```
+
+Hasil di `assets/pdf/`:
+- `buku-flutter-dart.pdf`: buku lengkap dengan sampul depan dan belakang (untuk dibaca digital)
+- `buku-flutter-dart-isi.pdf`: isi buku tanpa sampul (untuk naik cetak; bab selalu dimulai di halaman kanan)
+- `buku-flutter-dart-sampul.pdf`: sampul depan dan belakang
+
+Naskah khusus buku ada di folder `book/`: `book.json` (judul, penulis, biodata, pembagian Bagian), `rangkuman.json` (rangkuman tiap bab), `front/` (kata pengantar dan pendahuluan), serta `back/` (glosarium dan daftar pustaka). Desainnya diatur di `assets/css/print-book.css`. Saat buku dibuat, rujukan "Modul 13" otomatis menjadi "Bab 14" sesuai urutan bab buku.
 
 Perintah build materi menyusun ulang `assets/js/modules-data.js` (jangan edit file itu langsung). Urutan dan nomor modul mengikuti awalan angka nama folder (modul sisipan boleh memakai huruf, misalnya `11b-...` tampil sebagai M11B). Gambar screenshot hasil kode ada di `assets/img/screenshots/`.
 
