@@ -1,0 +1,448 @@
+<p class="lead">Kita rakit semuanya menjadi <strong>Pusat Izin Aplikasi Kampus</strong>: halaman yang menampilkan status izin kamera, lokasi, notifikasi, dan mikrofon, lengkap dengan tombol untuk meminta izin atau membuka Pengaturan. Beranda aplikasi berisi fitur Presensi, Catatan Suara, dan Pengingat Jadwal yang meminta izin hanya saat fiturnya dipakai. Proyek ini menjadi kerangka untuk Modul 18 (kamera) sampai 22 (konektivitas).</p>
+
+<h4>Struktur folder</h4>
+<pre><code class="language-text">pusat_izin/
+├── android/app/build.gradle.kts         # compileSdk (section 4)
+├── android/app/src/main/AndroidManifest.xml   # 4 izin runtime (section 4)
+├── ios/Runner/Info.plist                # 3 usage description (section 4)
+├── lib/
+│   ├── main.dart                        # GetMaterialApp + Get.put controller
+│   ├── models/
+│   │   └── izin.dart                    # JenisIzin, StatusIzin (section 7)
+│   ├── services/
+│   │   └── permission_service.dart      # pembungkus permission_handler (section 7)
+│   ├── controllers/
+│   │   └── permission_controller.dart   # state reaktif per izin (section 7)
+│   └── views/
+│       ├── alur_izin.dart               # penjelasan → request → Pengaturan
+│       ├── pusat_izin_view.dart         # halaman Pusat Izin
+│       └── beranda_view.dart            # fitur yang meminta izin saat dipakai
+└── test/
+    └── permission_controller_test.dart  # (section 7)
+</code></pre>
+<p>Buat proyeknya dengan <code>flutter create --org id.ac.kampus pusat_izin</code>, jalankan <code>flutter pub add permission_handler get</code>, terapkan konfigurasi section 4, lalu salin tiga file dari section 7. Hapus <code>test/widget_test.dart</code> bawaan karena merujuk kelas <code>MyApp</code> yang tidak ada lagi.</p>
+
+<h4>Langkah 1: alur izin yang bisa dipakai ulang</h4>
+<p>Alur dari section 6 (penjelasan &rarr; dialog sistem &rarr; ajakan ke Pengaturan) kita jadikan satu fungsi <code>pastikanIzin()</code>. Fitur mana pun cukup memanggil <code>await pastikanIzin(context, JenisIzin.kamera)</code> dan melanjutkan jika hasilnya <code>true</code>.</p>
+<p class="code-file-label">📄 <code>lib/views/alur_izin.dart</code></p>
+<pre><code class="language-dart">// lib/views/alur_izin.dart
+// Alur izin lengkap yang dipakai ulang di modul 18-22:
+// penjelasan -&gt; dialog sistem -&gt; (jika ditolak permanen) ajak ke Pengaturan.
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/permission_controller.dart';
+import '../models/izin.dart';
+
+/// Mengembalikan true jika fitur boleh langsung dipakai.
+Future&lt;bool&gt; pastikanIzin(BuildContext context, JenisIzin jenis) async {
+  final controller = Get.find&lt;PermissionController&gt;();
+  final sekarang = controller.statusDari(jenis);
+  if (sekarang.bolehDipakai) return true;
+
+  // 1. Dialog penjelasan sebelum dialog sistem (dilewati jika sudah
+  //    ditolak permanen, karena dialog sistem tidak akan muncul lagi).
+  if (!sekarang.perluPengaturan) {
+    final pernahDitolak = await controller.perluPenjelasan(jenis);
+    if (!context.mounted) return false;
+    final setuju = await _tampilkanPenjelasan(context, jenis, pernahDitolak);
+    if (!setuju) return false;
+  }
+
+  // 2. Dialog sistem. Jika sudah ditolak permanen, hasilnya langsung kembali
+  //    tanpa dialog.
+  final hasil = await controller.minta(jenis);
+  if (hasil.bolehDipakai) return true;
+  if (!context.mounted) return false;
+
+  // 3. Ditolak permanen atau dibatasi: hanya bisa diubah dari Pengaturan.
+  if (hasil.perluPengaturan) {
+    await _tampilkanAjakanPengaturan(context, jenis, controller);
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Izin ${jenis.label} belum diberikan.')),
+    );
+  }
+  return false;
+}
+
+Future&lt;bool&gt; _tampilkanPenjelasan(
+  BuildContext context,
+  JenisIzin jenis,
+  bool pernahDitolak,
+) async {
+  final hasil = await showDialog&lt;bool&gt;(
+    context: context,
+    builder: (context) =&gt; AlertDialog(
+      icon: const Icon(Icons.privacy_tip_outlined),
+      title: Text('Izinkan akses ${jenis.label}?'),
+      content: Text(
+        pernahDitolak
+            ? '${jenis.alasan}\n\nSebelumnya kamu menolak izin ini. '
+                'Tanpa izin ini, fitur tersebut tidak bisa dipakai.'
+            : jenis.alasan,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () =&gt; Navigator.pop(context, false),
+          child: const Text('Nanti saja'),
+        ),
+        FilledButton(
+          onPressed: () =&gt; Navigator.pop(context, true),
+          child: const Text('Lanjutkan'),
+        ),
+      ],
+    ),
+  );
+  return hasil ?? false;
+}
+
+Future&lt;void&gt; _tampilkanAjakanPengaturan(
+  BuildContext context,
+  JenisIzin jenis,
+  PermissionController controller,
+) async {
+  final buka = await showDialog&lt;bool&gt;(
+    context: context,
+    builder: (context) =&gt; AlertDialog(
+      icon: const Icon(Icons.settings_outlined),
+      title: Text('Izin ${jenis.label} ditolak'),
+      content: Text(
+        'Aplikasi tidak bisa menampilkan dialog izin lagi. '
+        'Buka Pengaturan &gt; Izin, lalu aktifkan ${jenis.label}.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () =&gt; Navigator.pop(context, false),
+          child: const Text('Batal'),
+        ),
+        FilledButton(
+          onPressed: () =&gt; Navigator.pop(context, true),
+          child: const Text('Buka Pengaturan'),
+        ),
+      ],
+    ),
+  );
+  if (buka == true) await controller.bukaPengaturan();
+}
+</code></pre>
+<ul>
+  <li>File ini berada di folder <code>views/</code> karena berisi dialog (butuh <code>BuildContext</code>). Logikanya tetap memanggil controller, tidak memanggil plugin langsung.</li>
+  <li>Dialog penjelasan dilewati jika status sudah <code>perluPengaturan</code>, karena dialog sistem tidak akan muncul. Jika <code>shouldShowRequestRationale</code> bernilai <code>true</code>, teks penjelasan ditambah kalimat "Sebelumnya kamu menolak izin ini".</li>
+  <li>Ada tiga pemeriksaan <code>context.mounted</code>, satu setelah setiap <code>await</code> yang diikuti pemakaian <code>context</code>.</li>
+  <li>Hasil "ditolak biasa" cukup diberi SnackBar, sedangkan "ditolak permanen" mendapat dialog dengan tombol "Buka Pengaturan".</li>
+</ul>
+
+<h4>Langkah 2: halaman Pusat Izin</h4>
+<p class="code-file-label">📄 <code>lib/views/pusat_izin_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/pusat_izin_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/permission_controller.dart';
+import '../models/izin.dart';
+import 'alur_izin.dart';
+
+class PusatIzinView extends GetView&lt;PermissionController&gt; {
+  const PusatIzinView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Pusat Izin'),
+        actions: [
+          IconButton(
+            tooltip: 'Muat ulang',
+            onPressed: controller.muatUlang,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Obx(
+            () =&gt; Text(
+              '${controller.jumlahDiizinkan} dari ${JenisIzin.values.length} '
+              'izin aktif',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Izin hanya diminta saat fitur dipakai. '
+            'Kamu bisa mengubahnya kapan saja di halaman ini.',
+          ),
+          const SizedBox(height: 12),
+          Obx(
+            () =&gt; controller.lokasiAktif
+                ? const SizedBox.shrink()
+                : const Card(
+                    child: ListTile(
+                      leading: Icon(Icons.location_off),
+                      title: Text('Layanan lokasi (GPS) mati'),
+                      subtitle: Text(
+                        'Izin lokasi saja tidak cukup. Nyalakan lokasi '
+                        'dari panel cepat perangkat.',
+                      ),
+                    ),
+                  ),
+          ),
+          for (final jenis in JenisIzin.values) KartuIzin(jenis: jenis),
+        ],
+      ),
+    );
+  }
+}
+
+class KartuIzin extends GetView&lt;PermissionController&gt; {
+  const KartuIzin({super.key, required this.jenis});
+
+  final JenisIzin jenis;
+
+  static IconData ikonUntuk(JenisIzin jenis) {
+    switch (jenis) {
+      case JenisIzin.kamera:
+        return Icons.photo_camera_outlined;
+      case JenisIzin.lokasi:
+        return Icons.location_on_outlined;
+      case JenisIzin.notifikasi:
+        return Icons.notifications_outlined;
+      case JenisIzin.mikrofon:
+        return Icons.mic_none;
+    }
+  }
+
+  Color _warnaStatus(StatusIzin status, ColorScheme warna) {
+    if (status.bolehDipakai) return Colors.green;
+    if (status.perluPengaturan) return warna.error;
+    return warna.outline;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme;
+    return Obx(() {
+      final status = controller.statusDari(jenis);
+      final sibuk = controller.sedangMemproses(jenis);
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(ikonUntuk(jenis)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      jenis.label,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  Chip(
+                    label: Text(status.label),
+                    side: BorderSide(color: _warnaStatus(status, warna)),
+                    backgroundColor:
+                        _warnaStatus(status, warna).withValues(alpha: 0.1),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(jenis.alasan),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _tombol(context, status, sibuk),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _tombol(BuildContext context, StatusIzin status, bool sibuk) {
+    if (sibuk) {
+      return const SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+    if (status.bolehDipakai) {
+      return TextButton.icon(
+        onPressed: controller.bukaPengaturan,
+        icon: const Icon(Icons.settings_outlined),
+        label: const Text('Atur di Pengaturan'),
+      );
+    }
+    if (status.perluPengaturan) {
+      return FilledButton.tonalIcon(
+        onPressed: () =&gt; pastikanIzin(context, jenis),
+        icon: const Icon(Icons.open_in_new),
+        label: const Text('Buka Pengaturan'),
+      );
+    }
+    return FilledButton.icon(
+      onPressed: status == StatusIzin.belumDiketahui
+          ? null
+          : () =&gt; pastikanIzin(context, jenis),
+      icon: const Icon(Icons.lock_open),
+      label: const Text('Izinkan'),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li>Setiap <code>KartuIzin</code> dibungkus <code>Obx</code> sendiri, sehingga saat status kamera berubah hanya kartu yang membaca status kamera yang dibangun ulang. Ringkasan "x dari 4 izin aktif" juga punya <code>Obx</code> sendiri.</li>
+  <li>Ikon dipetakan di view (<code>ikonUntuk</code>), bukan di model, karena <code>IconData</code> adalah urusan tampilan.</li>
+  <li>Tombol berubah sesuai status: "Izinkan", "Buka Pengaturan" (ditolak permanen/dibatasi), atau "Atur di Pengaturan" (sudah diizinkan, untuk mencabutnya). Saat izin sedang diminta, tombol diganti loading sehingga tidak bisa ditekan dua kali.</li>
+  <li>Kartu peringatan "Layanan lokasi (GPS) mati" muncul jika <code>serviceStatus</code> lokasi nonaktif, karena izin lokasi saja tidak cukup.</li>
+  <li>Tombol "Buka Pengaturan" tetap memanggil <code>pastikanIzin</code>. Request untuk izin yang ditolak permanen langsung kembali tanpa dialog, lalu dialog Pengaturan tampil. Jika ternyata pengguna sudah mereset izin ke "Tanyakan setiap kali", dialog sistem muncul seperti biasa.</li>
+</ul>
+
+<h4>Langkah 3: beranda yang meminta izin saat dibutuhkan</h4>
+<p class="code-file-label">📄 <code>lib/views/beranda_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/beranda_view.dart
+// Contoh "minta saat dibutuhkan": izin baru diminta ketika tombol ditekan.
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../models/izin.dart';
+import 'alur_izin.dart';
+import 'pusat_izin_view.dart';
+
+class BerandaView extends StatelessWidget {
+  const BerandaView({super.key});
+
+  Future&lt;void&gt; _presensi(BuildContext context) async {
+    final bolehKamera = await pastikanIzin(context, JenisIzin.kamera);
+    if (!bolehKamera || !context.mounted) return;
+    final bolehLokasi = await pastikanIzin(context, JenisIzin.lokasi);
+    if (!bolehLokasi || !context.mounted) return;
+
+    // Kamera dan lokasi siap. Modul 18 dan 19 mengisi bagian ini.
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Kamera dan lokasi siap untuk presensi.')),
+    );
+  }
+
+  Future&lt;void&gt; _rekamCatatanSuara(BuildContext context) async {
+    final boleh = await pastikanIzin(context, JenisIzin.mikrofon);
+    if (!boleh || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Mikrofon siap merekam.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Aplikasi Kampus'),
+        actions: [
+          IconButton(
+            tooltip: 'Pusat Izin',
+            onPressed: () =&gt; Get.to(() =&gt; const PusatIzinView()),
+            icon: const Icon(Icons.admin_panel_settings_outlined),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.qr_code_scanner),
+              title: const Text('Presensi Kuliah'),
+              subtitle: const Text('Butuh kamera dan lokasi'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () =&gt; _presensi(context),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.keyboard_voice_outlined),
+              title: const Text('Catatan Suara'),
+              subtitle: const Text('Butuh mikrofon'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () =&gt; _rekamCatatanSuara(context),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.notifications_active_outlined),
+              title: const Text('Pengingat Jadwal'),
+              subtitle: const Text('Butuh izin notifikasi'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () =&gt; pastikanIzin(context, JenisIzin.notifikasi),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<p>Presensi butuh dua izin. Keduanya diminta berurutan, masing-masing dengan penjelasan sendiri, dan proses berhenti di izin pertama yang ditolak. Di Modul 18 dan 19, SnackBar "siap" diganti dengan membuka kamera dan membaca lokasi.</p>
+
+<h4>Langkah 4: main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'controllers/permission_controller.dart';
+import 'services/permission_service.dart';
+import 'views/beranda_view.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  // permanent: true agar controller tidak dihapus saat halaman ditutup;
+  // modul 18-22 memakai controller yang sama.
+  Get.put(PermissionController(PermissionService()), permanent: true);
+  runApp(const AplikasiKampus());
+}
+
+class AplikasiKampus extends StatelessWidget {
+  const AplikasiKampus({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      title: 'Aplikasi Kampus',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const BerandaView(),
+    );
+  }
+}
+</code></pre>
+<p><code>WidgetsFlutterBinding.ensureInitialized()</code> dipanggil sebelum <code>Get.put</code> karena <code>onInit</code> controller langsung memanggil plugin dan memasang <code>AppLifecycleListener</code>. <code>permanent: true</code> menjaga controller tetap hidup selama aplikasi berjalan.</p>
+
+<h4>Skenario uji di emulator</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>No</th><th>Langkah</th><th>Hasil yang diharapkan</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Pasang aplikasi baru, buka Pusat Izin</td><td>Tidak ada dialog izin saat aplikasi dibuka. Keempat kartu "Belum diizinkan" (notifikasi bisa "Diizinkan" di Android 12 ke bawah).</td></tr>
+      <tr><td>2</td><td>Beranda &rarr; Presensi Kuliah &rarr; Lanjutkan &rarr; Izinkan (kamera), lalu Lanjutkan &rarr; Izinkan (lokasi)</td><td>SnackBar "Kamera dan lokasi siap". Di Pusat Izin, dua kartu hijau.</td></tr>
+      <tr><td>3</td><td>Catatan Suara &rarr; Lanjutkan &rarr; Jangan izinkan</td><td>SnackBar "Izin Mikrofon belum diberikan".</td></tr>
+      <tr><td>4</td><td>Ulangi langkah 3 (dialog penjelasan kini menyebut "Sebelumnya kamu menolak") lalu tolak lagi</td><td>Dialog "Izin Mikrofon ditolak" dengan tombol Buka Pengaturan. Kartu mikrofon merah "Ditolak permanen".</td></tr>
+      <tr><td>5</td><td>Buka Pengaturan &rarr; Izin &rarr; Mikrofon &rarr; Izinkan, lalu kembali</td><td>Tanpa menekan apa pun, kartu mikrofon berubah menjadi "Diizinkan" (resume).</td></tr>
+      <tr><td>6</td><td>Matikan Location dari panel cepat, kembali ke Pusat Izin</td><td>Kartu peringatan "Layanan lokasi (GPS) mati" muncul.</td></tr>
+      <tr><td>7</td><td>Pengaturan &rarr; cabut izin kamera, kembali ke aplikasi</td><td>Aplikasi mungkin dimulai ulang oleh sistem; kartu kamera kembali "Belum diizinkan".</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-info"><h4>ℹ️ Dipakai lagi di modul berikutnya</h4><p>Modul 18&ndash;22 menambahkan nilai baru ke <code>JenisIzin</code> (misal <code>galeri</code> atau <code>bluetooth</code>), satu baris di <code>_izinDari</code> pada service, satu ikon di <code>ikonUntuk</code>, dan deklarasi platformnya. Kartu di Pusat Izin otomatis bertambah karena view melakukan perulangan pada <code>JenisIzin.values</code>.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li>Lupa menghapus <code>test/widget_test.dart</code> bawaan sehingga <code>flutter analyze</code> dan <code>flutter test</code> gagal.</li>
+<li>Menambah <code>JenisIzin</code> baru tetapi lupa deklarasi manifest/<code>Info.plist</code>: di Android kartu selalu "Belum diizinkan" tanpa dialog, di iOS aplikasi crash.</li>
+<li>Memanggil <code>pastikanIzin</code> tanpa memeriksa hasilnya, lalu tetap membuka kamera. Selalu <code>if (!boleh) return;</code>.</li>
+</ul></div>

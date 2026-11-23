@@ -1,0 +1,68 @@
+<p class="lead">Pernahkah Anda membuka aplikasi m-banking hanya dengan menempelkan jari? Aplikasi itu tidak mengirim sidik jari Anda ke bank. HP-lah yang mencocokkan sidik jari, lalu cuma memberi tahu aplikasi "cocok" atau "tidak cocok". Di modul ini kita membuat fitur serupa dengan Flutter: <strong>kunci aplikasi memakai sidik jari, wajah, atau PIN HP</strong>.</p>
+
+<h4>Biometrik sebagai faktor autentikasi</h4>
+<p>Dalam keamanan, ada tiga jenis bukti identitas (faktor):</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Faktor</th><th>Contoh</th><th>Kelemahan</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Sesuatu yang Anda ketahui</strong></td><td>Kata sandi, PIN</td><td>Bisa ditebak, diintip, atau lupa</td></tr>
+      <tr><td><strong>Sesuatu yang Anda miliki</strong></td><td>HP yang sudah login, kartu, kode OTP</td><td>Bisa hilang atau dicuri</td></tr>
+      <tr><td><strong>Sesuatu yang melekat pada Anda</strong></td><td>Sidik jari, wajah, iris</td><td>Tidak bisa diganti jika bocor</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Saat aplikasi Anda memakai biometrik, sebenarnya ada <strong>dua faktor</strong> sekaligus: HP yang menyimpan sesi login (dimiliki) dan sidik jari pemiliknya (melekat). Itu sebabnya biometrik cocok untuk <em>membuka kunci</em> sesi yang sudah ada di perangkat.</p>
+
+<h4>Tingkat keamanan biometrik di Android</h4>
+<p>Android Compatibility Definition membagi sensor biometrik menjadi tiga kelas berdasarkan seberapa sulit sensor itu ditipu (misalnya dengan foto atau cetakan jari palsu):</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kelas</th><th>Nama di API</th><th>Contoh</th><th>Bisa dipakai aplikasi?</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Class 3</strong> (Strong)</td><td><code>BIOMETRIC_STRONG</code></td><td>Sensor sidik jari, pemindai wajah 3D</td><td>Ya, termasuk untuk membuka kunci kriptografi di Keystore</td></tr>
+      <tr><td><strong>Class 2</strong> (Weak)</td><td><code>BIOMETRIC_WEAK</code></td><td>Pengenalan wajah dari kamera depan 2D biasa</td><td>Ya, tetapi hanya sebagai konfirmasi, tidak untuk kunci Keystore</td></tr>
+      <tr><td><strong>Class 1</strong> (Convenience)</td><td>tidak ada</td><td>Face unlock sederhana di HP murah</td><td>Tidak. Hanya untuk membuka layar HP</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Selain biometrik, Android punya <strong>device credential</strong> (<code>DEVICE_CREDENTIAL</code>): PIN, pola, atau sandi kunci layar. Kredensial ini biasanya menjadi <em>fallback</em> ketika sensor gagal membaca atau sedang terkunci karena terlalu banyak percobaan.</p>
+
+<h4>Di iOS: Face ID dan Touch ID</h4>
+<p>iPhone dan iPad memakai <strong>Face ID</strong> (kamera TrueDepth 3D) atau <strong>Touch ID</strong> (sensor sidik jari). Keduanya setara Class 3. Fallback-nya adalah <strong>kode sandi</strong> (passcode) perangkat. Bedanya dengan Android, iOS meminta izin pengguna saat aplikasi pertama kali memakai Face ID, sehingga aplikasi wajib menulis alasan pemakaian di <code>Info.plist</code>.</p>
+
+<h4>Biometrik hanya membuka kunci lokal</h4>
+<p>Ini konsep terpenting di modul ini. Bandingkan dua alur berikut:</p>
+<pre><code class="language-text">LOGIN (Modul 13)                        BUKA KUNCI BIOMETRIK (modul ini)
+----------------                        --------------------------------
+email + kata sandi                      sidik jari / wajah / PIN HP
+      |                                       |
+      v                                       v
+server Supabase memeriksa               HP memeriksa di chip aman (TEE)
+      |                                       |
+      v                                       v
+server memberi token sesi               aplikasi hanya menerima true/false
+      |                                       |
+      v                                       v
+token disimpan di secure storage        jika true: tampilkan isi aplikasi
+</code></pre>
+<ul>
+  <li>Server <strong>tidak tahu</strong> pengguna memakai sidik jari. Server hanya melihat token sesi yang sah.</li>
+  <li>Biometrik <strong>bukan pengganti login</strong>. Pengguna tetap harus login dengan email dan kata sandi minimal sekali di perangkat itu. Setelah itu, biometrik menjaga agar orang lain yang meminjam HP tidak bisa membuka aplikasi.</li>
+  <li>Jika biometrik gagal terus, harus selalu ada jalan keluar: <strong>login ulang</strong> dengan email dan kata sandi.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Data biometrik tidak pernah sampai ke aplikasi</h4><p>Template sidik jari dan wajah disimpan di area terisolasi milik prosesor (Trusted Execution Environment di Android, Secure Enclave di iOS). Aplikasi Flutter, termasuk kode yang kita tulis, tidak bisa membaca gambar sidik jari atau foto wajah. Yang kita terima hanyalah hasil <code>true</code>, <code>false</code>, atau kode error. Karena itu, aplikasi juga tidak bisa tahu jari <em>yang mana</em> yang dipakai, atau siapa pemiliknya.</p></div>
+
+<h4>Package yang dipakai</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Package</th><th>Fungsi di modul ini</th></tr></thead>
+    <tbody>
+      <tr><td><code>local_auth</code></td><td>Plugin resmi tim Flutter: mengecek dukungan perangkat dan menampilkan dialog biometrik sistem (BiometricPrompt di Android, LocalAuthentication di iOS).</td></tr>
+      <tr><td><code>flutter_secure_storage</code></td><td>Menyimpan token sesi dan pengaturan kunci di Keystore/Keychain (sudah dikenal di Modul 11).</td></tr>
+      <tr><td><code>get</code></td><td>Pola MVC: service, controller, view (Modul 08).</td></tr>
+      <tr><td><code>permission_handler</code></td><td>Hanya untuk <code>openAppSettings()</code>, membuka halaman pengaturan aplikasi (Modul 17).</td></tr>
+    </tbody>
+  </table>
+</div>

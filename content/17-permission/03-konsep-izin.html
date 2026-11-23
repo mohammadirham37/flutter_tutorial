@@ -1,0 +1,78 @@
+<p class="lead">Izin (permission) adalah mekanisme sistem operasi untuk melindungi data dan hardware sensitif. Ibaratnya satpam digital: aplikasi boleh lewat hanya jika namanya sudah terdaftar dan pengguna sudah memberi persetujuan.</p>
+
+<p>Izin melindungi tiga hal: <strong>privasi</strong> (foto, kontak, lokasi tidak diambil diam-diam), <strong>keamanan sistem</strong> (aplikasi tidak bisa mengubah bagian inti perangkat), dan <strong>integritas data</strong> (hanya pihak yang berhak yang boleh mengubah data). Secara umum ada dua cara pemberian izin:</p>
+<ul>
+  <li><strong>Implisit</strong>: diberikan otomatis karena risikonya rendah, misalnya akses internet atau getar.</li>
+  <li><strong>Eksplisit</strong>: butuh persetujuan aktif pengguna lewat dialog, misalnya kamera dan lokasi.</li>
+</ul>
+
+<h4>Tingkat izin di Android</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Jenis</th><th>Cara mendapatkan</th><th>Contoh</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Normal</strong> (install-time)</td><td>Cukup ditulis di <code>AndroidManifest.xml</code>. Diberikan otomatis saat aplikasi dipasang, tanpa dialog.</td><td><code>INTERNET</code>, <code>ACCESS_NETWORK_STATE</code>, <code>VIBRATE</code>, <code>USE_BIOMETRIC</code></td></tr>
+      <tr><td><strong>Dangerous</strong> (runtime)</td><td>Ditulis di manifest <strong>dan</strong> diminta saat aplikasi berjalan. Pengguna melihat dialog sistem dan bisa menolak.</td><td><code>CAMERA</code>, <code>ACCESS_FINE_LOCATION</code>, <code>RECORD_AUDIO</code>, <code>POST_NOTIFICATIONS</code>, <code>READ_MEDIA_IMAGES</code></td></tr>
+      <tr><td><strong>Khusus</strong> (special)</td><td>Pengguna harus mengaktifkan sendiri di halaman Pengaturan khusus. Aplikasi hanya bisa membuka halamannya.</td><td><code>SYSTEM_ALERT_WINDOW</code>, <code>MANAGE_EXTERNAL_STORAGE</code>, <code>SCHEDULE_EXACT_ALARM</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Izin runtime diperkenalkan sejak Android 6.0 (API 23). Sebelum itu, semua izin disetujui sekaligus saat instal. Ingat dari Modul 16: deklarasi di manifest itu <em>wajib</em> untuk semua jenis izin. Jika izin runtime tidak dideklarasikan, permintaan langsung dianggap ditolak tanpa dialog.</p>
+
+<h4>Perubahan penting di versi Android terbaru</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Versi</th><th>Perubahan</th><th>Dampak ke kode</th></tr></thead>
+    <tbody>
+      <tr><td>Android 11 (API 30)</td><td>Pilihan <em>"Hanya kali ini"</em> untuk lokasi, kamera, mikrofon. Jika pengguna menolak <strong>dua kali</strong>, sistem tidak menampilkan dialog lagi. Izin aplikasi yang lama tidak dipakai bisa dicabut otomatis.</td><td>Jangan anggap izin sekali diberikan berlaku selamanya. Selalu cek ulang sebelum memakai fitur.</td></tr>
+      <tr><td>Android 12 (API 31)</td><td>Pengguna bisa memilih lokasi <em>perkiraan</em> (approximate) atau <em>akurat</em> (precise). Izin Bluetooth dipisah menjadi <code>BLUETOOTH_SCAN</code>/<code>BLUETOOTH_CONNECT</code>.</td><td>Deklarasikan <code>ACCESS_FINE_LOCATION</code> bersama <code>ACCESS_COARSE_LOCATION</code>. Detail di Modul 19 dan 22.</td></tr>
+      <tr><td>Android 13 (API 33)</td><td>Notifikasi menjadi izin runtime (<code>POST_NOTIFICATIONS</code>). Akses media dipecah menjadi <code>READ_MEDIA_IMAGES</code>, <code>READ_MEDIA_VIDEO</code>, <code>READ_MEDIA_AUDIO</code>; <code>READ_EXTERNAL_STORAGE</code> tidak berlaku lagi.</td><td>Aplikasi tidak bisa menampilkan notifikasi sebelum izin diberikan. <code>Permission.storage</code> selalu <code>denied</code> di Android 13+, pakai <code>Permission.photos</code>/<code>videos</code>/<code>audio</code>.</td></tr>
+      <tr><td>Android 14 (API 34)</td><td>Akses foto/video <em>sebagian</em>: pengguna bisa memilih "Pilih foto" sehingga aplikasi hanya melihat foto tertentu.</td><td>Status bisa <code>limited</code>, bukan hanya diizinkan/ditolak. Perlakukan sebagai "boleh, tetapi terbatas".</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Izin di iOS</h4>
+<ul>
+  <li>iOS tidak punya daftar izin seperti manifest. Sebagai gantinya, setiap fitur sensitif wajib punya <strong>kalimat alasan</strong> (<em>usage description</em>) di <code>ios/Runner/Info.plist</code>, misalnya <code>NSCameraUsageDescription</code>. Kalimat ini tampil di dialog izin.</li>
+  <li>Jika kunci usage description tidak ada, iOS <strong>langsung menghentikan (crash)</strong> aplikasi saat izin diminta, dan App Store menolak aplikasi tersebut.</li>
+  <li>Dialog izin iOS hanya muncul <strong>satu kali</strong>. Sekali ditolak, satu-satunya jalan adalah aplikasi Pengaturan. Karena itu, di iOS status "ditolak" praktis sama dengan "ditolak permanen".</li>
+  <li>iOS juga punya status <strong>restricted</strong> (dibatasi kontrol orang tua atau kebijakan perangkat) yang tidak bisa diubah pengguna, dan <strong>limited</strong> untuk akses foto terbatas (iOS 14+).</li>
+</ul>
+
+<h4>Siklus hidup sebuah izin runtime</h4>
+<pre><code class="language-text">            [belum pernah diminta]
+                      │ request()
+                      ▼
+              ┌─ dialog sistem ─┐
+     Izinkan  │                 │  Tolak
+              ▼                 ▼
+          DIIZINKAN          DITOLAK ──── request() lagi ───┐
+              ▲                 │                           │
+              │                 │ ditolak lagi (Android 11+)│
+              │                 ▼  / sekali tolak (iOS)     │
+              │          DITOLAK PERMANEN ◄─────────────────┘
+              │                 │  dialog tidak muncul lagi
+              └── Pengaturan ◄──┘  openAppSettings()
+</code></pre>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Status</th><th>Arti</th><th>Yang harus dilakukan aplikasi</th></tr></thead>
+    <tbody>
+      <tr><td>Diizinkan (<em>granted</em>)</td><td>Fitur boleh dipakai.</td><td>Langsung jalankan fitur.</td></tr>
+      <tr><td>Terbatas (<em>limited</em>)</td><td>Boleh dipakai sebagian (foto terpilih saja).</td><td>Jalankan fitur, beri opsi menambah akses.</td></tr>
+      <tr><td>Ditolak (<em>denied</em>)</td><td>Belum diizinkan, dialog masih bisa muncul.</td><td>Jelaskan manfaatnya, lalu minta lagi saat pengguna memakai fitur.</td></tr>
+      <tr><td>Ditolak permanen (<em>permanently denied</em>)</td><td>Dialog sistem tidak akan muncul lagi.</td><td>Tampilkan layar penjelasan dengan tombol "Buka Pengaturan".</td></tr>
+      <tr><td>Dibatasi (<em>restricted</em>, iOS)</td><td>Diblokir kebijakan perangkat.</td><td>Beri tahu pengguna, sediakan jalur alternatif.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-info"><h4>ℹ️ Pengguna bisa mencabut izin kapan saja</h4><p>Izin yang sudah diberikan bisa dicabut dari Pengaturan, dicabut otomatis oleh sistem karena aplikasi lama tidak dipakai, atau hanya berlaku "kali ini". Saat izin dicabut dari Pengaturan, sistem biasanya menghentikan proses aplikasi. Prinsipnya: <strong>cek izin setiap kali sebelum memakai hardware</strong>, bukan sekali saat aplikasi pertama kali dibuka.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li>Mengira cukup menulis izin kamera di manifest. Itu hanya "mendaftar"; izin runtime tetap harus diminta.</li>
+<li>Mengira cukup meminta izin di Dart tanpa menulis di manifest. Di Android permintaan langsung gagal tanpa dialog.</li>
+<li>Lupa kunci usage description di <code>Info.plist</code> sehingga aplikasi crash di iPhone, padahal di Android berjalan lancar.</li>
+</ul></div>

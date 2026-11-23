@@ -1,0 +1,206 @@
+<p class="lead">Aplikasi yang memakai internet (REST API di Modul 09, Supabase di Modul 12) harus tahu kapan HP sedang offline, supaya bisa menampilkan pesan yang jelas alih-alih loading tanpa akhir. Package <code>connectivity_plus</code> memberi tahu jenis koneksi yang aktif dan mengabari setiap kali berubah.</p>
+
+<h4>Instalasi</h4>
+<pre><code class="language-bash">flutter pub add connectivity_plus
+</code></pre>
+<p>Di Android, package ini sudah membawa izin <code>ACCESS_NETWORK_STATE</code> di manifest miliknya sendiri, jadi tidak ada konfigurasi tambahan. iOS juga tidak butuh kunci di <code>Info.plist</code>. Izin internet (<code>android.permission.INTERNET</code>) tetap diperlukan untuk request ke server, seperti yang sudah dibahas di Modul 09 dan Modul 16.</p>
+
+<h4>Dua API utama</h4>
+<pre><code class="language-dart">final connectivity = Connectivity();
+
+// 1. Sekali cek: hasilnya List, bukan satu nilai
+final List&lt;ConnectivityResult&gt; hasil = await connectivity.checkConnectivity();
+if (hasil.contains(ConnectivityResult.none)) {
+  // tidak ada jaringan sama sekali
+}
+
+// 2. Stream: dipanggil setiap jenis koneksi berubah
+final sub = connectivity.onConnectivityChanged.listen((hasil) {
+  // contoh isi: [ConnectivityResult.wifi] atau
+  // [ConnectivityResult.wifi, ConnectivityResult.vpn]
+});
+// ... saat tidak dipakai lagi (misalnya di dispose):
+await sub.cancel();
+</code></pre>
+<p>Kenapa <code>List</code>? HP bisa memakai beberapa antarmuka sekaligus, misalnya WiFi dan VPN. Daftar ini tidak pernah kosong. Jika tidak ada jaringan sama sekali, isinya tepat satu elemen <code>ConnectivityResult.none</code>, dan itu satu-satunya keadaan saat <code>none</code> muncul. Nilai lain yang mungkin: <code>wifi</code>, <code>mobile</code>, <code>ethernet</code>, <code>vpn</code>, <code>bluetooth</code>, <code>satellite</code>, dan <code>other</code>.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kode lama: <code>result == ConnectivityResult.wifi</code></h4><p>Tutorial lama (sebelum package ini mengembalikan <code>List</code>) menulis <code>if (result == ConnectivityResult.none)</code>. Di versi sekarang, perbandingan itu membandingkan <code>List</code> dengan enum sehingga hasilnya selalu <code>false</code>: aplikasi tidak pernah merasa offline. Selalu gunakan <code>hasil.contains(...)</code>.</p></div>
+
+<h4>"Terhubung WiFi" belum tentu "ada internet"</h4>
+<p><code>connectivity_plus</code> hanya melihat status radio. Dokumentasinya sendiri mengingatkan: jangan memakai hasil ini untuk memutuskan apakah request jaringan pasti berhasil. Contoh keadaan yang membuatnya "berbohong":</p>
+<ul>
+  <li>WiFi kampus yang belum login ke portal (<em>captive portal</em>): status <code>wifi</code>, tetapi semua request diarahkan ke halaman login.</li>
+  <li>Router menyala tetapi kabel internet dari penyedia layanan putus.</li>
+  <li>Kuota data habis: status <code>mobile</code>, tetapi tidak ada data yang lewat.</li>
+</ul>
+<p>Karena itu, setelah status berubah menjadi "ada jaringan", kita lakukan <strong>cek internet ringan</strong>: lookup DNS ke sebuah domain dengan batas waktu. Lookup tidak mengunduh halaman, sehingga hemat kuota.</p>
+<pre><code class="language-dart">/// Mengecek apakah internet benar-benar bisa dipakai.
+/// Lookup DNS ringan dengan batas waktu 5 detik.
+Future&lt;bool&gt; cekInternet() async {
+  try {
+    final hasil = await InternetAddress.lookup('example.com')
+        .timeout(const Duration(seconds: 5));
+    return hasil.isNotEmpty &amp;&amp; hasil.first.rawAddress.isNotEmpty;
+  } on SocketException {
+    return false;
+  } on TimeoutException {
+    return false;
+  }
+}
+</code></pre>
+<p>Di proyek sungguhan, ganti <code>example.com</code> dengan domain server Anda sendiri (misalnya domain proyek Supabase). Yang penting bagi pengguna adalah "server saya bisa dihubungi", bukan "internet secara umum hidup".</p>
+
+<h4>Contoh lengkap: halaman status jaringan</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+import 'dart:io';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const StatusJaringanPage(),
+    );
+  }
+}
+
+class StatusJaringanPage extends StatefulWidget {
+  const StatusJaringanPage({super.key});
+
+  @override
+  State&lt;StatusJaringanPage&gt; createState() =&gt; _StatusJaringanPageState();
+}
+
+class _StatusJaringanPageState extends State&lt;StatusJaringanPage&gt; {
+  final Connectivity _connectivity = Connectivity();
+  StreamSubscription&lt;List&lt;ConnectivityResult&gt;&gt;? _subscription;
+
+  List&lt;ConnectivityResult&gt; _jenis = [ConnectivityResult.none];
+  bool? _adaInternet; // null = belum dicek
+  bool _sedangCek = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _muatAwal();
+    // Dengarkan setiap perubahan (WiFi mati, data seluler nyala, dll.)
+    _subscription = _connectivity.onConnectivityChanged.listen(_saatBerubah);
+  }
+
+  Future&lt;void&gt; _muatAwal() async {
+    final hasil = await _connectivity.checkConnectivity();
+    if (!mounted) return;
+    await _saatBerubah(hasil);
+  }
+
+  Future&lt;void&gt; _saatBerubah(List&lt;ConnectivityResult&gt; hasil) async {
+    setState(() {
+      _jenis = hasil;
+      _sedangCek = true;
+    });
+    final internet = hasil.contains(ConnectivityResult.none)
+        ? false
+        : await cekInternet();
+    if (!mounted) return;
+    setState(() {
+      _adaInternet = internet;
+      _sedangCek = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel(); // wajib: hentikan stream saat halaman ditutup
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    final online = _adaInternet ?? false;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Status Jaringan')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            color: online
+                ? skema.primaryContainer
+                : skema.errorContainer.withValues(alpha: 0.8),
+            child: ListTile(
+              leading: Icon(online ? Icons.cloud_done : Icons.cloud_off),
+              title: Text(
+                _sedangCek
+                    ? 'Memeriksa internet...'
+                    : online
+                    ? 'Internet tersedia'
+                    : 'Tidak ada internet',
+              ),
+              subtitle: Text('Jenis koneksi: ${_jenis.map(_label).join(', ')}'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _sedangCek ? null : _muatAwal,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Periksa ulang'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _label(ConnectivityResult r) {
+    return switch (r) {
+      ConnectivityResult.wifi =&gt; 'WiFi',
+      ConnectivityResult.mobile =&gt; 'Data seluler',
+      ConnectivityResult.ethernet =&gt; 'Ethernet',
+      ConnectivityResult.vpn =&gt; 'VPN',
+      ConnectivityResult.bluetooth =&gt; 'Bluetooth',
+      ConnectivityResult.satellite =&gt; 'Satelit',
+      ConnectivityResult.other =&gt; 'Lainnya',
+      ConnectivityResult.none =&gt; 'Tidak ada',
+    };
+  }
+}
+
+/// Mengecek apakah internet benar-benar bisa dipakai.
+/// Lookup DNS ringan dengan batas waktu 5 detik.
+Future&lt;bool&gt; cekInternet() async {
+  try {
+    final hasil = await InternetAddress.lookup('example.com')
+        .timeout(const Duration(seconds: 5));
+    return hasil.isNotEmpty &amp;&amp; hasil.first.rawAddress.isNotEmpty;
+  } on SocketException {
+    return false;
+  } on TimeoutException {
+    return false;
+  }
+}
+</code></pre>
+
+<h4>Penjelasan baris penting</h4>
+<ul>
+  <li><strong><code>StreamSubscription&lt;List&lt;ConnectivityResult&gt;&gt;? _subscription</code></strong> disimpan agar bisa dibatalkan di <code>dispose()</code>. Tanpa <code>cancel()</code>, listener tetap hidup setelah halaman ditutup dan memanggil <code>setState</code> pada State yang sudah dibuang.</li>
+  <li><strong><code>_muatAwal()</code></strong> memanggil <code>checkConnectivity()</code> sekali di awal, karena stream belum tentu langsung memancarkan nilai saat halaman dibuka.</li>
+  <li><strong><code>if (!mounted) return;</code></strong> muncul setelah setiap <code>await</code>. Cek internet bisa makan waktu sampai 5 detik. Kalau pengguna sudah keluar dari halaman, <code>setState</code> tidak boleh dipanggil.</li>
+  <li><strong><code>hasil.contains(ConnectivityResult.none) ? false : await cekInternet()</code></strong>: jika radio saja sudah mati, tidak perlu lookup.</li>
+  <li><strong><code>switch</code> pada enum</strong> tanpa <code>default</code>: jika suatu hari package menambah nilai baru, analyzer akan memperingatkan bahwa switch belum lengkap.</li>
+</ul>
+
+<h4>Mencoba di emulator</h4>
+<p>Bagian ini bisa diuji di Android Emulator. Jalankan aplikasi, lalu tarik panel notifikasi emulator dan nyalakan <em>Airplane mode</em>: kartu berubah menjadi "Tidak ada internet". Matikan lagi, dan setelah beberapa detik kartu kembali hijau. Di Extended Controls (tombol <kbd>...</kbd>) bagian <em>Cellular</em>, Anda juga bisa mengubah <em>Data status</em> untuk mensimulasikan data seluler terputus.</p>
+
+<div class="callout callout-tip"><h4>💡 Kapan memakai connectivity_plus?</h4><p>Pakai status konektivitas untuk <strong>UX</strong>: menampilkan banner offline, menonaktifkan tombol yang butuh internet, dan memicu muat ulang saat online kembali. Untuk <strong>kebenaran data</strong>, tetap andalkan hasil request itu sendiri (berhasil, gagal, atau timeout), seperti pola <em>network first, cache fallback</em> di Modul 14.</p></div>

@@ -1,0 +1,107 @@
+<p class="lead">Buku ini mengajak Anda membangun aplikasi mobile dengan Flutter dan Dart, mulai dari memasang SDK, memanfaatkan perangkat keras ponsel, hingga menghasilkan berkas APK dan AAB yang siap dibagikan. Sebelum masuk ke Bab 1, luangkan beberapa menit untuk membaca bagian ini. Di sini dijelaskan susunan buku, cara memakainya, dan perangkat yang perlu Anda siapkan.</p>
+
+<h3>Untuk siapa buku ini?</h3>
+<p>Buku ini ditulis untuk mahasiswa Informatika, Sistem Informasi, Ilmu Komputer, dan Rekayasa Perangkat Lunak, serta siapa pun yang ingin mulai mengembangkan aplikasi mobile. Anda dianggap sudah memahami dasar algoritma dan pemrograman (variabel, percabangan, perulangan, fungsi) dan pernah mengenal konsep berorientasi objek. Pengalaman dengan Dart atau Flutter <strong>tidak</strong> diperlukan, karena keduanya dibahas dari awal.</p>
+
+<h3>Susunan buku</h3>
+<p>Buku ini terdiri atas tujuh bagian dan dua puluh tiga bab. Setiap bab adalah satu anak tangga yang dipakai oleh bab-bab sesudahnya, sehingga urutan di bawah ini sengaja dibuat demikian.</p>
+{{PETA_BELAJAR}}
+
+<div class="callout callout-warning">
+  <h4>Jangan melompat terlalu jauh</h4>
+  <p>Banyak pembaca ingin langsung membuat aplikasi dengan fitur login. Kode pada Bab 14 sekaligus memakai <code>async/await</code> (Bab 2), formulir dan validasi (Bab 5), navigasi (Bab 7), serta <code>GetxController</code> dan <code>Obx</code> (Bab 8). Jika keempat materi itu belum dikuasai, error yang muncul akan sangat membingungkan. Ikuti urutan bab, terutama pada Bagian I sampai III.</p>
+</div>
+
+<h3>Anatomi setiap bab</h3>
+<p>Semua bab memiliki susunan yang sama agar Anda mudah menemukan apa yang dicari:</p>
+<ol class="anatomy">
+  <li><strong>Halaman pembuka.</strong> Ringkasan isi bab, prasyarat, estimasi waktu belajar, tujuan pembelajaran, dan daftar subbab.</li>
+  <li><strong>Subbab materi.</strong> Konsep, contoh kode lengkap, dan tangkapan layar hasilnya dari emulator Android.</li>
+  <li><strong>Rangkuman.</strong> Poin-poin terpenting bab dalam satu halaman, cocok untuk mengulang materi sebelum ujian.</li>
+  <li><strong>Latihan Praktikum.</strong> Tugas membangun aplikasi lengkap dengan langkah pengerjaan, hasil yang diharapkan, dan rubrik penilaian.</li>
+  <li><strong>Uji Pemahaman.</strong> Soal pilihan ganda. Kunci jawaban dan pembahasannya ada di Lampiran A.</li>
+</ol>
+
+<h3>Konvensi penulisan</h3>
+<p>Beberapa penanda dipakai secara konsisten di seluruh buku:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th style="width:34%">Penanda</th><th>Arti</th></tr></thead>
+    <tbody>
+      <tr><td><code>teks berhuruf mono</code></td><td>Nama kelas, fungsi, variabel, berkas, perintah, atau potongan kode di dalam kalimat.</td></tr>
+      <tr><td><span class="code-file-label">lib/main.dart</span></td><td>Label di atas blok kode yang menunjukkan berkas tempat kode tersebut ditulis.</td></tr>
+      <tr><td><em>huruf miring</em></td><td>Istilah asing yang baru diperkenalkan. Artinya dapat dicari di Glosarium.</td></tr>
+      <tr><td><kbd>R</kbd></td><td>Tombol keyboard yang perlu ditekan.</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Selain itu terdapat tiga jenis kotak penjelasan:</p>
+<div class="callout callout-info"><h4>Info</h4><p>Penjelasan tambahan, latar belakang konsep, atau perbandingan yang memperdalam pemahaman.</p></div>
+<div class="callout callout-tip"><h4>Tips</h4><p>Cara kerja yang lebih efisien atau kebiasaan baik yang dipakai para pengembang profesional.</p></div>
+<div class="callout callout-warning"><h4>Perhatian</h4><p>Kesalahan yang sering terjadi beserta cara menghindari dan memperbaikinya. Bacalah kotak ini dengan saksama.</p></div>
+
+<h3>Cara belajar yang disarankan</h3>
+<p>Pemrograman tidak bisa dikuasai hanya dengan membaca. Gunakan siklus berikut untuk setiap subbab:</p>
+<ol>
+  <li><strong>Baca konsepnya.</strong> Pahami dulu masalah apa yang diselesaikan oleh materi tersebut.</li>
+  <li><strong>Ketik ulang contoh kode.</strong> Hindari menyalin-tempel pada percobaan pertama. Saat mengetik, Anda akan memperhatikan setiap tanda kurung, koma, dan titik koma.</li>
+  <li><strong>Jalankan dan amati.</strong> Cocokkan hasil di layar dengan tangkapan layar di buku.</li>
+  <li><strong>Ubah sedikit.</strong> Ganti teks, warna, atau angka, atau tambahkan satu widget. Ajukan pertanyaan "apa yang terjadi jika ...?" lalu buktikan.</li>
+  <li><strong>Sengaja buat error.</strong> Hapus satu kurung atau ganti tipe data, lalu baca pesan error-nya. Ini latihan debugging yang paling berharga.</li>
+  <li><strong>Kerjakan latihan dan uji pemahaman.</strong> Simpan hasilnya di repositori Git.</li>
+</ol>
+
+<h3>Menjalankan contoh kode</h3>
+<p>Buku ini memuat dua jenis contoh kode dengan cara menjalankan yang berbeda.</p>
+<p><strong>1. Dart murni (terutama Bab 2).</strong> Contoh jenis ini tidak membutuhkan Flutter maupun emulator. Buka <a href="https://dartpad.dev">dartpad.dev</a>, tempelkan kode, lalu klik <em>Run</em>. Cobalah sekarang:</p>
+<pre><code class="language-dart">void main() {
+  const nama = 'Mahasiswa';
+  final materi = ['Dart', 'Widget', 'Layout', 'Supabase'];
+
+  print('Halo, $nama!');
+  for (final m in materi) {
+    print('Saya akan belajar $m');
+  }
+}</code></pre>
+<p>Hasilnya di panel <em>Console</em>:</p>
+<pre><code class="language-text">Halo, Mahasiswa!
+Saya akan belajar Dart
+Saya akan belajar Widget
+Saya akan belajar Layout
+Saya akan belajar Supabase</code></pre>
+<p><strong>2. Aplikasi Flutter (Bab 1 dan seterusnya).</strong> Contoh jenis ini membutuhkan proyek Flutter dan sebuah perangkat (emulator, ponsel fisik, atau Chrome). Buat satu proyek khusus untuk mencoba contoh:</p>
+<pre><code class="language-bash"># Cukup sekali: buat proyek latihan
+flutter create latihan_flutter
+cd latihan_flutter
+
+# Setiap mencoba contoh berlabel lib/main.dart:
+# 1. Ganti SELURUH isi lib/main.dart dengan kode contoh
+# 2. Jalankan aplikasi
+flutter run
+
+# Jika contoh memakai package, tambahkan terlebih dahulu (misalnya http)
+flutter pub add http</code></pre>
+
+<div class="callout callout-warning">
+  <h4>Kesalahan umum saat mencoba contoh</h4>
+  <ul>
+    <li><strong>Menempelkan kode di bawah kode lama</strong> sehingga ada dua fungsi <code>main()</code>. Hapus seluruh isi berkas sebelum menempel.</li>
+    <li><strong>Lupa menjalankan <code>flutter pub add</code></strong> sehingga muncul error <code>Target of URI doesn't exist</code>.</li>
+    <li><strong>Hanya menekan Hot Reload</strong> setelah mengganti seluruh <code>main.dart</code>. Gunakan Hot Restart (<kbd>R</kbd>), yang dijelaskan di Bab 1.</li>
+    <li><strong>Mengabaikan garis merah di editor.</strong> Jalankan <code>flutter analyze</code> dan perbaiki error sebelum <code>flutter run</code>.</li>
+  </ul>
+</div>
+
+<h3>Menyimpan pekerjaan dengan Git</h3>
+<p>Biasakan menyimpan setiap latihan sebagai <em>commit</em> di repositori Git, misalnya di GitHub. Selain menjadi cadangan, riwayat commit menunjukkan perkembangan belajar Anda dan dapat menjadi portofolio.</p>
+<pre><code class="language-bash">git add .
+git commit -m "Latihan Bab 1: aplikasi Halo Kampus"
+git push origin main</code></pre>
+
+<h3>Perangkat yang perlu disiapkan</h3>
+{{PERSIAPAN_PERANGKAT}}
+
+<div class="callout callout-tip">
+  <h4>Untuk dosen dan pengajar</h4>
+  <p>Lampiran C memuat Rencana Pembelajaran Semester (RPS), jadwal 16 pertemuan, serta usulan kontrak perkuliahan dan bobot penilaian. Seluruhnya dapat langsung disesuaikan untuk mata kuliah Pemrograman Mobile.</p>
+</div>

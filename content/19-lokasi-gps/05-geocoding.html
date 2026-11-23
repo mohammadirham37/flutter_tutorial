@@ -1,0 +1,227 @@
+<p class="lead">Koordinat seperti <code>-6.175392, 106.827153</code> berguna bagi mesin, tetapi pengguna lebih paham "Gambir, Jakarta Pusat". Proses mengubah koordinat menjadi alamat disebut <strong>reverse geocoding</strong>, sedangkan alamat menjadi koordinat disebut <strong>geocoding</strong> (<em>forward</em>). Package <code>geocoding</code> memakai layanan bawaan Android dan iOS, sehingga tidak perlu API key.</p>
+
+<h4>Perubahan API terbaru</h4>
+<p>Sejak versi 5, semua fungsi <code>geocoding</code> dibungkus dalam kelas <code>Geocoding</code>. Tutorial lama yang memanggil fungsi global <code>placemarkFromCoordinates(...)</code> dan <code>setLocaleIdentifier('id_ID')</code> sudah tidak sesuai: bahasa sekarang diatur lewat parameter <code>locale</code> di constructor (atau per pemanggilan).</p>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">import 'package:flutter/widgets.dart';
+import 'package:geocoding/geocoding.dart';
+
+Future&lt;void&gt; alamatSingkat() async {
+  final geocoding = Geocoding(locale: const Locale('id', 'ID'));
+  final List&lt;Placemark&gt; hasil = await geocoding.placemarkFromCoordinates(
+    -6.175392,
+    106.827153,
+  );
+  if (hasil.isNotEmpty) {
+    final p = hasil.first;
+    debugPrint(
+      '${p.street}, ${p.subLocality}, ${p.locality}, '
+      '${p.administrativeArea}',
+    );
+  }
+}
+</code></pre>
+<p>Fungsi yang tersedia di objek <code>Geocoding</code>:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Method</th><th>Masukan</th><th>Hasil</th></tr></thead>
+    <tbody>
+      <tr><td><code>placemarkFromCoordinates(lat, lng)</code></td><td>Koordinat</td><td><code>List&lt;Placemark&gt;</code> (alamat)</td></tr>
+      <tr><td><code>locationFromAddress(alamat)</code></td><td>Teks alamat</td><td><code>List&lt;Location&gt;</code> berisi <code>latitude</code>, <code>longitude</code>, <code>timestamp</code> (bisa <code>null</code>)</td></tr>
+      <tr><td><code>placemarkFromAddress(alamat)</code></td><td>Alamat sebagian</td><td><code>List&lt;Placemark&gt;</code> yang lebih lengkap</td></tr>
+      <tr><td><code>isPresent()</code></td><td>-</td><td><code>true</code> jika layanan geocoder tersedia di perangkat</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Isi <code>Placemark</code> dan pemetaannya di Indonesia</h4>
+<p>Semua field <code>Placemark</code> bertipe <code>String?</code> dan bisa kosong. Pemetaannya ke wilayah administrasi Indonesia tidak selalu konsisten antar-lokasi, jadi anggap tabel ini sebagai perkiraan:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Field</th><th>Biasanya berisi</th></tr></thead>
+    <tbody>
+      <tr><td><code>street</code>, <code>thoroughfare</code>, <code>subThoroughfare</code></td><td>Nama jalan dan nomor</td></tr>
+      <tr><td><code>subLocality</code></td><td>Kelurahan/desa atau kecamatan</td></tr>
+      <tr><td><code>locality</code></td><td>Kecamatan atau kota</td></tr>
+      <tr><td><code>subAdministrativeArea</code></td><td>Kabupaten/kota</td></tr>
+      <tr><td><code>administrativeArea</code></td><td>Provinsi</td></tr>
+      <tr><td><code>postalCode</code>, <code>country</code>, <code>isoCountryCode</code></td><td>Kode pos, negara, kode negara (ID)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh lengkap: koordinat ⇄ alamat</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:geocoding/geocoding.dart';
+
+void main() =&gt; runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const AlamatPage(),
+    );
+  }
+}
+
+/// Menggabungkan bagian Placemark yang tidak kosong menjadi satu baris alamat.
+String formatAlamat(Placemark p) {
+  final bagian = [
+    p.street,
+    p.subLocality, // kelurahan / desa
+    p.locality, // kecamatan / kota (tergantung data)
+    p.subAdministrativeArea, // kabupaten / kota
+    p.administrativeArea, // provinsi
+    p.postalCode,
+  ];
+  return bagian.where((s) =&gt; s != null &amp;&amp; s.trim().isNotEmpty).join(', ');
+}
+
+class AlamatPage extends StatefulWidget {
+  const AlamatPage({super.key});
+
+  @override
+  State&lt;AlamatPage&gt; createState() =&gt; _AlamatPageState();
+}
+
+class _AlamatPageState extends State&lt;AlamatPage&gt; {
+  // Satu instance untuk seluruh halaman, hasil dalam bahasa Indonesia
+  final _geocoding = Geocoding(locale: const Locale('id', 'ID'));
+
+  final _latC = TextEditingController(text: '-6.175392');
+  final _lngC = TextEditingController(text: '106.827153');
+  final _alamatC = TextEditingController(text: 'Monumen Nasional, Jakarta');
+
+  String _hasil = '';
+  bool _memuat = false;
+
+  @override
+  void dispose() {
+    _latC.dispose();
+    _lngC.dispose();
+    _alamatC.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _koordinatKeAlamat() async {
+    final lat = double.tryParse(_latC.text);
+    final lng = double.tryParse(_lngC.text);
+    if (lat == null || lng == null) {
+      setState(() =&gt; _hasil = 'Latitude/longitude tidak valid.');
+      return;
+    }
+    setState(() =&gt; _memuat = true);
+    try {
+      final daftar = await _geocoding.placemarkFromCoordinates(lat, lng);
+      if (!mounted) return;
+      setState(() {
+        _hasil = daftar.isEmpty
+            ? 'Alamat tidak ditemukan.'
+            : formatAlamat(daftar.first);
+      });
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      // IO_ERROR biasanya: tidak ada internet atau kena batas permintaan
+      setState(() =&gt; _hasil = 'Gagal (${e.code}): ${e.message}');
+    } finally {
+      if (mounted) setState(() =&gt; _memuat = false);
+    }
+  }
+
+  Future&lt;void&gt; _alamatKeKoordinat() async {
+    setState(() =&gt; _memuat = true);
+    try {
+      final daftar = await _geocoding.locationFromAddress(_alamatC.text);
+      if (!mounted) return;
+      setState(() {
+        _hasil = daftar.isEmpty
+            ? 'Koordinat tidak ditemukan.'
+            : '${daftar.first.latitude}, ${daftar.first.longitude}';
+      });
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      setState(() =&gt; _hasil = 'Gagal (${e.code}): ${e.message}');
+    } finally {
+      if (mounted) setState(() =&gt; _memuat = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Geocoding')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _latC,
+                  decoration: const InputDecoration(labelText: 'Latitude'),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    signed: true,
+                    decimal: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _lngC,
+                  decoration: const InputDecoration(labelText: 'Longitude'),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    signed: true,
+                    decimal: true,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          FilledButton(
+            onPressed: _memuat ? null : _koordinatKeAlamat,
+            child: const Text('Koordinat → Alamat'),
+          ),
+          const Divider(height: 32),
+          TextField(
+            controller: _alamatC,
+            decoration: const InputDecoration(labelText: 'Alamat'),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.tonal(
+            onPressed: _memuat ? null : _alamatKeKoordinat,
+            child: const Text('Alamat → Koordinat'),
+          ),
+          const SizedBox(height: 24),
+          if (_memuat) const LinearProgressIndicator(),
+          SelectableText(_hasil),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Penjelasan baris penting</h4>
+<ul>
+  <li><code>Geocoding(locale: const Locale('id', 'ID'))</code> dibuat sekali sebagai field, sehingga semua hasil berbahasa Indonesia (misalnya "Daerah Khusus Ibukota Jakarta").</li>
+  <li><code>formatAlamat</code> menyaring field yang <code>null</code> atau kosong sebelum digabung. Tanpa ini, alamat bisa berisi teks <code>"null, , Jakarta"</code>.</li>
+  <li>Di Android, jika tidak ada hasil, <code>geocoding</code> mengembalikan list kosong, jadi selalu cek <code>isEmpty</code> sebelum <code>.first</code>.</li>
+  <li>Kegagalan jaringan atau batas permintaan dilaporkan sebagai <code>PlatformException</code>. Kode <code>IO_ERROR</code> umumnya berarti tidak ada internet atau aplikasi terlalu sering meminta.</li>
+  <li><code>TextInputType.numberWithOptions(signed: true, decimal: true)</code> memunculkan tombol minus dan titik desimal, karena latitude Indonesia bagian selatan bernilai negatif.</li>
+</ul>
+<div class="callout callout-warning"><h4>⚠️ Batasan geocoding gratis</h4><ul>
+  <li><strong>Butuh internet</strong> dan, di Android, Google Play services. Emulator tanpa Play Store (image "Google APIs" tanpa Play) atau tanpa internet sering mengembalikan error.</li>
+  <li><strong>Ada batas frekuensi.</strong> Jangan memanggil geocoding di setiap update stream posisi. Panggil sekali saat posisi berubah cukup jauh (misalnya lebih dari 50 meter) atau saat pengguna menekan tombol.</li>
+  <li>Hasil alamat adalah <strong>perkiraan</strong>. Untuk presensi, keputusan selalu berdasarkan koordinat dan jarak, bukan teks alamat.</li>
+</ul></div>

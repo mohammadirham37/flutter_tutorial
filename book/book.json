@@ -1,0 +1,57 @@
+{
+  "title": "Pemrograman Mobile dengan Flutter & Dart",
+  "subtitle": "Dari Dasar Dart hingga Rilis Aplikasi: Widget, GetX & MVC, REST API, SQLite, Hive, Supabase, dan Proyek Nyata",
+  "shortTitle": "Pemrograman Mobile dengan Flutter & Dart",
+  "edition": "Edisi Pertama",
+  "year": 2026,
+  "city": "Purwokerto",
+  "month": "November",
+  "authors": [
+    {
+      "name": "Ir. Mohammad Irham Akbar, S.Kom., M.Cs.",
+      "bio": ""
+    },
+    {
+      "name": "Azis Amirulbahar, S.Pd., M.T.I.",
+      "bio": ""
+    }
+  ],
+  "audience": "Mahasiswa Informatika, Sistem Informasi, Ilmu Komputer, Rekayasa Perangkat Lunak, dan pengembang pemula",
+  "parts": [
+    {
+      "title": "Fondasi",
+      "description": "Menyiapkan lingkungan kerja, mengenal cara kerja Flutter, dan menguasai bahasa Dart modern yang menjadi bahan baku setiap baris kode Flutter.",
+      "chapters": ["01-pengenalan-flutter", "02-bahasa-dart"]
+    },
+    {
+      "title": "Membangun Antarmuka",
+      "description": "Dari satu widget kecil hingga halaman lengkap: widget dasar, tata letak responsif, formulir interaktif, dan daftar data yang bisa digulir.",
+      "chapters": ["03-widget-dasar", "04-layouting", "05-form-input", "06-list-scroll"]
+    },
+    {
+      "title": "Navigasi & Arsitektur Aplikasi",
+      "description": "Menyusun aplikasi multi-halaman dan mengelola state secara terstruktur dengan GetX dan pola Model-View-Controller.",
+      "chapters": ["07-navigasi", "08-getx"]
+    },
+    {
+      "title": "Data: API & Penyimpanan Lokal",
+      "description": "Mengambil data dari server melalui REST API, lalu menyimpannya di perangkat dengan SharedPreferences, SQLite, dan Hive, ditutup dengan proyek CRUD utuh.",
+      "chapters": ["09-rest-api", "10-local-storage", "11-hive", "11b-hive-crud-mvc"]
+    },
+    {
+      "title": "Backend Cloud & Proyek Terpadu",
+      "description": "Memakai Supabase sebagai backend, lalu membangun aplikasi Catatan Kuliah lengkap dengan autentikasi, CRUD cloud, dan cache offline.",
+      "chapters": ["12-supabase", "13-proyek-auth", "14-proyek-crud"]
+    },
+    {
+      "title": "Integrasi Hardware",
+      "description": "Memanfaatkan perangkat keras ponsel dari Flutter: izin akses, kamera, GPS dan peta, sensor gerak dan kompas, autentikasi biometrik, serta Bluetooth, WiFi, dan status jaringan.",
+      "chapters": ["17-permission", "18-kamera", "19-lokasi-gps", "20-sensor", "21-biometrik", "22-konektivitas"]
+    },
+    {
+      "title": "Kualitas & Rilis",
+      "description": "Menemukan bug, menulis pengujian otomatis, lalu mengemas aplikasi menjadi APK/AAB yang siap dibagikan kepada pengguna.",
+      "chapters": ["15-testing", "16-build-rilis"]
+    }
+  ]
+}

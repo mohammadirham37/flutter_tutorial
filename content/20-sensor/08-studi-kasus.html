@@ -1,0 +1,652 @@
+<p class="lead">Studi kasus ini menggabungkan semua yang sudah dipelajari menjadi satu aplikasi: <strong>Kompas &amp; Waterpass Kampus</strong>. Tab Kompas menampilkan arah mata angin dengan kompensasi kemiringan, deklinasi yang bisa diatur, dan penunjuk arah ke tujuan (kiblat atau gedung kampus). Tab Waterpass menampilkan gelembung dan sudut kemiringan. Guncangan HP mengunci atau membuka kunci bacaan, berguna saat kamu ingin mencatat arah lalu menurunkan HP.</p>
+
+<h4>Struktur proyek</h4>
+<p>Buat proyek baru, misalnya <code>flutter create kompas_kampus</code>, lalu pasang package: <code>flutter pub add sensors_plus get</code>. Tambahkan <code>NSMotionUsageDescription</code> di <code>ios/Runner/Info.plist</code> seperti di bagian 2.</p>
+<pre><code class="language-text">lib/
+├── main.dart
+├── models/
+│   ├── vektor3.dart              # dari bagian 7
+│   └── titik_tujuan.dart         # BARU
+├── utils/
+│   ├── filter_sensor.dart        # dari bagian 7
+│   ├── kompas_math.dart          # dari bagian 5
+│   └── waterpass_math.dart       # BARU
+├── services/
+│   └── sensor_service.dart       # dari bagian 7
+├── controllers/
+│   └── orientasi_controller.dart # BARU
+└── views/
+    ├── beranda_view.dart         # BARU: NavigationBar 2 tab
+    ├── kompas_view.dart          # BARU
+    ├── waterpass_view.dart       # BARU
+    └── widgets/
+        └── piringan_kompas.dart  # BARU
+</code></pre>
+<p>Salin <code>vektor3.dart</code>, <code>filter_sensor.dart</code>, dan <code>sensor_service.dart</code> dari bagian 7, serta <code>kompas_math.dart</code> dari bagian 5, tanpa perubahan. File baru ditulis di bawah ini.</p>
+
+<h4>Langkah 1: Model titik tujuan</h4>
+<p class="code-file-label">📄 <code>lib/models/titik_tujuan.dart</code></p>
+<pre><code class="language-dart">// lib/models/titik_tujuan.dart
+class TitikTujuan {
+  const TitikTujuan(this.nama, this.lat, this.lon);
+
+  final String nama;
+  final double lat;
+  final double lon;
+}
+
+// Titik asal: ganti dengan koordinat kampusmu (atau GPS, Modul 19).
+const titikKampus = TitikTujuan('Kampus', -6.3628, 106.8269);
+
+// Daftar tujuan. Koordinat gedung di bawah hanya contoh.
+const daftarTujuan = [
+  TitikTujuan('Kiblat (Ka\'bah)', 21.4225, 39.8262),
+  TitikTujuan('Perpustakaan Pusat', -6.3606, 106.8317),
+  TitikTujuan('Masjid Kampus', -6.3570, 106.8262),
+  TitikTujuan('Stasiun Terdekat', -6.3610, 106.8336),
+];
+</code></pre>
+<p>Titik asal dan koordinat gedung di atas hanya contoh. Ganti dengan koordinat kampusmu: buka Google Maps, tekan lama pada lokasi, lalu salin angka lintang dan bujurnya. Di Praktikum kamu akan mengganti <code>titikKampus</code> dengan lokasi GPS dari Modul 19.</p>
+
+<h4>Langkah 2: Rumus waterpass</h4>
+<p class="code-file-label">📄 <code>lib/utils/waterpass_math.dart</code></p>
+<pre><code class="language-dart">// lib/utils/waterpass_math.dart
+import 'dart:math' as math;
+
+import '../models/vektor3.dart';
+
+const double _keDerajat = 180 / math.pi;
+
+/// Hasil perhitungan kemiringan perangkat dari akselerometer.
+class Kemiringan {
+  const Kemiringan({
+    required this.sudutX,
+    required this.sudutY,
+    required this.total,
+  });
+
+  static const datarSempurna = Kemiringan(sudutX: 0, sudutY: 0, total: 0);
+
+  /// &gt; 0 berarti sisi kanan perangkat lebih tinggi.
+  final double sudutX;
+
+  /// &gt; 0 berarti sisi atas perangkat lebih tinggi.
+  final double sudutY;
+
+  /// Sudut antara layar dan bidang datar (0° = mendatar, 90° = tegak).
+  final double total;
+
+  bool datar({double toleransi = 1.0}) =&gt;
+      sudutX.abs() &lt; toleransi &amp;&amp; sudutY.abs() &lt; toleransi;
+}
+
+/// Hanya valid saat perangkat relatif diam (akselerometer ≈ gravitasi).
+Kemiringan hitungKemiringan(Vektor3 a) {
+  final panjang = a.panjang;
+  if (panjang &lt; 0.1) return Kemiringan.datarSempurna; // jatuh bebas
+  final sudutX = math.atan2(a.x, math.sqrt(a.y * a.y + a.z * a.z));
+  final sudutY = math.atan2(a.y, math.sqrt(a.x * a.x + a.z * a.z));
+  final total = math.acos((a.z / panjang).clamp(-1.0, 1.0));
+  return Kemiringan(
+    sudutX: sudutX * _keDerajat,
+    sudutY: sudutY * _keDerajat,
+    total: total * _keDerajat,
+  );
+}
+</code></pre>
+<p>Rumusnya sama dengan bagian 4, kini dikemas dalam class <code>Kemiringan</code> dan ditambah <code>total</code>, yaitu sudut antara layar dan bidang datar. Nilai <code>total</code> dipakai kompas untuk memperingatkan pengguna jika HP terlalu miring. <code>clamp(-1.0, 1.0)</code> sebelum <code>acos</code> mencegah <code>NaN</code> akibat galat pembulatan (misalnya 1,0000001).</p>
+
+<h4>Langkah 3: Controller</h4>
+<p>Satu controller mengelola kedua tab karena keduanya memakai akselerometer yang sama. Jika dipisah menjadi dua controller yang masing-masing memanggil <code>accelerometerEventStream</code>, keduanya tetap berbagi satu stream di plugin (lihat bagian 2), jadi lebih jelas jika diurus di satu tempat.</p>
+<p class="code-file-label">📄 <code>lib/controllers/orientasi_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/orientasi_controller.dart
+import 'dart:async';
+
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
+import 'package:get/get.dart';
+
+import '../models/titik_tujuan.dart';
+import '../models/vektor3.dart';
+import '../services/sensor_service.dart';
+import '../utils/filter_sensor.dart';
+import '../utils/kompas_math.dart';
+import '../utils/waterpass_math.dart';
+
+class OrientasiController extends GetxController {
+  OrientasiController(this._service);
+  final SensorService _service;
+
+  static const _jedaUi = Duration(milliseconds: 50); // UI maks 20x/detik
+
+  // ---------- State reaktif ----------
+  final _heading = RxnDouble(); // heading sejati, null = belum ada data
+  final _kuatMedan = 0.0.obs; // µT
+  final _kemiringan = Kemiringan.datarSempurna.obs;
+  final _error = RxnString();
+  final _dikunci = false.obs; // dikunci lewat guncangan
+  final _deklinasi = 0.0.obs;
+  final _tujuan = daftarTujuan.first.obs;
+  final _tab = 0.obs;
+
+  double? get heading =&gt; _heading.value;
+  double get kuatMedan =&gt; _kuatMedan.value;
+  Kemiringan get kemiringan =&gt; _kemiringan.value;
+  String? get error =&gt; _error.value;
+  bool get dikunci =&gt; _dikunci.value;
+  double get deklinasi =&gt; _deklinasi.value;
+  TitikTujuan get tujuan =&gt; _tujuan.value;
+  int get tab =&gt; _tab.value;
+
+  // ---------- Data turunan (getter) ----------
+  /// Medan magnet bumi kira-kira 25–65 µT. Di luar rentang ini
+  /// kemungkinan besar ada gangguan hard/soft iron.
+  bool get perluKalibrasi =&gt; kuatMedan &lt; 20 || kuatMedan &gt; 70;
+
+  /// Heading hanya akurat jika HP dipegang mendatar.
+  bool get terlaluMiring =&gt; kemiringan.total &gt; 35;
+
+  double get bearingTujuan =&gt;
+      bearingDerajat(titikKampus.lat, titikKampus.lon, tujuan.lat, tujuan.lon);
+
+  /// Negatif = belok kiri, positif = belok kanan.
+  double? get selisihKeTujuan {
+    final h = heading;
+    return h == null ? null : selisihSudut(h, bearingTujuan);
+  }
+
+  String get arah =&gt; heading == null ? '-' : arahMataAngin(heading!);
+
+  // ---------- Internal ----------
+  final _filterAksel = LowPassVektor(alpha: 0.15);
+  final _filterMagnet = LowPassVektor(alpha: 0.15);
+  final _detektor = DeteksiGuncangan();
+  final _langganan = &lt;StreamSubscription&lt;Vektor3&gt;&gt;[];
+  late final AppLifecycleListener _siklusHidup;
+  Vektor3? _a;
+  Vektor3? _m;
+  DateTime _terakhirUi = DateTime.fromMillisecondsSinceEpoch(0);
+
+  @override
+  void onInit() {
+    super.onInit();
+    _siklusHidup = AppLifecycleListener(onPause: _berhenti, onResume: _mulai);
+    _mulai();
+  }
+
+  void _mulai() {
+    if (_langganan.isNotEmpty) return; // sudah berjalan
+    _error.value = null;
+    _filterAksel.reset();
+    _filterMagnet.reset();
+    _langganan
+      ..add(
+        _service
+            .akselerometer(periode: SensorService.periodeGame)
+            .listen(_olahAksel, onError: _tanganiError, cancelOnError: true),
+      )
+      ..add(
+        _service
+            .magnetometer(periode: SensorService.periodeGame)
+            .listen(_olahMagnet, onError: _tanganiError, cancelOnError: true),
+      );
+  }
+
+  void _berhenti() {
+    for (final l in _langganan) {
+      l.cancel();
+    }
+    _langganan.clear();
+  }
+
+  void _olahAksel(Vektor3 mentah) {
+    if (_detektor.proses(mentah)) {
+      _dikunci.toggle(); // guncang = kunci / buka kunci bacaan
+      return; // sampel guncangan jangan masuk filter
+    }
+    _a = _filterAksel.saring(mentah);
+    _perbaruiUi();
+  }
+
+  void _olahMagnet(Vektor3 mentah) {
+    _m = _filterMagnet.saring(mentah);
+    _perbaruiUi();
+  }
+
+  void _perbaruiUi() {
+    final a = _a, m = _m;
+    if (a == null || _dikunci.value) return;
+
+    final sekarang = DateTime.now();
+    if (sekarang.difference(_terakhirUi) &lt; _jedaUi) return;
+    _terakhirUi = sekarang;
+
+    _kemiringan.value = hitungKemiringan(a);
+    if (m == null) return; // waterpass tetap jalan tanpa magnetometer
+    _kuatMedan.value = m.panjang;
+    final magnetik = headingDerajat(a.x, a.y, a.z, m.x, m.y, m.z);
+    if (magnetik != null) {
+      _heading.value = headingSejati(magnetik, _deklinasi.value);
+    }
+  }
+
+  void _tanganiError(Object e) =&gt; _error.value = e.toString();
+
+  // ---------- Aksi dari view ----------
+  void pilihTab(int i) =&gt; _tab.value = i;
+  void pilihTujuan(TitikTujuan t) =&gt; _tujuan.value = t;
+  void bukaKunci() =&gt; _dikunci.value = false;
+  void aturDeklinasi(double nilai) =&gt; _deklinasi.value = nilai;
+
+  @override
+  void onClose() {
+    _berhenti();
+    _siklusHidup.dispose();
+    super.onClose();
+  }
+}
+</code></pre>
+<ul>
+  <li><strong>Data turunan sebagai getter</strong>: <code>perluKalibrasi</code>, <code>terlaluMiring</code>, <code>bearingTujuan</code>, <code>selisihKeTujuan</code>, dan <code>arah</code> dihitung dari state yang ada, bukan disimpan terpisah. Karena getter ini membaca nilai <code>.obs</code>, <code>Obx</code> yang memanggilnya tetap reaktif.</li>
+  <li><strong><code>_olahAksel</code></strong>: sampel yang memicu guncangan dipakai untuk <code>_dikunci.toggle()</code> lalu dibuang dengan <code>return</code>, supaya lonjakan guncangan tidak mengacaukan filter.</li>
+  <li><strong><code>_perbaruiUi</code></strong>: berhenti jika bacaan dikunci. Waterpass tetap diperbarui walaupun magnetometer tidak ada (<code>m == null</code>). HP tanpa kompas tetap bisa memakai tab Waterpass.</li>
+  <li><strong>Deklinasi</strong> ditambahkan ke heading magnetik melalui <code>headingSejati</code> sebelum disimpan, sehingga semua perhitungan setelahnya (arah mata angin, selisih ke tujuan) memakai utara sejati.</li>
+  <li><strong>Siklus hidup</strong>: <code>AppLifecycleListener</code> mematikan sensor saat aplikasi ke background. <code>_mulai()</code> aman dipanggil berulang karena memeriksa <code>_langganan.isNotEmpty</code>. <code>onClose</code> membatalkan semua langganan dan membuang listener.</li>
+</ul>
+
+<h4>Langkah 4: Widget piringan kompas</h4>
+<p class="code-file-label">📄 <code>lib/views/widgets/piringan_kompas.dart</code></p>
+<pre><code class="language-dart">// lib/views/widgets/piringan_kompas.dart
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+/// Piringan kompas yang diputar sebesar -heading sehingga huruf U
+/// selalu menunjuk utara. Penanda tujuan diletakkan pada [bearingTujuan].
+class PiringanKompas extends StatelessWidget {
+  const PiringanKompas({
+    super.key,
+    required this.heading,
+    required this.bearingTujuan,
+    this.ukuran = 280,
+  });
+
+  final double heading;
+  final double bearingTujuan;
+  final double ukuran;
+
+  static double _rad(double derajat) =&gt; derajat * math.pi / 180;
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Penanda tetap: arah sisi atas HP
+        Icon(Icons.arrow_drop_down, size: 48, color: warna.primary),
+        Transform.rotate(
+          angle: _rad(-heading),
+          child: Container(
+            width: ukuran,
+            height: ukuran,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: warna.surfaceContainerHighest,
+              border: Border.all(color: warna.outline, width: 2),
+            ),
+            child: Stack(
+              children: [
+                for (final (label, sudut) in const [
+                  ('U', 0.0),
+                  ('T', 90.0),
+                  ('S', 180.0),
+                  ('B', 270.0),
+                ])
+                  Positioned.fill(
+                    child: Transform.rotate(
+                      angle: _rad(sudut),
+                      child: Align(
+                        alignment: const Alignment(0, -0.88),
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: label == 'U' ? Colors.red : null,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                const Center(
+                  child: Icon(Icons.navigation, size: 72, color: Colors.red),
+                ),
+                Positioned.fill(
+                  child: Transform.rotate(
+                    angle: _rad(bearingTujuan),
+                    child: Align(
+                      alignment: const Alignment(0, -0.62),
+                      child: Icon(Icons.place, size: 36, color: warna.tertiary),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+</code></pre>
+<p>Huruf U, T, S, B diletakkan dengan pola yang sama seperti penanda kiblat di bagian 6: kotak seukuran piringan diputar sebesar sudut arahnya, lalu huruf diletakkan di dekat tepi atas kotak itu. Loop <code>for (final (label, sudut) in ...)</code> memakai <em>destructuring</em> record Dart 3. Penanda tujuan (<code>Icons.place</code>) diputar sebesar <code>bearingTujuan</code>, sehingga di layar ia tampil pada sudut <code>bearing − heading</code>.</p>
+
+<h4>Langkah 5: View</h4>
+<p class="code-file-label">📄 <code>lib/views/kompas_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/kompas_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/orientasi_controller.dart';
+import '../models/titik_tujuan.dart';
+import 'widgets/piringan_kompas.dart';
+
+class KompasView extends GetView&lt;OrientasiController&gt; {
+  const KompasView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final teks = Theme.of(context).textTheme;
+    return Obx(() {
+      final heading = controller.heading;
+      if (heading == null) {
+        return const Center(child: Text('Menunggu data magnetometer...'));
+      }
+      final selisih = controller.selisihKeTujuan ?? 0;
+      final petunjuk = selisih.abs() &lt; 5
+          ? 'Lurus ke depan'
+          : 'Putar ${selisih &gt; 0 ? 'kanan' : 'kiri'} '
+                '${selisih.abs().toStringAsFixed(0)}°';
+
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(
+            '${heading.toStringAsFixed(0)}° ${controller.arah}',
+            textAlign: TextAlign.center,
+            style: teks.displaySmall,
+          ),
+          if (controller.dikunci)
+            Center(
+              child: ActionChip(
+                avatar: const Icon(Icons.lock),
+                label: const Text('Bacaan dikunci (guncang/tap untuk buka)'),
+                onPressed: controller.bukaKunci,
+              ),
+            ),
+          const SizedBox(height: 8),
+          Center(
+            child: PiringanKompas(
+              heading: heading,
+              bearingTujuan: controller.bearingTujuan,
+            ),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField&lt;TitikTujuan&gt;(
+            initialValue: controller.tujuan,
+            decoration: const InputDecoration(
+              labelText: 'Tujuan',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              for (final t in daftarTujuan)
+                DropdownMenuItem(value: t, child: Text(t.nama)),
+            ],
+            onChanged: (t) {
+              if (t != null) controller.pilihTujuan(t);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.place),
+            title: Text(
+              '${controller.tujuan.nama}: '
+              '${controller.bearingTujuan.toStringAsFixed(1)}°',
+            ),
+            subtitle: Text(petunjuk),
+          ),
+          ListTile(
+            leading: const Icon(Icons.explore),
+            title: Text(
+              'Deklinasi: '
+              '${controller.deklinasi.toStringAsFixed(1)}° (timur +)',
+            ),
+            subtitle: Slider(
+              value: controller.deklinasi,
+              min: -10,
+              max: 10,
+              divisions: 40,
+              onChanged: controller.aturDeklinasi,
+            ),
+          ),
+          if (controller.terlaluMiring)
+            const _Peringatan(
+              ikon: Icons.screen_rotation_alt,
+              pesan: 'Pegang HP mendatar agar arah kompas akurat.',
+            ),
+          if (controller.perluKalibrasi)
+            _Peringatan(
+              ikon: Icons.all_inclusive,
+              pesan:
+                  'Kuat medan ${controller.kuatMedan.toStringAsFixed(0)} µT '
+                  'tidak wajar. Jauhkan dari logam/magnet, lalu gerakkan HP '
+                  'membentuk angka 8 beberapa kali.',
+            ),
+        ],
+      );
+    });
+  }
+}
+
+class _Peringatan extends StatelessWidget {
+  const _Peringatan({required this.ikon, required this.pesan});
+
+  final IconData ikon;
+  final String pesan;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Theme.of(context).colorScheme.errorContainer,
+      child: ListTile(leading: Icon(ikon), title: Text(pesan)),
+    );
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/views/waterpass_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/waterpass_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/orientasi_controller.dart';
+
+class WaterpassView extends GetView&lt;OrientasiController&gt; {
+  const WaterpassView({super.key});
+
+  static const _batasSudut = 15.0; // gelembung mentok di tepi pada 15°
+
+  @override
+  Widget build(BuildContext context) {
+    final teks = Theme.of(context).textTheme;
+    return Obx(() {
+      final k = controller.kemiringan;
+      final datar = k.datar();
+      final warna = datar ? Colors.green : Colors.orange;
+      // Gelembung bergerak ke sisi yang lebih tinggi.
+      final posisi = Alignment(
+        (k.sudutX / _batasSudut).clamp(-1.0, 1.0),
+        (-k.sudutY / _batasSudut).clamp(-1.0, 1.0),
+      );
+
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              datar ? 'DATAR' : 'MIRING',
+              style: teks.displaySmall?.copyWith(color: warna),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: warna.withValues(alpha: 0.12),
+                border: Border.all(color: warna, width: 3),
+              ),
+              child: Stack(
+                children: [
+                  // Lingkaran target di tengah
+                  Center(
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: warna),
+                      ),
+                    ),
+                  ),
+                  AnimatedAlign(
+                    duration: const Duration(milliseconds: 80),
+                    alignment: posisi,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: warna.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Kiri-kanan: ${k.sudutX.toStringAsFixed(1)}°',
+              style: teks.titleMedium,
+            ),
+            Text(
+              'Atas-bawah: ${k.sudutY.toStringAsFixed(1)}°',
+              style: teks.titleMedium,
+            ),
+            Text('Total kemiringan: ${k.total.toStringAsFixed(1)}°'),
+          ],
+        ),
+      );
+    });
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/views/beranda_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/beranda_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/orientasi_controller.dart';
+import 'kompas_view.dart';
+import 'waterpass_view.dart';
+
+class BerandaView extends GetView&lt;OrientasiController&gt; {
+  const BerandaView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(
+      () =&gt; Scaffold(
+        appBar: AppBar(
+          title: Text(controller.tab == 0 ? 'Kompas Kampus' : 'Waterpass'),
+        ),
+        body: Column(
+          children: [
+            if (controller.error != null)
+              MaterialBanner(
+                leading: const Icon(Icons.sensors_off),
+                content: Text(controller.error!),
+                actions: const [SizedBox.shrink()],
+              ),
+            Expanded(
+              child: IndexedStack(
+                index: controller.tab,
+                children: const [KompasView(), WaterpassView()],
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: controller.tab,
+          onDestinationSelected: controller.pilihTab,
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.explore), label: 'Kompas'),
+            NavigationDestination(
+              icon: Icon(Icons.straighten),
+              label: 'Waterpass',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li>Kedua tab ditampung di <code>IndexedStack</code>, sehingga posisi scroll tab Kompas tetap terjaga saat berpindah tab.</li>
+  <li><code>DropdownButtonFormField</code> memakai <code>initialValue</code> (nama parameter terbaru, menggantikan <code>value</code> yang sudah deprecated).</li>
+  <li>Slider deklinasi langsung memanggil <code>controller.aturDeklinasi</code>. Tidak ada logika di view.</li>
+  <li><code>MaterialBanner</code> di atas tab muncul jika salah satu sensor tidak tersedia. Pesannya berasal dari <code>SensorTidakTersedia.toString()</code>.</li>
+</ul>
+
+<h4>Langkah 6: main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:get/get.dart';
+
+import 'controllers/orientasi_controller.dart';
+import 'services/sensor_service.dart';
+import 'views/beranda_view.dart';
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Sumbu sensor terikat ke bodi HP, bukan ke layar: kunci potret.
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  Get.put(OrientasiController(SensorService()));
+  runApp(const KompasKampusApp());
+}
+
+class KompasKampusApp extends StatelessWidget {
+  const KompasKampusApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Kompas &amp; Waterpass Kampus',
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const BerandaView(),
+    );
+  }
+}
+</code></pre>
+
+<h4>Cara mencoba</h4>
+<ol>
+  <li>Jalankan di HP fisik. Letakkan HP mendatar di lantai yang jauh dari meja besi, lalu putar perlahan. Bandingkan dengan aplikasi kompas bawaan HP atau Google Maps. Selisih beberapa derajat masih wajar.</li>
+  <li>Dekatkan HP ke speaker atau magnet kulkas. Kuat medan melonjak dan peringatan kalibrasi muncul. Jauhkan lagi lalu lakukan gerakan angka 8.</li>
+  <li>Pilih tujuan "Kiblat" dan putar badan sampai teks berubah menjadi "Lurus ke depan".</li>
+  <li>Guncang HP: chip "Bacaan dikunci" muncul dan angka berhenti berubah. Guncang lagi atau ketuk chip untuk membuka kunci.</li>
+  <li>Pindah ke tab Waterpass dan letakkan HP di meja. Ganjal salah satu sisi dengan buku tipis dan amati gelembung bergeser ke sisi yang lebih tinggi.</li>
+  <li>Tekan tombol Home lalu buka lagi aplikasinya. Sensor berhenti selama di background dan menyala kembali saat dibuka.</li>
+</ol>

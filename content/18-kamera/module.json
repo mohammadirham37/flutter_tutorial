@@ -1,0 +1,139 @@
+{
+  "id": "modul-kamera",
+  "badge": "Kamera",
+  "category": "Hardware",
+  "title": "Kamera & Galeri: Mengambil, Menampilkan, dan Menyimpan Foto",
+  "duration": "Pertemuan 18 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 17: Izin Akses (Permission) & Arsitektur Akses Hardware di Flutter",
+    "Modul 10: Penyimpanan Data Lokal (SharedPreferences & SQLite)",
+    "Modul 12: Backend as a Service dengan Supabase"
+  ],
+  "summary": "Mengambil foto dengan dua pendekatan: aplikasi kamera sistem dan galeri lewat image_picker (setara Intent), serta kamera di dalam aplikasi lewat package camera (setara CameraX) lengkap dengan preview, flash, ganti kamera, dan lifecycle. Foto ditampilkan, disimpan permanen ke folder dokumen, dihapus, dan diunggah ke Supabase Storage, lalu semuanya disusun dengan pola MVC GetX dalam studi kasus Kartu Mahasiswa.",
+  "learningOutcomes": [
+    "Membandingkan pendekatan kamera sistem (image_picker) dan kamera di dalam aplikasi (camera) serta memilih yang sesuai kebutuhan.",
+    "Mengonfigurasi Android (minSdk, AndroidManifest) dan iOS (Info.plist, Podfile) untuk kamera dan galeri, serta menangani izin kamera yang diberikan, ditolak, dan ditolak permanen.",
+    "Mengambil satu atau banyak foto dari kamera dan galeri dengan image_picker, mengatur maxWidth/imageQuality, dan memulihkan hasil dengan retrieveLostData.",
+    "Membangun layar kamera dengan CameraController dan CameraPreview: inisialisasi, memotret, ganti kamera, flash, dispose, dan penanganan lifecycle dengan WidgetsBindingObserver.",
+    "Menampilkan foto dengan Image.file secara hemat memori, menyalinnya ke folder dokumen dengan path_provider dan path, serta menghapusnya.",
+    "Mengunggah foto ke Supabase Storage dengan policy per folder user dan menampilkannya melalui URL publik atau signed URL.",
+    "Menyusun fitur foto dengan pola MVC GetX: service yang membungkus plugin, GetxController dengan state .obs, dan view dengan Obx.",
+    "Mengenali dan memperbaiki kesalahan umum: controller tidak di-dispose, preview gepeng, izin, cache gambar, dan ukuran file yang terlalu besar."
+  ],
+  "sections": [
+    { "id": "kamera-dua-pendekatan", "title": "1. Dua Cara Memakai Kamera: Sistem vs di Dalam Aplikasi", "file": "01-dua-pendekatan.html" },
+    { "id": "kamera-instalasi-izin", "title": "2. Instalasi, Konfigurasi Platform, dan Alur Izin", "file": "02-instalasi-izin.html" },
+    { "id": "kamera-image-picker", "title": "3. image_picker: Kamera Sistem dan Galeri", "file": "03-image-picker.html" },
+    { "id": "kamera-camera-package", "title": "4. Kamera di Dalam Aplikasi dengan Package camera", "file": "04-camera-package.html" },
+    { "id": "kamera-simpan-lokal", "title": "5. Menampilkan, Menyimpan, dan Menghapus Foto", "file": "05-simpan-lokal.html" },
+    { "id": "kamera-supabase-storage", "title": "6. Mengunggah Foto ke Supabase Storage", "file": "06-supabase-storage.html" },
+    { "id": "kamera-getx-mvc", "title": "7. Foto dengan GetX MVC: Service, Controller, View", "file": "07-getx-mvc.html" },
+    { "id": "kamera-studi-kasus", "title": "8. Studi Kasus: Foto Profil Kartu Mahasiswa", "file": "08-studi-kasus.html" },
+    { "id": "kamera-kesalahan-umum", "title": "9. Kesalahan Umum dan Pengembangan: Pindai QR", "file": "09-kesalahan-umum.html" }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 18: Kartu Mahasiswa dengan Foto Profil",
+    "objective": "Membangun fitur foto profil yang lengkap (kamera sistem, kamera di dalam aplikasi, galeri, simpan permanen, ganti, hapus) dengan alur izin yang benar dan arsitektur MVC GetX, lalu mengembangkannya dengan unggah ke Supabase Storage.",
+    "instructions": [
+      "<strong>Tugas 1 (Wajib, 20 poin):</strong> Bangun ulang studi kasus Kartu Mahasiswa dari bagian 8 dan jalankan di emulator (kamera <code>VirtualScene</code>/<code>Webcam0</code>) atau HP. Ganti data mahasiswa dengan data dirimu. Lampirkan screenshot kartu sebelum dan sesudah memiliki foto, serta bukti foto tetap ada setelah aplikasi ditutup paksa.",
+      "<strong>Tugas 2 (Wajib, 15 poin):</strong> Uji alur izin: tolak izin kamera sekali, lalu tolak permanen, lalu aktifkan lewat tombol <em>Buka Pengaturan</em>. Lampirkan tiga screenshot (SnackBar, dialog Pengaturan, kamera berhasil terbuka).",
+      "<strong>Tugas 3 (Wajib, 15 poin):</strong> Tambahkan tombol flash (off/auto/always) dan tombol bantuan garis tiga per tiga (<em>rule of thirds</em>) yang bisa ditampilkan/disembunyikan di <code>KameraView</code>. Tombol flash dinonaktifkan jika kamera yang aktif tidak mendukung flash (tangkap <code>CameraException</code>).",
+      "<strong>Tugas 4 (Wajib, 15 poin):</strong> Tampilkan informasi foto di bawah kartu: ukuran file dalam KB dan waktu foto diambil (dibaca dari nama file atau <code>File.lastModified()</code>). Informasi ini harus disediakan controller sebagai state reaktif, bukan dihitung di view.",
+      "<strong>Tugas 5 (Wajib, 20 poin):</strong> Tambahkan tombol <em>Unggah ke Cloud</em> yang mengunggah foto profil ke bucket <code>foto-profil</code> Supabase (gunakan login dari Modul 13) melalui service terpisah, lalu tampilkan foto dari URL publik dengan <code>Image.network</code>. Tampilkan indikator loading selama unggah dan pesan yang jelas saat gagal (<code>StorageException</code>).",
+      "<strong>Tugas 6 (Wajib, 15 poin):</strong> Jelaskan dalam laporan (maksimal 1 halaman) perbedaan <code>image_picker</code> dan <code>camera</code>, kapan masing-masing dipakai, dan kenapa <code>CameraController</code> harus di-dispose saat aplikasi <code>inactive</code>. Sertakan output <code>flutter analyze</code> tanpa issue.",
+      "<strong>Bonus (+10 poin):</strong> Tambahkan halaman <em>Pindai QR Presensi</em> dengan <code>mobile_scanner</code> yang membaca kode QR berisi kode mata kuliah, lalu menampilkan kode tersebut di kartu sebagai \"presensi terakhir\"."
+    ],
+    "expectedOutput": "Aplikasi Kartu Mahasiswa dengan foto profil yang dapat diambil dari kamera sistem, kamera di dalam aplikasi (dengan bingkai, flash, dan garis bantu), atau galeri; tersimpan permanen dan dapat diganti/dihapus; menangani izin ditolak dan ditolak permanen; menampilkan ukuran dan waktu foto; dapat mengunggah foto ke Supabase Storage. Disertai laporan singkat dan flutter analyze tanpa issue.",
+    "rubric": "Tugas 1: fungsionalitas dasar dan persistensi (20%). Tugas 2: alur izin lengkap (15%). Tugas 3: flash dan garis bantu di kamera (15%). Tugas 4: info foto sebagai state controller (15%). Tugas 5: unggah Supabase Storage dengan service, loading, dan error (20%). Tugas 6: laporan dan analyze bersih (15%). Bonus pemindai QR (+10%). Pengurangan nilai jika CameraController tidak di-dispose, view memanggil plugin atau Supabase secara langsung, controller mengimpor material.dart, atau foto tidak dikompresi (tanpa maxWidth/imageQuality)."
+  },
+  "quiz": [
+    {
+      "question": "Aplikasi hanya butuh foto profil sederhana dari kamera atau galeri, tanpa tampilan kamera khusus. Package mana yang paling tepat?",
+      "options": [
+        "camera, karena memberi kontrol penuh atas preview",
+        "image_picker, karena memakai aplikasi kamera sistem dan galeri dengan satu pemanggilan pickImage()",
+        "mobile_scanner, karena bisa membuka kamera",
+        "path_provider, karena menyimpan foto"
+      ],
+      "correctIndex": 1,
+      "explanation": "image_picker setara Intent kamera di Android: sangat mudah, mendukung kamera dan galeri. Package camera (setara CameraX) baru diperlukan jika butuh UI kamera sendiri, overlay, atau akses frame."
+    },
+    {
+      "question": "Apa nilai yang dikembalikan picker.pickImage(source: ImageSource.gallery) jika pengguna menekan tombol kembali tanpa memilih foto?",
+      "options": [
+        "Melempar PlatformException",
+        "XFile kosong dengan path ''",
+        "null",
+        "Foto terakhir di galeri"
+      ],
+      "correctIndex": 2,
+      "explanation": "pickImage mengembalikan Future<XFile?>. Pembatalan menghasilkan null, sehingga hasilnya harus diperiksa sebelum dipakai."
+    },
+    {
+      "question": "Kenapa sebaiknya memberi maxWidth dan imageQuality saat memanggil pickImage?",
+      "options": [
+        "Agar izin kamera tidak diperlukan",
+        "Agar foto otomatis tersimpan di galeri",
+        "Agar foto beresolusi sangat besar diperkecil dan dikompresi sehingga hemat memori, penyimpanan, dan waktu unggah",
+        "Agar foto bisa ditampilkan dengan Image.network"
+      ],
+      "correctIndex": 2,
+      "explanation": "Foto kamera HP bisa ribuan piksel dan beberapa MB. maxWidth memperkecil dimensi, imageQuality mengatur kompresi, sehingga ukuran turun drastis tanpa perbedaan yang terlihat di layar."
+    },
+    {
+      "question": "Pada package camera, apa yang harus dilakukan saat aplikasi berpindah ke status AppLifecycleState.inactive?",
+      "options": [
+        "Tidak perlu apa-apa, plugin mengurusnya otomatis seperti CameraX",
+        "Melepas kamera dengan dispose() pada CameraController yang sudah terinisialisasi, lalu menginisialisasi ulang saat resumed",
+        "Memanggil takePicture() agar foto tidak hilang",
+        "Menutup aplikasi dengan exit(0)"
+      ],
+      "correctIndex": 1,
+      "explanation": "Sejak versi 0.5.0, package camera tidak lagi menangani lifecycle. Dokumentasi resmi memakai WidgetsBindingObserver: dispose saat inactive dan inisialisasi ulang saat resumed, agar kamera bisa dipakai aplikasi lain dan preview tidak hitam."
+    },
+    {
+      "question": "Preview kamera terlihat gepeng setelah CameraPreview dibungkus SizedBox.expand. Apa perbaikan yang tepat?",
+      "options": [
+        "Mengganti ResolutionPreset menjadi max",
+        "Membiarkan CameraPreview di dalam Center (ia sudah memakai AspectRatio yang benar), atau memakai FittedBox dengan BoxFit.cover dan ukuran previewSize jika ingin penuh layar",
+        "Memutar ponsel ke posisi landscape",
+        "Memanggil setFlashMode(FlashMode.off)"
+      ],
+      "correctIndex": 1,
+      "explanation": "CameraPreview menghitung AspectRatio dari previewSize. Memaksanya ke ukuran lain meregangkan gambar. FittedBox + BoxFit.cover memperbesar dengan rasio tetap dan memotong sisanya."
+    },
+    {
+      "question": "Foto dari image_picker langsung ditampilkan dari xfile.path. Beberapa hari kemudian foto tersebut tidak ditemukan. Apa penyebabnya?",
+      "options": [
+        "image_picker menghapus foto setiap 24 jam",
+        "File hasil image_picker berada di folder cache yang boleh dibersihkan sistem; foto penting harus disalin ke getApplicationDocumentsDirectory()",
+        "Izin kamera dicabut otomatis",
+        "Image.file hanya bisa membaca file sekali"
+      ],
+      "correctIndex": 1,
+      "explanation": "Dokumentasi image_picker menegaskan hasil disimpan di cache aplikasi dan bersifat sementara. Salin dengan saveTo() atau File.copy() ke folder dokumen untuk penyimpanan permanen."
+    },
+    {
+      "question": "Unggah foto ke bucket Supabase Storage gagal dengan StorageException status 403 'new row violates row-level security policy'. Penyebab paling mungkin adalah...",
+      "options": [
+        "Foto terlalu kecil",
+        "Policy insert pada storage.objects belum dibuat, atau path file tidak diawali id user sesuai policy",
+        "getPublicUrl dipanggil sebelum upload",
+        "contentType tidak diisi"
+      ],
+      "correctIndex": 1,
+      "explanation": "Storage dilindungi RLS. Tanpa policy insert (dan update untuk upsert) yang cocok, misalnya folder pertama harus sama dengan auth.uid(), unggahan ditolak dengan 403."
+    },
+    {
+      "question": "Dalam pola MVC GetX pada bab ini, di mana pemanggilan ImagePicker().pickImage sebaiknya ditempatkan?",
+      "options": [
+        "Di view, di dalam onPressed tombol",
+        "Di GetxController, langsung memakai ImageSource",
+        "Di service (misalnya FotoService) yang menyembunyikan plugin, lalu controller memanggil service dan menyimpan hasilnya di state .obs",
+        "Di main() sebelum runApp"
+      ],
+      "correctIndex": 2,
+      "explanation": "Service adalah satu-satunya lapisan yang menyentuh plugin dan file sistem. Controller memanggil service dan memperbarui state reaktif, sedangkan view hanya menampilkan dengan Obx dan meneruskan aksi."
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+<p class="lead">Fitur jaringan bisa diuji di emulator, tetapi fitur Bluetooth tidak. Section ini membahas cara menguji tanpa membeli sensor, daftar masalah yang paling sering muncul saat praktikum, dan hal keamanan yang perlu diperhatikan sebelum aplikasi BLE dipakai sungguhan.</p>
+
+<h4>Apa yang bisa diuji di mana</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Fitur</th><th>Android Emulator</th><th>HP fisik</th></tr></thead>
+    <tbody>
+      <tr><td>Status jaringan (<code>connectivity_plus</code>)</td><td>Bisa: mode pesawat, Extended Controls &rarr; Cellular</td><td>Bisa</td></tr>
+      <tr><td>Cek internet (lookup)</td><td>Bisa</td><td>Bisa, coba juga WiFi kampus sebelum login portal</td></tr>
+      <tr><td>Info WiFi (<code>network_info_plus</code>)</td><td>Sebagian: SSID virtual <code>AndroidWifi</code></td><td>Bisa (izin lokasi + lokasi menyala)</td></tr>
+      <tr><td>Bluetooth LE (<code>flutter_blue_plus</code>)</td><td><strong>Tidak bisa</strong>: <code>isSupported</code> bernilai <code>false</code></td><td>Wajib</td></tr>
+      <tr><td>iOS Simulator</td><td colspan="2">Tidak punya Bluetooth, dan info WiFi selalu <code>null</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Membuat sensor tiruan dengan nRF Connect</h4>
+<p>Jika tidak punya sensor BLE, pakai HP kedua sebagai <em>peripheral</em>. Aplikasi gratis <strong>nRF Connect for Mobile</strong> (Nordic Semiconductor) bisa memindai sekaligus berpura-pura menjadi perangkat BLE. Fitur server GATT paling lengkap ada di versi Android. Nama menu bisa sedikit berbeda antar versi, tetapi langkahnya kira-kira seperti ini:</p>
+<ol>
+  <li>Di HP kedua, buka nRF Connect &rarr; menu &rarr; <strong>Configure GATT server</strong>. Tambahkan service <strong>Battery Service (0x180F)</strong> berisi characteristic <strong>Battery Level (0x2A19)</strong> dengan properti <em>Read</em> dan <em>Notify</em>, lalu isi nilai awal, misalnya 90 (0x5A).</li>
+  <li>Buka tab <strong>Advertiser</strong>, buat paket iklan baru yang <em>connectable</em> dan berisi <em>Complete Local Name</em>, lalu nyalakan.</li>
+  <li>Di HP pertama, jalankan aplikasi studi kasus dan scan. Nama HP kedua muncul. Connect, lalu ubah nilai Battery Level di nRF Connect untuk melihat notify bekerja.</li>
+</ol>
+<p>nRF Connect juga berguna sebagai <strong>pembanding</strong>. Jika nRF Connect di HP yang sama tidak menemukan perangkat Anda, masalahnya ada di perangkat atau pengaturan HP, bukan di kode Flutter. Alternatif lain adalah papan ESP32 dengan contoh sketch BLE server bawaan Arduino IDE.</p>
+
+<h4>Kesalahan umum dan solusinya</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Gejala</th><th>Penyebab umum</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr><td>Aplikasi selalu merasa online walau mode pesawat</td><td>Membandingkan <code>result == ConnectivityResult.none</code> padahal hasilnya <code>List</code></td><td>Pakai <code>hasil.contains(ConnectivityResult.none)</code></td></tr>
+      <tr><td>Status WiFi tetapi request gagal terus</td><td>Captive portal, kuota habis, atau router tanpa internet</td><td>Cek internet sungguhan (lookup ke server sendiri) dan tangani error request</td></tr>
+      <tr><td><code>getWifiName()</code> mengembalikan <code>null</code></td><td>Izin lokasi belum diberikan atau layanan lokasi mati</td><td>Minta izin, minta pengguna menyalakan lokasi</td></tr>
+      <tr><td>Nama WiFi tidak cocok saat dibandingkan</td><td>Android menambahkan tanda kutip</td><td>Buang kutip di awal dan akhir sebelum membandingkan</td></tr>
+      <tr><td>Error <em>No named parameter 'license'</em></td><td>Pub memilih <code>flutter_blue_plus</code> 1.x karena konflik dependensi</td><td>Pasang <code>flutter_blue_plus</code> lebih dulu (bagian 4), periksa dengan <code>flutter pub deps</code></td></tr>
+      <tr><td>Scan berjalan tetapi daftar kosong</td><td>Emulator; Android 11 ke bawah tanpa izin/layanan lokasi; perangkat memakai Bluetooth Classic; perangkat sedang terhubung ke HP lain</td><td>Pakai HP fisik, minta izin lokasi, pastikan perangkat BLE dan sedang beriklan, bandingkan dengan nRF Connect</td></tr>
+      <tr><td>Scan tiba-tiba tidak menemukan apa pun setelah dicoba berkali-kali</td><td>Android membatasi 5 kali <code>startScan</code> per 30 detik</td><td>Beri <code>timeout</code>, jangan memanggil scan dalam loop</td></tr>
+      <tr><td><code>SecurityException</code> / izin BLUETOOTH_CONNECT</td><td>Izin belum diminta di Android 12+ atau belum dideklarasikan di manifest</td><td>Periksa manifest (bagian 4) dan jalankan alur izin sebelum scan/connect</td></tr>
+      <tr><td>Connect gagal atau timeout</td><td>Masih scan, sinyal lemah, peripheral hanya menerima satu koneksi</td><td><code>stopScan()</code> dulu, dekatkan perangkat, putuskan koneksi dari HP lain</td></tr>
+      <tr><td>Error saat <code>read()</code> setelah reconnect</td><td>Memakai objek characteristic dari koneksi lama</td><td>Panggil <code>discoverServices()</code> lagi setiap connect</td></tr>
+      <tr><td>Nilai notify muncul dua kali</td><td>Listener dipasang ulang tanpa membatalkan yang lama</td><td>Simpan subscription, batalkan di <code>onClose</code> atau pakai <code>cancelWhenDisconnected</code></td></tr>
+      <tr><td>Baterai HP cepat habis</td><td>Scan tanpa batas waktu, koneksi tidak pernah diputus</td><td>Scan dengan <code>timeout</code>, <code>disconnect()</code> di <code>onClose</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Keamanan BLE</h4>
+<p>BLE dirancang untuk kemudahan, bukan kerahasiaan. Siapa pun di dekat Anda dengan aplikasi seperti nRF Connect bisa melihat iklan perangkat, dan jika tidak ada pengamanan, bisa connect dan membaca characteristic yang sama.</p>
+<ul>
+  <li><strong>Iklan (advertising) selalu terbuka.</strong> Jangan menaruh data pribadi (NIM, nama lengkap, token) di nama perangkat atau data iklan.</li>
+  <li><strong>Koneksi tanpa pairing tidak terenkripsi.</strong> Untuk data sensitif, peripheral sebaiknya mewajibkan <em>pairing/bonding</em> sehingga characteristic hanya bisa dibaca setelah link terenkripsi. Saat aplikasi mengakses characteristic yang dilindungi, sistem operasi menampilkan dialog pairing. Di Android, <code>flutter_blue_plus</code> juga menyediakan <code>createBond()</code>. Pilih metode pairing dengan PIN atau perbandingan angka (<em>LE Secure Connections</em>), bukan "Just Works" yang tidak melindungi dari penyadap aktif.</li>
+  <li><strong>Jangan percaya data dari perangkat.</strong> Validasi panjang dan rentang nilai (misalnya baterai harus 0&ndash;100) sebelum dipakai atau dikirim ke server. Perangkat palsu bisa memakai nama yang sama dengan sensor asli.</li>
+  <li><strong>Perintah tulis yang berbahaya</strong> (membuka kunci pintu lab, mengubah konfigurasi) perlu autentikasi di tingkat aplikasi, misalnya tantangan-jawaban dengan kunci rahasia per perangkat, bukan sekadar menulis byte <code>0x01</code>.</li>
+  <li><strong>Data yang disimpan di HP</strong> (misalnya kunci perangkat atau riwayat bacaan) disimpan di <code>flutter_secure_storage</code> atau box Hive terenkripsi (Modul 11), bukan di file biasa.</li>
+  <li><strong>Privasi pengguna</strong>: hasil scan BLE dan nama WiFi bisa dipakai untuk melacak lokasi. Minta izin hanya saat fitur dipakai, jelaskan alasannya di teks izin, dan jangan mengirim daftar perangkat sekitar ke server tanpa persetujuan.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Rangkuman alur aman</h4><p>Izin diminta tepat waktu &rarr; adapter dicek &rarr; scan dengan timeout &rarr; connect &rarr; discover &rarr; baca/tulis dengan validasi &rarr; disconnect saat selesai. Untuk jaringan: status radio untuk UX, cek internet untuk kepastian, dan penanganan error di setiap request.</p></div>

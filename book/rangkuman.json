@@ -1,0 +1,139 @@
+{
+  "01-pengenalan-flutter": [
+    "Flutter adalah framework UI lintas platform dari Google. Flutter tidak memakai komponen bawaan sistem operasi maupun WebView, tetapi menggambar sendiri setiap piksel lewat engine-nya. Karena itu tampilannya konsisten dan performanya mendekati aplikasi native.",
+    "Arsitektur Flutter terdiri atas tiga lapis: <strong>Framework</strong> (Dart: widget, rendering, animasi), <strong>Engine</strong> (C++: grafis, teks, runtime Dart), dan <strong>Embedder</strong> (penghubung ke Android, iOS, web, dan desktop).",
+    "Lingkungan kerja yang siap pakai terdiri atas Flutter SDK, Android SDK/Android Studio, dan editor (VS Code atau Android Studio). <code>flutter doctor</code> harus bersih sebelum mulai menulis kode.",
+    "Perintah CLI harian: <code>flutter create</code>, <code>devices</code>, <code>run</code>, <code>pub add</code>, <code>analyze</code>, dan <code>clean</code>. Kode aplikasi ditulis di folder <code>lib/</code>, sedangkan dependensi diatur di <code>pubspec.yaml</code>.",
+    "Setiap aplikasi dimulai dari <code>main()</code> yang memanggil <code>runApp()</code>. Tampilan disusun dari <code>StatelessWidget</code> dan <code>StatefulWidget</code>, dan <code>setState()</code> memicu <code>build()</code> ulang.",
+    "Hot Reload menyuntikkan kode baru tanpa menghapus state, Hot Restart menjalankan ulang aplikasi dari <code>main()</code>, sedangkan Full Restart diperlukan setelah perubahan native atau package."
+  ],
+  "02-bahasa-dart": [
+    "Program Dart dimulai dari fungsi <code>main()</code>. Kode Dart murni dapat dijalankan dengan <code>dart run</code> atau langsung di DartPad tanpa emulator.",
+    "Dart bertipe statis dengan inferensi tipe (<code>var</code>). Pakai <code>final</code> untuk nilai yang ditetapkan sekali, <code>const</code> untuk konstanta saat kompilasi, dan <code>late</code> untuk inisialisasi yang ditunda.",
+    "Fungsi mendukung parameter posisi, <em>named</em>, <code>required</code>, dan nilai default. Fungsi juga dapat disimpan dalam variabel dan dikirim sebagai argumen (closure dan higher-order function), pola yang sangat sering dipakai di Flutter.",
+    "Koleksi <code>List</code>, <code>Set</code>, dan <code>Map</code> diolah dengan <code>map</code>, <code>where</code>, <code>fold</code>, spread, serta collection-if/for untuk menyusun data secara deklaratif.",
+    "<em>Sound null safety</em> membuat variabel tidak boleh <code>null</code> kecuali tipenya diberi tanda <code>?</code>. Operator <code>?.</code>, <code>??</code>, dan <code>!</code> dipakai untuk menangani nilai yang mungkin kosong.",
+    "OOP di Dart mencakup class, berbagai constructor, inheritance, abstract class, interface, mixin, extension, dan enhanced enum. Dart 3 menambahkan records, pattern matching, dan sealed class dengan switch yang <em>exhaustive</em>.",
+    "Error ditangani dengan <code>try/catch/finally</code> dan exception kustom. Pekerjaan yang butuh waktu ditulis secara asinkron dengan <code>Future</code>, <code>async/await</code>, dan <code>Stream</code>."
+  ],
+  "03-widget-dasar": [
+    "Di Flutter semuanya adalah widget. Widget hanyalah deskripsi konfigurasi yang ringan, sedangkan pekerjaan berat dilakukan oleh Element Tree dan RenderObject Tree.",
+    "Kerangka aplikasi Material disusun dari <code>MaterialApp</code> → <code>Scaffold</code> → <code>AppBar</code> dan <code>body</code>.",
+    "Widget dasar seperti <code>Text</code>, <code>Icon</code>, <code>Image</code>, <code>Container</code>, <code>Padding</code>, <code>SizedBox</code>, <code>Align</code>, <code>Card</code>, dan <code>ListTile</code> cukup untuk menyusun sebagian besar tampilan sederhana.",
+    "Gunakan <code>StatelessWidget</code> bila tampilan hanya bergantung pada parameter, dan <code>StatefulWidget</code> bila ada data yang berubah. Setiap perubahan data dibungkus <code>setState()</code>.",
+    "Siklus hidup State berjalan dari <code>initState</code> → <code>didChangeDependencies</code> → <code>build</code> → <code>didUpdateWidget</code> → <code>dispose</code>. Resource seperti controller wajib dibersihkan di <code>dispose</code>.",
+    "UI yang besar dipecah menjadi widget kecil yang menerima parameter dan callback. <code>const</code> mengurangi rebuild, <code>Key</code> menjaga identitas widget, dan <code>ThemeData</code> Material 3 (<code>ColorScheme.fromSeed</code>) menyeragamkan tampilan, termasuk mode gelap."
+  ],
+  "04-layouting": [
+    "Hukum utama tata letak Flutter: <strong>constraints turun, ukuran naik, parent menentukan posisi</strong>. Hampir semua masalah layout dapat dijelaskan dengan aturan ini.",
+    "<code>Row</code> dan <code>Column</code> menyusun anak secara horizontal dan vertikal. Perataannya diatur dengan <code>MainAxisAlignment</code>, <code>CrossAxisAlignment</code>, dan <code>MainAxisSize</code>.",
+    "<code>Expanded</code> memaksa anak mengisi sisa ruang, sedangkan <code>Flexible</code> mengizinkannya lebih kecil. <code>Wrap</code> memindahkan anak ke baris baru secara otomatis, dan <code>SizedBox</code>, <code>Spacer</code>, serta <code>AspectRatio</code> mengatur jarak dan proporsi.",
+    "<code>Stack</code> dan <code>Positioned</code> dipakai untuk elemen yang saling menumpuk, misalnya badge di atas gambar atau tombol mengambang.",
+    "Garis kuning-hitam menandakan <em>RenderFlex overflow</em>. Perbaikannya antara lain <code>Expanded</code>, <code>Flexible</code>, <code>Wrap</code>, pemotongan teks, atau membuat konten dapat digulir.",
+    "<code>SafeArea</code> melindungi konten dari notch dan status bar. <code>MediaQuery</code>, <code>LayoutBuilder</code>, breakpoint, dan <code>OrientationBuilder</code> membuat tampilan menyesuaikan diri dengan ukuran layar."
+  ],
+  "05-form-input": [
+    "Material 3 menyediakan hierarki tombol (<code>FilledButton</code>, <code>ElevatedButton</code>, <code>OutlinedButton</code>, <code>TextButton</code>, <code>IconButton</code>, FAB). Tombol dinonaktifkan dengan <code>onPressed: null</code>.",
+    "<code>GestureDetector</code> dan <code>InkWell</code> membuat widget apa pun dapat disentuh. <code>InkWell</code> memberi efek riak, tetapi membutuhkan <code>Material</code> di atasnya.",
+    "<code>TextField</code> ditata dengan <code>InputDecoration</code>. Teksnya dibaca dan diubah lewat <code>TextEditingController</code>, fokusnya diatur dengan <code>FocusNode</code>, dan keduanya wajib di-<code>dispose</code>.",
+    "Validasi formulir memakai <code>Form</code>, <code>TextFormField</code>, dan <code>GlobalKey&lt;FormState&gt;</code>. Validator mengembalikan <code>null</code> jika valid, atau pesan error berupa <code>String</code> jika tidak.",
+    "Input pilihan terdiri atas <code>Checkbox</code>, <code>Switch</code>, <code>RadioGroup</code>, <code>Slider</code>, <code>DropdownButtonFormField</code>, serta pemilih tanggal dan jam.",
+    "Umpan balik kepada pengguna diberikan lewat <code>SnackBar</code> (informasi singkat), <code>AlertDialog</code> (konfirmasi), dan <code>BottomSheet</code> (pilihan tambahan)."
+  ],
+  "06-list-scroll": [
+    "<code>SingleChildScrollView</code> cocok untuk halaman dengan konten terbatas yang melebihi tinggi layar, misalnya formulir panjang.",
+    "<code>ListView.builder</code> hanya membangun item yang terlihat sehingga efisien untuk data banyak. <code>ListView.separated</code> menambahkan pemisah, sedangkan <code>ListView</code> biasa cukup untuk daftar pendek.",
+    "<code>ListTile</code> menyediakan susunan baris standar (leading, title, subtitle, trailing). <code>GridView</code> menampilkan data dalam bentuk kisi.",
+    "Interaksi daftar modern meliputi geser untuk menghapus dengan URUNGKAN (<code>Dismissible</code>), tarik untuk memuat ulang (<code>RefreshIndicator</code>), infinite scroll (<code>ScrollController</code>), dan pencarian real-time.",
+    "Daftar yang baik selalu menangani tiga kondisi selain data: <strong>loading</strong>, <strong>error</strong>, dan <strong>kosong</strong>.",
+    "<code>CustomScrollView</code> dengan <code>SliverAppBar</code>, <code>SliverList</code>, dan <code>SliverGrid</code> menggabungkan beberapa jenis konten dalam satu area gulir yang mulus."
+  ],
+  "07-navigasi": [
+    "Navigator mengelola halaman sebagai tumpukan (LIFO). <code>push</code> menambah halaman di atas tumpukan, dan <code>pop</code> mengembalikan ke halaman sebelumnya.",
+    "Data dikirim ke halaman baru melalui constructor. Hasil dari halaman tujuan diterima dengan <code>await Navigator.push(...)</code> dan dikirim balik melalui <code>Navigator.pop(context, hasil)</code>.",
+    "<code>pushReplacement</code> dan <code>pushAndRemoveUntil</code> dipakai pada alur login/logout agar pengguna tidak dapat kembali ke halaman yang seharusnya tertutup.",
+    "Named routes dengan <code>onGenerateRoute</code> memusatkan pendaftaran halaman dan menyediakan halaman cadangan agar aplikasi tidak crash saat route tidak dikenal.",
+    "Navigasi tingkat atas dibangun dengan <code>NavigationBar</code> + <code>IndexedStack</code> (state tiap tab tetap terjaga), <code>Drawer</code>, dan <code>TabBar</code>.",
+    "<code>go_router</code> menawarkan routing deklaratif berbasis path beserta redirect, sedangkan <code>PopScope</code> mencegat tombol kembali untuk meminta konfirmasi."
+  ],
+  "08-getx": [
+    "<code>setState</code> cukup untuk state lokal satu widget. Ketika data dipakai banyak halaman, mengopernya lewat constructor berlapis (<em>prop drilling</em>) membuat kode sulit dirawat.",
+    "Pola MVC membagi tanggung jawab: <strong>Model</strong> menyimpan bentuk data, <strong>View</strong> hanya menampilkan, dan <strong>Controller</strong> (<code>GetxController</code>) memegang state dan logika.",
+    "State reaktif dibuat dengan <code>.obs</code> dan ditampilkan dengan <code>Obx</code>. Nilainya dibaca dan diubah lewat <code>.value</code>, sedangkan isi <code>RxList</code> diubah langsung.",
+    "Controller disediakan dengan <code>Get.put</code>/<code>Get.lazyPut</code> (biasanya di <code>Bindings</code>) lalu diambil dengan <code>Get.find</code>. Lifecycle <code>onInit</code> dan <code>onClose</code> dipakai untuk memuat dan membersihkan resource.",
+    "Untuk data asinkron, gunakan pola tiga state: <code>isLoading</code>, <code>error</code>, dan data. Worker seperti <code>ever</code> dan <code>debounce</code> bereaksi terhadap perubahan state.",
+    "Struktur folder <code>models/services/controllers/views</code> dan auth gate berbasis <code>Obx</code> menjadi pola dasar seluruh proyek di bab-bab berikutnya."
+  ],
+  "09-rest-api": [
+    "REST API berkomunikasi lewat HTTP: request berisi method, URL, header, dan body, lalu server membalas dengan status code dan body (biasanya JSON).",
+    "JSON diubah menjadi objek Dart dengan <code>jsonDecode</code> dan <code>fromJson</code>, dan sebaliknya dengan <code>toJson</code> dan <code>jsonEncode</code>, termasuk untuk objek bersarang dan list.",
+    "Package <code>http</code> menyediakan GET, POST, PUT, PATCH, dan DELETE. Token autentikasi dikirim melalui header <code>Authorization: Bearer ...</code>. Android memerlukan izin <code>INTERNET</code>.",
+    "Kegagalan jaringan (status code bukan 2xx, tidak ada koneksi, timeout) harus ditangkap dan diterjemahkan menjadi pesan yang ramah pengguna.",
+    "Lapisan <code>ApiClient</code> → <code>Repository</code> → Controller memisahkan kode jaringan dari UI sehingga mudah diuji dan diganti.",
+    "UI menangani tiga kondisi (loading, error, data) dengan <code>FutureBuilder</code> atau controller GetX, dilengkapi pull-to-refresh."
+  ],
+  "10-local-storage": [
+    "Pilih penyimpanan sesuai data: SharedPreferences untuk pengaturan kecil, SQLite untuk data relasional dan query kompleks, Hive untuk objek NoSQL yang cepat, dan Supabase bila data harus tersinkron di cloud.",
+    "Kode baru dianjurkan memakai <code>SharedPreferencesAsync</code> atau <code>SharedPreferencesWithCache</code> untuk menyimpan tema, status onboarding, dan sesi login.",
+    "SQLite (package <code>sqflite</code>) bekerja dengan tabel. Model menyediakan <code>toMap</code>/<code>fromMap</code>, termasuk konversi <code>bool</code> ke 0/1 dan <code>DateTime</code> ke teks atau angka.",
+    "Perubahan skema untuk pengguna lama dilakukan dengan menaikkan <code>version</code> dan menulis <code>ALTER TABLE</code> di <code>onUpgrade</code>, karena <code>onCreate</code> hanya berjalan sekali.",
+    "Query yang memuat input pengguna wajib memakai placeholder <code>?</code> dan <code>whereArgs</code> agar aman dari SQL injection. Transaksi dan batch menjaga banyak perintah tetap atomik.",
+    "Foreign key di SQLite harus diaktifkan dengan <code>PRAGMA foreign_keys = ON</code>. File biasa disimpan dengan <code>path_provider</code> di folder dokumen, bukan di folder temporary."
+  ],
+  "11-hive": [
+    "Hive (<code>hive_ce</code>) adalah database NoSQL lokal yang ditulis murni dengan Dart. Data disimpan dalam <em>box</em> berbentuk pasangan key-value.",
+    "Hive diinisialisasi di <code>main()</code> dengan <code>Hive.initFlutter()</code>, lalu box dibuka sebelum <code>runApp()</code>. Operasi dasarnya: <code>put</code>, <code>get</code>, <code>add</code>, <code>delete</code>, <code>keys</code>, <code>values</code>, dan <code>clear</code>.",
+    "Data dapat disimpan sebagai Map lalu dikonversi ke model, atau sebagai objek langsung dengan <code>TypeAdapter</code>, baik ditulis manual maupun di-generate dengan <code>@GenerateAdapters</code>.",
+    "<code>typeId</code> dan urutan field adalah kontrak permanen. Mengubahnya sembarangan membuat data lama tidak terbaca.",
+    "UI dapat bereaksi terhadap perubahan box dengan <code>ValueListenableBuilder</code>, atau melalui pola MVC: <code>HiveService</code> → <code>GetxController</code> → View dengan <code>Obx</code>.",
+    "Box sensitif dienkripsi dengan <code>HiveAesCipher</code>, dan kuncinya disimpan di <code>flutter_secure_storage</code>."
+  ],
+  "11b-hive-crud-mvc": [
+    "Proyek CRUD Mahasiswa memakai struktur MVC lengkap: <code>models</code>, <code>services</code>, <code>controllers</code>, <code>bindings</code>, <code>routes</code>, dan <code>views</code>.",
+    "Model dibuat immutable dengan <code>copyWith</code>. TypeAdapter manual harus membaca field dengan urutan yang sama persis dengan saat menulis.",
+    "<code>HiveService</code> menjadi satu-satunya pintu menuju box, sehingga View tidak pernah menyentuh Hive secara langsung.",
+    "<code>MahasiswaController</code> memegang <code>RxList</code> data, kata kunci pencarian, validasi (termasuk mencegah NIM ganda), serta mode tambah/edit dalam satu form.",
+    "Controller didaftarkan lewat <code>Bindings</code> dan halaman dibuka dengan named routes GetX. View yang tipis memakai <code>GetView</code> dan <code>Obx</code>.",
+    "Unit test menguji service Hive di folder sementara, sedangkan widget test menguji alur CRUD melalui UI."
+  ],
+  "12-supabase": [
+    "Supabase adalah Backend as a Service berbasis PostgreSQL yang menyediakan Database, Auth, Row Level Security, Realtime, dan Storage.",
+    "Aplikasi Flutter hanya boleh memakai <strong>Project URL</strong> dan <strong>publishable key</strong>. <em>Secret key</em> tidak boleh masuk ke aplikasi. Kunci dimuat lewat <code>--dart-define-from-file</code> dan file konfigurasi tidak ikut di-commit.",
+    "Tabel dibuat dengan SQL Editor lengkap dengan tipe data, default, constraint, dan foreign key ke <code>auth.users</code>.",
+    "Row Level Security (RLS) menentukan baris mana yang boleh dibaca dan diubah setiap pengguna melalui policy yang memakai <code>auth.uid()</code>. Klausa <code>using</code> menyaring baris yang sudah ada, sedangkan <code>with check</code> memeriksa data baru.",
+    "Query dari Flutter memakai <code>select</code> (dengan filter, urutan, dan rentang), <code>insert</code>, <code>update</code>, <code>delete</code>, <code>upsert</code>, serta <code>single</code>/<code>maybeSingle</code>.",
+    "Autentikasi memakai <code>signUp</code>, <code>signInWithPassword</code>, <code>signOut</code>, dan <code>onAuthStateChange</code>. Error ditangkap sebagai <code>PostgrestException</code> dan <code>AuthException</code>."
+  ],
+  "13-proyek-auth": [
+    "Proyek dimulai dari kebutuhan fungsional dan alur layar, bukan langsung dari kode.",
+    "Arsitektur berlapis memisahkan View, Controller (GetX), Service/Repository, dan sumber data (Supabase/Hive). Setiap lapis hanya berbicara dengan lapis di sebelahnya.",
+    "Tabel <code>profiles</code> diisi otomatis oleh trigger <code>handle_new_user</code> setiap kali ada pengguna baru, dan dilindungi policy RLS.",
+    "<code>AuthService</code> membungkus Supabase Auth. <code>AuthController</code> menyimpan status loading serta pesan error berbahasa Indonesia yang ramah pengguna.",
+    "<code>AuthGate</code> mendengarkan perubahan sesi dan otomatis menampilkan halaman login atau beranda, sehingga sesi tetap tersimpan saat aplikasi dibuka kembali.",
+    "Login dan register dilengkapi validasi, tombol tampil/sembunyi password, tombol loading reaktif, dan SnackBar, lalu diuji termasuk mode konfirmasi email."
+  ],
+  "14-proyek-crud": [
+    "Tabel <code>notes</code> memakai default <code>auth.uid()</code>, constraint, index, empat policy RLS, dan trigger <code>updated_at</code>, sehingga setiap pengguna hanya dapat mengakses catatannya sendiri.",
+    "Model <code>Note</code> memiliki tiga konversi: <code>fromJson</code> (dari server/cache), <code>toJson</code> (untuk cache), dan <code>toMap</code> (payload insert/update).",
+    "Sumber data dipisah menjadi <code>NoteRemoteDataSource</code> (Supabase) dan <code>NoteLocalDataSource</code> (Hive), lalu digabungkan di <code>NoteRepository</code> dengan strategi <em>network first, cache fallback</em>.",
+    "<code>NotesController</code> mengelola daftar, pencarian, filter, dan <em>optimistic delete</em>: item langsung hilang dari layar lalu dikembalikan (rollback) bila server gagal.",
+    "Satu form dipakai untuk tambah dan edit. Logout yang aman juga membersihkan cache lokal agar data tidak terlihat oleh pengguna berikutnya.",
+    "Repository dan controller diuji dengan <em>fake data source</em>. Error umum seperti kode 42501 (RLS) didiagnosis dari pesan error-nya."
+  ],
+  "15-testing": [
+    "Debugging dimulai dari membaca pesan error dan stack trace. Lima error paling umum adalah overflow, <code>setState</code> setelah <code>dispose</code>, null check, unbounded height, dan controller GetX yang tidak ditemukan.",
+    "<code>debugPrint</code>, <code>developer.log</code>, breakpoint, dan Flutter DevTools (Inspector, Performance, Network, Memory) membantu menemukan penyebab bug.",
+    "<code>flutter analyze</code>, <code>analysis_options.yaml</code>, dan <code>dart fix</code> menjaga kualitas kode sebelum aplikasi dijalankan.",
+    "Unit test memakai <code>test</code>, <code>expect</code>, <code>group</code>, <code>setUp</code>, dan matcher, termasuk untuk kode asinkron dan exception.",
+    "Fake class dan <code>mocktail</code> mengisolasi pengujian dari Supabase dan Hive. Widget test memakai <code>pumpWidget</code>, <code>find</code>, <code>tap</code>, <code>enterText</code>, dan <code>pumpAndSettle</code>.",
+    "Golden test membandingkan tampilan dengan gambar acuan, integration test menguji aplikasi utuh di perangkat, dan <code>flutter test --coverage</code> mengukur cakupan pengujian."
+  ],
+  "16-build-rilis": [
+    "Versi aplikasi ditulis sebagai <code>version: x.y.z+build</code>. Nomor build harus selalu naik setiap kali aplikasi diunggah ke toko aplikasi.",
+    "Nama aplikasi, application ID yang unik, launcher icon (termasuk adaptive icon), dan splash screen disiapkan sebelum rilis, sebaiknya dengan generator.",
+    "Build rilis Android membutuhkan izin <code>INTERNET</code> yang dideklarasikan secara eksplisit. Konfigurasi rahasia dipisahkan dengan <code>--dart-define-from-file</code> dan <code>.gitignore</code>.",
+    "Aplikasi ditandatangani dengan keystore melalui <code>key.properties</code> dan <code>build.gradle.kts</code>. Simpan keystore dengan aman, karena kehilangan keystore berarti tidak dapat memperbarui aplikasi.",
+    "<code>flutter build apk --split-per-abi</code> menghasilkan APK yang lebih kecil, sedangkan <code>flutter build appbundle</code> menghasilkan AAB untuk Google Play. Keduanya dapat diobfuscate dan wajib diuji di perangkat sungguhan.",
+    "Capstone Project menggabungkan seluruh isi buku: autentikasi, CRUD cloud, cache offline, arsitektur MVC, pengujian, dan build rilis."
+  ]
+}

@@ -1,0 +1,229 @@
+<p class="lead">Data sensor mentah selalu "gemetar". Tangan tidak pernah benar-benar diam, dan sensor MEMS di HP punya derau (<em>noise</em>) bawaan. Selain itu, data datang jauh lebih sering daripada yang perlu digambar di layar. Bagian ini membahas dua teknik dasar: <strong>low-pass filter</strong> untuk menghaluskan nilai dan <strong>throttle</strong> untuk membatasi rebuild UI.</p>
+
+<h4>Low-pass filter sederhana</h4>
+<p>Low-pass filter meloloskan perubahan yang lambat (misalnya kemiringan HP) dan meredam perubahan yang cepat (getaran). Bentuk paling sederhana adalah <em>exponential moving average</em>:</p>
+<pre><code class="language-text">nilaiHalus = nilaiHalus + alpha × (nilaiBaru − nilaiHalus)      dengan 0 &lt; alpha ≤ 1
+</code></pre>
+<ul>
+  <li><code>alpha = 1</code>: tidak ada penghalusan, sama dengan data mentah.</li>
+  <li><code>alpha = 0,1</code>: sangat halus, tetapi butuh beberapa puluh sampel untuk mengejar perubahan. Pada 50 Hz, itu berarti jeda sekitar setengah detik.</li>
+  <li>Nilai 0,1 sampai 0,25 biasanya cukup untuk kompas dan waterpass. Pilih lewat percobaan.</li>
+</ul>
+<p>Hal sebaliknya, <strong>high-pass filter</strong> (<code>mentah − halus</code>), menyisakan perubahan cepat saja. Inilah ide dasar cara sistem memisahkan gravitasi dari gerakan pengguna.</p>
+
+<h4>Throttle UI</h4>
+<p>Memanggil <code>setState</code> 50 kali per detik untuk setiap sensor membuat Flutter membangun ulang widget jauh lebih sering dari yang bisa dilihat mata. Polanya:</p>
+<ol>
+  <li>Simpan nilai terbaru di variabel biasa setiap kali event datang. Filter tetap memproses <strong>setiap</strong> sampel.</li>
+  <li>Panggil <code>setState</code> hanya jika sudah lewat, misalnya, 100 ms sejak gambar terakhir.</li>
+</ol>
+<p>Dengan begitu, laju pengambilan data (<code>samplingPeriod</code>) dan laju gambar UI bisa diatur terpisah.</p>
+
+<h4>Contoh lengkap: dashboard semua sensor</h4>
+<p>Aplikasi berikut menampilkan lima sensor sekaligus, membandingkan akselerometer mentah dengan hasil low-pass, membatasi UI maksimal 10 kali per detik, dan menandai sensor yang tidak tersedia tanpa membuat sensor lain berhenti.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const DashboardSensorPage(),
+    );
+  }
+}
+
+/// Low-pass filter: setiap sampel baru hanya "menarik" nilai lama
+/// sebesar alpha (0..1). Makin kecil alpha, makin halus tapi makin lambat.
+class LowPassFilter {
+  LowPassFilter({this.alpha = 0.15});
+
+  final double alpha;
+  List&lt;double&gt;? _nilai;
+
+  List&lt;double&gt; saring(List&lt;double&gt; baru) {
+    final lama = _nilai;
+    if (lama == null) {
+      _nilai = List.of(baru); // sampel pertama dipakai apa adanya
+    } else {
+      for (var i = 0; i &lt; baru.length; i++) {
+        lama[i] = lama[i] + alpha * (baru[i] - lama[i]);
+      }
+    }
+    return List.unmodifiable(_nilai!);
+  }
+}
+
+class DashboardSensorPage extends StatefulWidget {
+  const DashboardSensorPage({super.key});
+
+  @override
+  State&lt;DashboardSensorPage&gt; createState() =&gt; _DashboardSensorPageState();
+}
+
+class _DashboardSensorPageState extends State&lt;DashboardSensorPage&gt; {
+  static const _periode = SensorInterval.gameInterval; // 20 ms = 50 Hz
+  static const _jedaUi = Duration(milliseconds: 100); // UI maks 10x/detik
+
+  final _langganan = &lt;StreamSubscription&lt;dynamic&gt;&gt;[];
+  final _filterAksel = LowPassFilter(alpha: 0.1);
+
+  // Nilai terbaru disimpan di variabel biasa (bukan langsung setState)
+  List&lt;double&gt; _akselMentah = const [0, 0, 0];
+  List&lt;double&gt; _akselHalus = const [0, 0, 0];
+  List&lt;double&gt; _userAksel = const [0, 0, 0];
+  List&lt;double&gt; _giro = const [0, 0, 0];
+  List&lt;double&gt; _magnet = const [0, 0, 0];
+  double? _tekanan;
+  final _error = &lt;String, String&gt;{};
+
+  DateTime _terakhirGambar = DateTime.fromMillisecondsSinceEpoch(0);
+
+  @override
+  void initState() {
+    super.initState();
+    _dengar(
+      'Akselerometer',
+      accelerometerEventStream(samplingPeriod: _periode),
+      (AccelerometerEvent e) {
+        _akselMentah = [e.x, e.y, e.z];
+        _akselHalus = _filterAksel.saring(_akselMentah);
+      },
+    );
+    _dengar(
+      'User akselerometer',
+      userAccelerometerEventStream(samplingPeriod: _periode),
+      (UserAccelerometerEvent e) =&gt; _userAksel = [e.x, e.y, e.z],
+    );
+    _dengar(
+      'Giroskop',
+      gyroscopeEventStream(samplingPeriod: _periode),
+      (GyroscopeEvent e) =&gt; _giro = [e.x, e.y, e.z],
+    );
+    _dengar(
+      'Magnetometer',
+      magnetometerEventStream(samplingPeriod: _periode),
+      (MagnetometerEvent e) =&gt; _magnet = [e.x, e.y, e.z],
+    );
+    _dengar(
+      'Barometer',
+      barometerEventStream(),
+      (BarometerEvent e) =&gt; _tekanan = e.pressure,
+    );
+  }
+
+  /// Mendengarkan satu stream sensor, mencatat error, dan
+  /// menggambar ulang UI paling sering setiap [_jedaUi].
+  void _dengar&lt;T&gt;(String nama, Stream&lt;T&gt; stream, void Function(T) simpan) {
+    _langganan.add(
+      stream.listen(
+        (event) {
+          simpan(event);
+          _gambarUlangJikaPerlu();
+        },
+        onError: (Object e) {
+          if (!mounted) return;
+          setState(() {
+            _error[nama] = e is PlatformException ? e.code : e.toString();
+          });
+        },
+        cancelOnError: true,
+      ),
+    );
+  }
+
+  void _gambarUlangJikaPerlu() {
+    final sekarang = DateTime.now();
+    if (sekarang.difference(_terakhirGambar) &lt; _jedaUi) return;
+    _terakhirGambar = sekarang;
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    for (final l in _langganan) {
+      l.cancel();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Dashboard Sensor')),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          _kartu('Akselerometer (mentah)', 'm/s²', _akselMentah),
+          _kartu('Akselerometer (low-pass)', 'm/s²', _akselHalus),
+          _kartu('User akselerometer', 'm/s²', _userAksel),
+          _kartu('Giroskop', 'rad/s', _giro),
+          _kartu('Magnetometer', 'µT', _magnet),
+          Card(
+            child: ListTile(
+              title: const Text('Barometer'),
+              subtitle: Text(
+                _error['Barometer'] != null
+                    ? 'Tidak tersedia (${_error['Barometer']})'
+                    : _tekanan == null
+                    ? 'Menunggu data...'
+                    : '${_tekanan!.toStringAsFixed(1)} hPa',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kartu(String judul, String satuan, List&lt;double&gt; v) {
+    final namaSensor = judul.split(' (').first;
+    final error = _error[namaSensor];
+    return Card(
+      child: ListTile(
+        title: Text(judul),
+        subtitle: Text(
+          error != null
+              ? 'Tidak tersedia ($error)'
+              : 'x: ${v[0].toStringAsFixed(2)}   '
+                    'y: ${v[1].toStringAsFixed(2)}   '
+                    'z: ${v[2].toStringAsFixed(2)}  $satuan',
+          style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()]),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<p>Penjelasan bagian penting:</p>
+<ul>
+  <li><strong><code>LowPassFilter</code></strong> menyimpan nilai halus terakhir. Sampel pertama langsung dipakai apa adanya supaya filter tidak "merangkak" dari nol.</li>
+  <li><strong><code>_dengar&lt;T&gt;</code></strong> adalah fungsi generik yang memasang <code>listen</code> untuk stream bertipe apa pun dan memasukkan <code>StreamSubscription</code> ke satu list. Di <code>dispose</code> semua langganan dibatalkan dalam satu loop.</li>
+  <li>Callback <code>simpan</code> hanya mengisi variabel. Yang memicu rebuild adalah <code>_gambarUlangJikaPerlu()</code>, yang menolak <code>setState</code> jika belum 100 ms sejak gambar terakhir.</li>
+  <li><strong><code>mounted</code></strong> dicek sebelum <code>setState</code> karena event bisa datang tepat saat halaman sedang ditutup.</li>
+  <li>Error dicatat per sensor di Map <code>_error</code>. Di emulator yang tidak punya barometer, hanya kartu barometer yang menampilkan "Tidak tersedia".</li>
+  <li><code>FontFeature.tabularFigures()</code> membuat lebar setiap digit sama, sehingga angka tidak bergeser-geser saat nilainya berubah.</li>
+</ul>
+<p>Saat HP diletakkan di meja, perhatikan bahwa digit terakhir akselerometer mentah terus berubah, sedangkan nilai low-pass hampir diam. Ketuk meja pelan-pelan: nilai mentah melonjak, nilai halus hanya bergeser sedikit.</p>
+
+<div class="callout callout-tip"><h4>💡 Pakai timestamp untuk perhitungan berbasis waktu</h4><p>Setiap event membawa <code>timestamp</code> dari platform. Untuk perhitungan yang bergantung selang waktu (misalnya mengintegrasikan giroskop menjadi sudut: <code>sudut += kecepatanSudut × Δt</code>), pakai selisih <code>timestamp</code> antar-event, bukan menganggap interval selalu sama dengan <code>samplingPeriod</code>. Interval yang sebenarnya bisa berbeda dari yang diminta.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Memanggil <code>setState</code> di setiap event dari banyak sensor dengan <code>gameInterval</code>. UI jadi tersendat dan baterai cepat habis.</li>
+  <li>Menghaluskan data dengan <code>alpha</code> sangat kecil lalu heran kenapa tampilannya "telat". Low-pass filter selalu menukar kehalusan dengan keterlambatan.</li>
+  <li>Membiarkan satu <code>onError</code> menghentikan seluruh layar. Tangani error per sensor.</li>
+</ul></div>

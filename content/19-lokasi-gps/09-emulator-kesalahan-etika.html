@@ -1,0 +1,74 @@
+<p class="lead">Fitur lokasi sulit diuji jika harus berjalan keliling kampus setiap kali kode berubah. Android Emulator bisa mensimulasikan posisi tunggal maupun rute. Bagian ini juga merangkum kesalahan umum dan etika memakai data lokasi.</p>
+
+<h4>Mengatur posisi lewat Extended Controls</h4>
+<ol>
+  <li>Jalankan emulator, klik tombol <strong>⋯</strong> (More) di toolbar samping untuk membuka <strong>Extended Controls</strong>.</li>
+  <li>Pilih menu <strong>Location</strong>. Di tab <strong>Single points</strong>, cari tempat atau klik titik di peta, lalu tekan <strong>Set location</strong>.</li>
+  <li>Aplikasi yang sedang mendengarkan stream akan menerima posisi baru. Untuk studi kasus, set posisi di titik kampus (contoh <code>-6.3628, 106.8269</code>) lalu di titik sekitar 500 m jauhnya, dan amati lingkaran berubah dari hijau ke merah.</li>
+</ol>
+
+<h4>Mensimulasikan rute (GPX/KML)</h4>
+<p>Di tab <strong>Routes</strong> kamu bisa membuat rute dengan mengklik titik awal dan tujuan di peta, menyimpannya, lalu menekan <strong>Play route</strong> dengan kecepatan putar yang bisa diatur (1x, 2x, dst.). Rute juga bisa diimpor dari file <strong>GPX</strong> atau <strong>KML</strong> lewat tombol impor. Contoh file GPX sederhana dari luar kampus menuju gedung kuliah:</p>
+<p class="code-file-label">📄 <code>rute_ke_kampus.gpx</code></p>
+<pre><code class="language-text">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;gpx version="1.1" creator="praktikum-modul-19"&gt;
+  &lt;trk&gt;
+    &lt;name&gt;Halte ke Gedung Kuliah&lt;/name&gt;
+    &lt;trkseg&gt;
+      &lt;trkpt lat="-6.3660" lon="106.8300"&gt;&lt;time&gt;2026-01-05T07:00:00Z&lt;/time&gt;&lt;/trkpt&gt;
+      &lt;trkpt lat="-6.3650" lon="106.8290"&gt;&lt;time&gt;2026-01-05T07:01:00Z&lt;/time&gt;&lt;/trkpt&gt;
+      &lt;trkpt lat="-6.3640" lon="106.8280"&gt;&lt;time&gt;2026-01-05T07:02:00Z&lt;/time&gt;&lt;/trkpt&gt;
+      &lt;trkpt lat="-6.3632" lon="106.8272"&gt;&lt;time&gt;2026-01-05T07:03:00Z&lt;/time&gt;&lt;/trkpt&gt;
+      &lt;trkpt lat="-6.3628" lon="106.8269"&gt;&lt;time&gt;2026-01-05T07:04:00Z&lt;/time&gt;&lt;/trkpt&gt;
+    &lt;/trkseg&gt;
+  &lt;/trk&gt;
+&lt;/gpx&gt;
+</code></pre>
+<p>Rute ini cocok untuk menguji pelacak jalan kaki (bagian 4) dan melihat status presensi berubah saat "mahasiswa" memasuki radius.</p>
+
+<h4>Lewat terminal: <code>adb emu geo fix</code></h4>
+<pre><code class="language-bash"># Format: adb emu geo fix &lt;LONGITUDE&gt; &lt;LATITUDE&gt; [ketinggian]
+adb emu geo fix 106.8269 -6.3628
+
+# Pindah sekitar 1 km ke utara (di luar radius)
+adb emu geo fix 106.8269 -6.3538
+</code></pre>
+<div class="callout callout-warning"><h4>⚠️ Urutannya longitude dulu</h4><p>Berbeda dengan hampir semua API lain (termasuk <code>distanceBetween</code> dan <code>LatLng</code>), perintah <code>geo fix</code> menerima <strong>longitude lebih dulu</strong>. Jika tertukar, posisi emulator akan berada di tempat yang sama sekali lain (bahkan bisa ditolak karena latitude 106 tidak valid).</p></div>
+
+<h4>Batasan pengujian di emulator</h4>
+<ul>
+  <li>Akurasi di emulator biasanya stabil dan bagus, sehingga masalah sinyal lemah di dalam gedung tidak terlihat. Uji juga di perangkat fisik, di dalam ruangan dan di luar.</li>
+  <li>Posisi dari Extended Controls dikirim sebagai GPS emulator, sehingga pada umumnya <code>isMocked</code> bernilai <code>false</code>. Untuk menguji penolakan lokasi palsu, gunakan perangkat fisik dengan aplikasi <em>fake GPS</em> yang dipilih di <strong>Opsi Pengembang &rarr; Pilih aplikasi lokasi palsu</strong>, atau uji logikanya lewat unit test seperti di bagian 8.</li>
+  <li>Geocoding butuh image emulator dengan Google Play services dan koneksi internet.</li>
+  <li>Setelah emulator baru dinyalakan, <code>getLastKnownPosition()</code> sering <code>null</code> sampai ada posisi yang dikirim.</li>
+</ul>
+
+<h4>Ringkasan kesalahan umum</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Gejala</th><th>Penyebab</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr><td>Aplikasi iOS langsung crash saat meminta izin</td><td>Kunci <code>NSLocationWhenInUseUsageDescription</code> belum ada</td><td>Tambahkan di <code>Info.plist</code> (bagian 2)</td></tr>
+      <tr><td>Dialog izin tidak pernah muncul lagi</td><td>Status <code>deniedForever</code></td><td>Tombol <code>Geolocator.openAppSettings()</code></td></tr>
+      <tr><td>Menunggu posisi tanpa akhir</td><td>Di dalam gedung, tanpa <code>timeLimit</code></td><td>Isi <code>timeLimit</code>, tangkap <code>TimeoutException</code></td></tr>
+      <tr><td><code>LocationServiceDisabledException</code></td><td>Sakelar GPS mati</td><td>Cek <code>isLocationServiceEnabled()</code> dulu, tawarkan <code>openLocationSettings()</code></td></tr>
+      <tr><td>Baterai cepat habis</td><td>Stream tidak dibatalkan atau <code>distanceFilter: 0</code> dengan akurasi <code>best</code></td><td><code>cancel()</code> di <code>dispose</code>/<code>onClose</code>, naikkan <code>distanceFilter</code></td></tr>
+      <tr><td>Jarak ribuan km padahal bersebelahan</td><td>Latitude dan longitude tertukar</td><td>Selalu (lat, lng); ingat pengecualian <code>geo fix</code></td></tr>
+      <tr><td>Peta abu-abu di APK rilis</td><td>Izin <code>INTERNET</code> tidak ada di manifest <code>main</code></td><td>Tambahkan izin INTERNET</td></tr>
+      <tr><td>Peringatan User-Agent dari <code>flutter_map</code></td><td><code>userAgentPackageName</code> tidak diisi</td><td>Isi dengan package name aplikasi</td></tr>
+      <tr><td>Presensi lolos dari rumah dengan lokasi kasar</td><td>Tidak memeriksa <code>accuracy</code>, atau pengguna memberi izin "Perkiraan"</td><td>Tolak akurasi di atas batas, cek <code>getLocationAccuracy()</code></td></tr>
+      <tr><td>Alamat berisi "null"</td><td>Field <code>Placemark</code> kosong ikut digabung</td><td>Saring nilai <code>null</code>/kosong</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Etika dan privasi data lokasi</h4>
+<p>Lokasi termasuk data pribadi yang sangat sensitif. Dari riwayat lokasi seseorang bisa ditebak alamat rumah, tempat ibadah, kebiasaan, bahkan kondisi kesehatannya. Di Indonesia, pemrosesan data pribadi diatur dalam <strong>UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi</strong>. Prinsip praktis untuk developer:</p>
+<ul>
+  <li><strong>Minta saat dibutuhkan.</strong> Tampilkan dialog izin ketika pengguna menekan "Presensi", bukan begitu aplikasi dibuka. Jelaskan alasannya sebelum dialog sistem muncul.</li>
+  <li><strong>Minimal.</strong> Pakai izin <em>while in use</em>, bukan <em>always</em>. Pakai akurasi serendah yang masih memenuhi kebutuhan.</li>
+  <li><strong>Simpan secukupnya.</strong> Untuk presensi cukup simpan koordinat dan jarak saat presensi, bukan jejak lokasi sepanjang hari.</li>
+  <li><strong>Transparan.</strong> Sebutkan di kebijakan privasi data apa yang dikumpulkan, untuk apa, berapa lama disimpan, dan siapa yang bisa melihatnya. Google Play mewajibkan pengisian formulir <em>Data safety</em> (Modul 16).</li>
+  <li><strong>Aman.</strong> Kirim data lewat HTTPS dan batasi akses di server (misalnya Row Level Security di Supabase, Modul 12), sehingga mahasiswa hanya bisa melihat presensinya sendiri.</li>
+  <li><strong>Hormati pilihan pengguna.</strong> Jika izin ditolak, aplikasi tetap bisa dipakai untuk fitur lain dan tidak terus-menerus memaksa.</li>
+</ul>

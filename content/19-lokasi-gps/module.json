@@ -1,0 +1,139 @@
+{
+  "id": "modul-lokasi-gps",
+  "badge": "GPS & Lokasi",
+  "category": "Hardware",
+  "title": "Lokasi & GPS: Posisi, Pelacakan, dan Peta",
+  "duration": "Pertemuan 19 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 08: State Management dengan GetX + MVC",
+    "Modul 17: Izin Akses (Permission) & Arsitektur Akses Hardware di Flutter"
+  ],
+  "summary": "Mengambil dan memantau lokasi perangkat dengan geolocator: konsep GNSS dan Fused Location Provider, konfigurasi Android/iOS, alur izin lengkap, posisi saat ini dan terakhir, stream posisi, jarak dan arah. Dilanjutkan dengan geocoding, peta OpenStreetMap memakai flutter_map tanpa API key, pola GetX MVC, dan studi kasus Presensi Kampus Berbasis Lokasi dengan geofence radius serta deteksi lokasi palsu.",
+  "learningOutcomes": [
+    "Menjelaskan perbedaan GNSS, Wi-Fi, dan seluler sebagai sumber posisi, peran Fused Location Provider, serta kompromi akurasi dan baterai.",
+    "Membedakan izin lokasi perkiraan (coarse) dan akurat (fine), serta lokasi foreground dan background, lalu mengonfigurasi AndroidManifest.xml dan Info.plist dengan benar.",
+    "Menerapkan alur lengkap layanan dan izin lokasi: GPS mati, izin diberikan, ditolak, dan ditolak permanen dengan arahan ke pengaturan.",
+    "Mengambil posisi dengan getCurrentPosition dan getLastKnownPosition memakai LocationSettings, AndroidSettings, dan AppleSettings, termasuk batas waktu dan penanganan exception.",
+    "Memantau posisi dengan getPositionStream dan distanceFilter, membatalkan StreamSubscription dengan benar, serta menghitung jarak dan arah dengan distanceBetween dan bearingBetween.",
+    "Mengubah koordinat menjadi alamat dan sebaliknya dengan package geocoding beserta batasannya.",
+    "Menampilkan peta OpenStreetMap dengan flutter_map, lengkap dengan marker, lingkaran radius dalam meter, userAgentPackageName, dan atribusi OSM.",
+    "Membangun fitur lokasi dengan pola GetX MVC (LocationService, controller dengan state .obs, View dengan Obx) dan menerapkannya pada aplikasi presensi berbasis geofence yang menolak lokasi palsu dan akurasi buruk.",
+    "Menguji fitur lokasi di emulator (Extended Controls, rute GPX, adb emu geo fix) dan menerapkan prinsip privasi data lokasi."
+  ],
+  "sections": [
+    { "id": "gps-konsep", "title": "1. Konsep Lokasi: GNSS, Fused Location, dan Jenis Izin", "file": "01-konsep-lokasi.html" },
+    { "id": "gps-konfigurasi-izin", "title": "2. Instalasi, Konfigurasi Platform, dan Alur Izin", "file": "02-konfigurasi-izin.html" },
+    { "id": "gps-posisi-sekarang", "title": "3. Posisi Saat Ini dan Posisi Terakhir", "file": "03-posisi-sekarang.html" },
+    { "id": "gps-stream-jarak", "title": "4. Stream Posisi, Jarak, dan Arah", "file": "04-stream-jarak.html" },
+    { "id": "gps-geocoding", "title": "5. Geocoding: Koordinat dan Alamat", "file": "05-geocoding.html" },
+    { "id": "gps-peta", "title": "6. Peta OpenStreetMap dengan flutter_map", "file": "06-peta-flutter-map.html" },
+    { "id": "gps-getx-mvc", "title": "7. Lokasi dengan GetX MVC", "file": "07-getx-mvc.html" },
+    { "id": "gps-studi-kasus", "title": "8. Studi Kasus: Presensi Kampus Berbasis Lokasi", "file": "08-studi-kasus-presensi.html" },
+    { "id": "gps-emulator-etika", "title": "9. Pengujian di Emulator, Kesalahan Umum, dan Etika Privasi", "file": "09-emulator-kesalahan-etika.html" }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 19: Presensi Kampus Berbasis Lokasi",
+    "objective": "Membangun aplikasi presensi yang hanya menerima presensi dari dalam area kampus, dengan alur izin lokasi yang lengkap, peta OpenStreetMap, dan arsitektur GetX MVC, lalu mengembangkannya dengan fitur tambahan.",
+    "instructions": [
+      "<strong>Tugas 1 (Wajib, 20 poin):</strong> Bangun ulang studi kasus bagian 8 sampai berjalan di emulator. Ganti <code>kampusUtama</code> dengan koordinat gedung kuliahmu sendiri. Lampirkan screenshot saat posisi emulator di dalam radius (lingkaran hijau, presensi berhasil) dan di luar radius (lingkaran merah, pesan jarak tampil). Gunakan <code>adb emu geo fix</code> atau Extended Controls.",
+      "<strong>Tugas 2 (Wajib, 15 poin):</strong> Uji alur izin: (a) matikan GPS emulator, (b) tolak izin sekali, (c) tolak permanen lalu aktifkan lewat tombol Buka pengaturan. Lampirkan screenshot ketiga kondisi dan pastikan aplikasi tidak crash.",
+      "<strong>Tugas 3 (Wajib, 15 poin):</strong> Ubah <code>TitikKampus</code> menjadi daftar beberapa lokasi (misalnya Gedung A, Gedung B, Laboratorium) masing-masing dengan radius sendiri. Presensi diterima jika pengguna berada di dalam salah satu lokasi, dan nama lokasi tersebut tersimpan di <code>CatatanPresensi</code>. Tampilkan semua lingkaran di peta.",
+      "<strong>Tugas 4 (Wajib, 15 poin):</strong> Tambahkan alamat hasil reverse geocoding (package <code>geocoding</code>) pada setiap catatan presensi. Panggil geocoding hanya sekali saat presensi dikirim, tangani list kosong dan <code>PlatformException</code> tanpa menggagalkan presensi.",
+      "<strong>Tugas 5 (Wajib, 15 poin):</strong> Simpan riwayat presensi secara permanen dengan Hive (Modul 11) lewat service terpisah, sehingga aturan satu kali per hari tetap berlaku setelah aplikasi ditutup dan dibuka lagi.",
+      "<strong>Tugas 6 (Wajib, 20 poin):</strong> Lengkapi <code>test/aturan_presensi_test.dart</code> dengan minimal 4 test baru: posisi tepat di batas radius, <code>hasAccuracy</code> false, multi-lokasi dari Tugas 3, dan lokasi palsu di luar radius. Semua test harus lulus dengan <code>flutter test</code>.",
+      "<strong>Bonus (+10 poin):</strong> Tambahkan tombol \"Ke lokasi saya\" di halaman presensi yang memindahkan kamera peta dengan <code>MapController.move</code>, serta teks arah ke gedung terdekat memakai <code>bearingBetween</code>."
+    ],
+    "expectedOutput": "Aplikasi Presensi Kampus yang menampilkan peta OSM dengan lingkaran area presensi, status validasi real-time (jarak, akurasi, lokasi palsu), alur izin lengkap, riwayat presensi beralamat yang tersimpan permanen, serta output flutter test yang semua lulus dan flutter analyze tanpa issue.",
+    "rubric": "Tugas 1: presensi berbasis radius berjalan dengan koordinat sendiri (20%). Tugas 2: alur layanan mati, ditolak, dan ditolak permanen (15%). Tugas 3: multi-lokasi geofence dan tampilannya di peta (15%). Tugas 4: geocoding dengan penanganan error (15%). Tugas 5: persistensi Hive lewat service (15%). Tugas 6: kualitas dan kelulusan unit test (20%). Bonus MapController dan arah (+10%). Pengurangan nilai jika View memanggil Geolocator langsung, StreamSubscription tidak dibatalkan di onClose, atribusi OSM atau userAgentPackageName tidak ada, atau flutter analyze masih menampilkan issue."
+  },
+  "quiz": [
+    {
+      "question": "Apa fungsi Fused Location Provider di Android?",
+      "options": [
+        "Menggabungkan GNSS, Wi-Fi, jaringan seluler, dan sensor gerak untuk memberi posisi terbaik sesuai prioritas akurasi dan baterai",
+        "Menyimpan riwayat lokasi pengguna ke cloud Google",
+        "Menampilkan peta Google Maps di aplikasi",
+        "Mengubah koordinat menjadi alamat"
+      ],
+      "correctIndex": 0,
+      "explanation": "Fused Location Provider memilih dan menggabungkan berbagai sumber posisi. Package geolocator memakainya secara otomatis di Android, sehingga kita cukup mengatur LocationAccuracy."
+    },
+    {
+      "question": "Sejak Android 12, aplikasi presensi meminta ACCESS_FINE_LOCATION. Apa yang perlu diantisipasi?",
+      "options": [
+        "Izin FINE otomatis diberikan tanpa dialog",
+        "Pengguna tetap bisa memilih lokasi Perkiraan, sehingga aplikasi harus mendeklarasikan COARSE juga dan siap menerima akurasi rendah",
+        "Aplikasi wajib meminta ACCESS_BACKGROUND_LOCATION terlebih dahulu",
+        "Lokasi hanya bisa diambil jika ada internet"
+      ],
+      "correctIndex": 1,
+      "explanation": "Dialog izin Android 12+ menawarkan pilihan Akurat dan Perkiraan. Aplikasi bisa memeriksa hasilnya dengan getLocationAccuracy() dan menolak posisi yang akurasinya tidak memadai."
+    },
+    {
+      "question": "requestPermission() mengembalikan LocationPermission.deniedForever. Tindakan yang tepat adalah...",
+      "options": [
+        "Memanggil requestPermission() berulang kali sampai pengguna setuju",
+        "Menutup aplikasi secara paksa",
+        "Menjelaskan kebutuhan izin dan menyediakan tombol yang memanggil Geolocator.openAppSettings()",
+        "Memanggil Geolocator.openLocationSettings() agar GPS menyala"
+      ],
+      "correctIndex": 2,
+      "explanation": "Saat ditolak permanen, dialog izin tidak akan tampil lagi. Pengguna hanya bisa mengubahnya dari halaman pengaturan aplikasi. openLocationSettings() dipakai untuk kasus berbeda, yaitu layanan GPS mati."
+    },
+    {
+      "question": "Kenapa getCurrentPosition sebaiknya diberi timeLimit di LocationSettings?",
+      "options": [
+        "Agar posisi selalu lebih akurat",
+        "Agar izin tidak perlu diminta",
+        "Agar di tempat bersinyal lemah aplikasi tidak menunggu tanpa batas; setelah batas waktu muncul TimeoutException yang bisa ditangani",
+        "Karena tanpa timeLimit kode tidak bisa dikompilasi"
+      ],
+      "correctIndex": 2,
+      "explanation": "Di dalam gedung, GNSS bisa lama sekali mendapat fix. Dengan timeLimit, Future gagal dengan TimeoutException sehingga aplikasi bisa memberi pesan yang jelas."
+    },
+    {
+      "question": "Sebuah controller berlangganan getPositionStream. Apa akibatnya jika StreamSubscription tidak dibatalkan di onClose?",
+      "options": [
+        "Tidak ada akibat, karena GetX membatalkannya otomatis",
+        "GPS tetap bekerja dan callback terus berjalan setelah halaman ditutup, sehingga baterai terkuras dan bisa terjadi error",
+        "Posisi menjadi lebih akurat",
+        "Aplikasi tidak bisa meminta izin lagi"
+      ],
+      "correctIndex": 1,
+      "explanation": "GetX memanggil onClose saat controller dihapus, tetapi tidak mengetahui langganan stream milikmu. cancel() harus dipanggil sendiri di onClose (atau dispose pada StatefulWidget)."
+    },
+    {
+      "question": "Apa arti distanceFilter: 10 pada LocationSettings untuk getPositionStream?",
+      "options": [
+        "Posisi dikirim setiap 10 detik",
+        "Akurasi posisi selalu di bawah 10 meter",
+        "Update baru dikirim hanya jika perangkat berpindah minimal 10 meter secara horizontal",
+        "Stream berhenti setelah 10 update"
+      ],
+      "correctIndex": 2,
+      "explanation": "distanceFilter dalam meter menyaring update kecil agar baterai dan rebuild UI lebih hemat. Interval waktu diatur terpisah, misalnya intervalDuration pada AndroidSettings."
+    },
+    {
+      "question": "Pada TileLayer flutter_map yang memakai server tile.openstreetmap.org, hal apa yang WAJIB diperhatikan?",
+      "options": [
+        "Mengisi API key Google Maps",
+        "Mengisi userAgentPackageName dengan package name aplikasi dan menampilkan atribusi OpenStreetMap contributors",
+        "Memakai subdomain {s} agar lebih cepat",
+        "Mengunduh seluruh ubin Indonesia saat aplikasi pertama kali dibuka"
+      ],
+      "correctIndex": 1,
+      "explanation": "Server OSM memakai User-Agent untuk mengenali aplikasi dan dapat memblokir yang tidak jelas. Lisensi ODbL mewajibkan atribusi. Subdomain {s} tidak lagi disarankan dan unduh massal melanggar Tile Usage Policy."
+    },
+    {
+      "question": "Dalam studi kasus presensi, posisi di dalam radius dengan Position.isMocked == true ditolak. Pernyataan yang paling tepat tentang isMocked adalah...",
+      "options": [
+        "isMocked menjamin 100% tidak ada kecurangan lokasi sehingga server tidak perlu memvalidasi",
+        "isMocked selalu true di emulator",
+        "isMocked membantu mendeteksi lokasi dari aplikasi pemalsu (Android) atau lokasi tersimulasi (iOS 15+), tetapi bisa diakali di perangkat yang dimodifikasi, sehingga validasi akhir tetap di server",
+        "isMocked hanya menandakan akurasi yang buruk"
+      ],
+      "correctIndex": 2,
+      "explanation": "isMocked adalah lapisan pertama pencegahan. Perangkat root atau termodifikasi dapat menyembunyikannya, jadi sistem presensi sungguhan menggabungkannya dengan validasi server dan bukti lain."
+    }
+  ]
+}

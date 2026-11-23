@@ -1,0 +1,125 @@
+<p class="lead">Package <code>permission_handler</code> adalah plugin paling populer untuk memeriksa dan meminta izin di Android dan iOS dengan satu API Dart. Sebelum menulis kode, konfigurasi platformnya harus beres dulu, karena hampir semua masalah izin berasal dari konfigurasi yang terlewat.</p>
+
+<h4>Langkah 1: pasang package</h4>
+<pre><code class="language-bash">flutter pub add permission_handler get
+</code></pre>
+<p>Package <code>get</code> ikut dipasang karena section 7 dan studi kasus memakai GetX (Modul 08).</p>
+
+<h4>Langkah 2: Android, <code>compileSdk</code></h4>
+<p>Versi terbaru <code>permission_handler</code> dikompilasi terhadap Android SDK yang lebih baru daripada nilai bawaan proyek Flutter. Jika <code>flutter run</code> gagal dengan pesan seperti di bawah, naikkan <code>compileSdk</code> sesuai angka yang diminta di pesan tersebut.</p>
+<pre><code class="language-text">Your project is configured to compile against Android SDK 36, but the following
+plugin(s) require to be compiled against a higher Android SDK version:
+- permission_handler_android compiles against Android SDK 37
+...
+Dependency ':permission_handler_android' requires libraries and applications that
+depend on it to compile against version 37 or later of the Android APIs.
+:app is currently compiled against android-36.
+</code></pre>
+<p class="code-file-label">📄 <code>android/app/build.gradle.kts</code> (potongan)</p>
+<pre><code class="language-kotlin">android {
+    namespace = "id.ac.kampus.contoh_hardware"
+    // Semula: compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
+    // ...
+    defaultConfig {
+        // minSdk dan targetSdk biarkan memakai nilai bawaan Flutter
+        minSdk = flutter.minSdkVersion
+        targetSdk = flutter.targetSdkVersion
+        // ...
+    }
+}
+</code></pre>
+<p>Pastikan SDK Platform versi tersebut sudah terpasang (Android Studio &rarr; SDK Manager &rarr; SDK Platforms). <code>compileSdk</code> hanya menentukan API yang boleh dipakai saat kompilasi; perilaku aplikasi di perangkat tetap ditentukan oleh <code>targetSdk</code>. Angka di pesan error bisa berbeda seiring rilis package, jadi selalu ikuti pesan error dan README package.</p>
+
+<h4>Langkah 3: Android, deklarasi izin di manifest</h4>
+<p>Tulis semua izin yang <em>mungkin</em> diminta aplikasi di manifest <strong>main</strong> (bukan debug), di luar tag <code>&lt;application&gt;</code>. Untuk studi kasus Pusat Izin, kita butuh kamera, lokasi, mikrofon, dan notifikasi.</p>
+<p class="code-file-label">📄 <code>android/app/src/main/AndroidManifest.xml</code> (potongan)</p>
+<pre><code class="language-text">&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+    &lt;!-- Izin normal: otomatis diberikan saat instal --&gt;
+    &lt;uses-permission android:name="android.permission.INTERNET" /&gt;
+
+    &lt;!-- Izin runtime (dangerous): tetap harus diminta saat aplikasi berjalan --&gt;
+    &lt;uses-permission android:name="android.permission.CAMERA" /&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" /&gt;
+    &lt;uses-permission android:name="android.permission.RECORD_AUDIO" /&gt;
+    &lt;!-- Android 13+ (API 33). Di versi lebih lama baris ini diabaikan --&gt;
+    &lt;uses-permission android:name="android.permission.POST_NOTIFICATIONS" /&gt;
+
+    &lt;!-- Kamera tidak wajib: aplikasi tetap bisa dipasang di perangkat tanpa kamera --&gt;
+    &lt;uses-feature android:name="android.hardware.camera" android:required="false" /&gt;
+
+    &lt;application
+        android:label="Aplikasi Kampus"
+        ...&gt;
+        ...
+    &lt;/application&gt;
+&lt;/manifest&gt;
+</code></pre>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Dart (<code>Permission.</code>)</th><th>Android manifest</th><th>iOS Info.plist</th></tr></thead>
+    <tbody>
+      <tr><td><code>camera</code></td><td><code>CAMERA</code></td><td><code>NSCameraUsageDescription</code></td></tr>
+      <tr><td><code>microphone</code></td><td><code>RECORD_AUDIO</code></td><td><code>NSMicrophoneUsageDescription</code></td></tr>
+      <tr><td><code>locationWhenInUse</code> / <code>location</code></td><td><code>ACCESS_FINE_LOCATION</code> + <code>ACCESS_COARSE_LOCATION</code></td><td><code>NSLocationWhenInUseUsageDescription</code></td></tr>
+      <tr><td><code>notification</code></td><td><code>POST_NOTIFICATIONS</code> (Android 13+)</td><td>Tidak perlu kunci</td></tr>
+      <tr><td><code>photos</code></td><td><code>READ_MEDIA_IMAGES</code> (Android 13+)</td><td><code>NSPhotoLibraryUsageDescription</code></td></tr>
+      <tr><td><code>bluetoothScan</code> / <code>bluetoothConnect</code></td><td><code>BLUETOOTH_SCAN</code> / <code>BLUETOOTH_CONNECT</code></td><td><code>NSBluetoothAlwaysUsageDescription</code> (pakai <code>Permission.bluetooth</code>)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Langkah 4: iOS, kalimat alasan di Info.plist</h4>
+<p class="code-file-label">📄 <code>ios/Runner/Info.plist</code> (potongan, di dalam <code>&lt;dict&gt;</code> utama)</p>
+<pre><code class="language-text">&lt;key&gt;NSCameraUsageDescription&lt;/key&gt;
+&lt;string&gt;Kamera dipakai untuk memindai QR presensi dan memotret bukti kegiatan.&lt;/string&gt;
+&lt;key&gt;NSLocationWhenInUseUsageDescription&lt;/key&gt;
+&lt;string&gt;Lokasi dipakai untuk memastikan kamu berada di area kampus saat presensi.&lt;/string&gt;
+&lt;key&gt;NSMicrophoneUsageDescription&lt;/key&gt;
+&lt;string&gt;Mikrofon dipakai untuk merekam catatan suara saat perkuliahan.&lt;/string&gt;
+</code></pre>
+<p>Tulis kalimat yang jujur dan spesifik: <em>untuk apa</em> data itu dipakai. Kalimat umum seperti "Aplikasi butuh kamera" sering menjadi alasan penolakan review App Store.</p>
+
+<h4>Langkah 5: iOS, mengaktifkan izin di plugin</h4>
+<p>Agar aplikasi tidak membawa kode izin yang tidak dipakai (yang bisa memicu penolakan App Store), <code>permission_handler</code> hanya mengaktifkan izin yang kamu pilih. Caranya bergantung pada sistem dependensi iOS proyekmu:</p>
+<ul>
+  <li><strong>Swift Package Manager</strong> (bawaan proyek Flutter baru; folder <code>ios/</code> tidak berisi <code>Podfile</code>): izin otomatis diaktifkan berdasarkan kunci yang ada di <code>Info.plist</code>. Jadi Langkah 4 sudah cukup. Izin notifikasi aktif secara bawaan. Setelah menambah kunci baru, hapus cache Xcode sekali (<code>rm -rf ~/Library/Developer/Xcode/DerivedData</code>) lalu build ulang.</li>
+  <li><strong>CocoaPods</strong> (proyek lama yang punya <code>ios/Podfile</code>): aktifkan lewat <em>macro</em> di blok <code>post_install</code>. Izin yang tidak ditulis bernilai 0 (nonaktif).</li>
+</ul>
+<p class="code-file-label">📄 <code>ios/Podfile</code> (potongan, hanya untuk proyek CocoaPods)</p>
+<pre><code class="language-text">post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+
+    target.build_configurations.each do |config|
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+        '$(inherited)',
+
+        ## dart: PermissionGroup.camera
+        'PERMISSION_CAMERA=1',
+
+        ## dart: PermissionGroup.microphone
+        'PERMISSION_MICROPHONE=1',
+
+        ## dart: PermissionGroup.locationWhenInUse
+        ## (cukup macro ini jika tidak butuh lokasi "always")
+        'PERMISSION_LOCATION_WHENINUSE=1',
+
+        ## dart: PermissionGroup.notification
+        'PERMISSION_NOTIFICATIONS=1',
+      ]
+    end
+  end
+end
+</code></pre>
+<p>Setelah mengubah Podfile, jalankan <code>flutter clean</code> lalu build ulang. Daftar lengkap macro dan kunci <code>Info.plist</code> ada di README <code>permission_handler</code> bagian <em>Setup</em>.</p>
+
+<div class="callout callout-tip"><h4>💡 Satu sumber kebenaran</h4><p>Buat tabel kecil di README proyekmu: fitur &rarr; izin Android &rarr; kunci iOS &rarr; macro Podfile. Setiap kali menambah fitur hardware, isi satu baris. Cara sederhana ini mencegah lupa salah satu dari tiga tempat tersebut.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li>Menulis <code>&lt;uses-permission&gt;</code> di dalam <code>&lt;application&gt;</code> atau di manifest <code>debug</code>. Izin harus di manifest <code>main</code>, sebagai anak langsung <code>&lt;manifest&gt;</code>.</li>
+<li>Mengubah manifest, <code>Info.plist</code>, atau Podfile lalu hanya hot reload. Perubahan native butuh build ulang (stop lalu <code>flutter run</code>).</li>
+<li>Di iOS (CocoaPods) semua status izin selalu <code>denied</code> walau dialog tidak pernah muncul: macro izinnya belum diaktifkan di Podfile.</li>
+</ul></div>

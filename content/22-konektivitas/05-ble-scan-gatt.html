@@ -1,0 +1,282 @@
+<p class="lead">Dengan izin dan adapter siap, alur kerja BLE selalu sama: <strong>scan</strong> &rarr; pilih perangkat &rarr; <strong>connect</strong> &rarr; <strong>discoverServices</strong> &rarr; <strong>read / write / notify</strong> characteristic &rarr; <strong>disconnect</strong>. Di section ini kita mencoba setiap langkah, mulai dari layar scan sederhana.</p>
+
+<h4>Scan: menemukan perangkat di sekitar</h4>
+<pre><code class="language-dart">// Hasil scan (daftar lengkap, diperbarui terus selama scan)
+final hasilSub = FlutterBluePlus.scanResults.listen((hasil) {
+  for (final r in hasil) {
+    debugPrint(
+      '${r.device.remoteId} "${r.advertisementData.advName}" ${r.rssi}',
+    );
+  }
+});
+
+// Apakah sedang scan? (untuk menampilkan progress bar)
+final scanningSub = FlutterBluePlus.isScanning.listen((sedang) {
+  debugPrint('Sedang scan: $sedang');
+});
+
+// Mulai scan selama 10 detik, lalu berhenti sendiri
+await FlutterBluePlus.startScan(timeout: const Duration(seconds: 10));
+
+// Atau berhenti lebih awal
+await FlutterBluePlus.stopScan();
+
+// Saat halaman/controller ditutup
+await hasilSub.cancel();
+await scanningSub.cancel();
+</code></pre>
+<p>Setiap <code>ScanResult</code> berisi:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Field</th><th>Isi</th></tr></thead>
+    <tbody>
+      <tr><td><code>device.remoteId</code></td><td>Identitas perangkat. Di Android berupa alamat MAC, di iOS berupa UUID acak yang berbeda di setiap HP.</td></tr>
+      <tr><td><code>advertisementData.advName</code></td><td>Nama yang disiarkan perangkat. Bisa kosong, karena tidak semua perangkat menyiarkan nama.</td></tr>
+      <tr><td><code>rssi</code></td><td>Kekuatan sinyal dalam dBm, selalu negatif. -50 berarti sangat dekat, -90 berarti jauh. Nilainya naik-turun karena pantulan dan halangan, jadi hanya perkiraan kasar jarak.</td></tr>
+      <tr><td><code>advertisementData.connectable</code></td><td><code>false</code> untuk perangkat yang hanya menyiarkan (misalnya beacon). Perangkat seperti ini tidak bisa di-connect.</td></tr>
+      <tr><td><code>advertisementData.serviceUuids</code></td><td>Daftar service yang diiklankan. Bisa dipakai untuk menyaring scan dengan <code>startScan(withServices: [Guid('180F')])</code>.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-info"><h4>ℹ️ <code>scanResults</code> atau <code>onScanResults</code>?</h4><p><code>scanResults</code> langsung memancarkan hasil scan terakhir saat didengarkan, jadi cocok untuk layar daftar yang bisa dibuka-tutup. <code>onScanResults</code> hanya memancarkan hasil dari scan yang sedang berjalan, cocok untuk logika "tunggu sampai perangkat X ditemukan". Di modul ini kita memakai <code>scanResults</code>.</p></div>
+
+<h4>Contoh lengkap: layar scan</h4>
+<p>Pasang izin dan konfigurasi dari bagian 4 terlebih dahulu. Supaya contoh tetap pendek, izin di contoh ini diberikan manual: buka Setelan &rarr; Aplikasi &rarr; nama aplikasi &rarr; Izin &rarr; Perangkat di sekitar &rarr; Izinkan. Studi kasus di bagian 7 sudah meminta izin secara otomatis.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const ScanPage(),
+    );
+  }
+}
+
+class ScanPage extends StatefulWidget {
+  const ScanPage({super.key});
+
+  @override
+  State&lt;ScanPage&gt; createState() =&gt; _ScanPageState();
+}
+
+class _ScanPageState extends State&lt;ScanPage&gt; {
+  StreamSubscription&lt;BluetoothAdapterState&gt;? _adapterSub;
+  StreamSubscription&lt;List&lt;ScanResult&gt;&gt;? _hasilSub;
+  StreamSubscription&lt;bool&gt;? _scanningSub;
+
+  BluetoothAdapterState _adapter = BluetoothAdapterState.unknown;
+  List&lt;ScanResult&gt; _hasil = [];
+  bool _sedangScan = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _adapterSub = FlutterBluePlus.adapterState.listen((state) {
+      if (mounted) setState(() =&gt; _adapter = state);
+    });
+    _hasilSub = FlutterBluePlus.scanResults.listen((daftar) {
+      // Urutkan dari sinyal terkuat (RSSI paling besar)
+      final urut = [...daftar]..sort((a, b) =&gt; b.rssi.compareTo(a.rssi));
+      if (mounted) setState(() =&gt; _hasil = urut);
+    });
+    _scanningSub = FlutterBluePlus.isScanning.listen((nilai) {
+      if (mounted) setState(() =&gt; _sedangScan = nilai);
+    });
+  }
+
+  Future&lt;void&gt; _mulaiScan() async {
+    // Ingat: izin sudah harus diminta sebelum baris ini (lihat bagian 4)
+    try {
+      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 10));
+    } on FlutterBluePlusException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal scan: ${e.description}')));
+    }
+  }
+
+  @override
+  void dispose() {
+    _adapterSub?.cancel();
+    _hasilSub?.cancel();
+    _scanningSub?.cancel();
+    FlutterBluePlus.stopScan();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final adapterNyala = _adapter == BluetoothAdapterState.on;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Scan BLE')),
+      body: Column(
+        children: [
+          if (!adapterNyala)
+            MaterialBanner(
+              content: Text('Bluetooth belum aktif (status: ${_adapter.name})'),
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    try {
+                      await FlutterBluePlus.turnOn(); // Android saja
+                    } on FlutterBluePlusException {
+                      // pengguna menolak atau platform tidak mendukung
+                    }
+                  },
+                  child: const Text('Nyalakan'),
+                ),
+              ],
+            ),
+          if (_sedangScan) const LinearProgressIndicator(),
+          Expanded(
+            child: _hasil.isEmpty
+                ? const Center(child: Text('Belum ada perangkat ditemukan'))
+                : ListView.builder(
+                    itemCount: _hasil.length,
+                    itemBuilder: (context, i) {
+                      final r = _hasil[i];
+                      final nama = r.advertisementData.advName.isNotEmpty
+                          ? r.advertisementData.advName
+                          : '(tanpa nama)';
+                      return ListTile(
+                        leading: const Icon(Icons.bluetooth),
+                        title: Text(nama),
+                        subtitle: Text(r.device.remoteId.str),
+                        trailing: Text('${r.rssi} dBm'),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: adapterNyala &amp;&amp; !_sedangScan ? _mulaiScan : null,
+        icon: const Icon(Icons.radar),
+        label: Text(_sedangScan ? 'Memindai...' : 'Scan 10 detik'),
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li><strong>Tiga stream, tiga subscription</strong>, semuanya dibatalkan di <code>dispose()</code>. <code>stopScan()</code> juga dipanggil agar scan tidak berjalan terus setelah halaman ditutup.</li>
+  <li><strong><code>timeout: const Duration(seconds: 10)</code></strong>: scan menguras baterai dan Android membatasi aplikasi memanggil <code>startScan</code> paling banyak 5 kali per 30 detik. Selalu beri batas waktu dan jangan memanggil scan berulang dalam loop.</li>
+  <li><strong>Hasil diurutkan berdasarkan RSSI</strong> agar perangkat terdekat muncul paling atas. Di lab yang penuh perangkat, ini sangat membantu.</li>
+  <li><strong><code>MaterialBanner</code></strong> muncul jika adapter tidak <code>on</code>, dengan tombol yang memanggil <code>turnOn()</code>.</li>
+</ul>
+
+<h4>Connect, discover, read, write, notify, disconnect</h4>
+<p>Potongan berikut memperlihatkan setiap operasi GATT pada sebuah <code>BluetoothDevice</code> (misalnya <code>hasil.device</code> dari scan). Contoh characteristic yang dipakai adalah <strong>Battery Level</strong> (UUID <code>2A19</code>) di dalam <strong>Battery Service</strong> (<code>180F</code>), karena keduanya standar resmi Bluetooth SIG dan mudah disimulasikan.</p>
+<pre><code class="language-dart">import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+
+final Guid uuidBatteryService = Guid('180F');
+final Guid uuidBatteryLevel = Guid('2A19');
+
+Future&lt;void&gt; contohGatt(BluetoothDevice device) async {
+  // 1. Pantau status koneksi
+  final StreamSubscription&lt;BluetoothConnectionState&gt; koneksiSub = device
+      .connectionState
+      .listen((state) {
+        debugPrint('Koneksi ${device.remoteId}: $state');
+      });
+  device.cancelWhenDisconnected(koneksiSub, delayed: true, next: true);
+
+  // 2. Hubungkan (license wajib diisi sejak flutter_blue_plus 2.x)
+  await FlutterBluePlus.stopScan(); // hentikan scan sebelum connect
+  await device.connect(
+    license: License.nonprofit,
+    timeout: const Duration(seconds: 15),
+  );
+
+  // 3. Cari semua service dan characteristic
+  final List&lt;BluetoothService&gt; services = await device.discoverServices();
+  for (final s in services) {
+    debugPrint('Service ${s.uuid}');
+    for (final c in s.characteristics) {
+      final p = c.properties;
+      debugPrint(
+        '  Char ${c.uuid} read=${p.read} write=${p.write} '
+        'notify=${p.notify}',
+      );
+    }
+  }
+
+  // 4. Cari characteristic Battery Level (0x2A19)
+  BluetoothCharacteristic? baterai;
+  for (final s in services) {
+    if (s.uuid != uuidBatteryService) continue;
+    for (final c in s.characteristics) {
+      if (c.uuid == uuidBatteryLevel) baterai = c;
+    }
+  }
+  if (baterai == null) {
+    debugPrint('Perangkat tidak punya Battery Service');
+  } else {
+    // 5. READ: hasilnya List&lt;int&gt; (byte). Battery level = 1 byte 0..100
+    final List&lt;int&gt; nilai = await baterai.read();
+    debugPrint('Baterai: ${nilai.isEmpty ? '-' : nilai.first}%');
+
+    // 6. NOTIFY: berlangganan perubahan nilai
+    if (baterai.properties.notify) {
+      final StreamSubscription&lt;List&lt;int&gt;&gt; notifSub = baterai.onValueReceived
+          .listen((v) {
+            debugPrint('Notifikasi baterai: ${v.first}%');
+          });
+      device.cancelWhenDisconnected(notifSub); // dibatalkan otomatis
+      await baterai.setNotifyValue(true);
+    }
+  }
+}
+
+Future&lt;void&gt; contohTulis(BluetoothCharacteristic c) async {
+  // 7. WRITE: kirim byte. Cek dulu properti characteristic-nya.
+  if (c.properties.write) {
+    await c.write([0x01]); // dengan response (dikonfirmasi peripheral)
+  } else if (c.properties.writeWithoutResponse) {
+    await c.write([0x01], withoutResponse: true); // lebih cepat, tanpa ack
+  }
+}
+
+Future&lt;void&gt; contohPutus(BluetoothDevice device) async {
+  // 8. Putuskan koneksi saat selesai (hemat baterai kedua perangkat)
+  await device.disconnect();
+}
+</code></pre>
+
+<h4>Penjelasan langkah demi langkah</h4>
+<ol>
+  <li><strong><code>connectionState</code></strong> memberi tahu saat perangkat terputus (keluar jangkauan, baterai habis, atau dimatikan). <code>cancelWhenDisconnected(sub, delayed: true, next: true)</code> adalah bantuan dari package: subscription dibatalkan otomatis pada pemutusan berikutnya, sehingga tidak terjadi listener ganda saat menyambung ulang.</li>
+  <li><strong><code>connect(license: License.nonprofit, timeout: ...)</code></strong>. Hentikan scan sebelum connect, karena sebagian HP gagal connect saat masih scan. Secara default package juga meminta MTU besar (512) setelah terhubung di Android, sehingga paket data bisa lebih panjang dari 20 byte.</li>
+  <li><strong><code>discoverServices()</code></strong> wajib dipanggil setelah <em>setiap</em> connect. Sebelum itu, daftar service kosong. Setelah dipanggil, hasilnya juga tersedia lewat <code>device.servicesList</code>.</li>
+  <li><strong>Membandingkan UUID</strong> dengan <code>Guid</code>: <code>Guid('2A19')</code> sama dengan <code>Guid('00002a19-0000-1000-8000-00805f9b34fb')</code>, jadi bentuk pendek aman dipakai. Jangan membandingkan <code>toString()</code> karena format huruf dan panjangnya bisa berbeda.</li>
+  <li><strong><code>read()</code></strong> mengembalikan <code>List&lt;int&gt;</code> berisi byte. Battery Level adalah 1 byte bernilai 0&ndash;100. Data lain perlu diterjemahkan sesuai spesifikasinya, misalnya suhu 2 byte <em>little-endian</em> dalam satuan 0,01&nbsp;&deg;C.</li>
+  <li><strong><code>onValueReceived</code> + <code>setNotifyValue(true)</code></strong>: pasang listener <em>dulu</em>, baru nyalakan notify, supaya nilai pertama tidak terlewat. Package menulis descriptor CCCD (0x2902) untuk kita.</li>
+  <li><strong><code>write()</code></strong>: periksa <code>properties</code> dulu. Menulis ke characteristic yang hanya READ akan gagal. <code>withoutResponse: true</code> lebih cepat tetapi tidak ada konfirmasi.</li>
+  <li><strong><code>disconnect()</code></strong> saat selesai. Koneksi BLE yang dibiarkan menggantung menguras baterai kedua perangkat dan membuat perangkat itu tidak bisa dihubungi HP lain (banyak peripheral hanya menerima satu koneksi).</li>
+</ol>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li><strong>Memanggil <code>read()</code> sebelum <code>discoverServices()</code></strong>: characteristic belum dikenal, muncul error. Setiap kali connect ulang, discover ulang.</li>
+<li><strong>Menyimpan objek <code>BluetoothCharacteristic</code> lama setelah reconnect</strong>: objek itu milik koneksi sebelumnya. Ambil ulang dari hasil <code>discoverServices()</code> yang baru.</li>
+<li><strong>Listener notify dipasang berkali-kali</strong> setiap kali tombol ditekan: nilai muncul dobel. Simpan subscription dan batalkan yang lama, atau pakai <code>cancelWhenDisconnected</code>.</li>
+<li><strong>Menganggap nama perangkat selalu ada</strong>: banyak perangkat tidak menyiarkan nama. Tampilkan <code>remoteId</code> sebagai cadangan.</li>
+</ul></div>

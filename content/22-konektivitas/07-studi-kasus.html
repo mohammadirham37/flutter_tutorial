@@ -1,0 +1,772 @@
+<p class="lead">Laboratorium jurusan punya beberapa sensor BLE (termometer ruang, papan ESP32 praktikum, gelang detak jantung). Asisten lab ingin aplikasi sederhana untuk <strong>memindai perangkat di sekitar</strong>, melihat kekuatan sinyalnya, <strong>menghubungkan</strong> salah satu perangkat, melihat daftar service dan characteristic-nya, dan <strong>membaca level baterai</strong> (characteristic 0x2A19) bila perangkat menyediakannya. Aplikasi juga menampilkan banner saat HP offline. Kita bangun dengan pola GetX MVC.</p>
+
+<h4>Fitur</h4>
+<ul>
+  <li>Meminta izin sesuai versi Android, dengan penanganan ditolak dan ditolak permanen (tombol ke Pengaturan).</li>
+  <li>Memantau status adapter Bluetooth dan menawarkan tombol "Nyalakan" (Android).</li>
+  <li>Scan 10 detik, daftar diurutkan dari sinyal terkuat, filter "hanya yang bernama".</li>
+  <li>Halaman detail: connect, discover services, baca baterai, berlangganan notify baterai, dan otomatis disconnect saat halaman ditutup.</li>
+  <li>Banner offline dari bagian 6.</li>
+</ul>
+
+<h4>Struktur folder</h4>
+<pre><code class="language-text">lib/
+├── main.dart
+├── models/
+│   └── perangkat_ble.dart              # PerangkatBle, LayananBle, KarakteristikBle
+├── services/
+│   ├── ble_service.dart                # satu-satunya yang menyentuh flutter_blue_plus
+│   ├── izin_bluetooth_service.dart     # permission_handler + device_info_plus
+│   └── connectivity_service.dart       # dari bagian 6 (tanpa perubahan)
+├── controllers/
+│   ├── ble_controller.dart             # scan + daftar perangkat
+│   ├── detail_perangkat_controller.dart# koneksi satu perangkat
+│   └── network_controller.dart         # dari bagian 6 (tanpa perubahan)
+├── views/
+│   ├── pemindai_view.dart
+│   └── detail_perangkat_view.dart
+└── widgets/
+    └── banner_offline.dart             # dari bagian 6 (tanpa perubahan)
+</code></pre>
+
+<h4>Persiapan proyek</h4>
+<pre><code class="language-bash">flutter create --org id.ac.kampus pemindai_lab
+cd pemindai_lab
+flutter pub add flutter_blue_plus
+flutter pub add get permission_handler device_info_plus connectivity_plus
+</code></pre>
+<p>Salin konfigurasi <code>AndroidManifest.xml</code> dan <code>Info.plist</code> dari bagian 4. Salin juga tiga file jaringan dari bagian 6 (<code>connectivity_service.dart</code>, <code>network_controller.dart</code>, <code>banner_offline.dart</code>) tanpa perubahan.</p>
+
+<h4>Model</h4>
+<p class="code-file-label">📄 <code>lib/models/perangkat_ble.dart</code></p>
+<pre><code class="language-dart">/// Perangkat hasil scan. Model murni, tidak bergantung pada plugin.
+class PerangkatBle {
+  const PerangkatBle({
+    required this.id,
+    required this.nama,
+    required this.rssi,
+    required this.bisaDihubungkan,
+  });
+
+  final String id; // MAC (Android) atau UUID acak (iOS)
+  final String nama;
+  final int rssi; // dBm, makin mendekati 0 makin dekat
+  final bool bisaDihubungkan;
+
+  bool get punyaNama =&gt; nama.isNotEmpty;
+
+  /// Perkiraan kasar kekuatan sinyal untuk ditampilkan ke pengguna.
+  String get labelSinyal {
+    if (rssi &gt;= -60) return 'Sangat dekat';
+    if (rssi &gt;= -75) return 'Dekat';
+    if (rssi &gt;= -90) return 'Jauh';
+    return 'Sangat jauh';
+  }
+}
+
+class KarakteristikBle {
+  const KarakteristikBle({
+    required this.uuid,
+    required this.bisaBaca,
+    required this.bisaTulis,
+    required this.bisaNotify,
+  });
+
+  final String uuid;
+  final bool bisaBaca;
+  final bool bisaTulis;
+  final bool bisaNotify;
+}
+
+class LayananBle {
+  const LayananBle({required this.uuid, required this.karakteristik});
+
+  final String uuid;
+  final List&lt;KarakteristikBle&gt; karakteristik;
+}
+</code></pre>
+<p>Model tidak mengimpor <code>flutter_blue_plus</code>. Controller dan View hanya mengenal <code>PerangkatBle</code>, sehingga jika suatu saat package BLE diganti (misalnya karena alasan lisensi), yang diubah cukup <code>BleService</code>.</p>
+
+<h4>Service izin</h4>
+<p class="code-file-label">📄 <code>lib/services/izin_bluetooth_service.dart</code></p>
+<pre><code class="language-dart">import 'dart:io';
+
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+enum HasilIzin { diberikan, ditolak, ditolakPermanen }
+
+class IzinBluetoothService {
+  Future&lt;HasilIzin&gt; minta() async {
+    // iOS: dialog izin muncul otomatis, status ditolak terbaca dari adapterState
+    if (!Platform.isAndroid) return HasilIzin.diberikan;
+
+    final android = await DeviceInfoPlugin().androidInfo;
+    final daftarIzin = android.version.sdkInt &gt;= 31
+        ? [Permission.bluetoothScan, Permission.bluetoothConnect]
+        : [Permission.locationWhenInUse];
+
+    final hasil = await daftarIzin.request();
+    final semuaStatus = hasil.values;
+    if (semuaStatus.every((s) =&gt; s.isGranted)) return HasilIzin.diberikan;
+    if (semuaStatus.any((s) =&gt; s.isPermanentlyDenied)) {
+      return HasilIzin.ditolakPermanen;
+    }
+    return HasilIzin.ditolak;
+  }
+
+  Future&lt;bool&gt; bukaPengaturan() =&gt; openAppSettings();
+}
+</code></pre>
+
+<h4>Service BLE</h4>
+<p class="code-file-label">📄 <code>lib/services/ble_service.dart</code></p>
+<pre><code class="language-dart">import 'dart:io';
+
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+
+import '../models/perangkat_ble.dart';
+
+enum StatusAdapter { nyala, mati, tidakDiizinkan, tidakTersedia, menunggu }
+
+/// Satu-satunya kelas yang menyentuh flutter_blue_plus.
+class BleService {
+  static final Guid _batteryService = Guid('180F');
+  static final Guid _batteryLevel = Guid('2A19');
+
+  Future&lt;bool&gt; get didukung =&gt; FlutterBluePlus.isSupported;
+
+  Stream&lt;StatusAdapter&gt; get statusAdapter =&gt; FlutterBluePlus.adapterState.map(
+    (s) =&gt; switch (s) {
+      BluetoothAdapterState.on =&gt; StatusAdapter.nyala,
+      BluetoothAdapterState.off ||
+      BluetoothAdapterState.turningOff =&gt; StatusAdapter.mati,
+      BluetoothAdapterState.unauthorized =&gt; StatusAdapter.tidakDiizinkan,
+      BluetoothAdapterState.unavailable =&gt; StatusAdapter.tidakTersedia,
+      BluetoothAdapterState.unknown ||
+      BluetoothAdapterState.turningOn =&gt; StatusAdapter.menunggu,
+    },
+  );
+
+  /// Hanya Android. Di iOS pengguna harus menyalakan sendiri.
+  Future&lt;void&gt; nyalakan() async {
+    if (Platform.isAndroid) await FlutterBluePlus.turnOn();
+  }
+
+  Stream&lt;bool&gt; get sedangScan =&gt; FlutterBluePlus.isScanning;
+
+  Stream&lt;List&lt;PerangkatBle&gt;&gt; get hasilScan =&gt; FlutterBluePlus.scanResults.map(
+    (daftar) =&gt; daftar
+        .map(
+          (r) =&gt; PerangkatBle(
+            id: r.device.remoteId.str,
+            nama: r.advertisementData.advName.isNotEmpty
+                ? r.advertisementData.advName
+                : r.device.platformName,
+            rssi: r.rssi,
+            bisaDihubungkan: r.advertisementData.connectable,
+          ),
+        )
+        .toList(),
+  );
+
+  Future&lt;void&gt; mulaiScan(Duration durasi) =&gt;
+      FlutterBluePlus.startScan(timeout: durasi);
+
+  Future&lt;void&gt; hentikanScan() =&gt; FlutterBluePlus.stopScan();
+
+  Stream&lt;bool&gt; terhubung(String id) =&gt;
+      BluetoothDevice.fromId(id).connectionState
+          .map((s) =&gt; s == BluetoothConnectionState.connected);
+
+  Future&lt;void&gt; hubungkan(String id) async {
+    await FlutterBluePlus.stopScan();
+    await BluetoothDevice.fromId(id).connect(
+      license: License.nonprofit, // penggunaan pendidikan (lihat bagian 4)
+      timeout: const Duration(seconds: 15),
+    );
+  }
+
+  Future&lt;List&lt;LayananBle&gt;&gt; jelajahi(String id) async {
+    final services = await BluetoothDevice.fromId(id).discoverServices();
+    return services
+        .map(
+          (s) =&gt; LayananBle(
+            uuid: s.uuid.str,
+            karakteristik: s.characteristics
+                .map(
+                  (c) =&gt; KarakteristikBle(
+                    uuid: c.uuid.str,
+                    bisaBaca: c.properties.read,
+                    bisaTulis:
+                        c.properties.write || c.properties.writeWithoutResponse,
+                    bisaNotify: c.properties.notify || c.properties.indicate,
+                  ),
+                )
+                .toList(),
+          ),
+        )
+        .toList();
+  }
+
+  /// Characteristic Battery Level, atau null jika perangkat tidak punya.
+  /// Harus dipanggil setelah [jelajahi].
+  BluetoothCharacteristic? _karakteristikBaterai(String id) {
+    for (final s in BluetoothDevice.fromId(id).servicesList) {
+      if (s.uuid != _batteryService) continue;
+      for (final c in s.characteristics) {
+        if (c.uuid == _batteryLevel) return c;
+      }
+    }
+    return null;
+  }
+
+  bool punyaBaterai(String id) =&gt; _karakteristikBaterai(id) != null;
+
+  Future&lt;int?&gt; bacaBaterai(String id) async {
+    final c = _karakteristikBaterai(id);
+    if (c == null || !c.properties.read) return null;
+    final nilai = await c.read();
+    return nilai.isEmpty ? null : nilai.first; // 1 byte: 0..100
+  }
+
+  /// Stream persen baterai dari notifikasi, atau null jika tidak didukung.
+  Future&lt;Stream&lt;int&gt;?&gt; pantauBaterai(String id) async {
+    final c = _karakteristikBaterai(id);
+    if (c == null || !c.properties.notify) return null;
+    await c.setNotifyValue(true);
+    return c.onValueReceived.where((v) =&gt; v.isNotEmpty).map((v) =&gt; v.first);
+  }
+
+  Future&lt;void&gt; putuskan(String id) =&gt; BluetoothDevice.fromId(id).disconnect();
+}
+</code></pre>
+<ul>
+  <li><strong><code>StatusAdapter</code></strong> menerjemahkan tujuh nilai <code>BluetoothAdapterState</code> menjadi lima keadaan yang relevan bagi UI. <code>switch</code> expression tanpa <code>default</code> memaksa semua nilai ditangani.</li>
+  <li><strong><code>BluetoothDevice.fromId(id)</code></strong> membuat objek perangkat dari <code>remoteId</code>. Service cukup menyimpan id (<code>String</code>), bukan objek plugin.</li>
+  <li><strong><code>hasilScan</code></strong> memakai <code>advName</code>, atau <code>platformName</code> sebagai cadangan (nama yang diingat sistem, misalnya dari pairing sebelumnya).</li>
+  <li><strong><code>_karakteristikBaterai</code></strong> mencari di <code>servicesList</code>, yaitu hasil <code>discoverServices()</code> terakhir. Karena itu <code>jelajahi()</code> harus dipanggil lebih dulu.</li>
+  <li><strong><code>pantauBaterai</code></strong> mengembalikan <code>null</code> jika characteristic tidak mendukung notify. Banyak perangkat hanya mendukung READ untuk baterai.</li>
+</ul>
+
+<h4>Controller pemindai</h4>
+<p class="code-file-label">📄 <code>lib/controllers/ble_controller.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+
+import 'package:get/get.dart';
+
+import '../models/perangkat_ble.dart';
+import '../services/ble_service.dart';
+import '../services/izin_bluetooth_service.dart';
+
+class BleController extends GetxController {
+  BleController(this._ble, this._izin);
+
+  final BleService _ble;
+  final IzinBluetoothService _izin;
+
+  final _adapter = StatusAdapter.menunggu.obs;
+  final _sedangScan = false.obs;
+  final _hasil = &lt;PerangkatBle&gt;[].obs;
+  final _hanyaBernama = true.obs;
+  final _pesan = RxnString();
+  final _izinDitolakPermanen = false.obs;
+  final _didukung = true.obs;
+
+  StatusAdapter get adapter =&gt; _adapter.value;
+  bool get sedangScan =&gt; _sedangScan.value;
+  bool get hanyaBernama =&gt; _hanyaBernama.value;
+  String? get pesan =&gt; _pesan.value;
+  bool get izinDitolakPermanen =&gt; _izinDitolakPermanen.value;
+  bool get didukung =&gt; _didukung.value;
+
+  /// Daftar yang tampil: difilter lalu diurutkan dari sinyal terkuat.
+  List&lt;PerangkatBle&gt; get perangkat {
+    final daftar = _hasil
+        .where((p) =&gt; !_hanyaBernama.value || p.punyaNama)
+        .toList();
+    daftar.sort((a, b) =&gt; b.rssi.compareTo(a.rssi));
+    return daftar;
+  }
+
+  final List&lt;StreamSubscription&lt;dynamic&gt;&gt; _subs = [];
+
+  @override
+  void onInit() {
+    super.onInit();
+    _cekDukungan();
+    _subs.add(_ble.statusAdapter.listen((s) =&gt; _adapter.value = s));
+    _subs.add(_ble.sedangScan.listen((s) =&gt; _sedangScan.value = s));
+    _subs.add(_ble.hasilScan.listen(_hasil.assignAll));
+  }
+
+  Future&lt;void&gt; _cekDukungan() async {
+    _didukung.value = await _ble.didukung;
+    if (!_didukung.value) {
+      _pesan.value =
+          'HP ini tidak mendukung Bluetooth LE. '
+          'Emulator juga tidak punya Bluetooth: pakai HP fisik.';
+    }
+  }
+
+  void setHanyaBernama(bool nilai) =&gt; _hanyaBernama.value = nilai;
+
+  Future&lt;void&gt; mulaiScan() async {
+    _pesan.value = null;
+    _izinDitolakPermanen.value = false;
+
+    // 1. Izin
+    final izin = await _izin.minta();
+    if (izin == HasilIzin.ditolakPermanen) {
+      _izinDitolakPermanen.value = true;
+      _pesan.value =
+          'Izin Perangkat di sekitar ditolak permanen. '
+          'Aktifkan lewat pengaturan aplikasi.';
+      return;
+    }
+    if (izin == HasilIzin.ditolak) {
+      _pesan.value = 'Izin dibutuhkan untuk memindai perangkat di lab.';
+      return;
+    }
+
+    // 2. Adapter harus menyala
+    if (_adapter.value != StatusAdapter.nyala) {
+      _pesan.value = 'Nyalakan Bluetooth terlebih dahulu.';
+      return;
+    }
+
+    // 3. Scan dengan batas waktu agar baterai tidak terkuras
+    try {
+      await _ble.mulaiScan(const Duration(seconds: 10));
+    } catch (e) {
+      _pesan.value = 'Gagal memulai scan: $e';
+    }
+  }
+
+  Future&lt;void&gt; hentikanScan() =&gt; _ble.hentikanScan();
+
+  Future&lt;void&gt; nyalakanBluetooth() async {
+    try {
+      await _ble.nyalakan();
+    } catch (_) {
+      _pesan.value = 'Bluetooth tidak dinyalakan.';
+    }
+  }
+
+  Future&lt;void&gt; bukaPengaturan() =&gt; _izin.bukaPengaturan();
+
+  @override
+  void onClose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    _ble.hentikanScan();
+    super.onClose();
+  }
+}
+</code></pre>
+<ul>
+  <li><strong>Urutan di <code>mulaiScan()</code></strong>: izin &rarr; adapter &rarr; scan. Setiap kegagalan menghasilkan pesan yang jelas, bukan scan yang diam-diam tidak menemukan apa-apa.</li>
+  <li><strong><code>_subs</code></strong> mengumpulkan tiga <code>StreamSubscription</code> agar mudah dibatalkan bersamaan di <code>onClose()</code>.</li>
+  <li><strong><code>perangkat</code></strong> adalah getter turunan: filter dan urutan dihitung dari <code>_hasil</code> dan <code>_hanyaBernama</code>. <code>Obx</code> yang membacanya otomatis dibangun ulang saat salah satu berubah.</li>
+  <li>Controller tidak mengimpor <code>material.dart</code> maupun <code>flutter_blue_plus</code>.</li>
+</ul>
+
+<h4>Controller detail perangkat</h4>
+<p class="code-file-label">📄 <code>lib/controllers/detail_perangkat_controller.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+
+import 'package:get/get.dart';
+
+import '../models/perangkat_ble.dart';
+import '../services/ble_service.dart';
+
+enum StatusKoneksi { menghubungkan, terhubung, terputus, gagal }
+
+class DetailPerangkatController extends GetxController {
+  DetailPerangkatController(this._ble, this.perangkat);
+
+  final BleService _ble;
+  final PerangkatBle perangkat;
+
+  final _status = StatusKoneksi.menghubungkan.obs;
+  final _layanan = &lt;LayananBle&gt;[].obs;
+  final _baterai = RxnInt();
+  final _punyaBaterai = false.obs;
+  final _pesan = RxnString();
+
+  StatusKoneksi get status =&gt; _status.value;
+  List&lt;LayananBle&gt; get layanan =&gt; _layanan;
+  int? get baterai =&gt; _baterai.value;
+  bool get punyaBaterai =&gt; _punyaBaterai.value;
+  String? get pesan =&gt; _pesan.value;
+
+  StreamSubscription&lt;bool&gt;? _koneksiSub;
+  StreamSubscription&lt;int&gt;? _bateraiSub;
+
+  @override
+  void onInit() {
+    super.onInit();
+    _koneksiSub = _ble.terhubung(perangkat.id).listen((ya) {
+      if (!ya &amp;&amp; _status.value == StatusKoneksi.terhubung) {
+        _status.value = StatusKoneksi.terputus;
+        _bateraiSub?.cancel();
+      }
+    });
+    hubungkan();
+  }
+
+  Future&lt;void&gt; hubungkan() async {
+    _status.value = StatusKoneksi.menghubungkan;
+    _pesan.value = null;
+    try {
+      await _ble.hubungkan(perangkat.id);
+      _layanan.assignAll(await _ble.jelajahi(perangkat.id));
+      _status.value = StatusKoneksi.terhubung;
+      _punyaBaterai.value = _ble.punyaBaterai(perangkat.id);
+      if (_punyaBaterai.value) await _siapkanBaterai();
+    } catch (e) {
+      _status.value = StatusKoneksi.gagal;
+      _pesan.value = 'Gagal terhubung: $e';
+    }
+  }
+
+  Future&lt;void&gt; _siapkanBaterai() async {
+    _baterai.value = await _ble.bacaBaterai(perangkat.id);
+    final stream = await _ble.pantauBaterai(perangkat.id);
+    await _bateraiSub?.cancel();
+    _bateraiSub = stream?.listen((persen) =&gt; _baterai.value = persen);
+  }
+
+  Future&lt;void&gt; bacaUlangBaterai() async {
+    try {
+      _baterai.value = await _ble.bacaBaterai(perangkat.id);
+    } catch (e) {
+      _pesan.value = 'Gagal membaca baterai: $e';
+    }
+  }
+
+  @override
+  void onClose() {
+    _koneksiSub?.cancel();
+    _bateraiSub?.cancel();
+    _ble.putuskan(perangkat.id); // selalu putuskan saat halaman ditutup
+    super.onClose();
+  }
+}
+</code></pre>
+<ul>
+  <li><strong>Satu controller per halaman detail.</strong> Controller didaftarkan lewat <code>binding</code> saat <code>Get.to</code> (Modul 08), sehingga GetX menghapusnya saat halaman ditutup dan <code>onClose()</code> terpanggil. Di sanalah <code>putuskan()</code> dijalankan. Pengguna tidak perlu menekan tombol disconnect, dan koneksi tidak tertinggal.</li>
+  <li><strong><code>_koneksiSub</code></strong> mendeteksi perangkat yang terputus sendiri (keluar jangkauan, dimatikan) dan mengubah status menjadi <code>terputus</code>, sehingga View menampilkan tombol "Hubungkan lagi".</li>
+  <li><strong><code>_siapkanBaterai()</code></strong> membaca sekali (agar langsung tampil), lalu berlangganan notify bila didukung. Subscription lama dibatalkan dulu agar tidak dobel saat menyambung ulang.</li>
+</ul>
+
+<h4>View pemindai</h4>
+<p class="code-file-label">📄 <code>lib/views/pemindai_view.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/ble_controller.dart';
+import '../controllers/detail_perangkat_controller.dart';
+import '../models/perangkat_ble.dart';
+import '../services/ble_service.dart';
+import '../widgets/banner_offline.dart';
+import 'detail_perangkat_view.dart';
+
+class PemindaiView extends GetView&lt;BleController&gt; {
+  const PemindaiView({super.key});
+
+  void _buka(PerangkatBle p) {
+    Get.to(
+      () =&gt; const DetailPerangkatView(),
+      binding: BindingsBuilder(() {
+        Get.put(DetailPerangkatController(Get.find&lt;BleService&gt;(), p));
+      }),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Pemindai BLE Lab'),
+        actions: [
+          Obx(
+            () =&gt; Switch(
+              value: controller.hanyaBernama,
+              onChanged: controller.setHanyaBernama,
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: Center(child: Text('Bernama')),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          const BannerOffline(),
+          Obx(() =&gt; _bannerAdapter(context)),
+          Obx(() =&gt; _bannerPesan(context)),
+          Obx(
+            () =&gt; controller.sedangScan
+                ? const LinearProgressIndicator()
+                : const SizedBox(height: 4),
+          ),
+          Expanded(
+            child: Obx(() {
+              final daftar = controller.perangkat;
+              if (daftar.isEmpty) {
+                return const Center(
+                  child: Text('Tekan "Scan" untuk mencari perangkat di lab'),
+                );
+              }
+              return ListView.separated(
+                itemCount: daftar.length,
+                separatorBuilder: (_, _) =&gt; const Divider(height: 1),
+                itemBuilder: (context, i) =&gt; _ItemPerangkat(
+                  perangkat: daftar[i],
+                  onTap: daftar[i].bisaDihubungkan
+                      ? () =&gt; _buka(daftar[i])
+                      : null,
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+      floatingActionButton: Obx(
+        () =&gt; FloatingActionButton.extended(
+          onPressed: !controller.didukung
+              ? null
+              : controller.sedangScan
+              ? controller.hentikanScan
+              : controller.mulaiScan,
+          icon: Icon(controller.sedangScan ? Icons.stop : Icons.radar),
+          label: Text(controller.sedangScan ? 'Berhenti' : 'Scan'),
+        ),
+      ),
+    );
+  }
+
+  Widget _bannerAdapter(BuildContext context) {
+    if (controller.adapter == StatusAdapter.nyala) {
+      return const SizedBox.shrink();
+    }
+    final teks = switch (controller.adapter) {
+      StatusAdapter.mati =&gt; 'Bluetooth mati.',
+      StatusAdapter.tidakDiizinkan =&gt;
+        'Aplikasi belum diizinkan memakai Bluetooth.',
+      StatusAdapter.tidakTersedia =&gt;
+        'Bluetooth tidak tersedia di perangkat ini.',
+      _ =&gt; 'Memeriksa Bluetooth...',
+    };
+    return MaterialBanner(
+      leading: const Icon(Icons.bluetooth_disabled),
+      content: Text(teks),
+      actions: [
+        if (controller.adapter == StatusAdapter.mati)
+          TextButton(
+            onPressed: controller.nyalakanBluetooth,
+            child: const Text('Nyalakan'),
+          )
+        else
+          const SizedBox.shrink(),
+      ],
+    );
+  }
+
+  Widget _bannerPesan(BuildContext context) {
+    final pesan = controller.pesan;
+    if (pesan == null) return const SizedBox.shrink();
+    return ListTile(
+      leading: const Icon(Icons.info_outline),
+      title: Text(pesan),
+      trailing: controller.izinDitolakPermanen
+          ? TextButton(
+              onPressed: controller.bukaPengaturan,
+              child: const Text('Pengaturan'),
+            )
+          : null,
+    );
+  }
+}
+
+class _ItemPerangkat extends StatelessWidget {
+  const _ItemPerangkat({required this.perangkat, this.onTap});
+
+  final PerangkatBle perangkat;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    return ListTile(
+      enabled: onTap != null,
+      onTap: onTap,
+      leading: CircleAvatar(
+        backgroundColor: skema.primaryContainer,
+        child: const Icon(Icons.bluetooth),
+      ),
+      title: Text(perangkat.punyaNama ? perangkat.nama : '(tanpa nama)'),
+      subtitle: Text('${perangkat.id}\n${perangkat.labelSinyal}'),
+      isThreeLine: true,
+      trailing: Text(
+        '${perangkat.rssi} dBm',
+        style: Theme.of(context).textTheme.labelLarge,
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>View detail perangkat</h4>
+<p class="code-file-label">📄 <code>lib/views/detail_perangkat_view.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/detail_perangkat_controller.dart';
+
+class DetailPerangkatView extends GetView&lt;DetailPerangkatController&gt; {
+  const DetailPerangkatView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = controller.perangkat;
+    return Scaffold(
+      appBar: AppBar(title: Text(p.punyaNama ? p.nama : p.id)),
+      body: Obx(() {
+        switch (controller.status) {
+          case StatusKoneksi.menghubungkan:
+            return const Center(child: CircularProgressIndicator());
+          case StatusKoneksi.gagal:
+          case StatusKoneksi.terputus:
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.link_off, size: 64),
+                    const SizedBox(height: 8),
+                    Text(
+                      controller.pesan ?? 'Koneksi terputus.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: controller.hubungkan,
+                      child: const Text('Hubungkan lagi'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          case StatusKoneksi.terhubung:
+            return _isiTerhubung(context);
+        }
+      }),
+    );
+  }
+
+  Widget _isiTerhubung(BuildContext context) {
+    final teks = Theme.of(context).textTheme;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.battery_std),
+            title: const Text('Battery Level (0x2A19)'),
+            subtitle: Text(
+              !controller.punyaBaterai
+                  ? 'Perangkat tidak punya Battery Service (0x180F)'
+                  : controller.baterai == null
+                  ? 'Tidak terbaca'
+                  : '${controller.baterai}%',
+            ),
+            trailing: controller.punyaBaterai
+                ? IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: controller.bacaUlangBaterai,
+                  )
+                : null,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text('Service &amp; characteristic', style: teks.titleMedium),
+        for (final s in controller.layanan)
+          ExpansionTile(
+            title: Text('Service ${s.uuid}'),
+            children: [
+              for (final c in s.karakteristik)
+                ListTile(
+                  dense: true,
+                  title: Text(c.uuid),
+                  subtitle: Text(
+                    [
+                      if (c.bisaBaca) 'READ',
+                      if (c.bisaTulis) 'WRITE',
+                      if (c.bisaNotify) 'NOTIFY',
+                    ].join(' · '),
+                  ),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+</code></pre>
+
+<h4>main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'controllers/ble_controller.dart';
+import 'controllers/network_controller.dart';
+import 'services/ble_service.dart';
+import 'services/connectivity_service.dart';
+import 'services/izin_bluetooth_service.dart';
+import 'views/pemindai_view.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Service (lapisan paling bawah)
+  final bleService = Get.put(BleService(), permanent: true);
+
+  // Controller global
+  Get.put(NetworkController(ConnectivityService()), permanent: true);
+  Get.put(BleController(bleService, IzinBluetoothService()), permanent: true);
+
+  runApp(const PemindaiLabApp());
+}
+
+class PemindaiLabApp extends StatelessWidget {
+  const PemindaiLabApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      title: 'Pemindai BLE Lab',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const PemindaiView(),
+    );
+  }
+}
+</code></pre>
+<p><code>BleService</code> didaftarkan ke GetX dengan <code>Get.put</code> agar binding halaman detail bisa mengambilnya dengan <code>Get.find&lt;BleService&gt;()</code>. Semua dependensi dibuat dari lapisan bawah ke atas: service dulu, baru controller.</p>
+
+<h4>Alur uji di lab</h4>
+<ol>
+  <li>Jalankan di HP fisik dengan <code>flutter run</code>. Tekan <strong>Scan</strong>: dialog "Perangkat di sekitar" muncul. Pilih <em>Izinkan</em>.</li>
+  <li>Matikan Bluetooth dari panel cepat: banner "Bluetooth mati" muncul dengan tombol <em>Nyalakan</em>.</li>
+  <li>Siapkan HP kedua dengan nRF Connect sebagai peripheral yang punya Battery Service (lihat bagian 8). Perangkat tersebut muncul di daftar beserta RSSI-nya. Dekatkan dan jauhkan HP, lalu scan ulang untuk melihat RSSI berubah.</li>
+  <li>Ketuk perangkat: status "menghubungkan", lalu daftar service tampil dan kartu Battery Level menunjukkan persen. Ubah nilai baterai di nRF Connect: jika notify aktif, angka di aplikasi ikut berubah.</li>
+  <li>Tekan tombol kembali, lalu periksa di nRF Connect bahwa koneksi sudah terputus.</li>
+  <li>Tolak izin dua kali (atau pilih "Jangan izinkan" lalu ulangi): pesan ditolak permanen dan tombol <em>Pengaturan</em> muncul.</li>
+  <li>Nyalakan mode pesawat: banner offline muncul. Bluetooth bisa tetap dinyalakan saat mode pesawat, jadi scan masih berjalan. Ini bukti bahwa BLE tidak butuh internet.</li>
+</ol>

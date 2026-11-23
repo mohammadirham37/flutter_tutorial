@@ -1,0 +1,387 @@
+/* Gaya cetak BUKU (dipakai oleh tools/build-book.mjs, bukan oleh web).
+   Ukuran B5 (176 x 250 mm). Header, footer, dan nomor halaman ditambahkan
+   kemudian oleh build-book.mjs (PyMuPDF), jadi margin box @page sengaja kosong. */
+
+@font-face { font-family: "Jakarta"; src: url("../../book/fonts/PlusJakartaSans-Regular.ttf"); font-weight: 400; }
+@font-face { font-family: "Jakarta"; src: url("../../book/fonts/PlusJakartaSans-Italic.ttf"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Jakarta"; src: url("../../book/fonts/PlusJakartaSans-Medium.ttf"); font-weight: 500; }
+@font-face { font-family: "Jakarta"; src: url("../../book/fonts/PlusJakartaSans-SemiBold.ttf"); font-weight: 600; }
+@font-face { font-family: "Jakarta"; src: url("../../book/fonts/PlusJakartaSans-Bold.ttf"); font-weight: 700; }
+@font-face { font-family: "Jakarta"; src: url("../../book/fonts/PlusJakartaSans-ExtraBold.ttf"); font-weight: 800; }
+
+:root {
+  --ink: #18212f;
+  --muted: #5b6678;
+  --line: #dfe4ec;
+  --navy: #0b1d33;
+  --accent: #1565c0;
+  --accent-soft: #e8f1fc;
+  --serif: "Source Serif 4", "Source Serif Pro", Georgia, serif;
+  --sans: "Jakarta", "Plus Jakarta Sans", Inter, system-ui, sans-serif;
+  --mono: "JetBrains Mono", Menlo, monospace;
+}
+
+@page {
+  size: 176mm 250mm;
+  margin: 21mm 16mm 22mm 16mm;
+}
+@page :right { margin-left: 20mm; margin-right: 14mm; }
+@page :left  { margin-left: 14mm; margin-right: 20mm; }
+@page bleed  { margin: 0; }
+
+html, body.book { margin: 0; padding: 0; background: #fff; }
+body.book {
+  font-family: var(--serif);
+  font-size: 9.6pt;
+  line-height: 1.58;
+  color: var(--ink);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  hyphens: auto;
+  font-variant-ligatures: common-ligatures;
+}
+
+/* ---------- Tipografi umum ---------- */
+.book h1, .book h2, .book h3, .book h4, .book h5,
+.book .sans, .book th, .book .callout h4, .book .code-file-label { font-family: var(--sans); }
+.book p { margin: 0 0 6.5pt; text-align: justify; }
+.book p.lead { font-size: 10.6pt; line-height: 1.55; color: #2a3546; text-align: left; }
+.book ul { list-style: disc; padding-left: 15pt; margin: 0 0 7pt; }
+.book ol { list-style: decimal; padding-left: 16pt; margin: 0 0 7pt; }
+.book li { margin-bottom: 2.5pt; }
+.book li::marker { color: var(--accent); }
+.book a { color: var(--accent); text-decoration: none; }
+.book strong { font-weight: 650; color: #0f1724; }
+.book em { font-style: italic; }
+.book kbd {
+  font-family: var(--mono); font-size: 7.5pt; padding: 0 3pt; border: 0.6pt solid #b8c2d2;
+  border-bottom-width: 1.4pt; border-radius: 2.5pt; background: #f6f8fb;
+}
+.book hr { border: 0; border-top: 0.6pt solid var(--line); margin: 10pt 0; }
+
+/* Subjudul di dalam materi (h4 dari konten) */
+.book .content-body h3, .book .content-body h4, .book .fm h3 {
+  font-size: 10.6pt; font-weight: 700; color: var(--navy);
+  margin: 13pt 0 4pt; line-height: 1.3; break-after: avoid;
+}
+.book .content-body h5 { font-size: 9.6pt; font-weight: 700; margin: 9pt 0 4pt; break-after: avoid; }
+.book .content-body > :first-child { margin-top: 0; }
+
+/* Kode inline */
+.book :not(pre) > code {
+  font-family: var(--mono); font-size: 7.9pt; color: #0d3f7a;
+  background: #eef3fa; padding: 0.3pt 2.4pt; border-radius: 2pt;
+  hyphens: none; word-break: normal; overflow-wrap: anywhere;
+}
+
+/* ---------- Blok kode ---------- */
+.book pre, .book pre[class*="language-"] {
+  font-family: var(--mono) !important;
+  font-size: 7.35pt !important;
+  line-height: 1.5 !important;
+  white-space: pre-wrap !important;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: none;
+  background: #f7f7f5 !important;
+  color: #1f2937;
+  border: 0; border-top: 0.6pt solid #cfd3d8; border-bottom: 0.6pt solid #cfd3d8;
+  border-radius: 0;
+  padding: 6.5pt 8pt !important;
+  margin: 5pt 0 9pt !important;
+  text-align: left;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  tab-size: 2;
+}
+.book pre code, .book code[class*="language-"] {
+  font-family: var(--mono) !important; font-size: inherit !important;
+  white-space: pre-wrap !important; background: none !important; color: inherit;
+  padding: 0; text-shadow: none !important;
+}
+/* Tema sintaks yang ramah cetak */
+.book .token.comment, .book .token.prolog, .book .token.doctype { color: #6b7a90; font-style: italic; }
+.book .token.keyword, .book .token.builtin { color: #7c3aed; }
+.book .token.string, .book .token.char, .book .token.attr-value { color: #0f7b4c; }
+.book .token.number, .book .token.boolean, .book .token.constant { color: #b4530e; }
+.book .token.function { color: #1d5fb8; }
+.book .token.class-name { color: #a3266b; }
+.book .token.operator, .book .token.punctuation { color: #475569; background: none; }
+.book .token.metadata, .book .token.annotation, .book .token.decorator { color: #b45309; }
+.book .token.property, .book .token.key, .book .token.atrule { color: #1d5fb8; }
+
+.book .code-file-label {
+  display: block; margin: 9pt 0 2pt; padding: 0;
+  font-family: var(--mono); font-size: 7pt; font-weight: 600; color: #4b5563;
+  background: none; break-after: avoid; text-align: left;
+}
+.book .code-file-label code { background: none; color: inherit; padding: 0; font-size: inherit; }
+.book .code-file-label + pre, .book .code-file-label + div > pre { margin-top: 0 !important; }
+.book td .code-file-label { margin: 0; }
+
+/* ---------- Kotak penjelasan ---------- */
+.book .callout {
+  position: relative; margin: 9pt 0 10pt; padding: 1pt 0 1pt 10pt;
+  border: 0; border-left: 1.2pt solid; border-radius: 0; background: none !important;
+  break-inside: avoid; font-size: 9pt; line-height: 1.5;
+}
+.book .callout h4 {
+  display: block; margin: 0 0 2.5pt; padding: 0; border-radius: 0; background: none !important;
+  font-size: 8.4pt; font-weight: 700; letter-spacing: 0; text-transform: none; border: 0;
+}
+.book .callout p, .book .callout li { color: #1f2a37; }
+.book .callout p { margin: 0 0 3pt; font-size: 9pt; }
+.book .callout ul, .book .callout ol { margin: 2pt 0 2pt; }
+.book .callout pre { margin: 4pt 0 !important; }
+.book .callout-info    { border-color: #3b6ea8; }
+.book .callout-info h4 { color: #2c5585; }
+.book .callout-tip     { border-color: #3d7d5c; }
+.book .callout-tip h4  { color: #2f6449; }
+.book .callout-warning { border-color: #b8661f; }
+.book .callout-warning h4 { color: #94511a; }
+
+/* ---------- Tabel ---------- */
+.book .table-responsive { margin: 6pt 0 10pt; overflow: visible; }
+.book table.table-custom, .book .content-body table {
+  width: 100%; border-collapse: collapse; font-size: 8.1pt; line-height: 1.4;
+  font-family: var(--serif);
+}
+.book .table-custom thead th, .book .content-body thead th {
+  background: none; color: var(--ink); font-weight: 700; font-size: 7.6pt;
+  padding: 4pt 5pt; text-align: left; border: 0; border-top: 0.9pt solid #3a4250; border-bottom: 0.6pt solid #3a4250;
+}
+.book .table-custom td, .book .content-body td {
+  padding: 3.6pt 5pt; border: 0; border-bottom: 0.5pt solid var(--line);
+  vertical-align: top; color: var(--ink); text-align: left;
+}
+.book .table-custom tbody tr:last-child td { border-bottom: 0.9pt solid #3a4250; }
+.book tr { break-inside: avoid; }
+.book thead { display: table-header-group; }
+
+/* ---------- Tangkapan layar ---------- */
+.book .screenshot-row {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 9pt 11pt;
+  margin: 7pt 0 11pt; break-inside: avoid;
+}
+.book .screenshot { width: 40mm; margin: 0; text-align: center; break-inside: avoid; }
+.book .screenshot img {
+  display: block; width: 100%; height: auto; border: 0.6pt solid #9aa1ab;
+  border-radius: 0; box-shadow: none;
+}
+.book .screenshot-caption {
+  margin-top: 3.5pt; font-family: var(--sans); font-size: 6.8pt; line-height: 1.35; color: var(--muted);
+  text-align: center;
+}
+.book .fig-no { display: block; font-weight: 700; color: var(--accent); letter-spacing: 0.02em; }
+.book .content-body img:not(.screenshot img) { max-width: 100%; }
+
+/* Komponen web lain yang muncul di konten */
+.book .card { border: 0.6pt solid var(--line) !important; border-radius: 4pt; padding: 7pt !important; background: #fff; break-inside: avoid; }
+.book .stat-card { border: 0.6pt solid var(--line); border-radius: 4pt; padding: 6pt 8pt; break-inside: avoid; }
+.book .stat-value { font-family: var(--sans); font-size: 14pt; font-weight: 800; }
+.book .stat-label { font-family: var(--sans); font-size: 7.5pt; color: var(--muted); }
+.book .architecture-diagram { border-radius: 4pt; padding: 8pt !important; break-inside: avoid; }
+.book .badge { font-family: var(--sans); font-size: 6.8pt; padding: 0.5pt 5pt; border-radius: 8pt; }
+.book .grid { gap: 7pt !important; }
+
+/* ---------- Halaman penuh (sampul, bagian, pembuka bab) ---------- */
+.book .bleed-page {
+  page: bleed; width: 176mm; height: 250mm; box-sizing: border-box;
+  position: relative; overflow: hidden; break-before: page; break-after: page;
+}
+.book .bleed-page:first-child { break-before: auto; }
+.blank-page { break-before: page; break-after: page; height: 1px; }
+.blank-page + .bleed-page { break-before: auto; }
+
+/* Sampul depan: tipografi tegas + deretan tangkapan layar asli dari buku */
+.cover { background: linear-gradient(180deg, #0c1e33 0%, #0f2742 62%, #143457 100%); color: #fff; font-family: var(--sans); }
+.cover .cover-top {
+  position: absolute; left: 16mm; right: 16mm; top: 14mm; display: flex; justify-content: space-between;
+  font-size: 8pt; font-weight: 600; color: #b9cbe0; padding-bottom: 3mm; border-bottom: 0.6pt solid rgba(255,255,255,.28);
+}
+.cover .cover-title { position: absolute; left: 16mm; right: 16mm; top: 30mm; z-index: 3; }
+.cover h1 { font-size: 35pt; line-height: 1.04; font-weight: 800; margin: 0; color: #fff; letter-spacing: -0.02em; }
+.cover h1 em { display: block; font-style: normal; color: #f2c14e; }
+.cover .cover-sub { font-size: 10.4pt; line-height: 1.5; color: #d3dfec; margin: 6mm 0 0; max-width: 128mm; font-weight: 400; text-align: left; }
+.cover .cover-authors { margin-top: 7mm; font-size: 11.5pt; font-weight: 700; line-height: 1.5; color: #fff; padding-left: 4mm; border-left: 1.6pt solid #f2c14e; }
+.cover .phones { position: absolute; left: 0; top: 0; width: 176mm; height: 250mm; overflow: hidden; }
+.cover .phone {
+  position: absolute; width: 44mm; aspect-ratio: 1080 / 2400; box-sizing: border-box;
+  background: #050c16; padding: 1.4mm; border-radius: 6mm;
+  box-shadow: 0 0 0 0.5pt rgba(255,255,255,.22), 0 6mm 12mm rgba(0,0,0,.4);
+}
+.cover .phone img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; border-radius: 4.7mm; }
+.cover .p1 { left: -31mm; top: 158mm; }
+.cover .p2 { left: 17mm;  top: 140mm; }
+.cover .p3 { left: 66mm;  top: 124mm; z-index: 2; }
+.cover .p4 { left: 115mm; top: 140mm; }
+.cover .p5 { left: 163mm; top: 158mm; }
+
+/* Sampul belakang */
+.back-cover { background: #0e2238; color: #d3dfec; font-family: var(--sans); }
+.back-cover .inner { position: absolute; left: 18mm; right: 18mm; top: 22mm; bottom: 18mm; display: flex; flex-direction: column; }
+.back-cover h2 { color: #fff; font-size: 17pt; line-height: 1.2; font-weight: 800; margin: 0 0 6mm; border: 0; padding: 0; }
+.back-cover p { font-family: var(--serif); font-size: 9.6pt; line-height: 1.6; color: #d3dfec; text-align: left; }
+.back-cover h3 { color: #fff; font-size: 9pt; font-weight: 700; margin: 7mm 0 3mm; }
+.back-cover ul { list-style: disc; padding-left: 12pt; margin: 0; columns: 2; column-gap: 8mm; }
+.back-cover li { font-family: var(--serif); font-size: 9pt; line-height: 1.4; margin: 0 0 2.2mm; break-inside: avoid; color: #e6edf5; }
+.back-cover li::marker { color: #e2b23c; }
+.back-cover .foot { margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end; gap: 8mm; border-top: 0.6pt solid rgba(255,255,255,.35); padding-top: 4mm; }
+.back-cover .foot .names { flex: none; font-size: 9pt; font-weight: 700; color: #fff; line-height: 1.5; white-space: nowrap; }
+.back-cover .foot .ed { font-size: 7.4pt; color: #b9cbe0; text-align: right; max-width: 70mm; }
+
+/* ---------- Halaman judul & hak cipta ---------- */
+.half-title { height: 207mm; display: flex; flex-direction: column; justify-content: center; text-align: center; break-after: page; font-family: var(--sans); }
+.half-title h1 { font-size: 19pt; font-weight: 800; color: var(--navy); margin: 0; line-height: 1.2; }
+
+.title-page { height: 207mm; display: flex; flex-direction: column; break-before: page; break-after: page; font-family: var(--sans); text-align: center; }
+.title-page .top { margin-top: 20mm; }
+.title-page h1 { font-size: 24pt; line-height: 1.12; font-weight: 800; color: var(--navy); margin: 0; }
+.title-page .sub { font-family: var(--serif); font-size: 10.5pt; color: var(--muted); margin: 6mm auto 0; max-width: 115mm; line-height: 1.5; text-align: center; font-style: italic; }
+.title-page .rule { width: 18mm; height: 0.8pt; background: #3a4250; margin: 10mm auto; }
+.title-page .authors { font-size: 12.5pt; font-weight: 700; color: var(--ink); line-height: 1.6; }
+.title-page .bottom { margin-top: auto; font-size: 9pt; color: var(--muted); }
+.title-page .bottom strong { display: block; font-size: 10pt; color: var(--navy); }
+
+.copyright-page { height: 207mm; display: flex; flex-direction: column; justify-content: flex-end; break-after: page; font-family: var(--sans); font-size: 7.6pt; line-height: 1.55; color: #3c4757; }
+.copyright-page p { text-align: left; margin: 0 0 3.2mm; font-family: var(--sans); }
+.copyright-page .meta { border-collapse: collapse; margin-bottom: 5mm; }
+.copyright-page .meta td { padding: 0.8pt 8pt 0.8pt 0; vertical-align: top; font-size: 7.8pt; }
+.copyright-page .meta td:first-child { color: var(--muted); white-space: nowrap; }
+.copyright-page h3 { font-size: 10pt; color: var(--navy); margin: 0 0 3mm; }
+
+/* ---------- Bagian depan / belakang umum ---------- */
+.fm { break-before: page; }
+.fm-head { margin: 6mm 0 9mm; font-family: var(--sans); padding-bottom: 4mm; border-bottom: 0.6pt solid #3a4250; }
+.fm-head .kicker { font-size: 9pt; font-weight: 600; color: var(--muted); }
+.fm-head .kicker:empty { display: none; }
+.fm-head h1 { font-size: 22pt; font-weight: 800; color: var(--navy); margin: 1mm 0 0; line-height: 1.15; }
+.fm-head .bar { display: none; }
+.signature { margin-top: 9mm; text-align: right; font-family: var(--sans); font-size: 9pt; }
+.signature p { text-align: right; margin: 0; }
+.signature .names { margin-top: 14mm; font-weight: 700; line-height: 1.6; }
+
+/* Daftar isi */
+.toc { font-family: var(--sans); }
+.toc a { color: inherit; display: flex; align-items: baseline; gap: 4pt; }
+.toc .fill { flex: 1; border-bottom: 0.8pt dotted #9aa1ab; transform: translateY(-2.5pt); min-width: 6mm; }
+.toc .pg { font-variant-numeric: tabular-nums; min-width: 7mm; text-align: right; }
+.toc .t-front { font-size: 9pt; font-weight: 600; margin: 0 0 2.2mm; color: var(--ink); }
+.toc .t-part {
+  margin: 7mm 0 2.5mm; padding: 0 0 1.5mm; background: none !important; color: var(--navy);
+  font-size: 9.6pt; font-weight: 800; border-bottom: 0.6pt solid #3a4250; break-after: avoid;
+}
+.toc .t-part .fill { border: 0; }
+.toc .t-chap { margin: 3mm 0 1.2mm; font-size: 9.2pt; font-weight: 700; color: var(--navy); break-after: avoid; }
+.toc .t-chap .no { color: var(--ink); min-width: 12mm; font-weight: 700; }
+.toc .t-sec { margin: 0 0 0.9mm 12mm; font-size: 8pt; color: #3a4556; line-height: 1.35; }
+.toc .t-sec .no { color: var(--muted); min-width: 8.5mm; font-variant-numeric: tabular-nums; }
+.toc .t-sec.extra { color: var(--muted); font-style: italic; }
+.toc .t-chap a, .toc .t-sec a { break-inside: avoid; }
+
+/* Peta belajar: tabel sederhana */
+.roadmap { width: 100%; border-collapse: collapse; margin: 5pt 0 10pt; font-family: var(--sans); font-size: 8pt; }
+.roadmap th, .roadmap td { text-align: left; vertical-align: top; padding: 3.5pt 5pt; border-bottom: 0.5pt solid var(--line); }
+.roadmap thead th { font-weight: 700; border-top: 0.9pt solid #3a4250; border-bottom: 0.6pt solid #3a4250; }
+.roadmap tbody tr:last-child td { border-bottom: 0.9pt solid #3a4250; }
+.roadmap td.part { width: 34%; font-weight: 700; color: var(--navy); }
+.roadmap td.part span { display: block; font-weight: 400; color: var(--muted); }
+.roadmap tr { break-inside: avoid; }
+
+.anatomy { margin: 4pt 0 10pt; padding-left: 16pt; }
+.anatomy li { margin-bottom: 3pt; }
+
+/* ---------- Halaman pemisah Bagian ---------- */
+.part-page { background: var(--c); color: #fff; font-family: var(--sans); }
+.part-page .inner { position: absolute; left: 20mm; right: 18mm; top: 60mm; }
+.part-page .kicker { font-size: 10pt; font-weight: 600; color: rgba(255,255,255,.85); }
+.part-page .num { font-family: var(--serif); font-size: 64pt; font-weight: 600; line-height: 1; margin: 2mm 0 0; }
+.part-page h1 { font-size: 24pt; font-weight: 800; line-height: 1.12; margin: 6mm 0 0; color: #fff; }
+.part-page p { font-family: var(--serif); font-size: 10.4pt; line-height: 1.6; color: rgba(255,255,255,.92); margin-top: 6mm; max-width: 118mm; text-align: left; }
+.part-page ol { list-style: none; padding: 0; margin: 10mm 0 0; border-bottom: 0.6pt solid rgba(255,255,255,.45); }
+.part-page li { display: flex; gap: 8pt; align-items: baseline; font-size: 10pt; font-weight: 600; padding: 2.4mm 0; border-top: 0.6pt solid rgba(255,255,255,.45); margin: 0; }
+.part-page li::marker { content: none; }
+.part-page li span { font-weight: 600; min-width: 14mm; opacity: .8; font-size: 9pt; }
+
+/* ---------- Pembuka bab ---------- */
+.chapter { --c: var(--accent); }
+.chapter-opener { background: #fff; font-family: var(--sans); }
+.chapter-opener .head { position: absolute; left: 20mm; right: 18mm; top: 30mm; border-top: 3pt solid var(--c); padding-top: 6mm; }
+.chapter-opener .kicker { font-size: 10pt; font-weight: 600; color: var(--muted); }
+.chapter-opener .big { font-family: var(--serif); font-size: 60pt; font-weight: 600; line-height: 1; color: var(--c); margin-top: 1mm; }
+.chapter-opener h1 { font-size: 22pt; line-height: 1.15; font-weight: 800; margin: 5mm 0 0; color: var(--navy); max-width: 130mm; }
+.chapter-opener .body { position: absolute; left: 20mm; right: 18mm; top: 108mm; bottom: 16mm; display: flex; flex-direction: column; }
+.chapter-opener .summary { font-family: var(--serif); font-size: 9.8pt; line-height: 1.6; color: #2a3546; text-align: justify; margin: 0 0 4mm; }
+.chapter-opener .meta { width: 100%; border-collapse: collapse; margin-bottom: 5mm; font-size: 8pt; }
+.chapter-opener .meta th { text-align: left; width: 28mm; font-weight: 700; color: var(--ink); padding: 2.5pt 0; vertical-align: top; border-top: 0.5pt solid var(--line); }
+.chapter-opener .meta td { padding: 2.5pt 0; color: #3a4556; border-top: 0.5pt solid var(--line); line-height: 1.4; }
+.chapter-opener .meta tr:last-child th, .chapter-opener .meta tr:last-child td { border-bottom: 0.5pt solid var(--line); }
+.chapter-opener h2.obj { font-size: 10pt; font-weight: 700; color: var(--navy); margin: 0 0 2mm; border: 0; padding: 0; }
+.chapter-opener ol.outcomes { padding-left: 14pt; margin: 0; font-family: var(--serif); font-size: 8.8pt; line-height: 1.42; }
+.chapter-opener ol.outcomes li { margin-bottom: 2pt; color: #253041; }
+.chapter-opener ol.outcomes li::marker { color: var(--ink); font-weight: 600; }
+
+/* ---------- Subbab ---------- */
+.chapter .section { margin: 0 0 6mm; }
+.chapter .section + .section { margin-top: 9mm; }
+.chapter .first-section { break-before: page; }
+.book h2.sec-title {
+  display: flex; gap: 7pt; align-items: baseline; font-size: 13.2pt; line-height: 1.25; font-weight: 800;
+  color: var(--navy); margin: 0 0 6pt; padding: 0 0 4pt; border: 0; border-bottom: 0.6pt solid #3a4250;
+  break-after: avoid;
+}
+.book h2.sec-title .no { color: var(--c); font-variant-numeric: tabular-nums; flex: none; }
+.chapter li::marker { color: var(--ink); }
+.chapter .fig-no { color: var(--ink); }
+
+/* ---------- Akhir bab ---------- */
+.end-block { break-before: page; }
+.end-title { font-family: var(--sans); font-size: 13.2pt; font-weight: 800; color: var(--navy); margin: 0 0 6pt; padding-bottom: 4pt; border-bottom: 0.6pt solid #3a4250; break-after: avoid; }
+.end-title .tag { color: var(--c); font-weight: 800; margin-right: 5pt; }
+.summary-box { margin-bottom: 9mm; }
+.summary-box ul { list-style: disc; padding-left: 14pt; }
+.summary-box li { margin-bottom: 4.5pt; text-align: left; }
+.lab-card { margin-bottom: 9mm; }
+.lab-card h3 { font-size: 11pt; color: var(--navy); margin: 0 0 5pt; }
+.lab-card h4 { font-family: var(--sans); font-size: 9.4pt; font-weight: 700; color: var(--navy); margin: 9pt 0 3pt; break-after: avoid; }
+.lab-card .objective { margin-bottom: 4pt; font-style: italic; }
+.lab-card ol.steps { padding-left: 15pt; }
+.lab-card ol.steps li { margin-bottom: 3.5pt; text-align: left; break-inside: avoid; }
+.lab-card ol.steps li::marker { font-weight: 700; color: var(--ink); }
+.lab-card p { text-align: left; }
+.quiz-item { break-inside: avoid; margin-bottom: 7pt; }
+.quiz-q { display: flex; gap: 5pt; margin: 0 0 3pt !important; text-align: left !important; }
+.quiz-q .n { flex: none; font-family: var(--sans); font-weight: 700; color: var(--ink); min-width: 12pt; }
+.quiz-options { list-style: none !important; padding: 0 0 0 17pt !important; margin: 0 !important; }
+.quiz-options li { display: flex; gap: 5pt; margin-bottom: 1.6pt; font-size: 9pt; }
+.quiz-options li b { flex: none; font-family: var(--sans); font-weight: 700; font-size: 8.6pt; color: var(--ink); width: 10pt; }
+.quiz-note { font-family: var(--sans); font-size: 7.8pt; color: var(--muted); margin-top: 3mm; }
+
+/* ---------- Lampiran ---------- */
+.answer-chap { break-inside: avoid-page; margin-bottom: 6mm; }
+.answer-chap h3 { font-size: 10pt; font-weight: 700; color: var(--navy); margin: 0 0 3pt; padding: 0 0 2pt; border-bottom: 0.5pt solid var(--line); }
+.answer { display: flex; gap: 6pt; font-size: 8.4pt; line-height: 1.45; margin: 0 0 3.5pt; break-inside: avoid; }
+.answer .key { flex: none; font-family: var(--sans); font-weight: 700; color: var(--ink); min-width: 22pt; font-size: 8pt; }
+.answer p { margin: 0; }
+.cheat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8pt; }
+.cheat-card { break-inside: avoid; }
+.cheat-card h4 { font-family: var(--sans); font-size: 8.8pt; font-weight: 700; color: var(--navy); margin: 0 0 2pt; }
+.cheat-card p { font-size: 7.8pt; margin: 0 0 3pt; text-align: left; }
+.cheat-card pre { margin: 0 !important; font-size: 6.9pt !important; }
+.widget-cat { margin-bottom: 5pt; break-inside: avoid; }
+.widget-cat b { font-family: var(--sans); font-size: 8.4pt; color: var(--navy); }
+.widget-cat .chips { margin-top: 2pt; line-height: 1.8; }
+.widget-cat code { font-size: 7.2pt !important; }
+.appendix h2.sec-title .no { color: var(--ink); }
+
+.glossary { columns: 2; column-gap: 7mm; font-size: 8.4pt; line-height: 1.45; }
+.glossary dt { font-family: var(--sans); font-weight: 700; color: var(--navy); font-size: 8.4pt; break-after: avoid; margin-top: 3.4pt; }
+.glossary dd { margin: 0 0 3pt; text-align: left; break-inside: avoid; color: #2a3546; }
+.glossary .letter { font-family: var(--serif); font-size: 14pt; font-weight: 600; color: var(--navy); margin: 7pt 0 1pt; break-after: avoid; border-bottom: 0.5pt solid var(--line); }
+.glossary .letter:first-child { margin-top: 0; }
+.refs { list-style: none !important; padding: 0 !important; }
+.refs li { padding-left: 9mm; text-indent: -9mm; margin-bottom: 4pt; font-size: 8.8pt; text-align: left; word-break: break-word; }
+
+.author-card { padding: 6mm 0; border-bottom: 0.5pt solid var(--line); break-inside: avoid; }
+.author-card h3 { font-family: var(--sans); font-size: 12.5pt; font-weight: 700; color: var(--navy); margin: 0 0 2mm; }
+.author-card p { margin: 0; }

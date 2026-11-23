@@ -1,0 +1,278 @@
+<p class="lead">Setelah layanan dan izin beres, kita bisa meminta posisi. <code>geolocator</code> menyediakan dua cara: <code>getCurrentPosition</code> yang meminta posisi baru (akurat, tetapi butuh waktu), dan <code>getLastKnownPosition</code> yang mengembalikan posisi terakhir yang tersimpan di perangkat (instan, tetapi bisa usang atau <code>null</code>).</p>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
+
+Future&lt;void&gt; contohSingkat() async {
+  final posisi = await Geolocator.getCurrentPosition(
+    locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+  );
+  debugPrint('${posisi.latitude}, ${posisi.longitude}');
+}
+</code></pre>
+<p>Parameter <code>locationSettings</code> adalah cara terbaru untuk mengatur permintaan. Parameter lama <code>desiredAccuracy</code>, <code>timeLimit</code>, dan <code>forceAndroidLocationManager</code> langsung pada <code>getCurrentPosition</code> sudah <em>deprecated</em>, jadi jangan meniru tutorial lama yang masih memakainya.</p>
+
+<h4>Objek <code>Position</code></h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Properti</th><th>Tipe</th><th>Keterangan</th></tr></thead>
+    <tbody>
+      <tr><td><code>latitude</code>, <code>longitude</code></td><td><code>double</code></td><td>Lintang (-90..90) dan bujur (-180..180) dalam derajat</td></tr>
+      <tr><td><code>accuracy</code></td><td><code>double</code></td><td>Radius ketidakpastian horizontal dalam meter. Makin kecil makin akurat</td></tr>
+      <tr><td><code>hasAccuracy</code></td><td><code>bool</code></td><td><code>false</code> jika platform tidak melaporkan akurasi (nilai <code>accuracy</code> 0.0 hanyalah pengganti, bukan "0 meter")</td></tr>
+      <tr><td><code>altitude</code></td><td><code>double</code></td><td>Ketinggian dalam meter</td></tr>
+      <tr><td><code>speed</code></td><td><code>double</code></td><td>Kecepatan dalam meter/detik (kali 3,6 untuk km/jam)</td></tr>
+      <tr><td><code>heading</code></td><td><code>double</code></td><td>Arah gerak dalam derajat dari utara</td></tr>
+      <tr><td><code>timestamp</code></td><td><code>DateTime</code></td><td>Waktu posisi diukur (UTC)</td></tr>
+      <tr><td><code>isMocked</code></td><td><code>bool</code></td><td><code>true</code> jika posisi berasal dari penyedia lokasi palsu (Android) atau ditandai disimulasikan perangkat lunak (iOS 15+)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Posisi terakhir yang diketahui</h4>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
+
+Future&lt;void&gt; posisiTerakhir() async {
+  final Position? terakhir = await Geolocator.getLastKnownPosition();
+  if (terakhir == null) {
+    debugPrint('Belum ada posisi tersimpan di perangkat');
+  } else {
+    final umur = DateTime.now().difference(terakhir.timestamp);
+    debugPrint(
+      'Posisi ${umur.inMinutes} menit yang lalu: '
+      '${terakhir.latitude}, ${terakhir.longitude}',
+    );
+  }
+}
+</code></pre>
+<p>Ini setara dengan <code>fusedLocationClient.lastLocation</code> di modul lama Kotlin. Gunakan untuk menampilkan sesuatu dengan cepat (misalnya memusatkan peta), lalu ganti dengan hasil <code>getCurrentPosition</code>. Jangan memakai posisi terakhir untuk keputusan penting seperti presensi, karena bisa berumur berjam-jam. <code>getLastKnownPosition</code> tidak didukung di web.</p>
+
+<h4>Pengaturan khusus platform: <code>AndroidSettings</code> dan <code>AppleSettings</code></h4>
+<p><code>LocationSettings</code> berisi pengaturan umum (<code>accuracy</code>, <code>distanceFilter</code>, <code>timeLimit</code>). Kelas turunannya menambah opsi khusus platform dan sudah diekspor oleh <code>package:geolocator/geolocator.dart</code>:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kelas</th><th>Opsi tambahan penting</th></tr></thead>
+    <tbody>
+      <tr><td><code>AndroidSettings</code></td><td><code>intervalDuration</code> (jeda antar-update stream), <code>forceLocationManager</code> (pakai LocationManager lama, bukan Fused), <code>maxUpdateAge</code>, <code>foregroundNotificationConfig</code> (lokasi saat aplikasi diminimalkan), <code>useMSLAltitude</code></td></tr>
+      <tr><td><code>AppleSettings</code></td><td><code>activityType</code> (<code>fitness</code>, <code>automotiveNavigation</code>, dll.), <code>pauseLocationUpdatesAutomatically</code>, <code>showBackgroundLocationIndicator</code>, <code>allowBackgroundLocationUpdates</code></td></tr>
+      <tr><td><code>WebSettings</code></td><td><code>maximumAge</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Contoh <code>AndroidSettings</code> untuk pelacakan yang terus berjalan saat aplikasi diminimalkan (butuh izin background di bagian 2, dan <strong>tidak</strong> dipakai di studi kasus):</p>
+<pre><code class="language-dart">import 'package:geolocator/geolocator.dart';
+
+final pengaturanLatarBelakang = AndroidSettings(
+  accuracy: LocationAccuracy.high,
+  distanceFilter: 20,
+  foregroundNotificationConfig: const ForegroundNotificationConfig(
+    notificationTitle: 'Pelacakan rute aktif',
+    notificationText: 'Aplikasi sedang merekam rute perjalananmu',
+    enableWakeLock: true,
+  ),
+);
+</code></pre>
+
+<h4>Contoh lengkap: posisi saya</h4>
+<p>Aplikasi berikut menampilkan posisi terakhir dulu (jika ada), lalu menggantinya dengan posisi baru, lengkap dengan batas waktu dan penanganan error.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+
+void main() =&gt; runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const PosisiPage(),
+    );
+  }
+}
+
+/// Pengaturan lokasi sesuai platform.
+LocationSettings buatPengaturan() {
+  if (!kIsWeb &amp;&amp; defaultTargetPlatform == TargetPlatform.android) {
+    return AndroidSettings(
+      accuracy: LocationAccuracy.high,
+      timeLimit: const Duration(seconds: 15),
+    );
+  }
+  if (!kIsWeb &amp;&amp; defaultTargetPlatform == TargetPlatform.iOS) {
+    return AppleSettings(
+      accuracy: LocationAccuracy.high,
+      activityType: ActivityType.fitness,
+      timeLimit: const Duration(seconds: 15),
+    );
+  }
+  return const LocationSettings(
+    accuracy: LocationAccuracy.high,
+    timeLimit: Duration(seconds: 15),
+  );
+}
+
+class PosisiPage extends StatefulWidget {
+  const PosisiPage({super.key});
+
+  @override
+  State&lt;PosisiPage&gt; createState() =&gt; _PosisiPageState();
+}
+
+class _PosisiPageState extends State&lt;PosisiPage&gt; {
+  Position? _posisi;
+  bool _perkiraan = false; // true jika masih memakai posisi terakhir
+  bool _memuat = false;
+  String? _error;
+
+  Future&lt;void&gt; _ambilPosisi() async {
+    setState(() {
+      _memuat = true;
+      _error = null;
+    });
+
+    try {
+      // Langkah 0: pastikan izin (versi singkat dari bagian 2)
+      var izin = await Geolocator.checkPermission();
+      if (izin == LocationPermission.denied) {
+        izin = await Geolocator.requestPermission();
+      }
+      if (izin == LocationPermission.denied ||
+          izin == LocationPermission.deniedForever) {
+        _tampilkanError('Izin lokasi ditolak.');
+        return;
+      }
+
+      // Langkah 1: tampilkan posisi terakhir (cepat, bisa null / usang)
+      final terakhir = await Geolocator.getLastKnownPosition();
+      if (!mounted) return;
+      if (terakhir != null) {
+        setState(() {
+          _posisi = terakhir;
+          _perkiraan = true;
+        });
+      }
+
+      // Langkah 2: minta posisi baru yang akurat
+      final baru = await Geolocator.getCurrentPosition(
+        locationSettings: buatPengaturan(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _posisi = baru;
+        _perkiraan = false;
+      });
+    } on LocationServiceDisabledException {
+      _tampilkanError('Layanan lokasi mati. Nyalakan GPS lalu coba lagi.');
+    } on PermissionDeniedException {
+      _tampilkanError('Izin lokasi belum diberikan.');
+    } on TimeoutException {
+      _tampilkanError(
+        'Sinyal GPS lemah: posisi tidak didapat dalam 15 detik. '
+        'Coba pindah ke dekat jendela atau ruang terbuka.',
+      );
+    } catch (e) {
+      _tampilkanError('Gagal mengambil lokasi: $e');
+    } finally {
+      if (mounted) setState(() =&gt; _memuat = false);
+    }
+  }
+
+  void _tampilkanError(String pesan) {
+    if (!mounted) return;
+    setState(() =&gt; _error = pesan);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _posisi;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Posisi Saya')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (_memuat) const LinearProgressIndicator(),
+          if (_error != null)
+            Card(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: ListTile(
+                leading: const Icon(Icons.error_outline),
+                title: Text(_error!),
+              ),
+            ),
+          if (p == null &amp;&amp; !_memuat)
+            const ListTile(title: Text('Belum ada data posisi.')),
+          if (p != null) ...[
+            if (_perkiraan)
+              const ListTile(
+                leading: Icon(Icons.history),
+                title: Text('Posisi terakhir yang diketahui (mungkin usang)'),
+              ),
+            ListTile(
+              title: const Text('Latitude, Longitude'),
+              subtitle: Text(
+                '${p.latitude.toStringAsFixed(6)}, '
+                '${p.longitude.toStringAsFixed(6)}',
+              ),
+            ),
+            ListTile(
+              title: const Text('Akurasi'),
+              subtitle: Text(
+                p.hasAccuracy
+                    ? '± ${p.accuracy.toStringAsFixed(1)} meter'
+                    : 'Tidak dilaporkan perangkat',
+              ),
+            ),
+            ListTile(
+              title: const Text('Ketinggian'),
+              subtitle: Text('${p.altitude.toStringAsFixed(1)} m'),
+            ),
+            ListTile(
+              title: const Text('Kecepatan'),
+              subtitle: Text('${(p.speed * 3.6).toStringAsFixed(1)} km/jam'),
+            ),
+            ListTile(
+              title: const Text('Waktu'),
+              subtitle: Text(p.timestamp.toLocal().toString()),
+            ),
+            ListTile(
+              title: const Text('Lokasi palsu (mock)?'),
+              subtitle: Text(p.isMocked ? 'Ya' : 'Tidak'),
+            ),
+          ],
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _memuat ? null : _ambilPosisi,
+        icon: const Icon(Icons.my_location),
+        label: const Text('Ambil posisi'),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Penjelasan baris penting</h4>
+<ul>
+  <li><code>buatPengaturan()</code> memilih <code>AndroidSettings</code> atau <code>AppleSettings</code> berdasarkan <code>defaultTargetPlatform</code>. Cek <code>!kIsWeb</code> diperlukan karena di browser Android pun <code>defaultTargetPlatform</code> bernilai <code>android</code>.</li>
+  <li><code>timeLimit: Duration(seconds: 15)</code>: jika dalam 15 detik tidak ada posisi, <code>getCurrentPosition</code> melempar <code>TimeoutException</code> (dari <code>dart:async</code>). Tanpa batas waktu, di dalam gedung pengguna bisa menunggu tanpa kepastian.</li>
+  <li>Tiga exception penting ditangkap terpisah agar pesannya jelas: <code>LocationServiceDisabledException</code> (GPS mati), <code>PermissionDeniedException</code> (izin dicabut), dan <code>TimeoutException</code> (sinyal lemah). Sisanya ditangkap <code>catch (e)</code>.</li>
+  <li>Flag <code>_perkiraan</code> memberi tahu pengguna bahwa angka di layar masih posisi lama.</li>
+  <li><code>p.hasAccuracy</code> dicek sebelum menampilkan akurasi, sehingga nilai 0.0 pengganti tidak dibaca sebagai "akurat 0 meter".</li>
+  <li><code>finally</code> mematikan indikator memuat apa pun hasilnya, tetap dengan pengecekan <code>mounted</code>.</li>
+</ul>
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Memanggil <code>getCurrentPosition</code> tanpa <code>timeLimit</code> lalu mengira aplikasi "hang" saat diuji di dalam ruangan.</li>
+  <li>Menganggap <code>getLastKnownPosition()</code> selalu berisi. Pada perangkat baru di-reset atau emulator yang baru dinyalakan hasilnya <code>null</code>.</li>
+  <li>Membandingkan <code>timestamp</code> dengan waktu lokal tanpa <code>toLocal()</code>, sehingga jam tampil selisih 7 jam (WIB).</li>
+  <li>Meminta <code>LocationAccuracy.best</code> untuk fitur yang cukup dengan <code>medium</code>, sehingga baterai cepat habis.</li>
+</ul></div>

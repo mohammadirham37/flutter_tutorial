@@ -1,0 +1,195 @@
+<p class="lead">Sebelum menulis kode, aplikasi harus "mendaftarkan" kebutuhan lokasinya ke sistem operasi. Setelah itu, saat aplikasi berjalan, kita memeriksa dua hal secara berurutan: apakah <strong>layanan lokasi</strong> menyala, dan apakah <strong>izin</strong> sudah diberikan.</p>
+
+<h4>Langkah 1: Pasang package</h4>
+<pre><code class="language-bash">flutter create --org id.ac.kampus lokasi_app
+cd lokasi_app
+flutter pub add geolocator geocoding flutter_map latlong2 get
+</code></pre>
+
+<h4>Langkah 2: AndroidManifest.xml</h4>
+<p>Buka <code>android/app/src/main/AndroidManifest.xml</code> dan tambahkan izin sebagai anak langsung tag <code>&lt;manifest&gt;</code>, di atas <code>&lt;application&gt;</code>:</p>
+<p class="code-file-label">📄 <code>android/app/src/main/AndroidManifest.xml</code></p>
+<pre><code class="language-text">&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+    &lt;!-- Lokasi perkiraan (wajib dideklarasikan bersama FINE sejak Android 12) --&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" /&gt;
+    &lt;!-- Lokasi akurat: dibutuhkan untuk presensi berbasis radius --&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /&gt;
+    &lt;!-- Internet: untuk geocoding dan ubin peta pada build rilis --&gt;
+    &lt;uses-permission android:name="android.permission.INTERNET" /&gt;
+
+    &lt;application ...&gt;
+        ...
+    &lt;/application&gt;
+&lt;/manifest&gt;
+</code></pre>
+<ul>
+  <li><strong>COARSE dan FINE dideklarasikan berdua.</strong> Sejak Android 12, pengguna boleh memilih "Perkiraan" walau aplikasi meminta FINE, jadi keduanya harus ada di manifest. <code>geolocator</code> akan meminta keduanya dalam satu dialog.</li>
+  <li><strong>INTERNET</strong> sudah ada di manifest <code>debug</code> dan <code>profile</code> bawaan Flutter, tetapi <em>tidak</em> di <code>main</code>. Tanpa baris ini, peta dan geocoding berjalan saat <code>flutter run</code> tetapi kosong di APK rilis (Modul 16).</li>
+</ul>
+
+<p>Hanya jika aplikasimu benar-benar butuh lokasi saat diminimalkan (misalnya pelacak rute), tambahkan juga:</p>
+<pre><code class="language-text">&lt;!-- HANYA untuk lokasi di latar belakang --&gt;
+&lt;uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" /&gt;
+&lt;uses-permission android:name="android.permission.FOREGROUND_SERVICE" /&gt;
+&lt;uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" /&gt;
+</code></pre>
+<div class="callout callout-warning"><h4>⚠️ Jangan menyalin izin background "untuk jaga-jaga"</h4><p>Google Play memeriksa izin <code>ACCESS_BACKGROUND_LOCATION</code> dan foreground service lokasi. Aplikasi yang mendeklarasikannya tanpa fitur yang jelas akan ditolak saat review. Aplikasi presensi di bab ini <strong>tidak</strong> membutuhkannya.</p></div>
+
+<h4>Langkah 3: Info.plist (iOS)</h4>
+<p>Di iOS, setiap izin wajib disertai kalimat alasan yang tampil di dialog. Tanpa kunci ini aplikasi langsung crash saat meminta izin. Buka <code>ios/Runner/Info.plist</code> dan tambahkan di dalam <code>&lt;dict&gt;</code>:</p>
+<p class="code-file-label">📄 <code>ios/Runner/Info.plist</code></p>
+<pre><code class="language-text">&lt;key&gt;NSLocationWhenInUseUsageDescription&lt;/key&gt;
+&lt;string&gt;Lokasi dipakai untuk memastikan kamu berada di area kampus saat presensi.&lt;/string&gt;
+</code></pre>
+<p>Karena aplikasi kita tidak memakai lokasi "Always", README <code>geolocator</code> menyarankan menambahkan makro <code>BYPASS_PERMISSION_LOCATION_ALWAYS=1</code> agar App Store tidak menanyakan kunci <code>NSLocationAlwaysAndWhenInUseUsageDescription</code>. Untuk proyek yang memakai CocoaPods, tambahkan di <code>ios/Podfile</code>:</p>
+<p class="code-file-label">📄 <code>ios/Podfile</code> (bagian <code>post_install</code>)</p>
+<pre><code class="language-text">post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    if target.name == "geolocator_apple"
+      target.build_configurations.each do |config|
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)', 'BYPASS_PERMISSION_LOCATION_ALWAYS=1']
+      end
+    end
+  end
+end
+</code></pre>
+<p>Jika proyek iOS-mu memakai Swift Package Manager, gunakan variabel lingkungan saat build: <code>BYPASS_PERMISSION_LOCATION_ALWAYS=1 flutter build ios</code>. Aplikasi yang memang butuh lokasi background di iOS harus menambahkan <code>NSLocationAlwaysAndWhenInUseUsageDescription</code> dan <code>UIBackgroundModes</code> berisi <code>location</code>.</p>
+
+<h4>Langkah 4: Alur pemeriksaan saat runtime</h4>
+<p>Urutan yang benar sebelum mengambil posisi:</p>
+<ol>
+  <li><code>Geolocator.isLocationServiceEnabled()</code>: apakah sakelar Lokasi/GPS di perangkat menyala? Jika mati, izin apa pun tidak berguna. Arahkan pengguna ke <code>Geolocator.openLocationSettings()</code>.</li>
+  <li><code>Geolocator.checkPermission()</code>: cek status izin tanpa menampilkan dialog.</li>
+  <li>Jika <code>denied</code>, panggil <code>Geolocator.requestPermission()</code> untuk menampilkan dialog sistem.</li>
+  <li>Jika hasilnya <code>deniedForever</code>, dialog tidak akan muncul lagi. Satu-satunya jalan: <code>Geolocator.openAppSettings()</code>.</li>
+</ol>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th><code>LocationPermission</code></th><th>Arti</th><th>Tindakan aplikasi</th></tr></thead>
+    <tbody>
+      <tr><td><code>denied</code></td><td>Belum diizinkan (juga status awal). Masih boleh diminta lagi.</td><td>Jelaskan manfaatnya, sediakan tombol "Coba lagi"</td></tr>
+      <tr><td><code>deniedForever</code></td><td>Ditolak permanen, dialog tidak akan tampil lagi</td><td>Tombol "Buka pengaturan aplikasi"</td></tr>
+      <tr><td><code>whileInUse</code></td><td>Diizinkan saat aplikasi dipakai</td><td>Lanjut ambil posisi</td></tr>
+      <tr><td><code>always</code></td><td>Diizinkan termasuk di latar belakang</td><td>Lanjut ambil posisi</td></tr>
+      <tr><td><code>unableToDetermine</code></td><td>Status tidak bisa ditentukan (praktis hanya di web)</td><td>Perlakukan seperti <code>denied</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh lengkap: memeriksa izin lokasi</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+
+void main() =&gt; runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const CekIzinPage(),
+    );
+  }
+}
+
+class CekIzinPage extends StatefulWidget {
+  const CekIzinPage({super.key});
+
+  @override
+  State&lt;CekIzinPage&gt; createState() =&gt; _CekIzinPageState();
+}
+
+class _CekIzinPageState extends State&lt;CekIzinPage&gt; {
+  String _pesan = 'Tekan tombol untuk memeriksa izin lokasi.';
+  bool _ditolakPermanen = false;
+  bool _layananMati = false;
+
+  Future&lt;void&gt; _periksa() async {
+    // 1. Apakah layanan lokasi (GPS) di perangkat menyala?
+    final layananAktif = await Geolocator.isLocationServiceEnabled();
+    if (!mounted) return;
+    if (!layananAktif) {
+      setState(() {
+        _layananMati = true;
+        _ditolakPermanen = false;
+        _pesan = 'Layanan lokasi mati. Nyalakan GPS terlebih dahulu.';
+      });
+      return;
+    }
+
+    // 2. Cek izin yang sudah ada, minta jika masih denied
+    var izin = await Geolocator.checkPermission();
+    if (izin == LocationPermission.denied) {
+      izin = await Geolocator.requestPermission();
+    }
+    if (!mounted) return;
+
+    // 3. Terjemahkan hasilnya menjadi pesan untuk pengguna
+    setState(() {
+      _layananMati = false;
+      _ditolakPermanen = izin == LocationPermission.deniedForever;
+      _pesan = switch (izin) {
+        LocationPermission.whileInUse =&gt;
+          'Izin diberikan (hanya saat aplikasi dipakai).',
+        LocationPermission.always =&gt; 'Izin diberikan (selalu).',
+        LocationPermission.denied =&gt;
+          'Izin ditolak. Kamu bisa menekan tombol lagi untuk meminta ulang.',
+        LocationPermission.deniedForever =&gt;
+          'Izin ditolak permanen. Buka pengaturan aplikasi untuk mengizinkan.',
+        LocationPermission.unableToDetermine =&gt;
+          'Status izin tidak dapat ditentukan di platform ini.',
+      };
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Izin Lokasi')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.location_on, size: 64),
+              const SizedBox(height: 16),
+              Text(_pesan, textAlign: TextAlign.center),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _periksa,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Periksa izin'),
+              ),
+              if (_layananMati)
+                TextButton(
+                  onPressed: Geolocator.openLocationSettings,
+                  child: const Text('Buka pengaturan lokasi'),
+                ),
+              if (_ditolakPermanen)
+                TextButton(
+                  onPressed: Geolocator.openAppSettings,
+                  child: const Text('Buka pengaturan aplikasi'),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li><strong>Layanan dulu, izin kemudian.</strong> Jika GPS mati, kita berhenti dan menampilkan tombol yang membuka pengaturan lokasi, bukan pengaturan aplikasi.</li>
+  <li><code>requestPermission()</code> hanya dipanggil saat status <code>denied</code>. Memanggilnya saat sudah <code>whileInUse</code> tidak berbahaya, tetapi tidak perlu.</li>
+  <li><code>if (!mounted) return;</code> setelah setiap <code>await</code>: pengguna bisa saja menutup halaman saat dialog izin tampil, dan <code>setState</code> pada widget yang sudah dibuang akan memicu error.</li>
+  <li>Ekspresi <code>switch</code> pada enum harus mencakup semua nilai, termasuk <code>unableToDetermine</code>. Analyzer akan memberi error jika ada yang terlewat, sehingga tidak ada status yang tidak tertangani.</li>
+</ul>
+<div class="callout callout-info"><h4>ℹ️ Android tidak bisa melaporkan <code>deniedForever</code> dari <code>checkPermission</code></h4><p>Menurut dokumentasi <code>geolocator</code>, di Android status ditolak permanen hanya diketahui sebagai hasil <code>requestPermission()</code>. <code>checkPermission()</code> akan mengembalikan <code>denied</code>. Karena itu alur di atas selalu memanggil <code>requestPermission()</code> saat <code>denied</code>: jika ternyata sudah permanen, dialog tidak tampil dan hasilnya langsung <code>deniedForever</code>.</p></div>
+<div class="callout callout-tip"><h4>💡 Setelah kembali dari Pengaturan</h4><p><code>openAppSettings()</code> hanya membuka halaman pengaturan; hasilnya tidak dikirim balik ke aplikasi. Sediakan tombol "Coba lagi" atau periksa ulang izin saat aplikasi kembali aktif (misalnya dengan <code>AppLifecycleListener</code> pada callback <code>onResume</code>).</p></div>

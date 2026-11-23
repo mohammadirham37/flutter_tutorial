@@ -1,0 +1,204 @@
+<p class="lead">Dua fitur klasik yang cukup memakai akselerometer: <strong>deteksi guncangan</strong> (misalnya "guncang untuk melaporkan bug" atau "guncang untuk acak") dan <strong>waterpass</strong> digital yang menampilkan sudut kemiringan HP. Keduanya memakai sedikit matematika vektor yang akan dipakai lagi di kompas.</p>
+
+<h4>Deteksi guncangan</h4>
+<p>Saat HP diam, besar (panjang) vektor akselerometer kira-kira sama dengan gravitasi:</p>
+<pre><code class="language-text">|a| = √(x² + y² + z²) ≈ 9,81 m/s²   →   gForce = |a| / 9,81 ≈ 1
+</code></pre>
+<p>Ayunan tangan biasa menghasilkan sekitar 1,2 sampai 2 g, sedangkan guncangan sengaja bisa melebihi 2,5 g. Karena kita memakai <em>besar</em> vektor, arah HP tidak berpengaruh. Aturan deteksinya:</p>
+<ol>
+  <li>Hitung <code>gForce</code> dari setiap sampel <strong>mentah</strong>. Jangan memakai data yang sudah di-low-pass, karena puncak guncangan justru akan teredam.</li>
+  <li>Jika <code>gForce</code> melewati ambang (misalnya 2,5), hitung sebagai guncangan.</li>
+  <li>Abaikan puncak berikutnya selama jeda tertentu (misalnya 800 ms). Satu kali mengguncang menghasilkan beberapa puncak bolak-balik, dan kita ingin menghitungnya sebagai satu kejadian.</li>
+</ol>
+<p>Pakai <code>gameInterval</code> (20 ms) agar puncak yang singkat tidak terlewat. Dengan <code>normalInterval</code> (200 ms), guncangan cepat bisa jatuh di antara dua sampel.</p>
+
+<h4>Waterpass: kemiringan dengan atan2</h4>
+<p>Saat HP diam, akselerometer hanya berisi gravitasi. Ketika HP dimiringkan, vektor 9,8 m/s² itu "terbagi" ke sumbu-sumbu lain. Misalnya, jika sisi kanan HP diangkat 30°, gravitasi terbagi menjadi <code>x = 9,81 × sin 30° ≈ 4,9</code> dan <code>z = 9,81 × cos 30° ≈ 8,5</code>. Sudutnya didapat kembali dengan <code>atan2</code>:</p>
+<pre><code class="language-text">sudutX (kiri-kanan) = atan2( x, √(y² + z²) )     > 0 berarti sisi kanan lebih tinggi
+sudutY (atas-bawah) = atan2( y, √(x² + z²) )     > 0 berarti sisi atas lebih tinggi
+total kemiringan    = acos( z / |a| )             0° = mendatar, 90° = tegak
+</code></pre>
+<p>Kenapa <code>atan2</code>, bukan <code>asin(x / 9,81)</code>? Karena <code>atan2(y, x)</code> memakai perbandingan dua komponen, sehingga hasilnya tetap benar walaupun besar gravitasi yang terbaca sedikit berbeda dari 9,81. Fungsi ini juga tidak pernah gagal karena pembagian dengan nol, dan selalu memberi kuadran yang tepat (rentang -180° sampai 180°). Hasilnya dalam radian, jadi dikali <code>180 / π</code> untuk mendapat derajat.</p>
+<p>Gelembung waterpass asli selalu bergerak ke <strong>sisi yang lebih tinggi</strong>. Jika sisi kanan terangkat (<code>sudutX</code> positif), gelembung bergeser ke kanan. Jika sisi atas terangkat (<code>sudutY</code> positif), gelembung naik. Ingat, sumbu y layar Flutter mengarah ke bawah, sehingga posisi vertikal gelembung memakai <code>-sudutY</code>.</p>
+
+<h4>Contoh lengkap</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const GuncangWaterpassPage(),
+    );
+  }
+}
+
+/// Mendeteksi guncangan dari besar total percepatan (dalam satuan g).
+class DeteksiGuncangan {
+  DeteksiGuncangan({
+    this.ambangG = 2.5,
+    this.jeda = const Duration(milliseconds: 800),
+  });
+
+  final double ambangG; // diam = 1 g, guncangan keras &gt; 2,5 g
+  final Duration jeda; // satu guncangan tidak dihitung berkali-kali
+  DateTime? _terakhir;
+
+  bool proses(double x, double y, double z, DateTime waktu) {
+    final gForce = math.sqrt(x * x + y * y + z * z) / 9.81;
+    if (gForce &lt; ambangG) return false;
+    final terakhir = _terakhir;
+    if (terakhir != null &amp;&amp; waktu.difference(terakhir) &lt; jeda) return false;
+    _terakhir = waktu;
+    return true;
+  }
+}
+
+/// Sudut kemiringan dari akselerometer (perangkat diam).
+/// sudutX &gt; 0: sisi kanan terangkat. sudutY &gt; 0: sisi atas terangkat.
+({double sudutX, double sudutY}) hitungKemiringan(
+  double x,
+  double y,
+  double z,
+) {
+  const keDerajat = 180 / math.pi;
+  final sudutX = math.atan2(x, math.sqrt(y * y + z * z)) * keDerajat;
+  final sudutY = math.atan2(y, math.sqrt(x * x + z * z)) * keDerajat;
+  return (sudutX: sudutX, sudutY: sudutY);
+}
+
+class GuncangWaterpassPage extends StatefulWidget {
+  const GuncangWaterpassPage({super.key});
+
+  @override
+  State&lt;GuncangWaterpassPage&gt; createState() =&gt; _GuncangWaterpassPageState();
+}
+
+class _GuncangWaterpassPageState extends State&lt;GuncangWaterpassPage&gt; {
+  StreamSubscription&lt;AccelerometerEvent&gt;? _langganan;
+  final _detektor = DeteksiGuncangan();
+  int _jumlahGuncangan = 0;
+  double _sudutX = 0;
+  double _sudutY = 0;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _langganan =
+        accelerometerEventStream(samplingPeriod: SensorInterval.gameInterval)
+            .listen(
+              _olah,
+              onError: (Object e) {
+                if (mounted) setState(() =&gt; _error = e.toString());
+              },
+              cancelOnError: true,
+            );
+  }
+
+  void _olah(AccelerometerEvent e) {
+    final terguncang = _detektor.proses(e.x, e.y, e.z, DateTime.now());
+    final k = hitungKemiringan(e.x, e.y, e.z);
+    setState(() {
+      if (terguncang) _jumlahGuncangan++;
+      // low-pass sederhana supaya gelembung tidak gemetar
+      _sudutX += 0.2 * (k.sudutX - _sudutX);
+      _sudutY += 0.2 * (k.sudutY - _sudutY);
+    });
+  }
+
+  @override
+  void dispose() {
+    _langganan?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) {
+      return Scaffold(body: Center(child: Text('Sensor error: $_error')));
+    }
+    final datar = _sudutX.abs() &lt; 1 &amp;&amp; _sudutY.abs() &lt; 1;
+    // Gelembung bergerak ke sisi yang lebih TINGGI, dibatasi ±20°
+    final posisi = Alignment(
+      (_sudutX / 20).clamp(-1.0, 1.0),
+      (-_sudutY / 20).clamp(-1.0, 1.0), // sumbu y layar mengarah ke bawah
+    );
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Guncang &amp; Waterpass')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Text(
+              'Guncangan terdeteksi: $_jumlahGuncangan',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 32),
+            Container(
+              width: 240,
+              height: 240,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: (datar ? Colors.green : Colors.orange).withValues(
+                  alpha: 0.15,
+                ),
+                border: Border.all(width: 2),
+              ),
+              child: AnimatedAlign(
+                duration: const Duration(milliseconds: 100),
+                alignment: posisi,
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: datar ? Colors.green : Colors.orange,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text('Kiri-kanan: ${_sudutX.toStringAsFixed(1)}°'),
+            Text('Atas-bawah: ${_sudutY.toStringAsFixed(1)}°'),
+            Text(
+              datar ? 'DATAR' : 'Belum datar',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li><strong><code>DeteksiGuncangan.proses</code></strong> mengembalikan <code>true</code> hanya sekali per guncangan berkat <code>_terakhir</code> dan <code>jeda</code>.</li>
+  <li><strong><code>hitungKemiringan</code></strong> mengembalikan <em>record</em> Dart 3 <code>({double sudutX, double sudutY})</code>, sehingga dua nilai bisa dikembalikan tanpa membuat class.</li>
+  <li>Sudut dihaluskan dengan low-pass sederhana (<code>_sudutX += 0.2 * (baru - lama)</code>) supaya gelembung tidak gemetar.</li>
+  <li><code>Alignment(dx, dy)</code> menerima nilai -1 sampai 1. Sudut dibagi 20 lalu di-<code>clamp</code>, artinya gelembung menyentuh tepi lingkaran saat miring 20°.</li>
+  <li><code>AnimatedAlign</code> membuat perpindahan gelembung terlihat mulus di antara dua sampel.</li>
+</ul>
+
+<h4>Mode tegak: meluruskan bingkai foto</h4>
+<p>Rumus di atas cocok untuk HP yang diletakkan mendatar. Untuk menempelkan sisi HP ke dinding atau bingkai foto (HP tegak, layar menghadap kamu), yang dicari adalah rotasi HP pada bidang layar. Rumusnya cukup memakai x dan y:</p>
+<pre><code class="language-text">sudutTegak = atan2(x, y) × 180 / π      0° = tegak lurus sempurna
+</code></pre>
+<p>Saat HP tegak lurus, <code>x ≈ 0</code> dan <code>y ≈ 9,8</code>, sehingga sudutnya 0°. Rumus ini tidak stabil jika HP hampir mendatar (x dan y sama-sama mendekati 0). Karena itu aplikasi waterpass sungguhan berganti mode berdasarkan <em>total kemiringan</em>.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kemiringan hanya valid saat HP diam</h4><p>Rumus kemiringan mengasumsikan akselerometer hanya berisi gravitasi. Saat HP digerakkan, percepatan tangan ikut terbaca, sehingga sudut melonjak sesaat. Low-pass filter meredam efek ini. Untuk aplikasi presisi (misalnya stabilisasi kamera), sistem menggabungkan akselerometer dengan giroskop (<em>sensor fusion</em>). Itu di luar cakupan modul ini.</p></div>

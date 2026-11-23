@@ -1,0 +1,186 @@
+<p class="lead"><code>image_picker</code> adalah cara tercepat untuk mendapatkan foto: satu method untuk membuka kamera sistem atau galeri, dan hasilnya langsung berupa file.</p>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
+
+Future&lt;void&gt; contohKecil() async {
+  final picker = ImagePicker();
+
+  // Buka kamera sistem
+  final XFile? foto = await picker.pickImage(source: ImageSource.camera);
+
+  // Buka galeri
+  final XFile? dariGaleri = await picker.pickImage(source: ImageSource.gallery);
+
+  if (foto != null) {
+    debugPrint(foto.path); // lokasi file di folder cache aplikasi
+  }
+  debugPrint('Dari galeri: ${dariGaleri?.name}');
+}
+</code></pre>
+<p>Hasilnya bertipe <code>XFile?</code>. Nilainya <code>null</code> jika pengguna menekan tombol kembali atau batal, jadi selalu periksa <code>null</code> sebelum memakainya.</p>
+
+<h4>Parameter penting <code>pickImage</code></h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Parameter</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>source</code></td><td><code>ImageSource.camera</code> atau <code>ImageSource.gallery</code></td></tr>
+      <tr><td><code>maxWidth</code>, <code>maxHeight</code></td><td>Memperkecil gambar agar lebar/tinggi tidak melebihi nilai ini (rasio tetap). Foto HP modern bisa 4000 px lebih; 1080 px sudah cukup untuk layar</td></tr>
+      <tr><td><code>imageQuality</code></td><td>Kualitas kompresi 0&ndash;100. Nilai 70&ndash;85 biasanya tidak terlihat bedanya tetapi ukurannya jauh lebih kecil</td></tr>
+      <tr><td><code>preferredCameraDevice</code></td><td><code>CameraDevice.rear</code> atau <code>CameraDevice.front</code>. Hanya saran: banyak aplikasi kamera Android mengabaikannya</td></tr>
+      <tr><td><code>requestFullMetadata</code></td><td>Default <code>true</code>. Jika <code>false</code>, iOS tidak perlu meminta izin galeri penuh, tetapi data EXIF (lokasi, waktu) tidak ikut</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh lengkap: kamera dan galeri</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+
+void main() {
+  runApp(
+    const MaterialApp(debugShowCheckedModeBanner: false, home: AmbilFotoPage()),
+  );
+}
+
+class AmbilFotoPage extends StatefulWidget {
+  const AmbilFotoPage({super.key});
+
+  @override
+  State&lt;AmbilFotoPage&gt; createState() =&gt; _AmbilFotoPageState();
+}
+
+class _AmbilFotoPageState extends State&lt;AmbilFotoPage&gt; {
+  // Satu objek ImagePicker cukup untuk seluruh halaman
+  final ImagePicker _picker = ImagePicker();
+
+  XFile? _foto;
+  int? _ukuranByte;
+
+  Future&lt;void&gt; _ambil(ImageSource sumber) async {
+    try {
+      final XFile? hasil = await _picker.pickImage(
+        source: sumber,
+        maxWidth: 1080, // perkecil sisi terpanjang menjadi maks. 1080 px
+        imageQuality: 80, // kompresi JPEG 0-100
+        preferredCameraDevice: CameraDevice.rear,
+      );
+      if (hasil == null) return; // pengguna menekan Batal / kembali
+
+      final ukuran = await hasil.length();
+      if (!mounted) return;
+      setState(() {
+        _foto = hasil;
+        _ukuranByte = ukuran;
+      });
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      final pesan = e.code == 'camera_access_denied'
+          ? 'Izin kamera ditolak. Aktifkan di Pengaturan.'
+          : 'Gagal mengambil foto: ${e.message}';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(pesan)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final foto = _foto;
+    return Scaffold(
+      appBar: AppBar(title: const Text('image_picker')),
+      body: Column(
+        children: [
+          Expanded(
+            child: Center(
+              child: foto == null
+                  ? const Text('Belum ada foto')
+                  : Image.file(File(foto.path), fit: BoxFit.contain),
+            ),
+          ),
+          if (_ukuranByte != null)
+            Text('Ukuran: ${(_ukuranByte! / 1024).toStringAsFixed(1)} KB'),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () =&gt; _ambil(ImageSource.camera),
+                    icon: const Icon(Icons.photo_camera),
+                    label: const Text('Kamera'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () =&gt; _ambil(ImageSource.gallery),
+                    icon: const Icon(Icons.photo_library),
+                    label: const Text('Galeri'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>ImagePicker</code> dibuat sekali sebagai field State, bukan di dalam <code>build()</code>.</li>
+  <li><code>maxWidth: 1080</code> dan <code>imageQuality: 80</code> membuat foto kamera yang aslinya bisa 3&ndash;8 MB menjadi sekitar 100&ndash;300 KB. Ukuran ditampilkan lewat <code>hasil.length()</code> agar kamu bisa membandingkannya sendiri.</li>
+  <li><code>if (!mounted) return;</code> setelah setiap <code>await</code>: pengguna bisa saja menutup halaman selagi kamera terbuka.</li>
+  <li><code>PlatformException</code> dengan kode <code>camera_access_denied</code> muncul jika izin kamera ditolak. Di bagian 8 kita menggantinya dengan alur izin lengkap memakai <code>permission_handler</code>.</li>
+  <li><code>Image.file(File(foto.path))</code> menampilkan file dari penyimpanan perangkat. Pembahasan lengkapnya di bagian 5.</li>
+</ul>
+
+<h4>Memilih banyak foto sekaligus</h4>
+<pre><code class="language-dart">import 'package:image_picker/image_picker.dart';
+
+final ImagePicker _picker = ImagePicker();
+
+Future&lt;List&lt;XFile&gt;&gt; ambilBanyak() async {
+  // Maksimal 5 foto sekaligus dari galeri
+  final List&lt;XFile&gt; daftar = await _picker.pickMultiImage(
+    maxWidth: 1080,
+    imageQuality: 80,
+    limit: 5,
+  );
+  return daftar; // list kosong jika pengguna membatalkan
+}
+
+Future&lt;XFile?&gt; pulihkanFotoHilang() async {
+  final LostDataResponse respons = await _picker.retrieveLostData();
+  if (respons.isEmpty) return null; // tidak ada yang hilang
+
+  final List&lt;XFile&gt;? files = respons.files;
+  if (files != null &amp;&amp; files.isNotEmpty) {
+    return files.first; // foto yang sempat diambil sebelum aplikasi dimatikan
+  }
+  // Jika gagal, exception-nya ada di respons.exception
+  throw respons.exception!;
+}
+</code></pre>
+<ul>
+  <li><code>pickMultiImage</code> selalu dari galeri dan mengembalikan <code>List&lt;XFile&gt;</code> (bukan nullable). List kosong berarti pengguna membatalkan.</li>
+  <li><code>limit</code> membatasi jumlah foto yang boleh dipilih, berguna untuk lampiran laporan yang dibatasi (misalnya maksimal 5 foto).</li>
+</ul>
+
+<h4>Foto hilang di Android: <code>retrieveLostData</code></h4>
+<p>Saat aplikasi kamera sistem terbuka, aplikasi kita berpindah ke latar belakang. Di HP dengan RAM kecil, Android bisa <strong>mematikan</strong> aplikasi kita untuk menghemat memori. Setelah pengguna selesai memotret, Android menjalankan ulang aplikasi kita dari awal, sehingga <code>await pickImage()</code> yang lama tidak pernah menerima hasilnya. Foto itu tidak benar-benar hilang: panggil <code>retrieveLostData()</code> (fungsi <code>pulihkanFotoHilang</code> di atas) <strong>sekali saat aplikasi dimulai</strong> untuk mengambilnya. Di iOS method ini tidak diperlukan.</p>
+<div class="callout callout-tip"><h4>💡 Cara menguji</h4><p>Buka <strong>Developer options</strong> di HP atau emulator, aktifkan <strong>Don't keep activities</strong>. Setiap aplikasi yang ditinggalkan akan langsung dimatikan, sehingga kasus foto hilang selalu terjadi. Matikan lagi setelah selesai menguji.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li>Memakai <code>foto!</code> tanpa memeriksa <code>null</code>: aplikasi crash saat pengguna menekan batal.</li>
+<li>Tidak memberi <code>maxWidth</code>/<code>imageQuality</code>: foto berukuran megabyte membuat daftar foto patah-patah dan unggahan lambat.</li>
+<li>Menganggap foto dari <code>image_picker</code> tersimpan permanen. File ada di folder <strong>cache</strong> yang bisa dibersihkan sistem kapan saja. Salin ke folder dokumen (bagian 5) jika perlu disimpan.</li>
+</ul></div>

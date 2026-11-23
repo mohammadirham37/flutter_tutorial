@@ -1,0 +1,44 @@
+<p class="lead">Hampir setiap aplikasi kampus butuh foto: foto profil, bukti kehadiran, dokumentasi praktikum, atau scan dokumen. Di Flutter ada dua cara besar untuk mendapatkan foto dari kamera, dan memilih cara yang tepat sejak awal akan menghemat banyak pekerjaan.</p>
+
+<h4>Cara 1: meminjam aplikasi kamera bawaan sistem</h4>
+<p>Aplikasi kita "menitipkan" tugas memotret kepada aplikasi kamera bawaan HP. Layar berpindah ke aplikasi kamera, pengguna memotret, lalu hasilnya (sebuah file) dikembalikan ke aplikasi kita. Di Android native (modul lama berbasis Kotlin) cara ini disebut <strong>Intent kamera</strong> (<code>MediaStore.ACTION_IMAGE_CAPTURE</code>). Di Flutter, cara ini dibungkus oleh package <strong><code>image_picker</code></strong>, yang sekaligus bisa membuka <strong>galeri</strong> untuk memilih foto yang sudah ada.</p>
+
+<h4>Cara 2: kamera di dalam aplikasi</h4>
+<p>Aplikasi kita sendiri yang membuka sensor kamera dan menampilkan <em>preview</em> langsung di layar kita. Kita bebas menambahkan tombol, bingkai wajah, filter, atau pemindai QR. Di Android native cara ini memakai <strong>CameraX</strong> (bagian dari Jetpack). Di Flutter, cara ini disediakan oleh package resmi <strong><code>camera</code></strong>, yang di Android memang dibangun di atas CameraX (lewat package pendukung <code>camera_android_camerax</code> yang otomatis ikut terpasang).</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Aspek</th><th><code>image_picker</code> (setara Intent)</th><th><code>camera</code> (setara CameraX)</th></tr></thead>
+    <tbody>
+      <tr><td>Kemudahan</td><td>Sangat mudah, cukup satu pemanggilan <code>pickImage()</code></td><td>Menengah: perlu controller, inisialisasi, dispose, dan lifecycle</td></tr>
+      <tr><td>Tampilan saat memotret</td><td>Aplikasi kamera bawaan HP (tidak bisa diubah)</td><td>Sepenuhnya milik kita: tombol, bingkai, overlay</td></tr>
+      <tr><td>Galeri</td><td>Ya, <code>ImageSource.gallery</code> dan multi pilih</td><td>Tidak ada, hanya kamera</td></tr>
+      <tr><td>Kontrol kamera</td><td>Hanya saran kamera depan/belakang, ukuran, dan kualitas</td><td>Ganti lensa, flash, zoom, fokus, eksposur, rekam video, stream frame</td></tr>
+      <tr><td>Hasil</td><td><code>XFile</code> di folder cache aplikasi</td><td><code>XFile</code> di folder cache aplikasi</td></tr>
+      <tr><td>Izin</td><td>Diurus plugin (dan sering tidak perlu izin untuk galeri)</td><td>Diminta saat <code>initialize()</code>, error harus kita tangani</td></tr>
+      <tr><td>Contoh kasus</td><td>Foto profil, lampiran laporan, bukti tugas</td><td>Presensi swafoto dengan bingkai, scan QR/dokumen, kamera bergaya Instagram</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>Kedua package mengembalikan hasil berupa <strong><code>XFile</code></strong> (dari package <code>cross_file</code>), yaitu "pegangan" ke sebuah file. Properti yang paling sering dipakai:</p>
+<ul>
+  <li><code>path</code>: lokasi file. Di Android/iOS bisa langsung dipakai dengan <code>File(xfile.path)</code>.</li>
+  <li><code>name</code>, <code>length()</code>, <code>readAsBytes()</code>: nama file, ukuran dalam byte, dan isi file sebagai <code>Uint8List</code> (berguna untuk diunggah).</li>
+  <li><code>saveTo(path)</code>: menyalin file ke lokasi lain, misalnya folder dokumen aplikasi.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Aturan praktis memilih</h4><p>Mulailah dengan <code>image_picker</code>. Pindah ke <code>camera</code> hanya jika kamu benar-benar butuh tampilan kamera sendiri (bingkai, overlay, tombol khusus) atau akses frame secara langsung. Di studi kasus bagian 8 kita memakai keduanya: <code>image_picker</code> untuk kamera sistem dan galeri, serta <code>camera</code> untuk swafoto dengan bingkai wajah.</p></div>
+
+<h4>Kamera sebagai sensor</h4>
+<p>Kamera bukan hanya untuk foto kenangan. Dalam bidang teknik komputer, kamera adalah <strong>sensor visual</strong>: frame-frame gambarnya bisa dianalisis untuk membaca kode QR atau barcode, mengenali teks (OCR), mendeteksi wajah, atau mengukur objek. Di CameraX tugas ini dilakukan oleh <em>ImageAnalysis</em>. Di Flutter, kebutuhan paling umum (QR/barcode) sudah dibungkus package <code>mobile_scanner</code> yang dibahas sekilas di bagian 9, sedangkan akses frame mentah tersedia lewat <code>startImageStream()</code> di package <code>camera</code>.</p>
+
+<h4>Menguji di emulator</h4>
+<p>Kamu tidak wajib punya HP untuk mencoba bab ini. Android Emulator punya kamera virtual:</p>
+<ol>
+  <li>Buka <strong>Device Manager</strong> di Android Studio, pilih emulator, klik <strong>Edit</strong> &rarr; <strong>Show Advanced Settings</strong>.</li>
+  <li>Atur <strong>Camera Back</strong> ke <code>VirtualScene</code> (ruangan 3D virtual) atau <code>Webcam0</code> (webcam laptop), dan <strong>Camera Front</strong> ke <code>Emulated</code> atau <code>Webcam0</code>.</li>
+  <li>Saat kamera <code>VirtualScene</code> aktif, tahan <kbd>Alt</kbd> (<kbd>Option</kbd> di Mac) lalu gunakan <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> dan mouse untuk "berjalan" di ruangan. Di <strong>Extended Controls</strong> (tombol <strong>...</strong>) &rarr; <strong>Camera</strong>, kamu bisa mengganti gambar yang tertempel di dinding dan meja ruangan tersebut, misalnya dengan gambar kode QR.</li>
+  <li>Untuk mengisi galeri, seret (drag &amp; drop) file gambar dari komputer ke jendela emulator, atau ambil beberapa foto dengan aplikasi Kamera bawaan emulator.</li>
+</ol>
+<div class="callout callout-warning"><h4>⚠️ Batasan emulator</h4><p>Flash tidak benar-benar menyala, kualitas gambar rendah, dan beberapa emulator hanya punya satu kamera sehingga tombol ganti kamera tidak berguna. Fitur seperti zoom optik dan fokus otomatis hanya bisa diuji dengan benar di HP fisik.</p></div>

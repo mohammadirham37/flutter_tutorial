@@ -1,0 +1,408 @@
+<p class="lead">Contoh di bagian sebelumnya menaruh semua logika di <code>State</code> widget. Itu cukup untuk belajar, tetapi sulit dipakai ulang dan diuji. Sekarang kita pecah dengan pola MVC dari Modul 08: <strong>LocationService</strong> membungkus <code>geolocator</code>, <strong>LocationController</strong> menyimpan state reaktif dan mengelola langganan stream, dan <strong>View</strong> hanya menampilkan lewat <code>Obx</code>.</p>
+
+<h4>Struktur folder</h4>
+<pre><code class="language-text">lib/
+├── main.dart                          # GetMaterialApp + pendaftaran dependensi
+├── services/
+│   └── location_service.dart          # satu-satunya yang memanggil geolocator
+├── controllers/
+│   └── location_controller.dart       # state .obs + StreamSubscription
+└── views/
+    └── lokasi_view.dart               # Obx, tanpa geolocator
+</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Lapisan</th><th>Boleh tahu tentang</th><th>Tidak boleh</th></tr></thead>
+    <tbody>
+      <tr><td>Service</td><td><code>geolocator</code>, aturan platform</td><td>GetX, widget, BuildContext</td></tr>
+      <tr><td>Controller</td><td>Service, tipe <code>Position</code>, state <code>.obs</code></td><td><code>material.dart</code>, memanggil <code>Geolocator</code> langsung</td></tr>
+      <tr><td>View</td><td>Controller</td><td>Memanggil <code>Geolocator</code> atau mengelola stream</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Langkah 1: Service</h4>
+<p class="code-file-label">📄 <code>lib/services/location_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/location_service.dart
+import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
+
+/// Hasil pemeriksaan kesiapan lokasi (layanan + izin).
+enum KesiapanLokasi { siap, layananMati, ditolak, ditolakPermanen }
+
+/// Satu-satunya kelas yang memanggil package geolocator.
+class LocationService {
+  /// Cek layanan GPS, lalu cek dan (bila perlu) minta izin.
+  Future&lt;KesiapanLokasi&gt; periksaKesiapan() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      return KesiapanLokasi.layananMati;
+    }
+    var izin = await Geolocator.checkPermission();
+    if (izin == LocationPermission.denied) {
+      izin = await Geolocator.requestPermission();
+    }
+    return switch (izin) {
+      LocationPermission.whileInUse ||
+      LocationPermission.always =&gt; KesiapanLokasi.siap,
+      LocationPermission.deniedForever =&gt; KesiapanLokasi.ditolakPermanen,
+      LocationPermission.denied ||
+      LocationPermission.unableToDetermine =&gt; KesiapanLokasi.ditolak,
+    };
+  }
+
+  /// Pengaturan per platform. [jarakMinimal] dalam meter.
+  LocationSettings _pengaturan({int jarakMinimal = 0, Duration? batasWaktu}) {
+    if (!kIsWeb &amp;&amp; defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: jarakMinimal,
+        intervalDuration: const Duration(seconds: 5),
+        timeLimit: batasWaktu,
+      );
+    }
+    if (!kIsWeb &amp;&amp; defaultTargetPlatform == TargetPlatform.iOS) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: jarakMinimal,
+        activityType: ActivityType.fitness,
+        pauseLocationUpdatesAutomatically: true,
+        timeLimit: batasWaktu,
+      );
+    }
+    return LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: jarakMinimal,
+      timeLimit: batasWaktu,
+    );
+  }
+
+  Future&lt;Position?&gt; posisiTerakhir() =&gt; Geolocator.getLastKnownPosition();
+
+  /// Melempar TimeoutException jika lewat [batasWaktu].
+  Future&lt;Position&gt; posisiSekarang({
+    Duration batasWaktu = const Duration(seconds: 15),
+  }) {
+    return Geolocator.getCurrentPosition(
+      locationSettings: _pengaturan(batasWaktu: batasWaktu),
+    );
+  }
+
+  Stream&lt;Position&gt; aliranPosisi({int jarakMinimal = 10}) {
+    return Geolocator.getPositionStream(
+      locationSettings: _pengaturan(jarakMinimal: jarakMinimal),
+    );
+  }
+
+  double jarakMeter(double lat1, double lng1, double lat2, double lng2) =&gt;
+      Geolocator.distanceBetween(lat1, lng1, lat2, lng2);
+
+  Future&lt;bool&gt; bukaPengaturanLokasi() =&gt; Geolocator.openLocationSettings();
+  Future&lt;bool&gt; bukaPengaturanAplikasi() =&gt; Geolocator.openAppSettings();
+}
+</code></pre>
+<ul>
+  <li><code>periksaKesiapan()</code> menggabungkan cek layanan dan alur izin dari bagian 2 menjadi satu enum milik aplikasi (<code>KesiapanLokasi</code>). Controller tidak perlu tahu ada lima nilai <code>LocationPermission</code>.</li>
+  <li><code>_pengaturan()</code> menyembunyikan perbedaan Android dan iOS. Jika suatu saat akurasi atau interval ingin diubah, cukup ubah satu tempat.</li>
+  <li>Service tidak mengimpor GetX sama sekali, sehingga bisa dipakai ulang di proyek tanpa GetX.</li>
+</ul>
+
+<h4>Langkah 2: Controller</h4>
+<p class="code-file-label">📄 <code>lib/controllers/location_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/location_controller.dart
+import 'dart:async';
+
+import 'package:geolocator/geolocator.dart';
+import 'package:get/get.dart';
+
+import '../services/location_service.dart';
+
+enum StatusLokasi {
+  awal,
+  memuat,
+  siap,
+  layananMati,
+  ditolak,
+  ditolakPermanen,
+  gagal,
+}
+
+class LocationController extends GetxController {
+  LocationController(this._service);
+  final LocationService _service;
+
+  // State reaktif privat + getter publik
+  final _posisi = Rxn&lt;Position&gt;();
+  final _status = StatusLokasi.awal.obs;
+  final _pesan = ''.obs;
+  final _melacak = false.obs;
+
+  Position? get posisi =&gt; _posisi.value;
+  StatusLokasi get status =&gt; _status.value;
+  String get pesan =&gt; _pesan.value;
+  bool get melacak =&gt; _melacak.value;
+
+  StreamSubscription&lt;Position&gt;? _langganan;
+
+  @override
+  void onInit() {
+    super.onInit();
+    ambilPosisi();
+  }
+
+  @override
+  void onClose() {
+    _langganan?.cancel(); // hentikan GPS saat controller dihapus
+    super.onClose();
+  }
+
+  /// Mengembalikan true jika lokasi boleh dipakai.
+  Future&lt;bool&gt; _pastikanSiap() async {
+    final kesiapan = await _service.periksaKesiapan();
+    switch (kesiapan) {
+      case KesiapanLokasi.siap:
+        return true;
+      case KesiapanLokasi.layananMati:
+        _setStatus(StatusLokasi.layananMati, 'Layanan lokasi (GPS) mati.');
+      case KesiapanLokasi.ditolak:
+        _setStatus(StatusLokasi.ditolak, 'Izin lokasi ditolak.');
+      case KesiapanLokasi.ditolakPermanen:
+        _setStatus(
+          StatusLokasi.ditolakPermanen,
+          'Izin lokasi ditolak permanen. Aktifkan lewat pengaturan aplikasi.',
+        );
+    }
+    return false;
+  }
+
+  void _setStatus(StatusLokasi s, [String pesan = '']) {
+    _status.value = s;
+    _pesan.value = pesan;
+  }
+
+  Future&lt;void&gt; ambilPosisi() async {
+    _setStatus(StatusLokasi.memuat);
+    if (!await _pastikanSiap()) return;
+
+    // Tampilkan posisi terakhir dulu agar layar tidak kosong
+    _posisi.value ??= await _service.posisiTerakhir();
+
+    try {
+      _posisi.value = await _service.posisiSekarang();
+      _setStatus(StatusLokasi.siap);
+    } on TimeoutException {
+      _setStatus(StatusLokasi.gagal, 'Sinyal GPS lemah, coba lagi.');
+    } on LocationServiceDisabledException {
+      _setStatus(StatusLokasi.layananMati, 'Layanan lokasi (GPS) mati.');
+    } on PermissionDeniedException {
+      _setStatus(StatusLokasi.ditolak, 'Izin lokasi ditolak.');
+    } catch (e) {
+      _setStatus(StatusLokasi.gagal, 'Gagal mengambil lokasi: $e');
+    }
+  }
+
+  Future&lt;void&gt; mulaiLacak() async {
+    if (_langganan != null) return; // jangan dobel langganan
+    if (!await _pastikanSiap()) return;
+
+    _langganan = _service
+        .aliranPosisi(jarakMinimal: 10)
+        .listen(
+          (p) {
+            _posisi.value = p;
+            _setStatus(StatusLokasi.siap);
+          },
+          onError: (Object e) {
+            _setStatus(StatusLokasi.gagal, 'Pelacakan berhenti: $e');
+            hentikanLacak();
+          },
+        );
+    _melacak.value = true;
+  }
+
+  Future&lt;void&gt; hentikanLacak() async {
+    await _langganan?.cancel();
+    _langganan = null;
+    _melacak.value = false;
+  }
+
+  /// Membuka halaman pengaturan yang sesuai dengan masalahnya.
+  Future&lt;void&gt; bukaPengaturan() async {
+    if (status == StatusLokasi.layananMati) {
+      await _service.bukaPengaturanLokasi();
+    } else {
+      await _service.bukaPengaturanAplikasi();
+    }
+  }
+}
+</code></pre>
+<ul>
+  <li><code>Rxn&lt;Position&gt;()</code> adalah <code>Rx</code> yang boleh bernilai <code>null</code>, cocok untuk "posisi belum ada".</li>
+  <li>State privat (<code>_posisi</code>, <code>_status</code>) dengan getter publik read-only, sama seperti pola Modul 08. View tidak bisa mengubah posisi secara langsung.</li>
+  <li><code>_posisi.value ??= await _service.posisiTerakhir();</code> mengisi posisi terakhir hanya jika belum ada posisi sama sekali, agar layar tidak kosong selama menunggu GPS.</li>
+  <li><code>mulaiLacak()</code> menolak membuat langganan kedua (<code>if (_langganan != null) return;</code>).</li>
+  <li><strong><code>onClose()</code> membatalkan langganan.</strong> GetX memanggil <code>onClose</code> saat controller dihapus dari memori (misalnya halaman yang memakai binding ditutup). Ini padanan <code>dispose()</code> di <code>StatefulWidget</code>.</li>
+  <li>Controller tidak mengimpor <code>material.dart</code>. Pesan untuk pengguna disimpan sebagai <code>String</code>; cara menampilkannya urusan View.</li>
+</ul>
+
+<h4>Langkah 3: View</h4>
+<p class="code-file-label">📄 <code>lib/views/lokasi_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/lokasi_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/location_controller.dart';
+
+class LokasiView extends GetView&lt;LocationController&gt; {
+  const LokasiView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Lokasi (GetX)'),
+        actions: [
+          IconButton(
+            onPressed: controller.ambilPosisi,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Ambil ulang',
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Obx(() {
+          final p = controller.posisi;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (controller.status == StatusLokasi.memuat)
+                const LinearProgressIndicator(),
+              if (controller.pesan.isNotEmpty)
+                _KartuMasalah(
+                  pesan: controller.pesan,
+                  bisaDibuka:
+                      controller.status == StatusLokasi.layananMati ||
+                      controller.status == StatusLokasi.ditolakPermanen,
+                  onBuka: controller.bukaPengaturan,
+                  onCobaLagi: controller.ambilPosisi,
+                ),
+              const SizedBox(height: 16),
+              Text(
+                p == null
+                    ? 'Posisi belum tersedia'
+                    : '${p.latitude.toStringAsFixed(6)}, '
+                          '${p.longitude.toStringAsFixed(6)}',
+                style: Theme.of(context).textTheme.headlineSmall,
+                textAlign: TextAlign.center,
+              ),
+              if (p != null)
+                Text(
+                  'Akurasi ± ${p.accuracy.toStringAsFixed(0)} m'
+                  '${p.isMocked ? ' • LOKASI PALSU' : ''}',
+                  textAlign: TextAlign.center,
+                ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: controller.melacak
+                    ? controller.hentikanLacak
+                    : controller.mulaiLacak,
+                icon: Icon(controller.melacak ? Icons.stop : Icons.play_arrow),
+                label: Text(
+                  controller.melacak ? 'Hentikan pelacakan' : 'Lacak terus',
+                ),
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _KartuMasalah extends StatelessWidget {
+  const _KartuMasalah({
+    required this.pesan,
+    required this.bisaDibuka,
+    required this.onBuka,
+    required this.onCobaLagi,
+  });
+
+  final String pesan;
+  final bool bisaDibuka;
+  final VoidCallback onBuka;
+  final VoidCallback onCobaLagi;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Theme.of(context).colorScheme.errorContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(pesan),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton(
+                  onPressed: onCobaLagi,
+                  child: const Text('Coba lagi'),
+                ),
+                if (bisaDibuka)
+                  FilledButton(
+                    onPressed: onBuka,
+                    child: const Text('Buka pengaturan'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<p><code>GetView&lt;LocationController&gt;</code> menyediakan getter <code>controller</code> (hasil <code>Get.find</code>). Seluruh isi <code>body</code> dibungkus satu <code>Obx</code> karena hampir semua bagiannya bergantung pada state controller. Tombol "Buka pengaturan" hanya muncul untuk masalah yang memang butuh pengaturan (GPS mati atau izin ditolak permanen). Untuk izin yang ditolak biasa, tombol "Coba lagi" sudah cukup karena dialog izin masih bisa muncul.</p>
+
+<h4>Langkah 4: main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'controllers/location_controller.dart';
+import 'services/location_service.dart';
+import 'views/lokasi_view.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  Get.put(LocationService(), permanent: true);
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      initialBinding: BindingsBuilder(() {
+        Get.lazyPut(() =&gt; LocationController(Get.find&lt;LocationService&gt;()));
+      }),
+      home: const LokasiView(),
+    );
+  }
+}
+</code></pre>
+<p><code>LocationService</code> didaftarkan sekali dengan <code>permanent: true</code> karena dipakai seluruh aplikasi. <code>LocationController</code> didaftarkan lewat <code>initialBinding</code> dan menerima service lewat constructor, persis seperti pola Modul 08 bagian 4 dan 7.</p>
+
+<div class="callout callout-info"><h4>ℹ️ Controller global vs per halaman</h4><p>Controller dari <code>initialBinding</code> hidup selama aplikasi berjalan, jadi <code>onClose</code>-nya praktis tidak pernah dipanggil. Untuk fitur yang memakai stream GPS, lebih baik controller dibuat per halaman lewat <code>binding</code> di <code>GetPage</code>, sehingga stream otomatis berhenti saat halaman ditutup. Pola inilah yang dipakai di studi kasus berikutnya.</p></div>
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Memanggil <code>Geolocator.getPositionStream()</code> langsung dari View. Stream jadi sulit dihentikan dan logika izin tersebar di banyak widget.</li>
+  <li>Lupa <code>super.onClose()</code> atau lupa <code>cancel()</code> di <code>onClose</code>: GPS tetap aktif setelah halaman ditutup, baterai terkuras.</li>
+  <li>Membaca <code>controller.posisi</code> di luar <code>Obx</code>, sehingga tampilan tidak pernah berubah saat posisi baru datang.</li>
+</ul></div>

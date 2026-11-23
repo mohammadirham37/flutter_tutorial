@@ -1,0 +1,190 @@
+<p class="lead"><code>connectivity_plus</code> hanya tahu "sedang memakai WiFi". Untuk detailnya (nama jaringan, alamat IP, gateway) kita memakai <code>network_info_plus</code>. Contoh pemakaian di kampus: presensi yang hanya boleh dilakukan dari WiFi kelas, atau aplikasi lab yang mencari server ESP32 di subnet yang sama.</p>
+
+<h4>Instalasi</h4>
+<pre><code class="language-bash">flutter pub add network_info_plus permission_handler
+</code></pre>
+
+<h4>API yang tersedia</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Method</th><th>Contoh hasil</th><th>Butuh izin lokasi?</th></tr></thead>
+    <tbody>
+      <tr><td><code>getWifiName()</code></td><td><code>"Kampus-WiFi"</code> (SSID)</td><td>Ya</td></tr>
+      <tr><td><code>getWifiBSSID()</code></td><td><code>11:22:33:44:55:66</code> (MAC titik akses)</td><td>Ya</td></tr>
+      <tr><td><code>getWifiIP()</code></td><td><code>192.168.1.43</code></td><td>Tidak</td></tr>
+      <tr><td><code>getWifiIPv6()</code></td><td><code>2001:db8::...</code></td><td>Tidak</td></tr>
+      <tr><td><code>getWifiSubmask()</code></td><td><code>255.255.255.0</code></td><td>Tidak</td></tr>
+      <tr><td><code>getWifiGatewayIP()</code></td><td><code>192.168.1.1</code></td><td>Tidak</td></tr>
+      <tr><td><code>getWifiBroadcast()</code></td><td><code>192.168.1.255</code></td><td>Tidak</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Semua method mengembalikan <code>Future&lt;String?&gt;</code>. Nilai <code>null</code> berarti tidak tersedia: tidak sedang di WiFi, izin belum diberikan, atau platform menolak memberi informasi.</p>
+
+<h4>Kenapa nama WiFi butuh izin lokasi?</h4>
+<p>Nama dan BSSID WiFi bisa dipakai untuk menebak lokasi seseorang (database lokasi titik akses WiFi sudah ada di mana-mana). Karena itu, sejak Android 10 (API 29), aplikasi baru bisa membaca SSID jika memenuhi <strong>semua</strong> syarat berikut:</p>
+<ul>
+  <li>Punya izin <code>ACCESS_FINE_LOCATION</code> yang sudah diberikan pengguna.</li>
+  <li>Layanan lokasi HP sedang <strong>menyala</strong> (Setelan &rarr; Lokasi).</li>
+  <li>Di Android 12 ke atas, punya izin <code>ACCESS_NETWORK_STATE</code> (sudah dibawa package).</li>
+</ul>
+<p>Package ini sengaja <strong>tidak</strong> menambahkan izin lokasi ke manifest, jadi kita tambahkan sendiri.</p>
+
+<h4>Konfigurasi Android</h4>
+<p class="code-file-label">📄 <code>android/app/src/main/AndroidManifest.xml</code></p>
+<pre><code class="language-text">&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" /&gt;
+
+    &lt;application ...&gt;
+        ...
+    &lt;/application&gt;
+&lt;/manifest&gt;
+</code></pre>
+
+<h4>Konfigurasi iOS</h4>
+<p>Di iOS 13 ke atas, nama WiFi hanya diberikan kepada aplikasi yang punya izin lokasi (atau yang mengatur WiFi/VPN sendiri). Tambahkan kunci berikut, lalu aktifkan capability <strong>Access WiFi Information</strong> di Xcode (Runner &rarr; Signing &amp; Capabilities). Di iOS Simulator nilainya selalu <code>null</code>.</p>
+<p class="code-file-label">📄 <code>ios/Runner/Info.plist</code></p>
+<pre><code class="language-text">&lt;key&gt;NSLocationWhenInUseUsageDescription&lt;/key&gt;
+&lt;string&gt;Lokasi dibutuhkan untuk membaca nama WiFi kelas saat presensi.&lt;/string&gt;
+</code></pre>
+<p>Karena kita memakai <code>permission_handler</code>, iOS juga butuh makro izin di <code>ios/Podfile</code> (lihat Modul 17). Tanpa makro, permintaan izin lokasi di iOS langsung dianggap ditolak. Untuk <code>Permission.locationWhenInUse</code> makronya:</p>
+<p class="code-file-label">📄 <code>ios/Podfile</code> (di dalam blok <code>post_install</code>)</p>
+<pre><code class="language-text">config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+  '$(inherited)',
+  'PERMISSION_LOCATION_WHENINUSE=1',
+]
+</code></pre>
+
+<h4>Contoh lengkap: membaca info WiFi dengan alur izin</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:network_info_plus/network_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const InfoWifiPage(),
+    );
+  }
+}
+
+class InfoWifiPage extends StatefulWidget {
+  const InfoWifiPage({super.key});
+
+  @override
+  State&lt;InfoWifiPage&gt; createState() =&gt; _InfoWifiPageState();
+}
+
+class _InfoWifiPageState extends State&lt;InfoWifiPage&gt; {
+  final NetworkInfo _info = NetworkInfo();
+
+  String? _ssid;
+  String? _ip;
+  String? _gateway;
+  String _pesan = 'Tekan tombol untuk membaca info WiFi.';
+  bool _izinDitolakPermanen = false;
+
+  Future&lt;void&gt; _bacaInfo() async {
+    // 1. SSID termasuk data lokasi, jadi minta izin lokasi dulu
+    final status = await Permission.locationWhenInUse.request();
+    if (!mounted) return;
+
+    if (status.isPermanentlyDenied) {
+      setState(() {
+        _izinDitolakPermanen = true;
+        _pesan =
+            'Izin lokasi ditolak permanen. Buka pengaturan aplikasi '
+            'untuk mengizinkannya.';
+      });
+      return;
+    }
+
+    // 2. IP dan gateway tidak butuh izin lokasi, tetap bisa dibaca
+    final ip = await _info.getWifiIP();
+    final gateway = await _info.getWifiGatewayIP();
+    final ssid = status.isGranted ? await _info.getWifiName() : null;
+    if (!mounted) return;
+
+    setState(() {
+      _izinDitolakPermanen = false;
+      _ip = ip;
+      _gateway = gateway;
+      _ssid = ssid == null ? null : _bersihkanKutip(ssid);
+      _pesan = status.isGranted
+          ? 'Info WiFi berhasil dibaca.'
+          : 'Izin lokasi ditolak, nama WiFi tidak bisa ditampilkan.';
+    });
+  }
+
+  /// Android mengembalikan SSID dengan tanda kutip: "Kampus-WiFi"
+  String _bersihkanKutip(String ssid) {
+    if (ssid.length &gt;= 2 &amp;&amp; ssid.startsWith('"') &amp;&amp; ssid.endsWith('"')) {
+      return ssid.substring(1, ssid.length - 1);
+    }
+    return ssid;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Info WiFi')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(_pesan),
+          const SizedBox(height: 12),
+          ListTile(
+            leading: const Icon(Icons.wifi),
+            title: const Text('Nama WiFi (SSID)'),
+            subtitle: Text(_ssid ?? '-'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.lan),
+            title: const Text('Alamat IP perangkat'),
+            subtitle: Text(_ip ?? '-'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.router),
+            title: const Text('Gateway (router)'),
+            subtitle: Text(_gateway ?? '-'),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _bacaInfo,
+            icon: const Icon(Icons.search),
+            label: const Text('Baca info WiFi'),
+          ),
+          if (_izinDitolakPermanen)
+            TextButton(
+              onPressed: openAppSettings,
+              child: const Text('Buka pengaturan aplikasi'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Penjelasan baris penting</h4>
+<ul>
+  <li><strong>Tiga cabang hasil izin</strong> (pola Modul 17): diberikan &rarr; baca SSID; ditolak &rarr; tetap tampilkan IP dan gateway, beri tahu bahwa SSID butuh izin; ditolak permanen &rarr; dialog tidak akan muncul lagi, jadi tampilkan tombol <code>openAppSettings</code>.</li>
+  <li><strong>IP dan gateway tetap dibaca</strong> walaupun izin ditolak. Jangan mengunci seluruh fitur hanya karena satu data butuh izin.</li>
+  <li><strong><code>_bersihkanKutip</code></strong>: Android mengembalikan SSID dengan tanda kutip, misalnya <code>"Kampus-WiFi"</code>. Ini perilaku sistem operasi yang terdokumentasi, bukan bug package, jadi bersihkan sebelum ditampilkan atau dibandingkan.</li>
+  <li><strong><code>if (!mounted) return;</code></strong> setelah <code>request()</code> dan setelah membaca info, karena keduanya <code>await</code>.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ SSID <code>null</code> atau <code>&lt;unknown ssid&gt;</code> padahal izin sudah diberikan</h4><p>Penyebab paling sering: layanan lokasi HP mati. Izin aplikasi dan saklar lokasi sistem adalah dua hal berbeda. Di emulator Android, SSID biasanya terbaca sebagai <code>AndroidWifi</code> setelah izin diberikan dan lokasi dinyalakan.</p></div>
+
+<div class="callout callout-info"><h4>ℹ️ SSID bukan bukti kehadiran yang kuat</h4><p>Siapa pun bisa membuat hotspot dengan nama "Kampus-WiFi". Untuk presensi berbasis WiFi, gabungkan SSID dengan BSSID titik akses yang terdaftar, lokasi GPS (Modul 19), dan validasi di server. Jangan mengandalkan satu pemeriksaan di sisi aplikasi.</p></div>

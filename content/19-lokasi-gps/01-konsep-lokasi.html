@@ -1,0 +1,79 @@
+<p class="lead">Aplikasi ojek online, presensi kantor, pelacak lari, dan peta kampus punya satu kebutuhan yang sama: <strong>mengetahui di mana pengguna berada</strong>. Di bab ini kamu belajar mengambil posisi perangkat, memantaunya secara real-time, mengubahnya menjadi alamat, menampilkannya di peta, lalu membangun aplikasi presensi kampus berbasis lokasi dengan GetX MVC.</p>
+
+<h4>Dari mana ponsel tahu posisinya?</h4>
+<p>Ponsel tidak hanya mengandalkan satelit. Ada beberapa sumber posisi yang dipakai bergantian atau digabung:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Sumber</th><th>Cara kerja singkat</th><th>Akurasi umum</th><th>Baterai</th><th>Catatan</th></tr></thead>
+    <tbody>
+      <tr><td><strong>GNSS</strong> (GPS, GLONASS, Galileo, BeiDou)</td><td>Menghitung jarak ke minimal 4 satelit dari waktu tempuh sinyal</td><td>3&ndash;10 m di ruang terbuka</td><td>Boros</td><td>Lemah di dalam gedung, butuh waktu untuk <em>fix</em> pertama</td></tr>
+      <tr><td><strong>Wi-Fi</strong></td><td>Mencocokkan access point di sekitar dengan basis data lokasi</td><td>15&ndash;50 m</td><td>Sedang</td><td>Bagus di dalam gedung dan area kota</td></tr>
+      <tr><td><strong>Menara seluler</strong></td><td>Memperkirakan posisi dari menara BTS yang terhubung</td><td>100 m&ndash;beberapa km</td><td>Hemat</td><td>Cepat, tetapi kasar</td></tr>
+      <tr><td><strong>Sensor gerak</strong></td><td>Akselerometer dan giroskop mengisi celah saat sinyal hilang</td><td>Pelengkap</td><td>Hemat</td><td>Dibahas di Modul 20</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>GPS sebenarnya hanyalah satu sistem satelit milik Amerika Serikat. Istilah yang lebih tepat adalah <strong>GNSS</strong> (<em>Global Navigation Satellite System</em>), karena ponsel modern menerima sinyal dari beberapa konstelasi sekaligus. Dalam percakapan sehari-hari (dan di modul ini) kata "GPS" tetap dipakai untuk menyebut layanan lokasi secara umum.</p>
+
+<h4>Fused Location Provider</h4>
+<p>Di Android, Google Play services menyediakan <strong>Fused Location Provider</strong> (<code>FusedLocationProviderClient</code>). Modul lama yang berbasis Kotlin memanggilnya langsung. Provider ini menggabungkan ("fuse") GNSS, Wi-Fi, seluler, dan sensor gerak, lalu memilih kombinasi terbaik sesuai prioritas yang diminta aplikasi. Kita tidak perlu memanggilnya sendiri: package <code>geolocator</code> yang dipakai di bab ini memakai Fused Location Provider secara otomatis di Android (dan <em>Core Location</em> di iOS).</p>
+
+<h4>Akurasi vs baterai</h4>
+<p>Makin tinggi akurasi yang diminta, makin sering chip GNSS dinyalakan, makin cepat baterai habis. Di <code>geolocator</code> pilihan ini diatur lewat enum <code>LocationAccuracy</code>:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th><code>LocationAccuracy</code></th><th>Prioritas Android</th><th>Kira-kira di iOS</th><th>Cocok untuk</th></tr></thead>
+    <tbody>
+      <tr><td><code>lowest</code></td><td>PRIORITY_PASSIVE (hanya menumpang lokasi milik aplikasi lain)</td><td>&plusmn; 3 km</td><td>Fitur yang tidak mendesak</td></tr>
+      <tr><td><code>low</code></td><td>PRIORITY_LOW_POWER</td><td>&plusmn; 1 km</td><td>Cuaca, berita lokal</td></tr>
+      <tr><td><code>medium</code></td><td>PRIORITY_BALANCED_POWER_ACCURACY</td><td>&plusmn; 100 m</td><td>Rekomendasi tempat di sekitar</td></tr>
+      <tr><td><code>high</code>, <code>best</code>, <code>bestForNavigation</code></td><td>PRIORITY_HIGH_ACCURACY</td><td>&plusmn; 10 m sampai terbaik</td><td>Presensi, navigasi, pelacakan lari</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout callout-warning"><h4>⚠️ <code>lowest</code> bukan berarti "paling cepat"</h4><p>Di Android, <code>LocationAccuracy.lowest</code> berarti pasif: aplikasimu tidak meminta lokasi baru sama sekali, hanya menerima jika aplikasi lain kebetulan memintanya. Akibatnya posisi bisa tidak pernah datang. Untuk kebutuhan biasa pakai <code>medium</code> atau <code>high</code>.</p></div>
+
+<h4>Izin: coarse vs fine</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Izin</th><th>Android</th><th>iOS</th><th>Akurasi</th></tr></thead>
+    <tbody>
+      <tr><td>Perkiraan (<em>approximate</em>)</td><td><code>ACCESS_COARSE_LOCATION</code></td><td>"Precise: Off" di dialog izin</td><td>Seluas beberapa blok sampai beberapa km</td></tr>
+      <tr><td>Akurat (<em>precise</em>)</td><td><code>ACCESS_FINE_LOCATION</code></td><td>"Precise: On" (default)</td><td>Beberapa meter</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Sejak Android 12, dialog izin selalu memberi pengguna pilihan <strong>Akurat</strong> atau <strong>Perkiraan</strong>, walaupun aplikasi meminta <code>ACCESS_FINE_LOCATION</code>. iOS 14 ke atas juga punya sakelar <em>Precise</em>. Artinya aplikasi harus siap menerima lokasi yang kasar. Kamu bisa mengeceknya dengan <code>Geolocator.getLocationAccuracy()</code>:</p>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
+
+Future&lt;void&gt; cekPresisi() async {
+  final status = await Geolocator.getLocationAccuracy();
+  if (status == LocationAccuracyStatus.reduced) {
+    // Pengguna memilih "Perkiraan" (approximate): posisi bisa meleset
+    // hingga beberapa kilometer persegi. Jelaskan kenapa butuh "Akurat".
+    debugPrint('Lokasi hanya perkiraan');
+  }
+}
+</code></pre>
+
+<h4>Foreground vs background location</h4>
+<ul>
+  <li><strong>Foreground</strong> (<em>while in use</em>): lokasi hanya diambil selama aplikasi terbuka di layar. Ini cukup untuk hampir semua kasus, termasuk presensi kampus di bab ini.</li>
+  <li><strong>Background</strong> (<em>always</em>): lokasi tetap diambil saat aplikasi diminimalkan, misalnya aplikasi pelacak armada. Di Android butuh izin <code>ACCESS_BACKGROUND_LOCATION</code> yang diminta terpisah, notifikasi foreground service, dan alasan tertulis saat rilis ke Play Store. Di iOS butuh izin "Always" dan <em>Background Mode</em>.</li>
+</ul>
+<div class="callout callout-tip"><h4>💡 Prinsip minimal</h4><p>Minta izin paling rendah yang cukup untuk fitur yang kamu bangun. Aplikasi yang meminta lokasi background tanpa alasan kuat biasanya ditolak Google Play dan App Store, dan pengguna juga cenderung mencopotnya.</p></div>
+
+<h4>Package yang dipakai di bab ini</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Package</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>geolocator</code></td><td>Cek layanan dan izin lokasi, posisi saat ini, posisi terakhir, stream posisi, jarak dan arah</td></tr>
+      <tr><td><code>geocoding</code></td><td>Koordinat menjadi alamat dan sebaliknya</td></tr>
+      <tr><td><code>flutter_map</code> + <code>latlong2</code></td><td>Menampilkan peta OpenStreetMap tanpa API key</td></tr>
+      <tr><td><code>get</code></td><td>Service, controller, dan view dengan pola MVC (Modul 08)</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout callout-info"><h4>ℹ️ Kenapa tidak memakai permission_handler?</h4><p>Di Modul 17 kamu memakai <code>permission_handler</code> untuk berbagai izin. Untuk lokasi, <code>geolocator</code> sudah punya API izin sendiri (<code>checkPermission</code>, <code>requestPermission</code>) yang sekaligus memahami status layanan GPS. Memakai satu package untuk satu fitur membuat kode lebih sederhana. Polanya tetap sama dengan Modul 17: cek, minta, tangani ditolak, tangani ditolak permanen.</p></div>

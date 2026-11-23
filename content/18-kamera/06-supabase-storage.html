@@ -1,0 +1,172 @@
+<p class="lead">Foto yang hanya ada di HP akan hilang saat aplikasi di-uninstall dan tidak bisa dilihat dari perangkat lain. Untuk foto profil yang tampil di mana saja, unggah ke <strong>Supabase Storage</strong>. Bagian ini melanjutkan pengenalan Storage di Modul 12 bagian 10 dan memakai login dari Modul 13.</p>
+
+<h4>Langkah 1: buat bucket dan policy</h4>
+<p>Buka dashboard Supabase &rarr; <strong>Storage</strong> &rarr; <strong>New bucket</strong>, beri nama <code>foto-profil</code>. Centang <strong>Public bucket</strong> jika foto boleh dilihat siapa saja yang tahu URL-nya (cocok untuk foto profil). Di pengaturan bucket, batasi juga ukuran file (misalnya 2 MB) dan jenis file (<code>image/jpeg</code>, <code>image/png</code>). Lalu buat policy di <strong>SQL Editor</strong> agar setiap user hanya bisa mengelola foldernya sendiri:</p>
+<pre><code class="language-sql">-- Unggah ke folder milik sendiri: foto-profil/&lt;id user&gt;/...
+create policy "Unggah foto profil sendiri"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'foto-profil'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+-- Menimpa (upsert) foto sendiri
+create policy "Ganti foto profil sendiri"
+on storage.objects for update to authenticated
+using (
+  bucket_id = 'foto-profil'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+-- Menghapus foto sendiri
+create policy "Hapus foto profil sendiri"
+on storage.objects for delete to authenticated
+using (
+  bucket_id = 'foto-profil'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+-- Hanya untuk bucket PRIVATE: izinkan membaca foto sendiri
+create policy "Lihat foto profil sendiri"
+on storage.objects for select to authenticated
+using (
+  bucket_id = 'foto-profil'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+</code></pre>
+<p>Pada bucket public, siapa pun bisa <em>membaca</em> file lewat URL publik, tetapi menulis, menimpa, dan menghapus tetap dijaga policy di atas. <code>upsert</code> butuh policy <code>update</code> (dan biasanya <code>select</code>) karena file lama ditimpa.</p>
+
+<h4>Langkah 2: service untuk Storage</h4>
+<p>Seperti Modul 13&ndash;14, semua akses Supabase dibungkus di satu service. Inisialisasi <code>Supabase.initialize(url:, publishableKey:)</code> tetap dilakukan di <code>main()</code> seperti di Modul 12.</p>
+<p class="code-file-label">📄 <code>lib/services/foto_cloud_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/foto_cloud_service.dart
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class FotoCloudService {
+  FotoCloudService(this._client);
+  final SupabaseClient _client;
+
+  static const String bucket = 'foto-profil';
+
+  // Path di bucket: &lt;id user&gt;/profil.jpg (satu foto per user).
+  String _pathProfil(String ekstensi) {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      throw const StorageException('Silakan login terlebih dahulu.');
+    }
+    return '${user.id}/profil$ekstensi';
+  }
+
+  /// Mengunggah file foto dan mengembalikan path-nya di bucket.
+  Future&lt;String&gt; unggah(File file) async {
+    final ekstensi = p.extension(file.path).toLowerCase(); // .jpg / .png
+    final path = _pathProfil(ekstensi);
+
+    await _client.storage
+        .from(bucket)
+        .upload(
+          path,
+          file,
+          fileOptions: FileOptions(
+            contentType: ekstensi == '.png' ? 'image/png' : 'image/jpeg',
+            upsert: true, // timpa foto lama dengan path yang sama
+          ),
+        );
+    return path;
+  }
+
+  /// URL untuk bucket PUBLIC. cacheNonce membuat URL berbeda setiap
+  /// versi foto, sehingga CDN dan cache gambar tidak menampilkan foto lama.
+  String urlPublik(String path, {required String versi}) {
+    return _client.storage.from(bucket).getPublicUrl(path, cacheNonce: versi);
+  }
+
+  /// URL sementara untuk bucket PRIVATE (berlaku 1 jam).
+  Future&lt;String&gt; urlBertanda(String path) {
+    return _client.storage.from(bucket).createSignedUrl(path, 60 * 60);
+  }
+
+  Future&lt;void&gt; hapus(String path) async {
+    await _client.storage.from(bucket).remove([path]);
+  }
+}
+</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Method</th><th>Kegunaan</th></tr></thead>
+    <tbody>
+      <tr><td><code>upload(path, File, fileOptions:)</code></td><td>Mengunggah <code>File</code> dari <code>dart:io</code> (Android/iOS)</td></tr>
+      <tr><td><code>uploadBinary(path, Uint8List, fileOptions:)</code></td><td>Mengunggah byte, misalnya dari <code>await xfile.readAsBytes()</code>. Juga jalan di Flutter Web</td></tr>
+      <tr><td><code>getPublicUrl(path)</code></td><td>URL permanen, hanya untuk bucket public. Tidak memanggil jaringan (bukan <code>Future</code>)</td></tr>
+      <tr><td><code>createSignedUrl(path, detik)</code></td><td>URL sementara untuk bucket private, kedaluwarsa setelah sekian detik</td></tr>
+      <tr><td><code>remove([path, ...])</code></td><td>Menghapus satu atau beberapa file</td></tr>
+    </tbody>
+  </table>
+</div>
+<ul>
+  <li>Path diawali <code>user.id</code> agar cocok dengan policy <code>storage.foldername(name)[1]</code>.</li>
+  <li><code>FileOptions(contentType:, upsert: true)</code>: <code>contentType</code> membuat browser dan <code>Image.network</code> tahu jenis file, <code>upsert</code> menimpa file lama alih-alih error "already exists".</li>
+  <li>Karena path-nya selalu sama, CDN Supabase dan <code>Image.network</code> bisa menyimpan versi lama. Parameter <code>cacheNonce</code> menambahkan penanda versi ke URL sehingga foto baru langsung terlihat.</li>
+  <li>Kesalahan dari Storage dilempar sebagai <code>StorageException</code> yang berisi <code>message</code> dan <code>statusCode</code>. Status 403 hampir selalu berarti policy belum dibuat atau path tidak diawali id user.</li>
+</ul>
+
+<h4>Langkah 3: memakai service dan menampilkan foto online</h4>
+<pre><code class="language-dart">import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'services/foto_cloud_service.dart';
+
+final service = FotoCloudService(Supabase.instance.client);
+
+Future&lt;String?&gt; unggahDanAmbilUrl(File foto) async {
+  try {
+    final path = await service.unggah(foto);
+    final versi = DateTime.now().millisecondsSinceEpoch.toString();
+    return service.urlPublik(path, versi: versi);
+  } on StorageException catch (e) {
+    debugPrint('Gagal unggah: ${e.message} (status ${e.statusCode})');
+    return null;
+  }
+}
+
+class FotoOnline extends StatelessWidget {
+  const FotoOnline({super.key, required this.url});
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.network(
+      url,
+      width: 120,
+      height: 160,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, progress) =&gt; progress == null
+          ? child
+          : const SizedBox(
+              width: 120,
+              height: 160,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+      errorBuilder: (context, error, stackTrace) =&gt;
+          const Icon(Icons.broken_image, size: 48),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li>Simpan <strong>path</strong> foto (misalnya di kolom <code>foto_path</code> tabel <code>profiles</code>), bukan URL lengkap. URL bisa dibentuk ulang kapan saja, dan signed URL memang kedaluwarsa.</li>
+  <li><code>loadingBuilder</code> dan <code>errorBuilder</code> membuat tampilan tetap rapi saat jaringan lambat atau file tidak ditemukan.</li>
+  <li>Kompres foto sebelum diunggah (<code>maxWidth</code> dan <code>imageQuality</code> di bagian 3). Mengunggah foto 6 MB lewat data seluler itu lambat dan memakan kuota Storage.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li><code>StorageException ... new row violates row-level security policy</code> (403): policy belum ada, atau path tidak diawali <code>auth.uid()</code>.</li>
+<li>Memakai <code>getPublicUrl</code> pada bucket private: URL terbentuk tetapi gambarnya gagal dimuat (400/404). Gunakan <code>createSignedUrl</code>.</li>
+<li>Mengunggah sebelum login: <code>currentUser</code> bernilai <code>null</code>. Pastikan halaman ini hanya bisa diakses setelah AuthGate Modul 13.</li>
+<li>Menyimpan secret key/service_role di aplikasi agar "bisa unggah tanpa policy". Jangan pernah, seperti yang ditegaskan di Modul 12.</li>
+</ul></div>

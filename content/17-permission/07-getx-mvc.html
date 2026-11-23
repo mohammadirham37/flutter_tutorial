@@ -1,0 +1,346 @@
+<p class="lead">Di section 5 dan 6, kode izin bercampur dengan widget. Untuk aplikasi sungguhan, kita pisahkan sesuai pola MVC GetX dari Modul 08: <strong>Service</strong> membungkus plugin, <strong>Controller</strong> menyimpan status setiap izin sebagai state reaktif, dan <strong>View</strong> hanya menampilkan serta meneruskan aksi. Tiga file di section ini dipakai lagi di Modul 18 sampai 22.</p>
+
+<h4>Pembagian tugas</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Lapisan</th><th>File</th><th>Tugas</th><th>Boleh mengimpor</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Model</strong></td><td><code>models/izin.dart</code></td><td>Enum <code>JenisIzin</code> dan <code>StatusIzin</code> milik aplikasi</td><td>Tidak ada</td></tr>
+      <tr><td><strong>Service</strong></td><td><code>services/permission_service.dart</code></td><td>Satu-satunya tempat yang memanggil <code>permission_handler</code></td><td><code>permission_handler</code>, model</td></tr>
+      <tr><td><strong>Controller</strong></td><td><code>controllers/permission_controller.dart</code></td><td>State <code>.obs</code> per izin, mengingat "ditolak permanen", cek ulang saat resume</td><td>GetX, service, model (tanpa <code>material.dart</code>)</td></tr>
+      <tr><td><strong>View</strong></td><td><code>views/...</code> (section 8)</td><td>Kartu status, dialog penjelasan, tombol Pengaturan</td><td>Flutter, GetX, controller, model</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Langkah 1: Model</h4>
+<p>Kita membuat enum status sendiri alih-alih memakai <code>PermissionStatus</code> langsung. Alasannya: view dan controller tidak perlu tahu package apa yang dipakai. Jika suatu hari package diganti, cukup service yang berubah.</p>
+<p class="code-file-label">📄 <code>lib/models/izin.dart</code></p>
+<pre><code class="language-dart">// lib/models/izin.dart
+// MODEL: data murni, tanpa import Flutter, GetX, maupun permission_handler.
+
+/// Fitur hardware yang butuh izin di aplikasi kampus.
+enum JenisIzin {
+  kamera(
+    'Kamera',
+    'Memindai QR presensi dan memotret bukti kegiatan.',
+  ),
+  lokasi(
+    'Lokasi',
+    'Memastikan kamu berada di area kampus saat presensi.',
+  ),
+  notifikasi(
+    'Notifikasi',
+    'Mengingatkan jadwal kuliah dan pengumuman penting.',
+  ),
+  mikrofon(
+    'Mikrofon',
+    'Merekam catatan suara saat perkuliahan.',
+  );
+
+  const JenisIzin(this.label, this.alasan);
+
+  final String label;
+  final String alasan;
+}
+
+/// Status izin versi aplikasi kita (bukan enum milik package).
+enum StatusIzin {
+  belumDiketahui('Memeriksa...'),
+  diizinkan('Diizinkan'),
+  terbatas('Diizinkan sebagian'),
+  ditolak('Belum diizinkan'),
+  ditolakPermanen('Ditolak permanen'),
+  dibatasiSistem('Dibatasi sistem');
+
+  const StatusIzin(this.label);
+
+  final String label;
+
+  bool get bolehDipakai =&gt; this == diizinkan || this == terbatas;
+  bool get perluPengaturan =&gt; this == ditolakPermanen || this == dibatasiSistem;
+}
+</code></pre>
+<ul>
+  <li><em>Enhanced enum</em> (Dart 2.17+) bisa punya field dan constructor. Label dan alasan setiap izin ditulis sekali di sini dan dipakai di dialog maupun kartu.</li>
+  <li><code>bolehDipakai</code> dan <code>perluPengaturan</code> adalah aturan yang dipakai di banyak tempat, jadi diletakkan di model agar tidak ditulis ulang.</li>
+</ul>
+
+<h4>Langkah 2: Service</h4>
+<p class="code-file-label">📄 <code>lib/services/permission_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/permission_service.dart
+// SERVICE: satu-satunya file yang mengimpor permission_handler.
+import 'package:permission_handler/permission_handler.dart';
+
+import '../models/izin.dart';
+
+class PermissionService {
+  /// Pemetaan fitur aplikasi ke izin milik permission_handler.
+  Permission _izinDari(JenisIzin jenis) {
+    switch (jenis) {
+      case JenisIzin.kamera:
+        return Permission.camera;
+      case JenisIzin.lokasi:
+        return Permission.locationWhenInUse;
+      case JenisIzin.notifikasi:
+        return Permission.notification;
+      case JenisIzin.mikrofon:
+        return Permission.microphone;
+    }
+  }
+
+  StatusIzin _konversi(PermissionStatus status) {
+    switch (status) {
+      case PermissionStatus.granted:
+      case PermissionStatus.provisional:
+        return StatusIzin.diizinkan;
+      case PermissionStatus.limited:
+        return StatusIzin.terbatas;
+      case PermissionStatus.denied:
+        return StatusIzin.ditolak;
+      case PermissionStatus.permanentlyDenied:
+        return StatusIzin.ditolakPermanen;
+      case PermissionStatus.restricted:
+        return StatusIzin.dibatasiSistem;
+    }
+  }
+
+  /// Membaca status tanpa memunculkan dialog.
+  /// Catatan: di Android, hasilnya tidak pernah ditolakPermanen.
+  Future&lt;StatusIzin&gt; cekStatus(JenisIzin jenis) async {
+    final status = await _izinDari(jenis).status;
+    return _konversi(status);
+  }
+
+  /// Memunculkan dialog sistem (jika masih boleh) dan mengembalikan hasilnya.
+  Future&lt;StatusIzin&gt; minta(JenisIzin jenis) async {
+    final status = await _izinDari(jenis).request();
+    return _konversi(status);
+  }
+
+  /// Meminta beberapa izin sekaligus dalam satu antrean dialog.
+  Future&lt;Map&lt;JenisIzin, StatusIzin&gt;&gt; mintaBeberapa(
+    List&lt;JenisIzin&gt; daftar,
+  ) async {
+    final hasil = await daftar.map(_izinDari).toList().request();
+    return {
+      for (final jenis in daftar)
+        jenis: _konversi(hasil[_izinDari(jenis)] ?? PermissionStatus.denied),
+    };
+  }
+
+  /// Android saja: true jika pengguna pernah menolak sekali.
+  /// Di iOS selalu false.
+  Future&lt;bool&gt; perluPenjelasan(JenisIzin jenis) =&gt;
+      _izinDari(jenis).shouldShowRequestRationale;
+
+  /// Mengecek apakah GPS/layanan lokasi di perangkat menyala.
+  Future&lt;bool&gt; layananLokasiAktif() =&gt;
+      Permission.locationWhenInUse.serviceStatus.isEnabled;
+
+  /// Membuka halaman pengaturan aplikasi ini di sistem.
+  Future&lt;bool&gt; bukaPengaturan() =&gt; openAppSettings();
+}
+</code></pre>
+<ul>
+  <li><code>_izinDari</code> memetakan fitur aplikasi ke izin plugin. Lokasi memakai <code>locationWhenInUse</code> karena aplikasi kampus hanya butuh lokasi saat aplikasi dibuka.</li>
+  <li><code>_konversi</code> memakai <code>switch</code> tanpa <code>default</code>. Jika versi package berikutnya menambah status baru, analyzer langsung memberi tahu ada kasus yang belum ditangani.</li>
+  <li><code>provisional</code> (notifikasi "diam" di iOS) dianggap diizinkan karena notifikasi tetap bisa dikirim.</li>
+  <li>Service tidak mengimpor GetX maupun Flutter. Ia bisa diganti dengan versi palsu saat pengujian.</li>
+</ul>
+
+<h4>Langkah 3: Controller</h4>
+<p class="code-file-label">📄 <code>lib/controllers/permission_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/permission_controller.dart
+// CONTROLLER: state reaktif per izin. Tidak mengimpor material.dart.
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
+import 'package:get/get.dart';
+
+import '../models/izin.dart';
+import '../services/permission_service.dart';
+
+class PermissionController extends GetxController {
+  PermissionController(this._service);
+  final PermissionService _service;
+
+  // State reaktif privat: satu status untuk setiap jenis izin
+  final _status = {
+    for (final jenis in JenisIzin.values) jenis: StatusIzin.belumDiketahui,
+  }.obs;
+  final _lokasiAktif = true.obs;
+  final _sedangMemproses = Rxn&lt;JenisIzin&gt;();
+
+  // Android tidak bisa memberi tahu "ditolak permanen" lewat status,
+  // jadi kita ingat sendiri dari hasil request().
+  final _pernahDitolakPermanen = &lt;JenisIzin&gt;{};
+
+  late final AppLifecycleListener _lifecycle;
+
+  // Getter publik read-only
+  StatusIzin statusDari(JenisIzin jenis) =&gt;
+      _status[jenis] ?? StatusIzin.belumDiketahui;
+  bool get lokasiAktif =&gt; _lokasiAktif.value;
+  bool sedangMemproses(JenisIzin jenis) =&gt; _sedangMemproses.value == jenis;
+  int get jumlahDiizinkan =&gt;
+      _status.values.where((s) =&gt; s.bolehDipakai).length;
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Pengguna bisa mengubah izin dari Pengaturan lalu kembali ke aplikasi.
+    // Saat aplikasi aktif lagi (resume), baca ulang semua status.
+    _lifecycle = AppLifecycleListener(onResume: muatUlang);
+    muatUlang();
+  }
+
+  @override
+  void onClose() {
+    _lifecycle.dispose();
+    super.onClose();
+  }
+
+  Future&lt;void&gt; muatUlang() async {
+    for (final jenis in JenisIzin.values) {
+      final dariSistem = await _service.cekStatus(jenis);
+      _status[jenis] = _gabungkan(jenis, dariSistem);
+    }
+    _lokasiAktif.value = await _service.layananLokasiAktif();
+  }
+
+  /// Dipanggil View setelah pengguna setuju di dialog penjelasan.
+  Future&lt;StatusIzin&gt; minta(JenisIzin jenis) async {
+    _sedangMemproses.value = jenis;
+    try {
+      final hasil = await _service.minta(jenis);
+      _status[jenis] = _gabungkan(jenis, hasil);
+      return statusDari(jenis);
+    } finally {
+      _sedangMemproses.value = null;
+    }
+  }
+
+  Future&lt;bool&gt; perluPenjelasan(JenisIzin jenis) =&gt;
+      _service.perluPenjelasan(jenis);
+
+  Future&lt;void&gt; bukaPengaturan() =&gt; _service.bukaPengaturan();
+
+  StatusIzin _gabungkan(JenisIzin jenis, StatusIzin baru) {
+    if (baru == StatusIzin.ditolakPermanen) {
+      _pernahDitolakPermanen.add(jenis);
+      return baru;
+    }
+    if (baru.bolehDipakai) {
+      _pernahDitolakPermanen.remove(jenis);
+      return baru;
+    }
+    // Status "ditolak" dari Android bisa berarti ditolak permanen.
+    return _pernahDitolakPermanen.contains(jenis)
+        ? StatusIzin.ditolakPermanen
+        : baru;
+  }
+}
+</code></pre>
+<p><strong>Penjelasan baris penting:</strong></p>
+<ul>
+  <li><code>_status</code> adalah <code>RxMap&lt;JenisIzin, StatusIzin&gt;</code> yang dibuat dari <em>collection-for</em>. Mengubah <code>_status[jenis] = ...</code> otomatis membangun ulang setiap <code>Obx</code> yang membaca map tersebut.</li>
+  <li><code>_sedangMemproses</code> (<code>Rxn</code>, boleh <code>null</code>) mencatat izin yang sedang diminta, sehingga view bisa menampilkan loading dan menonaktifkan tombol. Ini mencegah <code>request()</code> dipanggil dua kali bersamaan.</li>
+  <li><code>_pernahDitolakPermanen</code> menutupi keterbatasan Android dari section 5: hasil <code>request()</code> yang <code>ditolakPermanen</code> diingat, sehingga saat <code>muatUlang()</code> membaca status <code>ditolak</code> dari sistem, kartu tetap menampilkan "Ditolak permanen". Tanda ini dihapus begitu izin diberikan. Set ini hanya hidup selama aplikasi berjalan; setelah aplikasi dibuka ulang, alur "minta dulu, lihat hasilnya" tetap bekerja karena request izin yang ditolak permanen langsung kembali tanpa dialog.</li>
+  <li><code>AppLifecycleListener(onResume: muatUlang)</code> membaca ulang semua status setiap kali aplikasi kembali ke depan (misal dari Pengaturan). Listener ini wajib di-<code>dispose()</code> di <code>onClose</code>. Import <code>flutter/widgets.dart</code> dengan <code>show</code> hanya mengambil kelas itu, sehingga controller tetap tidak bergantung pada <code>material.dart</code>.</li>
+  <li><code>minta()</code> memakai <code>try/finally</code> agar indikator loading pasti dimatikan walaupun plugin melempar error.</li>
+  <li>Controller <strong>tidak</strong> menampilkan dialog. Keputusan "tampilkan penjelasan" atau "ajak ke Pengaturan" ada di view, karena keduanya butuh <code>BuildContext</code>.</li>
+</ul>
+
+<h4>Bonus: controller bisa diuji tanpa perangkat</h4>
+<p>Karena controller hanya bergantung pada <code>PermissionService</code>, kita bisa memberinya service palsu dan menguji logikanya dengan <code>flutter test</code> (Modul 15). Ganti <code>pusat_izin</code> dengan nilai <code>name</code> di <code>pubspec.yaml</code> proyekmu.</p>
+<p class="code-file-label">📄 <code>test/permission_controller_test.dart</code></p>
+<pre><code class="language-dart">// test/permission_controller_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+import 'package:pusat_izin/controllers/permission_controller.dart';
+import 'package:pusat_izin/models/izin.dart';
+import 'package:pusat_izin/services/permission_service.dart';
+
+/// Service palsu: tidak menyentuh plugin, hasilnya kita atur sendiri.
+class FakePermissionService implements PermissionService {
+  final status = {for (final j in JenisIzin.values) j: StatusIzin.ditolak};
+  StatusIzin hasilMinta = StatusIzin.diizinkan;
+
+  @override
+  Future&lt;StatusIzin&gt; cekStatus(JenisIzin jenis) async =&gt; status[jenis]!;
+
+  @override
+  Future&lt;StatusIzin&gt; minta(JenisIzin jenis) async {
+    status[jenis] = hasilMinta == StatusIzin.ditolakPermanen
+        ? StatusIzin.ditolak // meniru Android: status tidak pernah "permanen"
+        : hasilMinta;
+    return hasilMinta;
+  }
+
+  @override
+  Future&lt;Map&lt;JenisIzin, StatusIzin&gt;&gt; mintaBeberapa(
+    List&lt;JenisIzin&gt; daftar,
+  ) async =&gt;
+      {for (final j in daftar) j: await minta(j)};
+
+  @override
+  Future&lt;bool&gt; perluPenjelasan(JenisIzin jenis) async =&gt; false;
+
+  @override
+  Future&lt;bool&gt; layananLokasiAktif() async =&gt; true;
+
+  @override
+  Future&lt;bool&gt; bukaPengaturan() async =&gt; true;
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late FakePermissionService service;
+  late PermissionController controller;
+
+  setUp(() async {
+    service = FakePermissionService();
+    controller = Get.put(PermissionController(service));
+    await controller.muatUlang();
+  });
+
+  tearDown(Get.reset);
+
+  test('status awal dibaca dari service', () {
+    expect(controller.statusDari(JenisIzin.kamera), StatusIzin.ditolak);
+    expect(controller.jumlahDiizinkan, 0);
+  });
+
+  test('minta() yang diizinkan memperbarui state', () async {
+    final hasil = await controller.minta(JenisIzin.kamera);
+    expect(hasil, StatusIzin.diizinkan);
+    expect(controller.jumlahDiizinkan, 1);
+  });
+
+  test('ditolak permanen tetap diingat setelah muat ulang', () async {
+    service.hasilMinta = StatusIzin.ditolakPermanen;
+    await controller.minta(JenisIzin.mikrofon);
+    await controller.muatUlang(); // service melaporkan "ditolak" saja
+    expect(
+      controller.statusDari(JenisIzin.mikrofon),
+      StatusIzin.ditolakPermanen,
+    );
+  });
+
+  test('izin dari Pengaturan menghapus tanda permanen', () async {
+    service.hasilMinta = StatusIzin.ditolakPermanen;
+    await controller.minta(JenisIzin.lokasi);
+    service.status[JenisIzin.lokasi] = StatusIzin.diizinkan;
+    await controller.muatUlang();
+    expect(controller.statusDari(JenisIzin.lokasi), StatusIzin.diizinkan);
+  });
+}
+</code></pre>
+<p>Tes ketiga membuktikan logika terpenting: walaupun "sistem" hanya melaporkan <code>ditolak</code>, controller tetap ingat bahwa izin mikrofon ditolak permanen. Uji seperti ini sulit dilakukan secara manual di emulator.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li>Memanggil <code>Permission.camera.request()</code> langsung dari view atau dari controller lain. Semua akses izin lewat <code>PermissionService</code>/<code>PermissionController</code>, agar status di layar selalu sinkron.</li>
+<li>Menampilkan <code>Get.dialog</code> atau <code>showDialog</code> dari dalam controller. Biarkan controller mengembalikan hasil, view yang memutuskan tampilannya.</li>
+<li>Lupa <code>_lifecycle.dispose()</code> di <code>onClose</code>, sehingga listener tetap terpasang setelah controller dihapus.</li>
+<li>Memanggil <code>Get.put(PermissionController(...))</code> di dalam <code>build()</code>. Daftarkan sekali di <code>main()</code>.</li>
+</ul></div>

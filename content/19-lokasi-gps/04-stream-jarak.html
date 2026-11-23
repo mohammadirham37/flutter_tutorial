@@ -1,0 +1,292 @@
+<p class="lead"><code>getCurrentPosition</code> cocok untuk "sekali ambil". Untuk aplikasi yang harus mengikuti pergerakan pengguna (navigasi, pelacak lari, atau penanda yang bergerak di peta) kita berlangganan <strong>stream posisi</strong>. Bagian ini juga membahas cara menghitung jarak dan arah antara dua koordinat.</p>
+
+<h4>Contoh kecil: berlangganan stream</h4>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+
+import 'dart:async';
+
+import 'package:geolocator/geolocator.dart';
+
+StreamSubscription&lt;Position&gt;? langganan;
+
+void mulaiDengar() {
+  langganan =
+      Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10, // meter
+        ),
+      ).listen(
+        (Position p) =&gt; debugPrint('Baru: ${p.latitude}, ${p.longitude}'),
+        onError: (Object e) =&gt; debugPrint('Error: $e'),
+      );
+}
+
+Future&lt;void&gt; berhentiDengar() async {
+  await langganan?.cancel();
+  langganan = null;
+}
+</code></pre>
+<ul>
+  <li><code>distanceFilter: 10</code> berarti stream hanya mengirim posisi baru jika perangkat sudah berpindah minimal 10 meter secara horizontal. Nilai 0 berarti setiap update dikirim, yang boros baterai dan membuat UI terus dibangun ulang.</li>
+  <li><code>listen</code> mengembalikan <code>StreamSubscription</code>. Selama langganan aktif, GPS terus bekerja. <strong>Wajib</strong> dibatalkan dengan <code>cancel()</code> saat tidak dipakai.</li>
+  <li><code>onError</code> menerima error stream, misalnya <code>LocationServiceDisabledException</code> saat pengguna mematikan GPS di tengah jalan, atau <code>TimeoutException</code> jika <code>timeLimit</code> diisi dan tidak ada update dalam rentang tersebut.</li>
+  <li>Di Android, <code>AndroidSettings(intervalDuration: ...)</code> mengatur jeda minimal antar-update. Di iOS, <code>AppleSettings(pauseLocationUpdatesAutomatically: true)</code> membiarkan sistem menjeda update saat pengguna diam.</li>
+</ul>
+
+<h4>Jarak dan arah antara dua titik</h4>
+<p>Bumi itu bulat, jadi jarak dua koordinat tidak bisa dihitung dengan rumus Pythagoras biasa. <code>geolocator</code> menyediakan dua fungsi statis yang tidak butuh izin maupun GPS (murni perhitungan):</p>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
+
+void hitung() {
+  // Dari Monas ke Bundaran HI (Jakarta)
+  final meter = Geolocator.distanceBetween(
+    -6.175392,
+    106.827153,
+    -6.194946,
+    106.823053,
+  );
+  final derajat = Geolocator.bearingBetween(
+    -6.175392,
+    106.827153,
+    -6.194946,
+    106.823053,
+  );
+  debugPrint('Jarak: ${(meter / 1000).toStringAsFixed(2)} km');
+  debugPrint('Arah: ${derajat.toStringAsFixed(0)}°');
+}
+</code></pre>
+<ul>
+  <li><code>distanceBetween(lat1, lng1, lat2, lng2)</code> mengembalikan jarak garis lurus di permukaan bumi dalam <strong>meter</strong>, bukan jarak jalan kaki mengikuti jalan.</li>
+  <li><code>bearingBetween(...)</code> mengembalikan arah dari titik pertama ke titik kedua dalam derajat, dengan 0 = utara, 90 = timur, dan nilai negatif untuk arah barat (rentang -180 sampai 180).</li>
+  <li>Urutan argumen selalu <strong>latitude dulu, baru longitude</strong>. Tertukar sedikit saja hasilnya meleset ribuan kilometer.</li>
+</ul>
+
+<h4>Contoh lengkap: pelacak jalan kaki</h4>
+<p>Aplikasi ini menjumlahkan jarak yang ditempuh selama pelacakan, menampilkan jarak dan arah ke gedung tujuan, serta mendengarkan perubahan status GPS.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+
+void main() =&gt; runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const PelacakPage(),
+    );
+  }
+}
+
+// Titik tujuan contoh. Ganti dengan koordinat gedung di kampusmu.
+const double tujuanLat = -6.3628;
+const double tujuanLng = 106.8269;
+
+class PelacakPage extends StatefulWidget {
+  const PelacakPage({super.key});
+
+  @override
+  State&lt;PelacakPage&gt; createState() =&gt; _PelacakPageState();
+}
+
+class _PelacakPageState extends State&lt;PelacakPage&gt; {
+  StreamSubscription&lt;Position&gt;? _langgananPosisi;
+  StreamSubscription&lt;ServiceStatus&gt;? _langgananLayanan;
+
+  Position? _posisi;
+  double _totalJarak = 0; // meter
+  int _jumlahUpdate = 0;
+  String? _error;
+
+  bool get _sedangMelacak =&gt; _langgananPosisi != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // Dengarkan saat pengguna mematikan / menyalakan GPS (Android &amp; iOS)
+    _langgananLayanan = Geolocator.getServiceStatusStream().listen((status) {
+      if (!mounted) return;
+      setState(() {
+        _error = status == ServiceStatus.disabled
+            ? 'GPS dimatikan. Pelacakan berhenti menerima data.'
+            : null;
+      });
+    });
+  }
+
+  Future&lt;void&gt; _mulai() async {
+    var izin = await Geolocator.checkPermission();
+    if (izin == LocationPermission.denied) {
+      izin = await Geolocator.requestPermission();
+    }
+    if (!mounted) return;
+    if (izin == LocationPermission.denied ||
+        izin == LocationPermission.deniedForever) {
+      setState(() =&gt; _error = 'Izin lokasi ditolak.');
+      return;
+    }
+
+    const pengaturan = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 5, // kirim update hanya jika berpindah &gt;= 5 meter
+    );
+
+    setState(() {
+      _error = null;
+      _posisi = null;
+      _totalJarak = 0;
+      _jumlahUpdate = 0;
+      _langgananPosisi = Geolocator.getPositionStream(
+        locationSettings: pengaturan,
+      ).listen(_saatPosisiBaru, onError: _saatError);
+    });
+  }
+
+  void _saatPosisiBaru(Position baru) {
+    final lama = _posisi;
+    setState(() {
+      if (lama != null) {
+        _totalJarak += Geolocator.distanceBetween(
+          lama.latitude,
+          lama.longitude,
+          baru.latitude,
+          baru.longitude,
+        );
+      }
+      _posisi = baru;
+      _jumlahUpdate++;
+    });
+  }
+
+  void _saatError(Object e) {
+    if (!mounted) return;
+    setState(() =&gt; _error = 'Stream lokasi error: $e');
+    _berhenti();
+  }
+
+  Future&lt;void&gt; _berhenti() async {
+    await _langgananPosisi?.cancel();
+    if (!mounted) return;
+    setState(() =&gt; _langgananPosisi = null);
+  }
+
+  @override
+  void dispose() {
+    // WAJIB: hentikan stream agar GPS tidak terus menyala
+    _langgananPosisi?.cancel();
+    _langgananLayanan?.cancel();
+    super.dispose();
+  }
+
+  String _arahMataAngin(double derajat) {
+    const arah = [
+      'Utara',
+      'Timur Laut',
+      'Timur',
+      'Tenggara',
+      'Selatan',
+      'Barat Daya',
+      'Barat',
+      'Barat Laut',
+    ];
+    final normal = (derajat + 360) % 360; // -180..180 menjadi 0..360
+    return arah[((normal + 22.5) ~/ 45) % 8];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _posisi;
+    double? jarakKeTujuan;
+    double? bearing;
+    if (p != null) {
+      jarakKeTujuan = Geolocator.distanceBetween(
+        p.latitude,
+        p.longitude,
+        tujuanLat,
+        tujuanLng,
+      );
+      bearing = Geolocator.bearingBetween(
+        p.latitude,
+        p.longitude,
+        tujuanLat,
+        tujuanLng,
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pelacak Jalan Kaki')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (_error != null)
+            Card(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: ListTile(title: Text(_error!)),
+            ),
+          ListTile(
+            leading: const Icon(Icons.route),
+            title: const Text('Total jarak ditempuh'),
+            subtitle: Text(
+              '${_totalJarak.toStringAsFixed(1)} m '
+              '($_jumlahUpdate update)',
+            ),
+          ),
+          if (p != null)
+            ListTile(
+              leading: const Icon(Icons.place),
+              title: const Text('Posisi sekarang'),
+              subtitle: Text(
+                '${p.latitude.toStringAsFixed(6)}, '
+                '${p.longitude.toStringAsFixed(6)}',
+              ),
+            ),
+          if (jarakKeTujuan != null &amp;&amp; bearing != null)
+            ListTile(
+              leading: Transform.rotate(
+                angle: bearing * math.pi / 180,
+                child: const Icon(Icons.navigation),
+              ),
+              title: Text(
+                'Gedung tujuan: ${(jarakKeTujuan / 1000).toStringAsFixed(2)} km',
+              ),
+              subtitle: Text(
+                'Arah ${bearing.toStringAsFixed(0)}° '
+                '(${_arahMataAngin(bearing)})',
+              ),
+            ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _sedangMelacak ? _berhenti : _mulai,
+        icon: Icon(_sedangMelacak ? Icons.stop : Icons.play_arrow),
+        label: Text(_sedangMelacak ? 'Berhenti' : 'Mulai lacak'),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Penjelasan baris penting</h4>
+<ul>
+  <li><strong>Dua langganan, dua <code>cancel()</code>.</strong> <code>_langgananPosisi</code> untuk posisi dan <code>_langgananLayanan</code> untuk status GPS. Keduanya dibatalkan di <code>dispose()</code>. Lupa membatalkan berarti GPS terus menyala walau halaman sudah ditutup, dan callback memanggil <code>setState</code> pada widget yang sudah tidak ada.</li>
+  <li><code>getServiceStatusStream()</code> mengirim <code>ServiceStatus.enabled</code>/<code>disabled</code> setiap kali pengguna menyalakan atau mematikan GPS. Fungsi ini tidak didukung di web.</li>
+  <li>Total jarak dihitung dengan menjumlahkan <code>distanceBetween</code> antara posisi lama dan posisi baru. Karena <code>distanceFilter</code> 5 meter, guncangan kecil saat diam tidak ikut terhitung.</li>
+  <li><code>_sedangMelacak</code> diturunkan dari <code>_langgananPosisi != null</code>, sehingga tidak ada dua sumber kebenaran yang bisa tidak sinkron.</li>
+  <li>Ikon panah diputar dengan <code>Transform.rotate</code> sebesar <code>bearing</code> (diubah ke radian). Ini arah relatif terhadap utara peta, bukan terhadap arah hadap ponsel. Untuk kompas sungguhan dibutuhkan sensor magnetometer (Modul 20).</li>
+</ul>
+<div class="callout callout-tip"><h4>💡 Menyaring posisi yang buruk</h4><p>Di dalam gedung, GPS kadang "melompat" puluhan meter, sehingga total jarak membengkak padahal pengguna diam. Trik sederhana: abaikan posisi dengan <code>accuracy</code> lebih dari 30 meter sebelum menambahkannya ke total. Trik ini juga dipakai di studi kasus presensi.</p></div>
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+  <li>Memanggil <code>getPositionStream(...).listen(...)</code> di dalam <code>build()</code>. Setiap rebuild membuat langganan baru dan GPS dibuka berkali-kali.</li>
+  <li>Menekan tombol "Mulai" dua kali sehingga ada dua langganan aktif. Cek dulu apakah langganan sudah ada.</li>
+  <li>Menghitung jarak dengan <code>sqrt(dLat² + dLng²)</code>. Hasilnya dalam "derajat", bukan meter, dan salah besar jauh dari khatulistiwa.</li>
+</ul></div>

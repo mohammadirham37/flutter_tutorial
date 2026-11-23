@@ -1,0 +1,166 @@
+<p class="lead">Inti <code>local_auth</code> adalah satu method: <code>authenticate()</code>. Method ini menampilkan dialog sistem, menunggu pengguna menempelkan jari atau menatap kamera, lalu mengembalikan hasilnya. Tampilan dialog sepenuhnya milik sistem operasi, sehingga aplikasi lain tidak bisa memalsukannya.</p>
+
+<div class="callout callout-info"><h4>ℹ️ API berubah di local_auth versi 3</h4><p>Banyak tutorial lama menulis <code>authenticate(options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true))</code> dan menangkap <code>PlatformException</code>. Sejak versi mayor 3, kelas <code>AuthenticationOptions</code> dihapus dari <code>authenticate</code>; opsinya menjadi parameter langsung (<code>stickyAuth</code> berganti nama menjadi <code>persistAcrossBackgrounding</code>, <code>useErrorDialogs</code> dihapus), dan error dilempar sebagai <code>LocalAuthException</code> dengan kode berupa enum. Modul ini memakai API baru tersebut.</p></div>
+
+<h4>Contoh kecil</h4>
+<pre><code class="language-dart">final auth = LocalAuthentication();
+final berhasil = await auth.authenticate(
+  localizedReason: 'Verifikasi untuk melihat transkrip nilai',
+);
+</code></pre>
+<p><code>localizedReason</code> wajib diisi dan tidak boleh kosong. Teks ini muncul di dialog, jadi jelaskan <em>untuk apa</em> autentikasi diminta.</p>
+
+<h4>Parameter authenticate()</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Parameter</th><th>Default</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>localizedReason</code></td><td>wajib</td><td>Alasan yang ditampilkan di dialog.</td></tr>
+      <tr><td><code>biometricOnly</code></td><td><code>false</code></td><td><code>false</code>: pengguna boleh memakai PIN/pola/sandi HP sebagai fallback. <code>true</code>: hanya biometrik, dan dialog Android menampilkan tombol Batal.</td></tr>
+      <tr><td><code>persistAcrossBackgrounding</code></td><td><code>false</code></td><td>Jika aplikasi masuk background saat dialog tampil (misalnya ada telepon), plugin menunggu lalu mengulang autentikasi saat aplikasi kembali, bukan langsung gagal.</td></tr>
+      <tr><td><code>sensitiveTransaction</code></td><td><code>true</code></td><td>Di Android: setelah wajah dikenali, pengguna masih harus menekan tombol konfirmasi. Ini mencegah aplikasi terbuka hanya karena pengguna kebetulan melihat layar.</td></tr>
+      <tr><td><code>authMessages</code></td><td>teks bawaan</td><td>Mengganti judul, petunjuk, dan teks tombol dialog per platform.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Hasil: true, false, atau exception</h4>
+<ul>
+  <li><strong><code>true</code></strong>: pengguna berhasil diverifikasi.</li>
+  <li><strong><code>false</code></strong>: verifikasi gagal tanpa efek samping (misalnya di iOS wajah tidak dikenali). Di Android, jari yang salah <em>tidak</em> menutup dialog; sistem hanya menampilkan "Tidak dikenali" dan pengguna bisa mencoba lagi.</li>
+  <li><strong><code>LocalAuthException</code></strong>: semua kasus lain, termasuk pengguna menekan Batal (<code>userCanceled</code>), sensor terkunci, atau belum ada sidik jari. Rinciannya di section 5.</li>
+</ul>
+
+<h4>Contoh lengkap: membuka transkrip nilai</h4>
+<p>Aplikasi berikut menyembunyikan IPK sampai pengguna lolos verifikasi. Sakelar di atas mengatur apakah PIN HP boleh dipakai.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:local_auth/local_auth.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: NilaiRahasiaPage()));
+
+class NilaiRahasiaPage extends StatefulWidget {
+  const NilaiRahasiaPage({super.key});
+
+  @override
+  State&lt;NilaiRahasiaPage&gt; createState() =&gt; _NilaiRahasiaPageState();
+}
+
+class _NilaiRahasiaPageState extends State&lt;NilaiRahasiaPage&gt; {
+  final _auth = LocalAuthentication();
+
+  bool _hanyaBiometrik = false;
+  bool _sedangProses = false;
+  bool _terbuka = false;
+  String _status = 'Transkrip nilai masih tersembunyi.';
+
+  Future&lt;void&gt; _bukaTranskrip() async {
+    setState(() =&gt; _sedangProses = true);
+    String status;
+    bool terbuka = false;
+
+    try {
+      terbuka = await _auth.authenticate(
+        localizedReason: 'Verifikasi untuk melihat transkrip nilai',
+        biometricOnly: _hanyaBiometrik,
+      );
+      status = terbuka
+          ? 'Berhasil diverifikasi.'
+          : 'Tidak dikenali, coba lagi.';
+    } on LocalAuthException catch (e) {
+      // Kode error dibahas lengkap di section berikutnya.
+      status = 'Gagal: ${e.code.name}';
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _sedangProses = false;
+      _terbuka = terbuka;
+      _status = status;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Transkrip Nilai')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          SwitchListTile(
+            title: const Text('Hanya biometrik'),
+            subtitle: const Text('Matikan agar PIN/pola HP boleh dipakai'),
+            value: _hanyaBiometrik,
+            onChanged: (nilai) =&gt; setState(() =&gt; _hanyaBiometrik = nilai),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: ListTile(
+              leading: Icon(_terbuka ? Icons.lock_open : Icons.lock),
+              title: Text(_terbuka ? 'IPK: 3,72' : 'IPK: ****'),
+              subtitle: Text(_status),
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _sedangProses ? null : _bukaTranskrip,
+            icon: const Icon(Icons.fingerprint),
+            label: Text(_sedangProses ? 'Menunggu...' : 'Lihat Transkrip'),
+          ),
+          if (_terbuka)
+            TextButton(
+              onPressed: () =&gt; setState(() {
+                _terbuka = false;
+                _status = 'Transkrip disembunyikan lagi.';
+              }),
+              child: const Text('Sembunyikan'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>_sedangProses</code> menonaktifkan tombol selama dialog tampil. Memanggil <code>authenticate</code> dua kali bersamaan menghasilkan error <code>authInProgress</code>.</li>
+  <li>Hasil <code>try</code>/<code>catch</code> ditampung dulu di variabel lokal <code>status</code> dan <code>terbuka</code>, baru kemudian satu <code>setState</code> dipanggil setelah pengecekan <code>mounted</code>. Pola ini menghindari <code>setState</code> setelah widget dibuang.</li>
+  <li><code>e.code</code> bertipe enum <code>LocalAuthExceptionCode</code>, jadi <code>e.code.name</code> memberi teks seperti <code>userCanceled</code>. Untuk pengguna, teks ini harus diterjemahkan (section 5).</li>
+  <li>Coba matikan dan nyalakan sakelar "Hanya biometrik". Saat mati, dialog Android menampilkan pilihan "Gunakan PIN". Saat menyala, pilihan itu hilang dan muncul tombol Batal.</li>
+</ul>
+
+<h4>Mengganti teks dialog (opsional)</h4>
+<p>Teks bawaan dialog mengikuti bahasa sistem. Jika ingin teks sendiri, pakai <code>authMessages</code>. Kelas pesannya ada di package implementasi platform, jadi package tersebut perlu ditambahkan ke <code>pubspec.yaml</code>:</p>
+<pre><code class="language-bash">flutter pub add local_auth_android local_auth_darwin
+</code></pre>
+<pre><code class="language-dart">import 'package:local_auth/local_auth.dart';
+import 'package:local_auth_android/local_auth_android.dart';
+import 'package:local_auth_darwin/local_auth_darwin.dart';
+
+final _auth = LocalAuthentication();
+
+Future&lt;bool&gt; verifikasiDenganPesanSendiri() {
+  return _auth.authenticate(
+    localizedReason: 'Verifikasi untuk melihat transkrip nilai',
+    authMessages: const &lt;AuthMessages&gt;[
+      AndroidAuthMessages(
+        signInTitle: 'Verifikasi Identitas',
+        signInHint: 'Sentuh sensor sidik jari',
+        cancelButton: 'Batal',
+      ),
+      IOSAuthMessages(
+        cancelButton: 'Batal',
+        localizedFallbackTitle: 'Pakai Kode Sandi',
+      ),
+    ],
+  );
+}
+</code></pre>
+<p><code>AndroidAuthMessages</code> mengatur judul (<code>signInTitle</code>), petunjuk (<code>signInHint</code>), dan tombol Batal (<code>cancelButton</code>, hanya tampil jika <code>biometricOnly: true</code>). <code>IOSAuthMessages</code> mengatur tombol Batal dan tombol fallback ke kode sandi.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li>Memanggil <code>authenticate</code> di <code>initState</code> halaman pertama. Pada saat itu Activity belum tentu siap menampilkan dialog, dan hasilnya error <code>uiUnavailable</code>. Panggil setelah frame pertama (misalnya dari tombol, atau dari <code>onReady</code> controller GetX seperti di section 7).</li>
+<li>Menganggap <code>false</code> berarti "dibatalkan". Di Android, Batal dilempar sebagai exception <code>userCanceled</code>, bukan <code>false</code>.</li>
+<li>Menulis <code>localizedReason: ''</code>. Teks kosong ditolak.</li>
+</ul></div>

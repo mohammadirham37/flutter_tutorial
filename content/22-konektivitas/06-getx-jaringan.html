@@ -1,0 +1,290 @@
+<p class="lead">Contoh di bagian 2 menaruh semua logika di dalam <code>State</code> sebuah halaman. Di aplikasi nyata, status jaringan dibutuhkan banyak halaman sekaligus: banner di beranda, tombol simpan di form, dan logika muat ulang di controller data. Karena itu kita pindahkan ke pola MVC GetX (Modul 08): <strong>ConnectivityService</strong> membungkus plugin, <strong>NetworkController</strong> menyimpan state <code>.obs</code> global, dan View cukup membaca dengan <code>Obx</code>.</p>
+
+<h4>Pembagian tugas</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Lapisan</th><th>File</th><th>Tugas</th></tr></thead>
+    <tbody>
+      <tr><td>Service</td><td><code>lib/services/connectivity_service.dart</code></td><td>Satu-satunya yang mengimpor <code>connectivity_plus</code> dan <code>dart:io</code>. Mengubah <code>List&lt;ConnectivityResult&gt;</code> menjadi <code>bool</code> dan menyediakan cek internet.</td></tr>
+      <tr><td>Controller</td><td><code>lib/controllers/network_controller.dart</code></td><td>State <code>online</code> dan <code>memeriksa</code>, mendengarkan stream, menunda pemeriksaan dengan <code>debounce</code>.</td></tr>
+      <tr><td>View/Widget</td><td><code>lib/widgets/banner_offline.dart</code></td><td>Banner yang muncul hanya saat offline, dengan tombol "Coba lagi".</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Langkah 1: Service</h4>
+<p class="code-file-label">📄 <code>lib/services/connectivity_service.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+import 'dart:io';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+
+/// Satu-satunya kelas yang menyentuh connectivity_plus.
+class ConnectivityService {
+  ConnectivityService({
+    Connectivity? connectivity,
+    this.hostUji = 'example.com',
+  }) : _connectivity = connectivity ?? Connectivity();
+
+  final Connectivity _connectivity;
+
+  /// Host yang di-lookup untuk memastikan internet benar-benar jalan.
+  /// Di proyek nyata, pakai domain server Anda sendiri (misal domain Supabase).
+  final String hostUji;
+
+  /// true jika ada antarmuka jaringan (WiFi/seluler/ethernet/VPN) aktif.
+  Stream&lt;bool&gt; get perubahanJaringan =&gt;
+      _connectivity.onConnectivityChanged.map(_adaJaringan);
+
+  Future&lt;bool&gt; adaJaringan() async =&gt;
+      _adaJaringan(await _connectivity.checkConnectivity());
+
+  /// Cek internet sungguhan dengan lookup DNS ringan (maks 5 detik).
+  Future&lt;bool&gt; cekInternet() async {
+    try {
+      final hasil = await InternetAddress.lookup(hostUji)
+          .timeout(const Duration(seconds: 5));
+      return hasil.isNotEmpty &amp;&amp; hasil.first.rawAddress.isNotEmpty;
+    } on SocketException {
+      return false;
+    } on TimeoutException {
+      return false;
+    }
+  }
+
+  static bool _adaJaringan(List&lt;ConnectivityResult&gt; hasil) =&gt;
+      !hasil.contains(ConnectivityResult.none);
+}
+</code></pre>
+<p>Service tidak mengimpor GetX. Konstruktornya menerima <code>Connectivity</code> opsional, sehingga di unit test (Modul 15) Anda bisa menyuntikkan objek palsu. Parameter <code>hostUji</code> membuat domain yang dicek bisa diganti, misalnya domain proyek Supabase Anda.</p>
+
+<h4>Langkah 2: Controller dengan worker <code>debounce</code></h4>
+<p class="code-file-label">📄 <code>lib/controllers/network_controller.dart</code></p>
+<pre><code class="language-dart">import 'dart:async';
+
+import 'package:get/get.dart';
+
+import '../services/connectivity_service.dart';
+
+class NetworkController extends GetxController {
+  NetworkController(this._service);
+
+  final ConnectivityService _service;
+
+  final _online = true.obs; // anggap online sampai terbukti sebaliknya
+  final _memeriksa = false.obs;
+  final _jumlahPerubahan = 0.obs; // pemicu debounce
+
+  StreamSubscription&lt;bool&gt;? _subscription;
+  Worker? _debounceWorker;
+
+  bool get online =&gt; _online.value;
+  bool get memeriksa =&gt; _memeriksa.value;
+
+  /// Dipakai controller lain untuk memasang worker ever().
+  RxBool get statusOnline =&gt; _online;
+
+  @override
+  void onInit() {
+    super.onInit();
+    // 1. Setiap event jaringan hanya menaikkan penghitung
+    _subscription = _service.perubahanJaringan.listen((_) {
+      _jumlahPerubahan.value++;
+    });
+    // 2. debounce: tunggu 2 detik tenang, baru periksa internet sungguhan.
+    //    WiFi yang naik-turun cepat tidak memicu banyak request.
+    _debounceWorker = debounce&lt;int&gt;(
+      _jumlahPerubahan,
+      (_) =&gt; periksa(),
+      time: const Duration(seconds: 2),
+    );
+    periksa(); // status awal
+  }
+
+  Future&lt;void&gt; periksa() async {
+    if (_memeriksa.value) return; // hindari pemeriksaan ganda
+    _memeriksa.value = true;
+    try {
+      final adaJaringan = await _service.adaJaringan();
+      _online.value = adaJaringan &amp;&amp; await _service.cekInternet();
+    } finally {
+      _memeriksa.value = false;
+    }
+  }
+
+  @override
+  void onClose() {
+    _subscription?.cancel();
+    _debounceWorker?.dispose();
+    super.onClose();
+  }
+}
+</code></pre>
+<ul>
+  <li><strong>Kenapa <code>debounce</code>?</strong> Saat HP berpindah dari WiFi ke data seluler, stream bisa memancarkan beberapa event dalam satu detik (WiFi putus, seluler naik, VPN tersambung ulang). Tanpa jeda, kita mengirim beberapa lookup sekaligus. <code>debounce</code> (Modul 08) menunggu sampai tidak ada perubahan selama 2 detik, baru menjalankan <code>periksa()</code> sekali.</li>
+  <li><strong><code>_jumlahPerubahan</code></strong> dinaikkan setiap event. Worker GetX hanya bereaksi jika nilai Rx <em>berubah</em>. Jika kita menyimpan <code>bool</code>, perpindahan WiFi &rarr; seluler (true &rarr; true) tidak akan memicu worker, padahal internetnya perlu dicek ulang.</li>
+  <li><strong><code>statusOnline</code></strong> membuka <code>RxBool</code> agar controller lain bisa memasang <code>ever()</code> padanya. View tetap memakai getter <code>online</code>.</li>
+  <li><strong><code>onClose()</code></strong> membatalkan <code>StreamSubscription</code> dan membuang worker. Untuk controller <code>permanent: true</code> method ini praktis tidak dipanggil, tetapi kebiasaan membersihkan tetap penting agar kode aman jika suatu saat controller dipasang per halaman.</li>
+  <li><strong>Nilai awal <code>true</code></strong>: lebih baik menganggap online lalu dikoreksi dalam sedetik, daripada menampilkan banner offline yang berkedip setiap aplikasi dibuka.</li>
+</ul>
+
+<h4>Langkah 3: Banner offline</h4>
+<p class="code-file-label">📄 <code>lib/widgets/banner_offline.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/network_controller.dart';
+
+/// Banner tipis yang muncul hanya saat offline.
+class BannerOffline extends GetView&lt;NetworkController&gt; {
+  const BannerOffline({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    return Obx(() {
+      if (controller.online) return const SizedBox.shrink();
+      return Material(
+        color: skema.errorContainer,
+        child: ListTile(
+          dense: true,
+          leading: Icon(Icons.cloud_off, color: skema.onErrorContainer),
+          title: Text(
+            'Kamu sedang offline. Data dari cache.',
+            style: TextStyle(color: skema.onErrorContainer),
+          ),
+          trailing: controller.memeriksa
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : TextButton(
+                  onPressed: controller.periksa,
+                  child: const Text('Coba lagi'),
+                ),
+        ),
+      );
+    });
+  }
+}
+</code></pre>
+
+<h4>Langkah 4: Merakit di <code>main.dart</code></h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'controllers/network_controller.dart';
+import 'services/connectivity_service.dart';
+import 'widgets/banner_offline.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  Get.put(NetworkController(ConnectivityService()), permanent: true);
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const BerandaView(),
+    );
+  }
+}
+
+class BerandaView extends GetView&lt;NetworkController&gt; {
+  const BerandaView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Info Kampus')),
+      body: Column(
+        children: [
+          const BannerOffline(),
+          Expanded(
+            child: Center(
+              child: Obx(
+                () =&gt; Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      controller.online ? Icons.wifi : Icons.wifi_off,
+                      size: 72,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(controller.online ? 'Online' : 'Offline'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<p>Coba di emulator: nyalakan mode pesawat, dan sekitar 2 detik kemudian (jeda <code>debounce</code>) banner merah muncul. Matikan mode pesawat, dan banner hilang sendiri.</p>
+
+<h4>Sinkronisasi ulang otomatis di proyek Catatan Kuliah (Modul 14)</h4>
+<p>Di Modul 14, <code>NoteRepository</code> memakai strategi <em>network first, cache fallback</em>: jika server tidak bisa dihubungi, data diambil dari cache Hive dan <code>NotesController.isOffline</code> bernilai <code>true</code>. Masalahnya, saat internet kembali, daftar catatan tetap menampilkan data cache sampai pengguna menarik layar (pull-to-refresh). Dengan <code>NetworkController</code>, controller catatan bisa bereaksi sendiri.</p>
+<p>Tambahkan tiga file dari langkah 1&ndash;3 ke proyek Modul 14, lalu tambahkan kode berikut <strong>di dalam class <code>NotesController</code></strong> (jangan lupa <code>import 'network_controller.dart';</code> di bagian atas file):</p>
+<p class="code-file-label">📄 <code>lib/controllers/notes_controller.dart</code> (tambahan)</p>
+<pre><code class="language-dart">// ...field dan getter lama tetap seperti di Modul 14...
+
+// Tambahan Modul 22
+final NetworkController _network = Get.find&lt;NetworkController&gt;();
+Worker? _sinkronWorker;
+
+@override
+void onInit() {
+  super.onInit();
+  _sinkronWorker = ever&lt;bool&gt;(_network.statusOnline, (online) {
+    // Hanya muat ulang jika: kembali online, data di layar dari cache,
+    // dan tidak sedang memuat.
+    if (online &amp;&amp; isOffline &amp;&amp; !isLoading) {
+      loadNotes();
+    }
+  });
+}
+
+@override
+void onClose() {
+  _sinkronWorker?.dispose();
+  super.onClose();
+}
+</code></pre>
+<p>Lalu daftarkan <code>NetworkController</code> <strong>sebelum</strong> <code>NotesController</code> di <code>main()</code>, karena <code>NotesController</code> memanggil <code>Get.find</code> saat dibuat:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code> (bagian pendaftaran controller)</p>
+<pre><code class="language-dart">// 4. Daftarkan controller global
+Get.put(
+  NetworkController(
+    // cek ke server sendiri, bukan ke domain umum
+    ConnectivityService(hostUji: Uri.parse(Env.supabaseUrl).host),
+  ),
+  permanent: true,
+);
+Get.put(AuthController(authService), permanent: true);
+Get.put(NotesController(repository), permanent: true);
+</code></pre>
+<ul>
+  <li><strong><code>ever()</code></strong> dipanggil setiap <code>statusOnline</code> berubah. Karena perubahan sudah disaring oleh <code>debounce</code> di <code>NetworkController</code>, <code>loadNotes()</code> tidak akan terpanggil bertubi-tubi.</li>
+  <li><strong>Tiga syarat</strong> sebelum memuat ulang: kembali <code>online</code>, data di layar berasal dari cache (<code>isOffline</code>), dan tidak sedang loading. Jika data sudah segar, tidak ada request sia-sia. Sebelum login, <code>isOffline</code> masih <code>false</code>, jadi tidak ada request tanpa sesi.</li>
+  <li><strong><code>loadNotes()</code></strong> memakai repository yang sama. Jika berhasil, cache Hive ikut diperbarui dan <code>isOffline</code> kembali <code>false</code>, sehingga <code>OfflineBanner</code> Modul 14 hilang sendiri.</li>
+  <li>Di <code>HomeView</code>, Anda juga bisa menonaktifkan tombol tambah catatan saat <code>Get.find&lt;NetworkController&gt;().online</code> bernilai <code>false</code>, karena operasi tulis di Modul 14 memang wajib online.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Lebih jauh: antrean tulis offline</h4><p>Pola di atas adalah sinkronisasi <em>baca</em>. Jika ingin pengguna bisa menambah catatan saat offline, simpan operasi ke box Hive terpisah (misalnya <code>antrean_tulis</code>) berisi jenis operasi dan datanya, tampilkan catatan itu dengan tanda "belum terkirim", lalu di dalam worker <code>ever</code> yang sama kirim antrean satu per satu ke Supabase saat online kembali. Hapus item dari antrean hanya setelah server menjawab sukses.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li><strong>Memakai <code>ever</code> tanpa menyimpan <code>Worker</code></strong>: worker tetap hidup setelah controller dihapus. Simpan dan panggil <code>dispose()</code> di <code>onClose()</code>.</li>
+<li><strong>Memanggil <code>Get.find&lt;NetworkController&gt;()</code> sebelum <code>Get.put</code></strong>: error "NetworkController not found". Urutan pendaftaran di <code>main()</code> penting.</li>
+<li><strong>Menganggap banner offline berarti request pasti gagal</strong> (atau sebaliknya). Tetap tangani error di setiap request, karena status bisa berubah di tengah request.</li>
+</ul></div>

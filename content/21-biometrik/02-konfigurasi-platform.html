@@ -1,0 +1,75 @@
+<p class="lead"><code>local_auth</code> memakai komponen native yang perlu sedikit persiapan. Jika langkah ini terlewat, dialog biometrik tidak akan muncul dan aplikasi melempar error <code>uiUnavailable</code>. Kerjakan semua langkah berikut sebelum menulis kode Dart.</p>
+
+<h4>Langkah 1: Pasang package</h4>
+<pre><code class="language-bash">flutter pub add local_auth flutter_secure_storage get permission_handler
+</code></pre>
+<p>Versi terbaru <code>local_auth</code> mendukung Android API 24 (Android 7.0) ke atas dan iOS 13 ke atas. Proyek Flutter baru sudah memakai <code>minSdk = flutter.minSdkVersion</code> yang bernilai 24, jadi tidak perlu diubah.</p>
+
+<h4>Langkah 2: MainActivity menjadi FlutterFragmentActivity</h4>
+<p>Dialog <code>BiometricPrompt</code> di Android adalah sebuah <em>Fragment</em>, sehingga Activity yang menampungnya harus turunan <code>FragmentActivity</code>. Buka file Kotlin <code>MainActivity.kt</code> (lokasinya mengikuti nama paket, misalnya <code>android/app/src/main/kotlin/id/ac/kampus/catatan_kuliah/</code>) lalu ubah menjadi:</p>
+<p class="code-file-label">📄 <code>android/app/src/main/kotlin/.../MainActivity.kt</code></p>
+<pre><code class="language-kotlin">package id.ac.kampus.catatan_kuliah
+
+import io.flutter.embedding.android.FlutterFragmentActivity
+
+class MainActivity : FlutterFragmentActivity()
+</code></pre>
+<p>Baris <code>package</code> biarkan sesuai proyek Anda. Yang diganti hanya <code>import</code> dan kelas induknya: <code>FlutterActivity</code> menjadi <code>FlutterFragmentActivity</code>.</p>
+
+<h4>Langkah 3: Izin USE_BIOMETRIC</h4>
+<p>Tambahkan satu baris di atas tag <code>&lt;application&gt;</code>:</p>
+<p class="code-file-label">📄 <code>android/app/src/main/AndroidManifest.xml</code></p>
+<pre><code class="language-text">&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+    &lt;uses-permission android:name="android.permission.USE_BIOMETRIC" /&gt;
+
+    &lt;application
+        android:label="catatan_kuliah"
+        ...
+</code></pre>
+<p><code>USE_BIOMETRIC</code> adalah izin kategori <em>normal</em>: otomatis diberikan saat aplikasi dipasang, <strong>tidak</strong> memunculkan dialog izin seperti kamera atau lokasi (Modul 17). Jadi di Android tidak ada skenario "izin biometrik ditolak". Yang mungkin terjadi adalah pengguna belum mendaftarkan sidik jari, dan itu ditangani di section 5.</p>
+
+<h4>Langkah 4: Tema AppCompat</h4>
+<p>README <code>local_auth_android</code> meminta <code>LaunchTheme</code> memakai turunan <code>Theme.AppCompat</code> agar dialog tidak crash di Android 8 ke bawah. Ubah atribut <code>parent</code> di dua file tema:</p>
+<p class="code-file-label">📄 <code>android/app/src/main/res/values/styles.xml</code></p>
+<pre><code class="language-text">&lt;style name="LaunchTheme" parent="Theme.AppCompat.DayNight"&gt;
+    &lt;item name="android:windowBackground"&gt;@drawable/launch_background&lt;/item&gt;
+&lt;/style&gt;
+</code></pre>
+<p>Lakukan hal yang sama untuk <code>LaunchTheme</code> di <code>res/values-night/styles.xml</code>. Isi <code>&lt;item&gt;</code> lain dan <code>NormalTheme</code> tidak perlu diubah.</p>
+
+<h4>Langkah 5: compileSdk untuk permission_handler</h4>
+<p>Versi terbaru <code>permission_handler</code> dikompilasi dengan Android SDK 37. Jika build gagal dengan pesan <em>"plugin(s) require to be compiled against a higher Android SDK version"</em>, ubah <code>compileSdk</code> (bukan <code>minSdk</code>):</p>
+<p class="code-file-label">📄 <code>android/app/build.gradle.kts</code></p>
+<pre><code class="language-kotlin">android {
+    namespace = "id.ac.kampus.catatan_kuliah"
+    compileSdk = 37 // sebelumnya: flutter.compileSdkVersion
+    ...
+}
+</code></pre>
+
+<h4>Langkah 6: iOS, alasan pemakaian Face ID</h4>
+<p>Tanpa kunci ini, aplikasi di iPhone dengan Face ID akan ditolak sistem saat meminta autentikasi. Tambahkan di dalam <code>&lt;dict&gt;</code>:</p>
+<p class="code-file-label">📄 <code>ios/Runner/Info.plist</code></p>
+<pre><code class="language-text">&lt;key&gt;NSFaceIDUsageDescription&lt;/key&gt;
+&lt;string&gt;Face ID dipakai untuk membuka kunci Catatan Kuliah Anda.&lt;/string&gt;
+</code></pre>
+<p>Teks ini muncul di dialog izin iOS, jadi tulis alasan yang jujur dan jelas dalam bahasa pengguna. Touch ID tidak memerlukan kunci ini.</p>
+
+<h4>Ringkasan konfigurasi</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>File</th><th>Perubahan</th><th>Jika terlewat</th></tr></thead>
+    <tbody>
+      <tr><td><code>MainActivity.kt</code></td><td><code>FlutterFragmentActivity</code></td><td><code>LocalAuthException</code> dengan kode <code>uiUnavailable</code></td></tr>
+      <tr><td><code>AndroidManifest.xml</code></td><td><code>USE_BIOMETRIC</code></td><td>Plugin sudah menggabungkan izin ini lewat manifest-nya, tetapi tetap tulis agar eksplisit</td></tr>
+      <tr><td><code>styles.xml</code></td><td><code>Theme.AppCompat.DayNight</code></td><td>Crash di Android 8 ke bawah</td></tr>
+      <tr><td><code>build.gradle.kts</code></td><td><code>compileSdk = 37</code></td><td>Build gagal di tahap <code>checkDebugAarMetadata</code></td></tr>
+      <tr><td><code>Info.plist</code></td><td><code>NSFaceIDUsageDescription</code></td><td>Face ID tidak bisa dipakai di iOS</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ Perhatian</h4><ul>
+<li>Perubahan di folder <code>android/</code> dan <code>ios/</code> tidak ikut terbawa oleh Hot Reload maupun Hot Restart. Hentikan aplikasi lalu jalankan ulang dengan <code>flutter run</code>.</li>
+<li>Jika <code>MainActivity.kt</code> tidak ditemukan, cari dengan nama berkas di folder <code>android/app/src/main/</code>. Proyek lama kadang memakai <code>MainActivity.java</code>; ganti induknya menjadi <code>io.flutter.embedding.android.FlutterFragmentActivity</code> dengan cara yang sama.</li>
+</ul></div>

@@ -1,0 +1,169 @@
+<p class="lead">Dialog biometrik saja belum membuat aplikasi aman. Yang perlu dipikirkan: <strong>apa</strong> yang dilindungi dan <strong>kapan</strong> aplikasi harus terkunci lagi. Section ini membahas pola yang dipakai aplikasi perbankan dan catatan pribadi: token sesi disimpan aman, biometrik menjadi gerbang untuk membuka aplikasi, dan aplikasi terkunci ulang setelah ditinggal ke background.</p>
+
+<h4>Apa yang disimpan, di mana</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Data</th><th>Tempat</th><th>Alasan</th></tr></thead>
+    <tbody>
+      <tr><td>Refresh token / token sesi</td><td><code>flutter_secure_storage</code></td><td>Dienkripsi dengan kunci di Keystore/Keychain</td></tr>
+      <tr><td>Status "kunci biometrik aktif"</td><td><code>flutter_secure_storage</code></td><td>Agar tidak bisa dimatikan dengan mengedit file preferensi di HP yang di-root</td></tr>
+      <tr><td>Kata sandi pengguna</td><td><strong>Tidak disimpan</strong></td><td>Cukup token. Kata sandi hanya dipakai saat login</td></tr>
+      <tr><td>Data sidik jari/wajah</td><td><strong>Tidak pernah sampai ke aplikasi</strong></td><td>Dikelola sistem operasi di chip aman</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>Kita bungkus <code>flutter_secure_storage</code> dalam satu service. Pada proyek Modul 13, Supabase sudah menyimpan sesinya sendiri; service ini menyimpan pengaturan kunci, dan pola yang sama berlaku untuk token dari backend lain (REST API Modul 09).</p>
+<p class="code-file-label">📄 <code>lib/services/sesi_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/sesi_service.dart
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+/// Menyimpan sesi login dan pengaturan kunci di Keystore/Keychain.
+class SesiService {
+  SesiService({FlutterSecureStorage? storage})
+    : _storage = storage ?? const FlutterSecureStorage();
+
+  final FlutterSecureStorage _storage;
+
+  static const _kunciToken = 'refresh_token';
+  static const _kunciEmail = 'email';
+  static const _kunciBiometrik = 'kunci_biometrik_aktif';
+
+  Future&lt;String?&gt; bacaToken() =&gt; _storage.read(key: _kunciToken);
+
+  Future&lt;String?&gt; bacaEmail() =&gt; _storage.read(key: _kunciEmail);
+
+  Future&lt;void&gt; simpanSesi({
+    required String email,
+    required String token,
+  }) async {
+    await _storage.write(key: _kunciEmail, value: email);
+    await _storage.write(key: _kunciToken, value: token);
+  }
+
+  Future&lt;bool&gt; kunciBiometrikAktif() async =&gt;
+      await _storage.read(key: _kunciBiometrik) == 'true';
+
+  Future&lt;void&gt; aturKunciBiometrik(bool aktif) =&gt;
+      _storage.write(key: _kunciBiometrik, value: aktif.toString());
+
+  /// Dipanggil saat logout: token DAN pengaturan kunci ikut dihapus.
+  Future&lt;void&gt; hapusSemua() =&gt; _storage.deleteAll();
+}
+</code></pre>
+<ul>
+  <li>Semua nama kunci penyimpanan ditulis sekali sebagai konstanta privat, sehingga tidak ada salah ketik di tempat lain.</li>
+  <li>Secure storage hanya menyimpan <code>String</code>, jadi nilai <code>bool</code> disimpan sebagai <code>'true'</code>/<code>'false'</code>.</li>
+  <li><code>hapusSemua()</code> menghapus token dan pengaturan sekaligus. Setelah logout, pengguna berikutnya di HP yang sama tidak mewarisi pengaturan kunci.</li>
+</ul>
+
+<h4>Kapan aplikasi harus terkunci?</h4>
+<ol>
+  <li><strong>Saat aplikasi dibuka</strong> (cold start) jika pengguna sudah login dan fitur kunci aktif.</li>
+  <li><strong>Saat kembali dari background</strong> setelah ditinggal lebih lama dari masa tenggang (misalnya 30 detik). Tanpa masa tenggang, pengguna yang hanya membuka notifikasi sebentar akan diminta sidik jari terus, dan itu menjengkelkan.</li>
+</ol>
+<p>Untuk mendeteksi poin 2, Flutter menyediakan <code>AppLifecycleListener</code> (pengganti modern untuk <code>WidgetsBindingObserver.didChangeAppLifecycleState</code>). Urutan state saat aplikasi ditinggal lalu dibuka lagi:</p>
+<pre><code class="language-text">resumed → inactive → hidden → paused     (pengguna menekan Home)
+paused → hidden → inactive → resumed     (pengguna kembali ke aplikasi)
+</code></pre>
+<p><code>inactive</code> juga terjadi saat notifikasi ditarik turun atau dialog sistem tampil, jadi momen yang aman untuk dicatat adalah <code>onPause</code> (benar-benar di background) dan <code>onResume</code> (aktif kembali).</p>
+
+<h4>Contoh lengkap: kunci otomatis setelah background</h4>
+<p>Contoh ini belum memakai biometrik, agar fokus pada lifecycle. Masa tenggang dibuat 5 detik supaya mudah dicoba: tekan Home, tunggu lebih dari 5 detik, lalu buka lagi aplikasinya.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: DemoKunciOtomatis()));
+
+class DemoKunciOtomatis extends StatefulWidget {
+  const DemoKunciOtomatis({super.key});
+
+  @override
+  State&lt;DemoKunciOtomatis&gt; createState() =&gt; _DemoKunciOtomatisState();
+}
+
+class _DemoKunciOtomatisState extends State&lt;DemoKunciOtomatis&gt; {
+  static const _masaTenggang = Duration(seconds: 5); // kecil agar mudah dicoba
+
+  late final AppLifecycleListener _listener;
+  DateTime? _waktuKeBackground;
+  bool _terkunci = false;
+  final _log = &lt;String&gt;[];
+
+  @override
+  void initState() {
+    super.initState();
+    _listener = AppLifecycleListener(
+      onStateChange: (state) =&gt; setState(() =&gt; _log.insert(0, state.name)),
+      onPause: () =&gt; _waktuKeBackground = DateTime.now(),
+      onResume: _saatKembali,
+    );
+  }
+
+  void _saatKembali() {
+    final sejak = _waktuKeBackground;
+    _waktuKeBackground = null;
+    if (sejak == null) return;
+    if (DateTime.now().difference(sejak) &gt;= _masaTenggang) {
+      setState(() =&gt; _terkunci = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _listener.dispose(); // wajib, sama seperti StreamSubscription
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_terkunci) {
+      return Scaffold(
+        body: Center(
+          child: FilledButton.icon(
+            // Di section berikutnya tombol ini memanggil local_auth.
+            onPressed: () =&gt; setState(() =&gt; _terkunci = false),
+            icon: const Icon(Icons.lock_open),
+            label: const Text('Terkunci - ketuk untuk membuka'),
+          ),
+        ),
+      );
+    }
+    return Scaffold(
+      appBar: AppBar(title: const Text('Riwayat Lifecycle')),
+      body: ListView(
+        children: [
+          for (final item in _log) ListTile(dense: true, title: Text(item)),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>AppLifecycleListener</code> dibuat di <code>initState</code> dan <strong>wajib</strong> di-<code>dispose</code>. Jika lupa, callback tetap dipanggil setelah widget dibuang.</li>
+  <li><code>onPause</code> hanya mencatat waktu. Keputusan mengunci diambil di <code>onResume</code> dengan membandingkan selisih waktu terhadap masa tenggang.</li>
+  <li><code>onStateChange</code> mencatat setiap perubahan state ke daftar, berguna untuk melihat urutan <code>inactive</code>, <code>hidden</code>, <code>paused</code> dengan mata sendiri.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Jebakan: dialog biometrik juga memicu lifecycle</h4><p>Di beberapa perangkat, munculnya dialog biometrik membuat aplikasi sempat berpindah state. Jika logika kunci tidak hati-hati, aplikasi bisa terkunci lagi tepat setelah berhasil dibuka, berulang tanpa henti. Solusinya: simpan flag "sedang autentikasi" dan abaikan event lifecycle selama flag itu aktif. Pola ini dipakai di <code>LockController</code> section 7.</p></div>
+
+<h4>Lanjutan: kunci Keystore yang terikat biometrik</h4>
+<p>Pola di atas memakai biometrik sebagai <em>gerbang UI</em>: token tetap bisa dibaca kode aplikasi tanpa sidik jari, hanya tampilannya yang ditahan. Untuk data yang sangat sensitif, Android mendukung kunci enkripsi yang <strong>baru bisa dipakai setelah pengguna lolos biometrik</strong> (konsep <code>CryptoObject</code> pada BiometricPrompt di modul Kotlin lama). <code>flutter_secure_storage</code> menyediakannya lewat <code>AndroidOptions.biometric</code>:</p>
+<pre><code class="language-dart">import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+// Lanjutan (khusus Android): kunci enkripsi di Keystore hanya bisa
+// dipakai setelah pengguna lolos biometrik/PIN.
+const storageTerikatBiometrik = FlutterSecureStorage(
+  aOptions: AndroidOptions.biometric(
+    enforceBiometrics: true,
+    biometricPromptTitle: 'Buka data rahasia',
+    biometricPromptSubtitle: 'Gunakan sidik jari atau PIN',
+  ),
+);
+
+Future&lt;String?&gt; bacaTokenTerlindungi() =&gt;
+    storageTerikatBiometrik.read(key: 'refresh_token');
+</code></pre>
+<p>Dengan opsi ini, operasi baca/tulis memunculkan dialog biometrik dari plugin storage itu sendiri (Android 9 ke atas). Pilihan <code>biometricType: AndroidBiometricType.strongBiometricOnly</code> membatasi hanya ke Class 3. Untuk proyek kuliah, pola gerbang UI dengan <code>local_auth</code> sudah cukup dan lebih mudah diuji; pakai opsi ini jika dosen meminta tingkat keamanan lebih tinggi.</p>

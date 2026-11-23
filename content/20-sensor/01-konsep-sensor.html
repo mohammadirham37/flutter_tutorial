@@ -1,0 +1,94 @@
+<p class="lead">Ponsel modern berisi beberapa sensor kecil yang terus mengukur gerakan dan posisi perangkat. Sensor inilah yang membuat layar berputar otomatis, game balap bisa dikendalikan dengan memiringkan HP, dan aplikasi peta tahu ke mana kamu menghadap. Di modul ini kita membaca sensor gerak (akselerometer, giroskop) dan sensor geomagnetik (magnetometer) dari Flutter, lalu mengolahnya menjadi fitur nyata: deteksi guncangan, waterpass, dan kompas.</p>
+
+<h4>Tiga kategori sensor</h4>
+<p>Dokumentasi Android membagi sensor menjadi tiga kelompok besar. iOS memakai pembagian yang mirip lewat framework Core Motion.</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kategori</th><th>Yang diukur</th><th>Contoh sensor</th><th>Contoh pemakaian</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Gerak</strong> (<em>motion</em>)</td><td>Percepatan dan rotasi pada tiga sumbu</td><td>Akselerometer, giroskop, gravity, linear acceleration, rotation vector</td><td>Deteksi guncangan, langkah, kemiringan, kontrol game</td></tr>
+      <tr><td><strong>Posisi</strong> (<em>position</em>)</td><td>Posisi atau arah fisik perangkat</td><td>Magnetometer (medan geomagnetik), proximity</td><td>Kompas, mematikan layar saat HP didekatkan ke telinga</td></tr>
+      <tr><td><strong>Lingkungan</strong> (<em>environment</em>)</td><td>Kondisi di sekitar perangkat</td><td>Barometer, sensor cahaya, suhu, kelembapan</td><td>Altimeter, kecerahan layar otomatis</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Sensor hardware dan sensor software</h4>
+<p><strong>Sensor hardware</strong> adalah komponen fisik di papan sirkuit: akselerometer, giroskop, magnetometer, barometer. Datanya diukur langsung. <strong>Sensor software</strong> (disebut juga sensor virtual atau sintetis) tidak punya komponen sendiri. Nilainya dihitung sistem operasi dari satu atau beberapa sensor hardware. Contohnya <em>linear acceleration</em> (percepatan tanpa gravitasi) dan <em>gravity</em>, yang didapat dengan memisahkan data akselerometer, sering dibantu giroskop.</p>
+<p>Konsekuensinya: sensor software bisa tidak ada di HP murah yang tidak punya giroskop, dan kualitasnya bergantung pada algoritma vendor. Android juga tidak mewajibkan produsen memasang sensor tertentu, jadi aplikasi harus siap menghadapi sensor yang hilang.</p>
+
+<h4>Sistem koordinat perangkat</h4>
+<p>Sensor gerak dan magnetometer memakai sistem koordinat tiga sumbu yang <strong>menempel pada bodi perangkat</strong>, dilihat saat HP dipegang tegak dalam orientasi bawaannya (potret untuk ponsel):</p>
+<ul>
+  <li><strong>Sumbu x</strong>: mendatar, positif ke <strong>kanan</strong> layar.</li>
+  <li><strong>Sumbu y</strong>: tegak, positif ke <strong>atas</strong> layar.</li>
+  <li><strong>Sumbu z</strong>: tegak lurus layar, positif <strong>keluar dari layar</strong> menuju wajahmu. Di belakang layar nilainya negatif.</li>
+</ul>
+<pre><code class="language-text">          +y (atas)
+           ▲
+           │   ┌─────────┐
+           │   │  layar  │
+           │   │         │
+           └───┼─────────┼──► +x (kanan)
+              ╱│         │
+             ╱ └─────────┘
+            ▼
+     +z (keluar layar, ke arah wajah)
+</code></pre>
+<p>Ini sistem tangan kanan. Hal paling penting: <strong>sumbu tidak ikut tertukar saat layar berputar ke lanskap</strong>. Sumbu x tetap sisi pendek HP walaupun tampilan aplikasimu sudah berputar. Karena itu, aplikasi kompas dan waterpass biasanya dikunci ke mode potret.</p>
+<div class="callout callout-info"><h4>ℹ️ Android dan iOS diseragamkan oleh sensors_plus</h4><p>Core Motion di iOS melaporkan percepatan dalam satuan g dengan tanda yang berlawanan dari Android. Package <code>sensors_plus</code> sudah mengalikan data iOS dengan <code>-9,81</code> sehingga nilai yang kamu terima di Dart sama dengan konvensi Android: m/s², dan saat HP diam mendatar dengan layar menghadap ke atas, akselerometer membaca sekitar <code>x = 0, y = 0, z = +9,8</code>. Semua rumus di modul ini memakai konvensi tersebut.</p></div>
+
+<h4>Satuan</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Sensor</th><th>Satuan</th><th>Nilai saat HP diam mendatar (layar ke atas)</th></tr></thead>
+    <tbody>
+      <tr><td>Akselerometer</td><td>m/s²</td><td>x ≈ 0, y ≈ 0, z ≈ +9,8 (reaksi terhadap gravitasi, mengarah ke atas)</td></tr>
+      <tr><td>User accelerometer (linear acceleration)</td><td>m/s²</td><td>x ≈ y ≈ z ≈ 0</td></tr>
+      <tr><td>Giroskop</td><td>rad/s (kecepatan sudut)</td><td>x ≈ y ≈ z ≈ 0. 1 rad/s ≈ 57,3°/s</td></tr>
+      <tr><td>Magnetometer</td><td>µT (mikrotesla)</td><td>Besar total sekitar 25 sampai 65 µT, arahnya bergantung lokasi</td></tr>
+      <tr><td>Barometer</td><td>hPa (hektopascal)</td><td>Sekitar 1013 hPa di permukaan laut, turun kira-kira 1 hPa per 8 m kenaikan</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Gravitasi vs percepatan pengguna</h4>
+<p>Akselerometer tidak bisa membedakan gravitasi dari gerakan. Saat HP diam di meja, ia tetap membaca 9,8 m/s² mengarah ke atas (gaya dorong meja yang melawan gravitasi). Saat HP jatuh bebas, bacaannya justru mendekati nol. Secara sederhana:</p>
+<pre><code class="language-text">akselerometer  = gravitasi (reaksi, 9,8 m/s² ke atas) + percepatan gerak pengguna
+userAccelerometer = akselerometer - gravitasi
+</code></pre>
+<ul>
+  <li>Butuh <strong>kemiringan</strong> (waterpass, rotasi layar, kompas)? Pakai akselerometer, karena justru arah gravitasi yang kita cari.</li>
+  <li>Butuh <strong>gerakan murni</strong> (seberapa keras HP diayun ke depan)? Pakai <code>userAccelerometer</code>.</li>
+</ul>
+
+<h4>Sampling rate dan baterai</h4>
+<p>Sensor bisa mengirim puluhan sampai ratusan data per detik. Makin sering, makin halus datanya, tetapi makin besar pemakaian CPU dan baterai. Dokumentasi Android menyarankan memakai <strong>jeda terbesar yang masih mencukupi</strong> kebutuhan aplikasi. Selain itu, sistem tidak mematikan sensor otomatis saat layar padam, sehingga listener yang lupa dihentikan bisa menguras baterai dalam beberapa jam.</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Konstanta <code>SensorInterval</code></th><th>Jeda</th><th>Kira-kira</th><th>Cocok untuk</th></tr></thead>
+    <tbody>
+      <tr><td><code>normalInterval</code> (default)</td><td>200 ms</td><td>5 Hz</td><td>Tampilan angka biasa, rotasi layar</td></tr>
+      <tr><td><code>uiInterval</code></td><td>66,667 ms</td><td>15 Hz</td><td>Kompas, indikator di UI</td></tr>
+      <tr><td><code>gameInterval</code></td><td>20 ms</td><td>50 Hz</td><td>Game, deteksi guncangan, waterpass yang responsif</td></tr>
+      <tr><td><code>fastestInterval</code></td><td>0</td><td>secepat mungkin</td><td>Hampir tidak pernah perlu</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Nilai ini hanya <em>saran</em>. Di Android, interval yang sebenarnya bisa berbeda tergantung versi OS dan perangkat. Sejak Android 12 (aplikasi dengan target API 31 ke atas), akselerometer, giroskop, dan magnetometer dibatasi maksimal 200 Hz kecuali aplikasi mendeklarasikan izin <code>HIGH_SAMPLING_RATE_SENSORS</code>.</p>
+
+<h4>Dari SensorManager ke Stream</h4>
+<p>Di modul lama (Kotlin), sensor diakses lewat <code>SensorManager</code>, <code>Sensor</code>, <code>SensorEvent</code>, dan <code>SensorEventListener</code>, lalu listener didaftarkan dan dilepas manual di <code>DisposableEffect</code>. Di Flutter, package <code>sensors_plus</code> membungkus semua itu menjadi <strong>Stream</strong> Dart yang sudah kamu kenal di Modul 02:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Android (Kotlin)</th><th>Flutter (sensors_plus)</th></tr></thead>
+    <tbody>
+      <tr><td><code>getDefaultSensor(TYPE_ACCELEROMETER)</code> + <code>registerListener(...)</code></td><td><code>accelerometerEventStream().listen(...)</code></td></tr>
+      <tr><td><code>onSensorChanged(event)</code></td><td>Callback <code>onData</code> pada <code>listen</code></td></tr>
+      <tr><td><code>getDefaultSensor(...)</code> mengembalikan <code>null</code></td><td>Stream mengirim error <code>PlatformException</code> kode <code>NO_SENSOR</code></td></tr>
+      <tr><td><code>unregisterListener(...)</code></td><td><code>subscription.cancel()</code></td></tr>
+      <tr><td><code>SENSOR_DELAY_UI</code>, <code>SENSOR_DELAY_GAME</code></td><td><code>SensorInterval.uiInterval</code>, <code>SensorInterval.gameInterval</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout callout-warning"><h4>⚠️ Hindari TYPE_ORIENTATION</h4><p>Salah satu contoh di modul lama memakai <code>Sensor.TYPE_ORIENTATION</code>. Tipe sensor ini sudah lama <strong>deprecated</strong> di Android. Cara yang benar adalah menghitung arah dari akselerometer dan magnetometer, yang akan kita tulis sendiri dalam Dart di bagian 5.</p></div>

@@ -1,0 +1,170 @@
+<p class="lead">Autentikasi biometrik punya banyak cara untuk "tidak berhasil", dan masing-masing butuh reaksi berbeda. Pengguna yang menekan Batal cukup diberi tombol coba lagi. Pengguna yang sensornya terkunci perlu diarahkan ke PIN. Pengguna yang belum mendaftarkan sidik jari perlu diarahkan ke pengaturan. Semua informasi ini ada di <code>LocalAuthException.code</code>.</p>
+
+<h4>Kode error yang penting</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th><code>LocalAuthExceptionCode</code></th><th>Kapan terjadi</th><th>Reaksi yang disarankan</th></tr></thead>
+    <tbody>
+      <tr><td><code>userCanceled</code></td><td>Pengguna menekan Batal atau tombol kembali</td><td>Diam saja atau tampilkan tombol "Coba lagi"</td></tr>
+      <tr><td><code>systemCanceled</code></td><td>Sistem menutup dialog, misalnya aplikasi masuk background</td><td>Coba lagi saat aplikasi aktif</td></tr>
+      <tr><td><code>timeout</code></td><td>Dialog dibiarkan terlalu lama</td><td>Coba lagi</td></tr>
+      <tr><td><code>noBiometricsEnrolled</code></td><td>Ada sensor, tetapi belum ada sidik jari/wajah terdaftar</td><td>Minta pengguna mendaftarkan di pengaturan HP</td></tr>
+      <tr><td><code>noCredentialsSet</code></td><td>HP belum memakai PIN, pola, atau sandi sama sekali</td><td>Minta pengguna mengaktifkan kunci layar</td></tr>
+      <tr><td><code>noBiometricHardware</code></td><td>Tidak ada sensor, atau di iOS izin Face ID ditolak</td><td>Sembunyikan fitur, atau buka pengaturan aplikasi (iOS)</td></tr>
+      <tr><td><code>biometricHardwareTemporarilyUnavailable</code></td><td>Sensor sedang dipakai/tidak siap</td><td>Coba lagi nanti</td></tr>
+      <tr><td><code>temporaryLockout</code></td><td>Terlalu banyak percobaan gagal (Android: 5 kali)</td><td>Tunggu sekitar 30 detik, atau pakai PIN</td></tr>
+      <tr><td><code>biometricLockout</code></td><td>Biometrik dikunci sampai pengguna membuka HP dengan PIN/pola</td><td>Tawarkan fallback: PIN HP atau login ulang</td></tr>
+      <tr><td><code>uiUnavailable</code></td><td>Dialog tidak bisa ditampilkan (misalnya <code>MainActivity</code> belum <code>FlutterFragmentActivity</code>)</td><td>Perbaiki konfigurasi (section 2)</td></tr>
+      <tr><td><code>authInProgress</code></td><td><code>authenticate</code> dipanggil saat dialog lain masih tampil</td><td>Cegah panggilan ganda</td></tr>
+      <tr><td><code>userRequestedFallback</code></td><td>iOS: pengguna memilih tombol fallback</td><td>Tawarkan login ulang</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-info"><h4>ℹ️ Enum ini bisa bertambah</h4><p>Dokumentasi <code>local_auth</code> menyebut bahwa nilai baru bisa ditambahkan ke <code>LocalAuthExceptionCode</code> tanpa dianggap perubahan besar. Jadi setiap <code>switch</code> atas kode ini wajib punya cabang <code>default</code> atau wildcard <code>_</code>.</p></div>
+
+<h4>Menerjemahkan kode menjadi status dan pesan</h4>
+<p>Daripada menyebar <code>if (e.code == ...)</code> di banyak tempat, kita kumpulkan semuanya dalam satu file. Hasilnya berupa <code>StatusBiometrik</code> (untuk logika) dan pesan Bahasa Indonesia (untuk ditampilkan). File ini dipakai lagi di section 7 dan studi kasus.</p>
+<p class="code-file-label">📄 <code>lib/utils/pesan_biometrik.dart</code></p>
+<pre><code class="language-dart">// lib/utils/pesan_biometrik.dart
+import 'package:local_auth/local_auth.dart';
+
+/// Ringkasan hasil autentikasi yang mudah dipakai controller dan view.
+enum StatusBiometrik {
+  berhasil,
+  gagal, // wajah/jari tidak cocok (iOS) atau error tak dikenal
+  dibatalkan, // pengguna/sistem membatalkan dialog
+  belumTerdaftar, // belum ada sidik jari/wajah/PIN di perangkat
+  tidakTersedia, // tidak ada sensor, sensor sibuk, atau izin Face ID ditolak
+  terkunciSementara, // terlalu banyak percobaan, tunggu sebentar
+  terkunciPermanen, // biometrik dikunci sampai pengguna memakai PIN/pola
+}
+
+class HasilBiometrik {
+  const HasilBiometrik(this.status, this.pesan);
+
+  final StatusBiometrik status;
+  final String pesan;
+
+  bool get berhasil =&gt; status == StatusBiometrik.berhasil;
+}
+
+/// Menerjemahkan kode error local_auth menjadi status + pesan Indonesia.
+HasilBiometrik hasilDariKode(LocalAuthExceptionCode kode) {
+  return switch (kode) {
+    LocalAuthExceptionCode.userCanceled ||
+    LocalAuthExceptionCode.systemCanceled ||
+    LocalAuthExceptionCode.timeout =&gt; const HasilBiometrik(
+      StatusBiometrik.dibatalkan,
+      'Autentikasi dibatalkan. Coba lagi.',
+    ),
+    LocalAuthExceptionCode.userRequestedFallback =&gt; const HasilBiometrik(
+      StatusBiometrik.dibatalkan,
+      'Pilih "Masuk ulang" untuk login dengan email dan kata sandi.',
+    ),
+    LocalAuthExceptionCode.noBiometricsEnrolled =&gt; const HasilBiometrik(
+      StatusBiometrik.belumTerdaftar,
+      'Belum ada sidik jari atau wajah yang terdaftar di perangkat ini.',
+    ),
+    LocalAuthExceptionCode.noCredentialsSet =&gt; const HasilBiometrik(
+      StatusBiometrik.belumTerdaftar,
+      'Perangkat belum memakai kunci layar (PIN, pola, atau sandi).',
+    ),
+    LocalAuthExceptionCode.noBiometricHardware ||
+    LocalAuthExceptionCode.biometricHardwareTemporarilyUnavailable =&gt;
+      const HasilBiometrik(
+        StatusBiometrik.tidakTersedia,
+        'Sensor biometrik tidak tersedia atau izinnya ditolak.',
+      ),
+    LocalAuthExceptionCode.temporaryLockout =&gt; const HasilBiometrik(
+      StatusBiometrik.terkunciSementara,
+      'Terlalu banyak percobaan. Tunggu sekitar 30 detik.',
+    ),
+    LocalAuthExceptionCode.biometricLockout =&gt; const HasilBiometrik(
+      StatusBiometrik.terkunciPermanen,
+      'Biometrik terkunci. Buka kunci layar HP dengan PIN/pola dulu.',
+    ),
+    LocalAuthExceptionCode.authInProgress =&gt; const HasilBiometrik(
+      StatusBiometrik.dibatalkan,
+      'Autentikasi sebelumnya masih berjalan.',
+    ),
+    // Wildcard wajib: enum ini bisa bertambah di versi package berikutnya.
+    _ =&gt; HasilBiometrik(
+      StatusBiometrik.gagal,
+      'Terjadi kesalahan (${kode.name}).',
+    ),
+  };
+}
+</code></pre>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>StatusBiometrik</code> mengelompokkan belasan kode menjadi tujuh kategori yang benar-benar berbeda reaksinya. Controller cukup memeriksa kategori ini.</li>
+  <li>Ekspresi <code>switch</code> Dart 3 dengan pola <code>a || b</code> menggabungkan beberapa kode dalam satu cabang.</li>
+  <li>Cabang <code>_</code> menangkap <code>deviceError</code>, <code>unknownError</code>, <code>uiUnavailable</code>, dan kode baru di masa depan.</li>
+</ul>
+
+<h4>Alur lengkap: berhasil, gagal, ditolak, ke pengaturan</h4>
+<p>Biometrik tidak memakai dialog izin runtime seperti kamera, tetapi alurnya mirip dengan alur izin di Modul 17:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Situasi</th><th>Android</th><th>iOS</th></tr></thead>
+    <tbody>
+      <tr><td>Siap dipakai</td><td>Dialog BiometricPrompt</td><td>Dialog Face ID/Touch ID (pertama kali: dialog izin Face ID)</td></tr>
+      <tr><td>Dibatalkan</td><td><code>userCanceled</code>, tawarkan coba lagi</td><td><code>userCanceled</code>, tawarkan coba lagi</td></tr>
+      <tr><td>"Ditolak permanen"</td><td>Belum ada sidik jari/PIN: <code>noBiometricsEnrolled</code>/<code>noCredentialsSet</code>. Arahkan pengguna ke <strong>Settings → Security</strong></td><td>Izin Face ID ditolak: <code>noBiometricHardware</code>. Buka pengaturan aplikasi dengan <code>openAppSettings()</code></td></tr>
+      <tr><td>Terkunci</td><td><code>temporaryLockout</code> / <code>biometricLockout</code>. Izinkan PIN (<code>biometricOnly: false</code>) atau login ulang</td><td><code>biometricLockout</code>. Pakai kode sandi atau login ulang</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Fungsi berikut memperlihatkan cara bereaksi terhadap tiap status. Tombol "Pengaturan" pada SnackBar memakai <code>openAppSettings()</code> dari <code>permission_handler</code> (Modul 17).</p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+import '../utils/pesan_biometrik.dart';
+
+final _auth = LocalAuthentication();
+
+Future&lt;void&gt; bukaFiturRahasia(BuildContext context) async {
+  HasilBiometrik hasil;
+  try {
+    final ok = await _auth.authenticate(
+      localizedReason: 'Verifikasi untuk membuka fitur ini',
+    );
+    hasil = ok
+        ? const HasilBiometrik(StatusBiometrik.berhasil, 'Berhasil.')
+        : const HasilBiometrik(StatusBiometrik.gagal, 'Tidak dikenali.');
+  } on LocalAuthException catch (e) {
+    hasil = hasilDariKode(e.code);
+  }
+
+  if (!context.mounted) return;
+  final messenger = ScaffoldMessenger.of(context);
+
+  switch (hasil.status) {
+    case StatusBiometrik.berhasil:
+      messenger.showSnackBar(const SnackBar(content: Text('Terbuka!')));
+    case StatusBiometrik.belumTerdaftar:
+    case StatusBiometrik.tidakTersedia:
+      // Arahkan ke pengaturan (iOS: izin Face ID untuk aplikasi ini).
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(hasil.pesan),
+          action: SnackBarAction(
+            label: 'Pengaturan',
+            onPressed: openAppSettings,
+          ),
+        ),
+      );
+    default:
+      messenger.showSnackBar(SnackBar(content: Text(hasil.pesan)));
+  }
+}
+</code></pre>
+<ul>
+  <li><code>if (!context.mounted) return;</code> diletakkan setelah <code>await</code>, sebelum <code>ScaffoldMessenger.of(context)</code>.</li>
+  <li><code>openAppSettings</code> di iOS membuka halaman aplikasi tempat sakelar Face ID berada. Di Android, halaman itu tidak berisi pengaturan sidik jari, sehingga pesan untuk pengguna Android sebaiknya menyebut jalurnya secara manual: <em>Settings → Security → Fingerprint</em>.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Selalu sediakan jalan keluar</h4><p>Jangan pernah membuat kondisi di mana pengguna terkunci dari datanya sendiri. Sensor bisa rusak, jari bisa terluka, dan Face ID tidak bekerja saat memakai masker tertentu. Untuk kunci aplikasi, sediakan minimal satu dari dua fallback: izinkan PIN/pola HP (<code>biometricOnly: false</code>) dan/atau tombol <strong>login ulang</strong> dengan email dan kata sandi.</p></div>

@@ -1,0 +1,132 @@
+<p class="lead">Sebelum menawarkan fitur "kunci dengan sidik jari", aplikasi perlu tahu apakah perangkat mampu. Ada HP tanpa sensor, ada HP yang sensornya ada tetapi belum ada jari yang didaftarkan, dan ada HP yang bahkan belum memakai PIN layar. <code>local_auth</code> menyediakan tiga pemeriksaan untuk membedakannya.</p>
+
+<h4>Tiga pemeriksaan dasar</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>API</th><th>Hasil</th><th>Arti</th></tr></thead>
+    <tbody>
+      <tr><td><code>isDeviceSupported()</code></td><td><code>Future&lt;bool&gt;</code></td><td>Perangkat bisa melakukan autentikasi lokal: biometrik <strong>atau</strong> PIN/pola/sandi.</td></tr>
+      <tr><td><code>canCheckBiometrics</code> (getter)</td><td><code>Future&lt;bool&gt;</code></td><td>Ada perangkat keras biometrik. Belum tentu sudah ada jari/wajah terdaftar.</td></tr>
+      <tr><td><code>getAvailableBiometrics()</code></td><td><code>Future&lt;List&lt;BiometricType&gt;&gt;</code></td><td>Biometrik yang <strong>sudah terdaftar</strong> dan boleh dipakai aplikasi.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>Contoh kecil, langsung di dalam fungsi <code>async</code>:</p>
+<pre><code class="language-dart">final auth = LocalAuthentication();
+final bisaAutentikasi = await auth.canCheckBiometrics || await auth.isDeviceSupported();
+final terdaftar = await auth.getAvailableBiometrics();
+debugPrint('bisa: $bisaAutentikasi, terdaftar: $terdaftar');
+</code></pre>
+
+<h4>Contoh lengkap: halaman diagnosa biometrik</h4>
+<p>Program berikut menampilkan hasil ketiga pemeriksaan. Jalankan di emulator sebelum dan sesudah mendaftarkan sidik jari (caranya di section 9) untuk melihat perbedaannya.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:local_auth/local_auth.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: CekBiometrikPage()));
+
+class CekBiometrikPage extends StatefulWidget {
+  const CekBiometrikPage({super.key});
+
+  @override
+  State&lt;CekBiometrikPage&gt; createState() =&gt; _CekBiometrikPageState();
+}
+
+class _CekBiometrikPageState extends State&lt;CekBiometrikPage&gt; {
+  final _auth = LocalAuthentication();
+
+  bool? _perangkatMendukung;
+  bool? _adaSensor;
+  List&lt;BiometricType&gt; _terdaftar = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _periksa();
+  }
+
+  Future&lt;void&gt; _periksa() async {
+    final mendukung = await _auth.isDeviceSupported();
+    final adaSensor = await _auth.canCheckBiometrics;
+    final terdaftar = await _auth.getAvailableBiometrics();
+
+    if (!mounted) return; // widget mungkin sudah ditutup selama await
+    setState(() {
+      _perangkatMendukung = mendukung;
+      _adaSensor = adaSensor;
+      _terdaftar = terdaftar;
+    });
+  }
+
+  String _teks(bool? nilai) =&gt; switch (nilai) {
+    null =&gt; 'memeriksa...',
+    true =&gt; 'Ya',
+    false =&gt; 'Tidak',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Cek Biometrik')),
+      body: ListView(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.phonelink_lock),
+            title: const Text('isDeviceSupported()'),
+            subtitle: const Text('Biometrik ATAU PIN/pola/sandi tersedia'),
+            trailing: Text(_teks(_perangkatMendukung)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.sensors),
+            title: const Text('canCheckBiometrics'),
+            subtitle: const Text('Ada perangkat keras biometrik'),
+            trailing: Text(_teks(_adaSensor)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.fingerprint),
+            title: const Text('getAvailableBiometrics()'),
+            subtitle: Text(
+              _terdaftar.isEmpty
+                  ? 'Belum ada biometrik yang terdaftar'
+                  : _terdaftar.map((b) =&gt; b.name).join(', '),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: FilledButton.icon(
+              onPressed: _periksa,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Periksa ulang'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>LocalAuthentication()</code> adalah pintu masuk plugin. Membuat objek ini murah, tidak ada proses berat di konstruktornya.</li>
+  <li>Ketiga pemeriksaan bersifat <code>async</code> karena harus bertanya ke sistem operasi lewat platform channel. Karena itu <code>_periksa()</code> dipanggil dari <code>initState</code> tanpa <code>await</code>, lalu hasilnya ditampilkan lewat <code>setState</code>.</li>
+  <li><code>if (!mounted) return;</code> wajib ada setelah <code>await</code>. Jika pengguna menutup halaman sebelum pemeriksaan selesai, <code>setState</code> pada widget yang sudah dibuang akan memicu error.</li>
+  <li><code>bool?</code> dengan nilai awal <code>null</code> dipakai untuk membedakan "belum diperiksa" dari "tidak".</li>
+</ul>
+
+<h4>Nilai BiometricType berbeda antara Android dan iOS</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Platform</th><th>Nilai yang mungkin muncul</th><th>Keterangan</th></tr></thead>
+    <tbody>
+      <tr><td>Android</td><td><code>weak</code>, <code>strong</code></td><td>Android tidak memberi tahu jenis sensornya, hanya kelasnya. Sidik jari Class 3 biasanya muncul sebagai <code>[weak, strong]</code> karena sensor Strong juga memenuhi syarat Weak.</td></tr>
+      <tr><td>iOS</td><td><code>face</code> atau <code>fingerprint</code></td><td>Face ID atau Touch ID. Jika izin Face ID ditolak, daftar ini kosong walaupun wajah sudah terdaftar.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-tip"><h4>💡 Tips</h4><p>Jangan menulis logika seperti "jika ada <code>BiometricType.fingerprint</code> maka tampilkan ikon sidik jari". Di Android nilai itu hampir tidak pernah muncul. Cukup cek <code>daftar.isNotEmpty</code> untuk tahu bahwa ada biometrik yang siap dipakai, dan pakai ikon umum seperti <code>Icons.fingerprint</code> atau teks "biometrik".</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Perhatian</h4><p><code>canCheckBiometrics == true</code> tidak berarti pengguna sudah mendaftarkan sidik jari. Untuk fitur kunci aplikasi yang boleh memakai PIN sebagai fallback, pemeriksaan yang paling tepat adalah <code>isDeviceSupported()</code>. Untuk fitur yang <em>hanya</em> menerima biometrik, pastikan <code>getAvailableBiometrics()</code> tidak kosong.</p></div>

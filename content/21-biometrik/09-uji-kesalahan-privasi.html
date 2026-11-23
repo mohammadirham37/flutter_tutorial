@@ -1,0 +1,65 @@
+<p class="lead">Kabar baiknya, biometrik bisa diuji tanpa HP fisik. Android Emulator punya sensor sidik jari virtual, dan iOS Simulator punya Face ID/Touch ID tiruan. Section ini juga merangkum kesalahan yang paling sering terjadi dan hal-hal yang perlu diperhatikan soal keamanan dan privasi.</p>
+
+<h4>Menguji di Android Emulator</h4>
+<ol>
+  <li>Pakai AVD dengan image <strong>Google APIs</strong> atau <strong>Google Play</strong> (Android 10 ke atas disarankan).</li>
+  <li>Pasang kunci layar dulu: <strong>Settings → Security (atau Security &amp; privacy) → Screen lock → PIN</strong>. Sidik jari tidak bisa didaftarkan tanpa kunci layar.</li>
+  <li>Pilih <strong>Fingerprint Unlock</strong> (namanya bisa "Pixel Imprint" atau "Fingerprint"). Saat diminta menempelkan jari, buka <strong>Extended Controls</strong> emulator (tombol <kbd>...</kbd> di panel samping) → <strong>Fingerprint</strong>.</li>
+  <li>Pilih <strong>Finger 1</strong> lalu klik <strong>Touch sensor</strong>. Ulangi beberapa kali sampai pendaftaran 100%.</li>
+  <li>Jalankan aplikasi. Saat dialog biometrik muncul, buka lagi Extended Controls → Fingerprint → <strong>Touch sensor</strong> dengan <strong>Finger 1</strong> untuk berhasil.</li>
+  <li>Untuk menguji jari yang salah, pilih <strong>Finger 2</strong> (yang tidak didaftarkan) lalu klik Touch sensor. Ulangi 5 kali untuk memicu <code>temporaryLockout</code>.</li>
+</ol>
+<p>Cara alternatif lewat terminal saat emulator menyala:</p>
+<pre><code class="language-bash">adb -e emu finger touch 1   # menempelkan Finger 1 (terdaftar)
+adb -e emu finger touch 2   # menempelkan Finger 2 (tidak terdaftar)
+</code></pre>
+
+<h4>Menguji di iOS Simulator (macOS)</h4>
+<ul>
+  <li>Menu <strong>Features → Face ID → Enrolled</strong> untuk mengaktifkan Face ID tiruan.</li>
+  <li>Saat dialog muncul: <strong>Features → Face ID → Matching Face</strong> (berhasil) atau <strong>Non-matching Face</strong> (gagal).</li>
+  <li>Untuk menguji izin ditolak, jawab "Don't Allow" pada dialog izin Face ID pertama, lalu periksa bahwa aplikasi mendapat <code>noBiometricHardware</code> dan tombol "Buka Pengaturan" muncul.</li>
+</ul>
+
+<h4>Matriks pengujian minimal</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Kondisi perangkat</th><th>Cara membuat di emulator</th><th>Hasil yang diharapkan</th></tr></thead>
+    <tbody>
+      <tr><td>Tanpa kunci layar</td><td>Settings → Security → Screen lock → None</td><td><code>isDeviceSupported()</code> false; sakelar kunci menolak diaktifkan</td></tr>
+      <tr><td>PIN tanpa sidik jari</td><td>Hapus sidik jari, biarkan PIN</td><td><code>getAvailableBiometrics()</code> kosong; <code>authenticate</code> dengan fallback menampilkan input PIN</td></tr>
+      <tr><td>Sidik jari terdaftar</td><td>Langkah di atas</td><td>Dialog biometrik, berhasil dengan Finger 1</td></tr>
+      <tr><td>Lockout</td><td>5 kali Finger 2</td><td><code>temporaryLockout</code>, tombol login ulang menonjol</td></tr>
+      <tr><td><code>biometricOnly: true</code> tanpa sidik jari</td><td>Hanya PIN</td><td><code>noBiometricsEnrolled</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-info"><h4>ℹ️ Batasan emulator</h4><p>Emulator Android hanya menyediakan sensor sidik jari; pengenalan wajah tidak bisa diuji. Perilaku Class 2 (wajah 2D) dan konfirmasi <code>sensitiveTransaction</code> hanya bisa dilihat di HP fisik yang memilikinya. Di iOS Simulator, dialog kode sandi fallback juga tidak sepenuhnya sama dengan perangkat asli.</p></div>
+
+<h4>Kesalahan umum</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Gejala</th><th>Penyebab</th><th>Perbaikan</th></tr></thead>
+    <tbody>
+      <tr><td><code>LocalAuthException(code uiUnavailable, ...)</code></td><td><code>MainActivity</code> masih <code>FlutterActivity</code>, atau dialog dipanggil sebelum frame pertama</td><td>Ganti ke <code>FlutterFragmentActivity</code>, lalu <em>stop</em> dan jalankan ulang; panggil dari <code>onReady</code>/tombol</td></tr>
+      <tr><td>Kode dari tutorial lama error: <code>AuthenticationOptions</code> tidak dikenal</td><td>Memakai API <code>local_auth</code> versi 2</td><td>Pakai parameter langsung: <code>biometricOnly</code>, <code>persistAcrossBackgrounding</code></td></tr>
+      <tr><td><code>on PlatformException</code> tidak pernah tertangkap saat Batal</td><td>Versi 3 melempar <code>LocalAuthException</code></td><td>Tangkap <code>on LocalAuthException catch (e)</code> dan periksa <code>e.code</code></td></tr>
+      <tr><td>Aplikasi terkunci lagi tepat setelah berhasil dibuka</td><td>Dialog biometrik memicu event lifecycle</td><td>Abaikan <code>onPause</code> selama autentikasi berjalan</td></tr>
+      <tr><td>Error <code>authInProgress</code></td><td>Tombol ditekan dua kali, atau <code>authenticate</code> dipanggil dari <code>build()</code></td><td>Flag <code>sedangMemproses</code> dan tombol nonaktif</td></tr>
+      <tr><td>Face ID gagal di iPhone, tidak ada dialog izin</td><td><code>NSFaceIDUsageDescription</code> belum ditulis</td><td>Tambahkan ke <code>Info.plist</code></td></tr>
+      <tr><td>Isi aplikasi terlihat sekejap sebelum layar kunci</td><td>Status kunci dibaca setelah <code>runApp</code></td><td>Baca dari secure storage di <code>main()</code> sebelum <code>runApp</code></td></tr>
+      <tr><td>Pengguna terkunci permanen dari aplikasinya</td><td><code>biometricOnly: true</code> tanpa tombol login ulang</td><td>Selalu sediakan fallback</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Pertimbangan keamanan dan privasi</h4>
+<ul>
+  <li><strong>Data biometrik tidak pernah sampai ke aplikasi.</strong> Jangan pernah meminta pengguna memotret sidik jari atau wajahnya untuk "verifikasi" buatan sendiri. Selain berbahaya, itu melanggar prinsip minimisasi data pribadi (UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi menggolongkan data biometrik sebagai data pribadi yang bersifat spesifik).</li>
+  <li><strong>Biometrik tidak menggantikan otorisasi server.</strong> Server tetap memeriksa token pada setiap request. Hasil <code>true</code> dari <code>authenticate</code> tidak boleh dikirim ke server sebagai bukti login, karena nilai itu mudah dipalsukan oleh aplikasi yang dimodifikasi.</li>
+  <li><strong>Gerbang UI vs kunci kriptografi.</strong> Pola di modul ini (gerbang UI) cukup untuk melindungi dari orang yang meminjam HP. Untuk melindungi dari HP yang di-root, data harus dienkripsi dengan kunci yang terikat biometrik (<code>AndroidOptions.biometric</code>, section 6).</li>
+  <li><strong>Siapa pun yang sidik jarinya terdaftar di HP bisa membuka aplikasi.</strong> Jika pemilik HP mendaftarkan jari pasangannya, aplikasi tidak bisa membedakan. Sebutkan hal ini di teks pengaturan bila datanya sangat pribadi.</li>
+  <li><strong>Pratinjau di daftar aplikasi terbaru.</strong> Layar kunci tidak menyembunyikan tangkapan layar yang dibuat sistem saat aplikasi masuk background. Aplikasi perbankan biasanya menambahkan <code>FLAG_SECURE</code> di Android atau tampilan penutup di iOS; ini di luar cakupan modul.</li>
+  <li><strong>Keychain iOS tidak terhapus saat uninstall.</strong> Token di <code>flutter_secure_storage</code> bisa tetap ada setelah aplikasi dipasang ulang. Jika itu tidak diinginkan, simpan penanda "sudah pernah dibuka" di SharedPreferences (yang terhapus saat uninstall) dan panggil <code>hapusSemua()</code> pada pembukaan pertama.</li>
+</ul>

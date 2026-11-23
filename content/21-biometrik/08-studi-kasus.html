@@ -1,0 +1,516 @@
+<p class="lead">Studi kasus kita: <strong>Kunci Aplikasi Catatan Kuliah</strong>. Mahasiswa sering meminjamkan HP ke teman, padahal di dalamnya ada catatan kuliah, draf tugas, dan sesi login akun kampus. Kita menambahkan fitur yang biasa ada di aplikasi catatan: pengaturan on/off kunci biometrik, layar kunci saat aplikasi dibuka atau kembali dari background, dan fallback ke login ulang.</p>
+
+<h4>Kebutuhan</h4>
+<ol>
+  <li>Pengguna login dengan email dan kata sandi (versi demo; di Modul 13 memakai Supabase).</li>
+  <li>Di halaman Pengaturan ada sakelar <strong>Kunci dengan biometrik</strong>. Saat dinyalakan, pengguna harus lolos autentikasi sekali sebagai konfirmasi.</li>
+  <li>Jika kunci aktif: layar kunci muncul saat aplikasi dibuka, dan saat kembali dari background lebih dari 30 detik, <strong>di atas halaman apa pun</strong> yang sedang terbuka.</li>
+  <li>Layar kunci menerima sidik jari, wajah, atau PIN HP. Jika gagal terus, pengguna bisa keluar dan login ulang.</li>
+  <li>Logout menghapus token dan pengaturan kunci.</li>
+</ol>
+
+<h4>Struktur folder</h4>
+<pre><code class="language-text">lib/
+├── main.dart                         # baca state awal, daftarkan controller
+├── models/
+│   └── catatan.dart
+├── utils/
+│   └── pesan_biometrik.dart          # dari section 5
+├── services/
+│   ├── biometric_service.dart        # dari section 7
+│   └── sesi_service.dart             # dari section 6
+├── controllers/
+│   ├── sesi_controller.dart          # status login
+│   ├── lock_controller.dart          # dari section 7
+│   └── catatan_controller.dart
+└── views/
+    ├── app_gate.dart                 # LoginView atau CatatanView
+    ├── kunci_overlay.dart            # LockView di atas Navigator
+    ├── lock_view.dart                # dari section 7
+    ├── login_view.dart
+    ├── catatan_view.dart
+    └── pengaturan_view.dart
+</code></pre>
+<p>Pastikan konfigurasi platform di section 2 sudah dikerjakan dan package sudah terpasang: <code>flutter pub add local_auth flutter_secure_storage get permission_handler</code>. File yang ditandai "dari section ..." disalin apa adanya. Berikut file sisanya.</p>
+
+<h4>Langkah 1: Model dan SesiController</h4>
+<p class="code-file-label">📄 <code>lib/models/catatan.dart</code></p>
+<pre><code class="language-dart">// lib/models/catatan.dart
+class Catatan {
+  const Catatan({required this.judul, required this.mataKuliah});
+
+  final String judul;
+  final String mataKuliah;
+}
+</code></pre>
+
+<p class="code-file-label">📄 <code>lib/controllers/sesi_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/sesi_controller.dart
+import 'package:get/get.dart';
+
+import '../services/sesi_service.dart';
+
+/// Status login. Pada proyek Modul 13, isi login() diganti dengan
+/// pemanggilan AuthService Supabase; sisanya tetap sama.
+class SesiController extends GetxController {
+  SesiController(this._service, {String? tokenAwal, String? emailAwal})
+    : _token = RxnString(tokenAwal),
+      _email = RxnString(emailAwal);
+
+  final SesiService _service;
+
+  final RxnString _token;
+  final RxnString _email;
+  final _isLoading = false.obs;
+  final _errorMessage = RxnString();
+
+  bool get sudahLogin =&gt; _token.value != null;
+  String get email =&gt; _email.value ?? '';
+  bool get isLoading =&gt; _isLoading.value;
+  String? get errorMessage =&gt; _errorMessage.value;
+
+  /// Dipakai controller lain untuk worker ever().
+  RxnString get tokenRx =&gt; _token;
+
+  Future&lt;bool&gt; login({required String email, required String password}) async {
+    _isLoading.value = true;
+    _errorMessage.value = null;
+    try {
+      // DEMO: pura-pura menghubungi server.
+      await Future&lt;void&gt;.delayed(const Duration(milliseconds: 600));
+      if (!email.contains('@') || password.length &lt; 6) {
+        _errorMessage.value = 'Email atau kata sandi tidak valid.';
+        return false;
+      }
+      // Di Modul 13: token = session.refreshToken dari Supabase.
+      final token = 'demo-${DateTime.now().millisecondsSinceEpoch}';
+      await _service.simpanSesi(email: email.trim(), token: token);
+      _email.value = email.trim();
+      _token.value = token;
+      return true;
+    } finally {
+      _isLoading.value = false;
+    }
+  }
+
+  Future&lt;void&gt; logout() async {
+    await _service.hapusSemua();
+    _email.value = null;
+    _token.value = null; // AppGate otomatis menampilkan LoginView
+  }
+}
+</code></pre>
+<ul>
+  <li>Konstruktor menerima <code>tokenAwal</code> dan <code>emailAwal</code> yang sudah dibaca di <code>main()</code>. <code>RxnString(tokenAwal)</code> membuat observable nullable dengan nilai awal tersebut.</li>
+  <li><code>tokenRx</code> sengaja dibuka agar <code>LockController</code> bisa memasang worker <code>ever</code>, sama seperti <code>nimRx</code> di Modul 08.</li>
+  <li><code>login()</code> versi demo menerima email apa pun yang mengandung <code>@</code> dan kata sandi minimal 6 karakter, lalu membuat token palsu. Bagian ini yang diganti saat digabung dengan Modul 13.</li>
+</ul>
+
+<h4>Langkah 2: CatatanController</h4>
+<p class="code-file-label">📄 <code>lib/controllers/catatan_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/catatan_controller.dart
+import 'package:get/get.dart';
+
+import '../models/catatan.dart';
+
+/// Versi ringkas. Di Modul 14 data ini diambil dari Supabase + cache Hive.
+class CatatanController extends GetxController {
+  final _daftar = &lt;Catatan&gt;[
+    const Catatan(
+      judul: 'Rangkuman BiometricPrompt',
+      mataKuliah: 'Pemrograman Mobile',
+    ),
+    const Catatan(judul: 'Normalisasi 3NF', mataKuliah: 'Basis Data'),
+    const Catatan(judul: 'Subnetting /26', mataKuliah: 'Jaringan Komputer'),
+  ].obs;
+
+  List&lt;Catatan&gt; get daftar =&gt; List.unmodifiable(_daftar);
+
+  void tambah(String judul, String mataKuliah) {
+    _daftar.insert(0, Catatan(judul: judul, mataKuliah: mataKuliah));
+  }
+}
+</code></pre>
+<p>Data catatan sengaja disederhanakan (list di memori) agar fokus kita tetap pada kunci biometrik. Di proyek Modul 14, controller ini sudah membaca dari Supabase dan cache Hive.</p>
+
+<h4>Langkah 3: LoginView</h4>
+<p class="code-file-label">📄 <code>lib/views/login_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/login_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/sesi_controller.dart';
+
+class LoginView extends StatefulWidget {
+  const LoginView({super.key});
+
+  @override
+  State&lt;LoginView&gt; createState() =&gt; _LoginViewState();
+}
+
+class _LoginViewState extends State&lt;LoginView&gt; {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _sesi = Get.find&lt;SesiController&gt;();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _masuk() async {
+    await _sesi.login(
+      email: _emailController.text,
+      password: _passwordController.text,
+    );
+    // Tidak perlu navigasi: AppGate bereaksi saat token berubah.
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Masuk')),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          TextField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(labelText: 'Email kampus'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _passwordController,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: 'Kata sandi'),
+          ),
+          const SizedBox(height: 12),
+          Obx(() {
+            final error = _sesi.errorMessage;
+            return error == null
+                ? const SizedBox.shrink()
+                : Text(
+                    error,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  );
+          }),
+          const SizedBox(height: 12),
+          Obx(
+            () =&gt; FilledButton(
+              onPressed: _sesi.isLoading ? null : _masuk,
+              child: Text(_sesi.isLoading ? 'Memproses...' : 'Masuk'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<p><code>LoginView</code> memakai <code>StatefulWidget</code> karena memiliki dua <code>TextEditingController</code> yang harus di-<code>dispose</code>. Setelah login berhasil tidak ada navigasi: <code>AppGate</code> bereaksi sendiri saat token berubah (pola AuthGate dari Modul 13).</p>
+
+<h4>Langkah 4: CatatanView dan PengaturanView</h4>
+<p class="code-file-label">📄 <code>lib/views/catatan_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/catatan_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/catatan_controller.dart';
+import '../controllers/sesi_controller.dart';
+import 'pengaturan_view.dart';
+
+class CatatanView extends GetView&lt;CatatanController&gt; {
+  const CatatanView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final sesi = Get.find&lt;SesiController&gt;();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Catatan Kuliah'),
+        actions: [
+          IconButton(
+            tooltip: 'Pengaturan',
+            icon: const Icon(Icons.settings),
+            onPressed: () =&gt; Navigator.of(context).push(
+              MaterialPageRoute&lt;void&gt;(builder: (_) =&gt; const PengaturanView()),
+            ),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.person),
+            title: Text(sesi.email),
+            subtitle: const Text('Sedang masuk'),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: Obx(() {
+              final daftar = controller.daftar;
+              return ListView.builder(
+                itemCount: daftar.length,
+                itemBuilder: (context, index) {
+                  final catatan = daftar[index];
+                  return ListTile(
+                    leading: const Icon(Icons.note_alt_outlined),
+                    title: Text(catatan.judul),
+                    subtitle: Text(catatan.mataKuliah),
+                  );
+                },
+              );
+            }),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Tambah catatan',
+        onPressed: () =&gt; controller.tambah(
+          'Catatan ${controller.daftar.length + 1}',
+          'Pemrograman Mobile',
+        ),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<p class="code-file-label">📄 <code>lib/views/pengaturan_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/pengaturan_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/lock_controller.dart';
+import '../controllers/sesi_controller.dart';
+
+class PengaturanView extends GetView&lt;LockController&gt; {
+  const PengaturanView({super.key});
+
+  Future&lt;void&gt; _ubahKunci(BuildContext context, bool aktif) async {
+    final error = await controller.aturKunci(aktif);
+    if (!context.mounted) return; // context dipakai setelah await
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          error ??
+              (aktif
+                  ? 'Kunci biometrik diaktifkan.'
+                  : 'Kunci biometrik dimatikan.'),
+        ),
+      ),
+    );
+  }
+
+  Future&lt;void&gt; _keluar(BuildContext context) async {
+    await Get.find&lt;SesiController&gt;().logout();
+    if (!context.mounted) return;
+    // Tutup halaman Pengaturan; AppGate di bawahnya sudah menampilkan LoginView.
+    Navigator.of(context).popUntil((route) =&gt; route.isFirst);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pengaturan')),
+      body: ListView(
+        children: [
+          Obx(
+            () =&gt; SwitchListTile(
+              secondary: const Icon(Icons.fingerprint),
+              title: const Text('Kunci dengan biometrik'),
+              subtitle: Text(
+                'Minta sidik jari/wajah saat aplikasi dibuka atau kembali '
+                'dari background lebih dari '
+                '${LockController.masaTenggang.inSeconds} detik.',
+              ),
+              value: controller.kunciAktif,
+              onChanged: controller.sedangMemproses
+                  ? null
+                  : (aktif) =&gt; _ubahKunci(context, aktif),
+            ),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Keluar'),
+            subtitle: const Text('Menghapus sesi dan pengaturan kunci'),
+            onTap: () =&gt; _keluar(context),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li><code>SwitchListTile</code> membaca <code>controller.kunciAktif</code> di dalam <code>Obx</code>. Sakelar tidak langsung berpindah saat diketuk; ia baru berubah setelah <code>aturKunci</code> berhasil dan state controller diperbarui. Jika autentikasi konfirmasi dibatalkan, sakelar tetap mati.</li>
+  <li><code>onChanged: null</code> selama dialog tampil membuat sakelar nonaktif sementara.</li>
+  <li><code>if (!context.mounted) return;</code> dipakai di <code>_ubahKunci</code> dan <code>_keluar</code> karena <code>context</code> dipakai lagi setelah <code>await</code>.</li>
+</ul>
+
+<h4>Langkah 5: AppGate dan KunciOverlay</h4>
+<p>Ada dua keputusan tampilan yang dipisah:</p>
+<ul>
+  <li><strong>Sudah login atau belum?</strong> Diputuskan <code>AppGate</code>, halaman pertama di Navigator.</li>
+  <li><strong>Sedang terkunci atau tidak?</strong> Diputuskan <code>KunciOverlay</code>, yang membungkus <em>seluruh</em> Navigator lewat <code>GetMaterialApp.builder</code>.</li>
+</ul>
+<p>Kenapa tidak cukup di <code>AppGate</code> saja? Jika pengguna sedang di halaman Pengaturan lalu aplikasi terkunci, halaman Pengaturan berada di atas <code>AppGate</code> dan tetap terlihat. Overlay di atas Navigator menutupi halaman apa pun, tanpa menghapus isi halaman di bawahnya.</p>
+<p class="code-file-label">📄 <code>lib/views/app_gate.dart</code></p>
+<pre><code class="language-dart">// lib/views/app_gate.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/sesi_controller.dart';
+import 'catatan_view.dart';
+import 'login_view.dart';
+
+/// Halaman pertama: memilih LoginView atau CatatanView sesuai status login.
+/// Urusan kunci biometrik ditangani KunciOverlay, bukan di sini.
+class AppGate extends GetView&lt;SesiController&gt; {
+  const AppGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(
+      () =&gt; controller.sudahLogin ? const CatatanView() : const LoginView(),
+    );
+  }
+}
+</code></pre>
+
+<p class="code-file-label">📄 <code>lib/views/kunci_overlay.dart</code></p>
+<pre><code class="language-dart">// lib/views/kunci_overlay.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/lock_controller.dart';
+import '../controllers/sesi_controller.dart';
+import 'lock_view.dart';
+
+/// Membungkus SELURUH Navigator. Saat terkunci, LockView menutupi halaman
+/// apa pun yang sedang terbuka tanpa menghapus state halaman tersebut.
+class KunciOverlay extends StatelessWidget {
+  const KunciOverlay({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final sesi = Get.find&lt;SesiController&gt;();
+    final kunci = Get.find&lt;LockController&gt;();
+
+    return Obx(
+      () =&gt; Stack(
+        fit: StackFit.expand,
+        children: [
+          child, // selalu di posisi pertama agar state Navigator tidak hilang
+          if (sesi.sudahLogin &amp;&amp; kunci.terkunci)
+            const Positioned.fill(child: LockView()),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li><code>Stack</code> selalu dibuat, dan <code>child</code> (Navigator) selalu berada di posisi pertama. Jika kita menulis <code>terkunci ? LockView() : child</code>, Navigator akan dibuang dan dibuat ulang setiap kali terkunci, sehingga semua halaman yang terbuka hilang.</li>
+  <li><code>Positioned.fill</code> membuat <code>LockView</code> menutupi seluruh layar dan menahan semua sentuhan ke halaman di bawahnya.</li>
+</ul>
+
+<h4>Langkah 6: main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'controllers/catatan_controller.dart';
+import 'controllers/lock_controller.dart';
+import 'controllers/sesi_controller.dart';
+import 'services/biometric_service.dart';
+import 'services/sesi_service.dart';
+import 'views/app_gate.dart';
+import 'views/kunci_overlay.dart';
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Baca state awal SEBELUM UI muncul, agar catatan tidak sempat terlihat.
+  final sesiService = SesiService();
+  final token = await sesiService.bacaToken();
+  final email = await sesiService.bacaEmail();
+  final kunciAktif = await sesiService.kunciBiometrikAktif();
+
+  final sesi = Get.put(
+    SesiController(sesiService, tokenAwal: token, emailAwal: email),
+  );
+  Get.put(
+    LockController(
+      BiometricService(),
+      sesiService,
+      sesi,
+      kunciAktifAwal: kunciAktif,
+    ),
+  );
+  Get.put(CatatanController());
+
+  runApp(const CatatanKuliahApp());
+}
+
+class CatatanKuliahApp extends StatelessWidget {
+  const CatatanKuliahApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      title: 'Catatan Kuliah',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      // builder membungkus Navigator: layar kunci menutupi semua halaman.
+      builder: (context, child) =&gt; KunciOverlay(child: child!),
+      home: const AppGate(),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li>Token, email, dan status kunci dibaca dengan <code>await</code> sebelum <code>runApp</code>. Akibatnya frame pertama sudah tahu harus menampilkan layar kunci, sehingga tidak ada "kedipan" isi catatan.</li>
+  <li><code>Get.put(SesiController(...))</code> mengembalikan instance yang langsung diteruskan ke <code>LockController</code>. Urutan pendaftaran penting: <code>SesiController</code> harus ada lebih dulu.</li>
+  <li><code>builder: (context, child) =&gt; KunciOverlay(child: child!)</code> menempatkan overlay di atas Navigator.</li>
+</ul>
+
+<h4>Skenario uji</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>No</th><th>Langkah</th><th>Hasil yang diharapkan</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Login, buka Pengaturan, nyalakan sakelar, tempelkan jari</td><td>SnackBar "Kunci biometrik diaktifkan", sakelar menyala</td></tr>
+      <tr><td>2</td><td>Nyalakan sakelar lalu tekan Batal pada dialog</td><td>Pesan dibatalkan, sakelar tetap mati</td></tr>
+      <tr><td>3</td><td>Tutup paksa aplikasi lalu buka lagi</td><td>Layar kunci muncul, lalu dialog biometrik otomatis</td></tr>
+      <tr><td>4</td><td>Di halaman Pengaturan, tekan Home, tunggu lebih dari 30 detik, kembali</td><td>Layar kunci menutupi halaman Pengaturan; setelah dibuka, halaman Pengaturan masih ada</td></tr>
+      <tr><td>5</td><td>Kembali dari background kurang dari 30 detik</td><td>Tidak terkunci</td></tr>
+      <tr><td>6</td><td>Di layar kunci, pakai jari yang tidak terdaftar sampai sensor terkunci</td><td>Pesan lockout dan tombol "Keluar &amp; masuk ulang" menonjol</td></tr>
+      <tr><td>7</td><td>Tekan tombol masuk ulang</td><td>LoginView tampil; setelah login lagi, kunci dalam keadaan mati</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Menggabungkan dengan proyek Modul 13/14</h4>
+<p>Di proyek Catatan Kuliah yang memakai Supabase, Anda tidak perlu <code>SesiController</code> demo. Supabase sudah menyimpan sesinya sendiri secara persisten. Yang perlu diubah:</p>
+<ul>
+  <li><code>LockController</code> menerima <code>AuthController</code> dari Modul 13 sebagai pengganti <code>SesiController</code>: <code>sudahLogin</code> menjadi <code>currentSession != null</code>, worker <code>ever</code> dipasang pada observable sesi, dan <code>loginUlang()</code> memanggil <code>signOut()</code>.</li>
+  <li><code>SesiService</code> cukup menyimpan pengaturan <code>kunci_biometrik_aktif</code>. Saat logout, hapus pengaturan itu juga.</li>
+  <li><code>KunciOverlay</code> dan <code>LockView</code> dipakai tanpa perubahan.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum di studi kasus</h4><ul>
+<li>Lupa mengganti <code>MainActivity</code> menjadi <code>FlutterFragmentActivity</code>: layar kunci muncul tetapi dialog tidak pernah tampil, dan pesan berisi <code>uiUnavailable</code>.</li>
+<li>Menaruh layar kunci sebagai <code>home</code> atau memakai <code>Get.to(LockView())</code>. Pengguna bisa menekan tombol kembali dan melewati kunci.</li>
+<li>Memanggil <code>bukaKunci()</code> dari <code>build()</code> view. Setiap rebuild memunculkan dialog baru.</li>
+</ul></div>

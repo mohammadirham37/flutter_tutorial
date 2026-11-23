@@ -1,0 +1,80 @@
+<p class="lead">HP modern punya beberapa "radio" sekaligus: WiFi, Bluetooth, NFC, dan modem seluler. Masing-masing dibuat untuk kebutuhan berbeda. Sebelum menulis kode, kita perlu tahu kapan memakai yang mana, dan bagaimana Bluetooth Low Energy (BLE) menyusun datanya, karena hampir semua sensor IoT di lab memakai BLE.</p>
+
+<h4>Empat teknologi nirkabel di HP</h4>
+<ul>
+  <li><strong>WiFi</strong>: koneksi berkecepatan tinggi ke router (titik akses). Dipakai untuk internet dan untuk berkomunikasi dengan perangkat lain di jaringan lokal yang sama, misalnya ESP32 yang menjalankan web server kecil.</li>
+  <li><strong>Bluetooth Classic</strong>: koneksi terus-menerus dengan bandwidth lumayan besar. Dipakai headset, speaker, keyboard, dan modul serial seperti HC-05. Komunikasinya mirip port serial (profil SPP/RFCOMM).</li>
+  <li><strong>Bluetooth Low Energy (BLE)</strong>: dirancang hemat daya. Perangkat bisa berjalan berbulan-bulan dengan baterai koin. Data dikirim dalam paket kecil. Dipakai smartwatch, pita detak jantung, sensor suhu, beacon, dan papan seperti ESP32 atau nRF52.</li>
+  <li><strong>NFC</strong>: jarak sangat dekat (beberapa sentimeter). Dipakai kartu e-money, kartu akses, dan tap untuk pairing.</li>
+</ul>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Aspek</th><th>WiFi</th><th>Bluetooth Classic</th><th>BLE</th><th>NFC</th></tr></thead>
+    <tbody>
+      <tr><td>Jangkauan umum</td><td>Puluhan meter</td><td>Sekitar 10 m</td><td>Sekitar 10&ndash;50 m (tergantung lingkungan)</td><td>Kurang dari 10 cm</td></tr>
+      <tr><td>Kecepatan</td><td>Sangat tinggi</td><td>Sedang (cukup untuk audio)</td><td>Rendah (paket kecil)</td><td>Sangat rendah</td></tr>
+      <tr><td>Konsumsi daya</td><td>Tinggi</td><td>Sedang</td><td>Sangat rendah</td><td>Sangat rendah (tag pasif tanpa baterai)</td></tr>
+      <tr><td>Pola komunikasi</td><td>IP (HTTP, WebSocket, MQTT)</td><td>Aliran data serial</td><td>GATT: baca/tulis/notify atribut kecil</td><td>Tap, pesan NDEF</td></tr>
+      <tr><td>Contoh di kampus</td><td>Internet, server lokal lab</td><td>Headset, modul HC-05</td><td>Sensor suhu ruang, smartwatch, beacon kelas</td><td>Kartu mahasiswa, presensi tap</td></tr>
+      <tr><td>Package Flutter</td><td><code>connectivity_plus</code>, <code>network_info_plus</code></td><td>Tidak ada yang lintas platform dan dirawat dengan baik</td><td><code>flutter_blue_plus</code></td><td>Package NFC terpisah (di luar cakupan modul ini)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-warning"><h4>⚠️ HC-05 dan HC-06 tidak bisa dipakai di modul ini</h4><p>Modul Bluetooth murah yang sering dipakai di praktikum Arduino (HC-05/HC-06) memakai <strong>Bluetooth Classic</strong>. Package <code>flutter_blue_plus</code> hanya mendukung BLE, dan iOS sama sekali tidak mengizinkan aplikasi biasa memakai Bluetooth Classic serial. Untuk proyek IoT dengan Flutter, pilih modul BLE seperti ESP32, HM-10, atau nRF52.</p></div>
+
+<h4>Peran dalam BLE: central dan peripheral</h4>
+<p>Dalam BLE ada dua peran. <strong>Peripheral</strong> adalah perangkat kecil yang memancarkan iklan (<em>advertising</em>) dan menyimpan data, misalnya sensor suhu. <strong>Central</strong> adalah perangkat yang memindai (scan), lalu menghubungi peripheral, misalnya HP kita. Aplikasi Flutter di modul ini selalu berperan sebagai central.</p>
+<pre><code class="language-text">  Peripheral (sensor)                         Central (HP)
+  ───────────────────                         ────────────
+  advertising: "Termo-Lab-3"   ──(siaran)──▶  scan → daftar perangkat + RSSI
+                               ◀──connect───  connect()
+  GATT server                  ◀──────────▶   discoverServices(), read, write, notify
+</code></pre>
+
+<h4>GATT: cara BLE menyusun data</h4>
+<p>Setelah terhubung, data di peripheral diakses lewat <strong>GATT</strong> (<em>Generic Attribute Profile</em>). Bayangkan seperti folder dan file:</p>
+<pre><code class="language-text">Perangkat "Termo-Lab-3"
+├── Service 180F  (Battery Service)
+│   └── Characteristic 2A19  (Battery Level)    READ, NOTIFY   → [0x5A] = 90%
+│       └── Descriptor 2902  (CCCD: saklar notify on/off)
+├── Service 181A  (Environmental Sensing)
+│   └── Characteristic 2A6E  (Temperature)      READ, NOTIFY   → 2 byte
+└── Service 6E400001-B5A3-F393-E0A9-E50E24DCCA9E  (service buatan sendiri)
+    └── Characteristic 6E400002-...              WRITE          ← perintah dari HP
+</code></pre>
+<ul>
+  <li><strong>Service</strong>: kelompok fungsi, misalnya "Battery Service". Satu perangkat bisa punya beberapa service.</li>
+  <li><strong>Characteristic</strong>: satu nilai data di dalam service, misalnya "Battery Level". Nilainya selalu berupa deretan byte (<code>List&lt;int&gt;</code> di Dart), jadi aplikasi harus tahu cara menerjemahkannya.</li>
+  <li><strong>Descriptor</strong>: keterangan tambahan sebuah characteristic. Yang paling penting adalah CCCD (0x2902), saklar yang menyalakan notifikasi. Package akan mengurusnya untuk kita.</li>
+  <li><strong>UUID</strong>: identitas setiap service dan characteristic. UUID resmi dari Bluetooth SIG cukup ditulis 16 bit (<code>180F</code>, <code>2A19</code>), yang sebenarnya singkatan dari <code>0000180F-0000-1000-8000-00805F9B34FB</code>. Service buatan sendiri wajib memakai UUID 128 bit yang dibuat acak.</li>
+</ul>
+
+<h4>Properti characteristic</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Properti</th><th>Arah</th><th>Arti</th></tr></thead>
+    <tbody>
+      <tr><td><code>read</code></td><td>Peripheral &rarr; HP, saat diminta</td><td>HP meminta nilai saat ini.</td></tr>
+      <tr><td><code>write</code></td><td>HP &rarr; peripheral</td><td>HP mengirim nilai dan menunggu konfirmasi (<em>with response</em>).</td></tr>
+      <tr><td><code>writeWithoutResponse</code></td><td>HP &rarr; peripheral</td><td>Kirim tanpa konfirmasi. Lebih cepat, tapi tidak ada jaminan sampai.</td></tr>
+      <tr><td><code>notify</code></td><td>Peripheral &rarr; HP, otomatis</td><td>Peripheral mengirim nilai baru setiap kali berubah, tanpa diminta. Tanpa konfirmasi.</td></tr>
+      <tr><td><code>indicate</code></td><td>Peripheral &rarr; HP, otomatis</td><td>Seperti notify, tetapi HP mengirim konfirmasi. Lebih andal, lebih lambat.</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Notify adalah alasan BLE hemat daya: HP tidak perlu terus bertanya "berapa suhunya?" setiap detik. Peripheral cukup mengabari saat nilainya berubah.</p>
+
+<h4>WiFi Direct dan NFC sekilas</h4>
+<p><strong>WiFi Direct</strong> (Android: <code>WifiP2pManager</code>) menghubungkan dua HP langsung tanpa router, berguna untuk transfer file besar antar-perangkat. Di Flutter tidak ada package resmi yang lintas platform untuk ini. iOS memakai teknologi berbeda (Multipeer Connectivity), sehingga biasanya dibuat lewat platform channel. <strong>NFC</strong> cocok untuk presensi "tempel kartu", tetapi butuh HP yang punya NFC dan package tersendiri. Keduanya hanya kita kenali konsepnya di modul ini.</p>
+
+<h4>Apa yang akan dibangun di modul ini</h4>
+<ol>
+  <li>Membaca status jaringan (WiFi, seluler, tidak ada) dan memastikan internet benar-benar bisa dipakai.</li>
+  <li>Membaca info WiFi (nama jaringan, IP, gateway) beserta izin lokasinya.</li>
+  <li>Menampilkan banner offline dan memuat ulang data otomatis saat online kembali, tersambung ke proyek Catatan Kuliah Modul 14.</li>
+  <li>Memindai, menghubungkan, dan membaca characteristic BLE, lalu merangkumnya dalam studi kasus <em>Pemindai Perangkat BLE di Lab</em> dengan pola GetX MVC.</li>
+</ol>
+
+<div class="callout callout-info"><h4>ℹ️ Siapkan HP fisik</h4><p>Bagian jaringan (bagian 2, 3, dan 6) bisa dicoba di emulator dengan menyalakan/mematikan mode pesawat. Bagian Bluetooth (bagian 4, 5, dan 7) <strong>wajib memakai HP fisik</strong>, karena Android Emulator tidak punya Bluetooth. Cara membuat "sensor tiruan" dengan aplikasi nRF Connect dijelaskan di bagian 8.</p></div>

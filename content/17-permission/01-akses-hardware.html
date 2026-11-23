@@ -1,0 +1,67 @@
+<p class="lead">Mulai modul ini kita masuk ke kelompok materi <strong>Integrasi Hardware</strong>: kamera, lokasi, sensor, biometrik, dan konektivitas. Sebelum menyentuh hardware mana pun, ada dua hal yang harus dipahami lebih dulu: <em>bagaimana</em> kode Dart bisa sampai ke hardware, dan <em>izin</em> apa yang harus dimiliki aplikasi agar sistem operasi mengizinkannya.</p>
+
+<h4>Dart tidak bisa langsung menyentuh hardware</h4>
+<p>Kode Flutter kita berjalan di <strong>Dart VM/AOT</strong> di dalam engine Flutter. Engine ini menggambar UI sendiri (Modul 01), tetapi tidak punya akses langsung ke kamera, GPS, sensor, atau Bluetooth. Semua hardware itu hanya bisa diakses lewat API milik sistem operasi: Android SDK (Kotlin/Java) dan iOS SDK (Swift/Objective-C). Jadi selalu ada "jembatan" antara Dart dan kode native.</p>
+
+<pre><code class="language-text">┌──────────────────────────────────────────────┐
+│  Kode Dart kamu (lib/)                       │
+│  View  →  Controller  →  Service             │
+└───────────────────────┬──────────────────────┘
+                        │ memanggil API Dart milik plugin
+┌───────────────────────▼──────────────────────┐
+│  Plugin (mis. permission_handler, camera)    │
+│  sisi Dart: MethodChannel / EventChannel     │
+└───────────────────────┬──────────────────────┘
+                        │ pesan biner (platform channel)
+┌───────────────────────▼──────────────────────┐
+│  Sisi native plugin                          │
+│  Android: Kotlin/Java    iOS: Swift/Obj-C    │
+└───────────────────────┬──────────────────────┘
+                        │ API sistem operasi + cek izin
+┌───────────────────────▼──────────────────────┐
+│  Hardware: kamera, GPS, sensor, mikrofon     │
+└──────────────────────────────────────────────┘
+</code></pre>
+
+<p>Lapisan paling bawah selalu dijaga oleh sistem operasi. Walaupun jembatannya sudah ada, sistem operasi tetap menolak akses ke kamera atau lokasi jika aplikasi belum mendapat <strong>izin (permission)</strong> dari pengguna. Itulah sebabnya modul tentang izin ini menjadi fondasi untuk Modul 18 sampai 22.</p>
+
+<h4>Tiga cara menjangkau hardware</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Cara</th><th>Contoh</th><th>Kapan dipakai</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Plugin dari pub.dev</strong></td><td><code>permission_handler</code>, <code>camera</code>, <code>geolocator</code>, <code>sensors_plus</code>, <code>local_auth</code></td><td>Hampir selalu. Plugin sudah berisi kode Dart + Kotlin + Swift yang teruji.</td></tr>
+      <tr><td><strong>Platform channel buatan sendiri</strong></td><td><code>MethodChannel</code>, <code>EventChannel</code> + kode di <code>MainActivity.kt</code></td><td>Fitur yang belum ada plugin-nya, API khusus vendor, atau SDK internal kampus/perusahaan.</td></tr>
+      <tr><td><strong>FFI / Pigeon</strong> (lanjutan)</td><td><code>dart:ffi</code> ke library C, Pigeon untuk channel bertipe aman</td><td>Library C/C++ (misal pengolah citra) atau channel besar yang ingin aman tipe datanya. Tidak dibahas mendalam di kursus ini.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Plugin itu sebenarnya apa?</h4>
+<p>Plugin hanyalah package Dart yang juga membawa folder <code>android/</code> dan <code>ios/</code>. Saat kamu menjalankan <code>flutter pub add permission_handler</code>, Flutter otomatis mendaftarkan kode Kotlin/Swift plugin itu ke proyekmu (lewat file <code>GeneratedPluginRegistrant</code> yang dibuat otomatis). Di dalamnya, plugin memakai platform channel yang sama seperti yang akan kita tulis sendiri di section berikutnya.</p>
+
+<div class="callout callout-info"><h4>ℹ️ Federated plugin</h4><p>Banyak plugin besar dipecah menjadi beberapa package: satu package "wajah" yang kamu pasang (misal <code>permission_handler</code>), satu <em>platform interface</em>, dan satu package per platform (<code>permission_handler_android</code>, <code>permission_handler_apple</code>, ...). Kamu cukup memasang package utamanya; sisanya ikut terpasang otomatis. Kalau melihat nama-nama itu di <code>pubspec.lock</code>, itu normal.</p></div>
+
+<h4>Kapan memakai plugin, kapan menulis sendiri?</h4>
+<ul>
+  <li><strong>Cari plugin dulu.</strong> Di pub.dev perhatikan label <em>Flutter Favorite</em> atau penerbit terverifikasi (misal <code>flutter.dev</code>, <code>fluttercommunity.dev</code>, <code>baseflow.com</code>), skor "likes/points", tanggal rilis terakhir, dan platform yang didukung (Android, iOS).</li>
+  <li><strong>Baca README bagian setup</strong>. Hampir semua plugin hardware butuh konfigurasi <code>AndroidManifest.xml</code> dan <code>Info.plist</code>. Melewatkan bagian ini adalah penyebab crash nomor satu.</li>
+  <li><strong>Tulis platform channel sendiri</strong> hanya jika fitur yang kamu butuhkan memang tidak ada, atau cukup kecil (satu-dua method) sehingga menambah dependensi tidak sepadan.</li>
+</ul>
+
+<h4>Peta modul hardware</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Modul</th><th>Topik</th><th>Izin utama</th></tr></thead>
+    <tbody>
+      <tr><td>Modul 17 (modul ini)</td><td>Platform channel, konsep izin, <code>permission_handler</code>, Pusat Izin</td><td>Semua</td></tr>
+      <tr><td>Modul 18</td><td>Kamera</td><td>Kamera, mikrofon (video)</td></tr>
+      <tr><td>Modul 19</td><td>Lokasi / GPS</td><td>Lokasi</td></tr>
+      <tr><td>Modul 20</td><td>Sensor (akselerometer, giroskop, dll.)</td><td>Umumnya tanpa izin runtime</td></tr>
+      <tr><td>Modul 21</td><td>Biometrik</td><td>Biometrik (izin normal di Android, Face ID di iOS)</td></tr>
+      <tr><td>Modul 22</td><td>Konektivitas (Bluetooth, Wi-Fi, NFC)</td><td>Bluetooth, perangkat sekitar</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-tip"><h4>💡 Perangkat fisik vs emulator</h4><p>Sebagian besar materi hardware bisa dicoba di Android Emulator. Panel <strong>Extended Controls</strong> (tombol <kbd>...</kbd> di samping emulator) menyediakan simulasi Location, Virtual sensors, Fingerprint, dan Camera. Untuk modul ini, semua dialog izin juga muncul di emulator. Bluetooth tidak tersedia di emulator, jadi Modul 22 butuh HP sungguhan.</p></div>

@@ -1,0 +1,253 @@
+<p class="lead">Setelah konfigurasi beres, API <code>permission_handler</code> sendiri cukup ringkas. Ada lima hal yang paling sering dipakai: membaca <strong>status</strong>, <strong>request</strong> satu izin, request <strong>beberapa izin</strong> sekaligus, cek <strong>rationale</strong>, dan <strong>membuka Pengaturan</strong>. Ditambah satu lagi untuk lokasi: <strong>status layanan</strong> (GPS menyala atau tidak).</p>
+
+<h4>1. Membaca status tanpa dialog</h4>
+<p>Setiap izin adalah konstanta di kelas <code>Permission</code>, misalnya <code>Permission.camera</code>. Getter <code>status</code> membaca keadaan saat ini <strong>tanpa</strong> memunculkan dialog apa pun.</p>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+Future&lt;void&gt; contohStatus() async {
+  final status = await Permission.camera.status;
+
+  if (status.isGranted) {
+    // boleh langsung memakai kamera
+  } else if (status.isDenied) {
+    // belum diizinkan (di Android: bisa juga sudah ditolak permanen)
+  } else if (status.isPermanentlyDenied) {
+    // iOS: pengguna pernah menolak, dialog tidak akan muncul lagi
+  } else if (status.isLimited) {
+    // akses terbatas (foto terpilih saja)
+  } else if (status.isRestricted) {
+    // iOS: dibatasi kontrol orang tua / kebijakan perangkat
+  }
+
+  // Versi singkat: getter langsung pada Permission
+  final bolehMikrofon = await Permission.microphone.isGranted;
+  debugPrint('bolehMikrofon: $bolehMikrofon');
+}
+</code></pre>
+<p>Nilai <code>PermissionStatus</code> ada enam: <code>granted</code>, <code>denied</code>, <code>permanentlyDenied</code>, <code>limited</code>, <code>restricted</code>, dan <code>provisional</code> (notifikasi sementara di iOS).</p>
+
+<h4>2. Meminta izin dengan <code>request()</code></h4>
+<pre><code class="language-dart">import 'package:permission_handler/permission_handler.dart';
+
+Future&lt;void&gt; contohRequest() async {
+  // request() memunculkan dialog sistem (jika masih boleh)
+  // dan mengembalikan status BARU setelah pengguna memilih.
+  final hasil = await Permission.camera.request();
+
+  if (hasil.isGranted) {
+    // pengguna menekan "Izinkan" (atau memang sudah diizinkan sebelumnya)
+  } else if (hasil.isPermanentlyDenied) {
+    // dialog tidak muncul lagi: arahkan ke Pengaturan
+    await openAppSettings();
+  }
+}
+</code></pre>
+<p>Jika izin sudah diberikan, <code>request()</code> tidak menampilkan apa pun dan langsung mengembalikan <code>granted</code>. Jika sudah ditolak permanen, <code>request()</code> juga langsung kembali (tanpa dialog) dengan hasil <code>permanentlyDenied</code>.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Penting: "ditolak permanen" di Android hanya terlihat dari hasil <code>request()</code></h4><p>Android tidak menyediakan API untuk membedakan izin yang <em>belum pernah diminta</em>, yang <em>direset ke "Tanyakan setiap kali"</em> di Pengaturan, dan yang <em>ditolak permanen</em>. Karena itu, versi terbaru <code>permission_handler</code> <strong>tidak pernah</strong> mengembalikan <code>permanentlyDenied</code> dari <code>status</code> di Android; semuanya dilaporkan sebagai <code>denied</code>. Hanya hasil <code>request()</code> yang bisa bernilai <code>permanentlyDenied</code>, dan meminta izin yang sudah ditolak permanen itu murah karena tidak memunculkan dialog. Polanya: <strong>putuskan berdasarkan hasil <code>request()</code></strong>, bukan berdasarkan <code>status</code>. Tutorial lama yang memakai <code>await Permission.camera.isPermanentlyDenied</code> sebelum meminta tidak lagi berlaku di Android. Di iOS, <code>status</code> tetap bisa bernilai <code>permanentlyDenied</code>.</p></div>
+
+<h4>3. Beberapa izin sekaligus, rationale, layanan lokasi, Pengaturan</h4>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+Future&lt;void&gt; contohLain() async {
+  // Beberapa izin sekaligus: dialog muncul berurutan
+  final Map&lt;Permission, PermissionStatus&gt; hasil = await [
+    Permission.camera,
+    Permission.microphone,
+  ].request();
+  debugPrint('Kamera: ${hasil[Permission.camera]}');
+
+  // Android: true jika pengguna pernah menolak sekali (dan belum permanen)
+  final perluPenjelasan = await Permission.camera.shouldShowRequestRationale;
+  debugPrint('perluPenjelasan: $perluPenjelasan');
+
+  // Izin lokasi diizinkan belum tentu GPS menyala
+  final gpsMenyala = await Permission.locationWhenInUse.serviceStatus.isEnabled;
+  debugPrint('gpsMenyala: $gpsMenyala');
+
+  // Membuka halaman pengaturan aplikasi ini
+  final berhasilDibuka = await openAppSettings();
+  debugPrint('berhasilDibuka: $berhasilDibuka');
+}
+</code></pre>
+<ul>
+  <li><code>[...].request()</code> adalah extension pada <code>List&lt;Permission&gt;</code>. Hasilnya <code>Map&lt;Permission, PermissionStatus&gt;</code>. Pakai ini hanya untuk izin yang memang dibutuhkan <em>bersamaan</em> oleh satu fitur (misal rekam video: kamera + mikrofon).</li>
+  <li><code>shouldShowRequestRationale</code> hanya bermakna di Android: bernilai <code>true</code> setelah pengguna menolak sekali, tanda bahwa kamu sebaiknya menjelaskan alasannya sebelum meminta lagi. Di iOS selalu <code>false</code>.</li>
+  <li><code>serviceStatus</code> hanya ada pada izin yang punya "layanan" (<code>Permission.location</code>, <code>locationWhenInUse</code>, <code>locationAlways</code>, dan beberapa lainnya). Izin lokasi bisa <code>granted</code> walaupun GPS dimatikan dari panel cepat, sehingga posisi tetap tidak bisa dibaca.</li>
+  <li><code>openAppSettings()</code> adalah fungsi top-level (bukan method <code>Permission</code>) yang membuka halaman info aplikasi di Pengaturan.</li>
+</ul>
+
+<h4>Gaya callback (opsional)</h4>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+Future&lt;void&gt; contohCallback() async {
+  await Permission.microphone
+      .onGrantedCallback(() =&gt; debugPrint('Mikrofon siap'))
+      .onDeniedCallback(() =&gt; debugPrint('Ditolak, coba jelaskan lagi nanti'))
+      .onPermanentlyDeniedCallback(() =&gt; openAppSettings())
+      .request();
+}
+</code></pre>
+<p>Gaya ini ringkas untuk kasus sederhana, tetapi di kursus ini kita memakai <code>if</code> pada hasil <code>request()</code> agar alurnya mudah dibaca dan mudah dipindahkan ke controller GetX.</p>
+
+<h4>Contoh lengkap: panel uji izin</h4>
+<p>Halaman berikut menampilkan status kamera, nilai rationale, status GPS, serta tombol untuk meminta kamera, meminta lokasi + mikrofon sekaligus, dan membuka Pengaturan. Pakai konfigurasi manifest dan <code>Info.plist</code> dari section 4.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: CekIzinPage()));
+
+class CekIzinPage extends StatefulWidget {
+  const CekIzinPage({super.key});
+
+  @override
+  State&lt;CekIzinPage&gt; createState() =&gt; _CekIzinPageState();
+}
+
+class _CekIzinPageState extends State&lt;CekIzinPage&gt; {
+  PermissionStatus? _kamera;
+  Map&lt;Permission, PermissionStatus&gt; _hasilBanyak = {};
+  bool? _gpsAktif;
+  bool? _perluPenjelasan;
+
+  @override
+  void initState() {
+    super.initState();
+    _cekStatus();
+  }
+
+  // 1. Membaca status TANPA memunculkan dialog
+  Future&lt;void&gt; _cekStatus() async {
+    final status = await Permission.camera.status;
+    final rationale = await Permission.camera.shouldShowRequestRationale;
+    final gps = await Permission.locationWhenInUse.serviceStatus.isEnabled;
+    if (!mounted) return;
+    setState(() {
+      _kamera = status;
+      _perluPenjelasan = rationale;
+      _gpsAktif = gps;
+    });
+  }
+
+  // 2. Meminta satu izin: dialog sistem muncul jika masih boleh
+  Future&lt;void&gt; _mintaKamera() async {
+    final status = await Permission.camera.request();
+    if (!mounted) return;
+    setState(() =&gt; _kamera = status);
+
+    if (status.isPermanentlyDenied) {
+      // 3. Dialog sistem tidak akan muncul lagi, arahkan ke Pengaturan
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Izin kamera ditolak permanen.'),
+          action: SnackBarAction(
+            label: 'Pengaturan',
+            onPressed: openAppSettings,
+          ),
+        ),
+      );
+    }
+  }
+
+  // 4. Meminta beberapa izin sekaligus
+  Future&lt;void&gt; _mintaBanyak() async {
+    final hasil = await [
+      Permission.locationWhenInUse,
+      Permission.microphone,
+    ].request();
+    if (!mounted) return;
+    setState(() =&gt; _hasilBanyak = hasil);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('permission_handler'),
+        actions: [
+          IconButton(onPressed: _cekStatus, icon: const Icon(Icons.refresh)),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: const Text('Status kamera'),
+            subtitle: Text('${_kamera ?? 'memeriksa...'}'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.help_outline),
+            title: const Text('shouldShowRequestRationale'),
+            subtitle: Text('${_perluPenjelasan ?? '-'}'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.gps_fixed),
+            title: const Text('Layanan lokasi (GPS) menyala?'),
+            subtitle: Text('${_gpsAktif ?? '-'}'),
+          ),
+          for (final entri in _hasilBanyak.entries)
+            ListTile(
+              leading: const Icon(Icons.checklist),
+              title: Text('${entri.key}'),
+              subtitle: Text('${entri.value}'),
+            ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _mintaKamera,
+            child: const Text('Minta Izin Kamera'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: _mintaBanyak,
+            child: const Text('Minta Lokasi + Mikrofon Sekaligus'),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: openAppSettings,
+            child: const Text('Buka Pengaturan Aplikasi'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>_cekStatus()</code> dipanggil di <code>initState</code> dan lewat tombol refresh. Tidak ada dialog yang muncul di sini; aman dipanggil kapan saja.</li>
+  <li><code>_mintaKamera()</code> memakai <strong>hasil</strong> <code>request()</code> untuk memutuskan apakah perlu menampilkan tombol "Pengaturan", sesuai catatan di atas.</li>
+  <li>Setiap <code>await</code> diikuti <code>if (!mounted) return;</code> karena dialog sistem bisa terbuka lama dan pengguna bisa saja menutup halaman.</li>
+  <li><code>'${entri.key}'</code> menampilkan nama izin seperti <code>Permission.microphone</code>, cocok untuk panel uji. Untuk pengguna, tampilkan label bahasa Indonesia (section 7).</li>
+</ul>
+
+<h4>Menguji di Android Emulator</h4>
+<ol>
+  <li>Jalankan aplikasi, tekan "Minta Izin Kamera", pilih <em>Jangan izinkan</em>. Status menjadi <code>denied</code> dan rationale menjadi <code>true</code>.</li>
+  <li>Tekan lagi dan tolak lagi. Hasil <code>request()</code> menjadi <code>permanentlyDenied</code> dan SnackBar menawarkan Pengaturan. Tekan tombol refresh: <code>status</code> tetap terbaca <code>denied</code> (perilaku Android yang dijelaskan di atas).</li>
+  <li>Matikan <em>Location</em> dari panel cepat emulator, tekan refresh, dan lihat "Layanan lokasi" menjadi <code>false</code>.</li>
+  <li>Izin juga bisa diatur lewat terminal. Mencabut izin akan menghentikan proses aplikasi, jadi jalankan ulang setelahnya. Untuk mengembalikan izin ke kondisi "belum pernah diminta", cara paling pasti adalah uninstall lalu pasang ulang aplikasi.</li>
+</ol>
+<pre><code class="language-bash"># ganti dengan applicationId proyekmu
+adb shell pm grant id.ac.kampus.contoh_hardware android.permission.CAMERA
+adb shell pm revoke id.ac.kampus.contoh_hardware android.permission.CAMERA
+adb uninstall id.ac.kampus.contoh_hardware
+</code></pre>
+
+<div class="callout callout-info"><h4>ℹ️ Izin yang tidak memunculkan dialog</h4><ul>
+<li><strong>Notifikasi di Android 12 ke bawah</strong>: tidak ada izin runtime, jadi <code>request()</code> hanya membaca pengaturan notifikasi aplikasi tanpa dialog. Di Android 13+ dialog muncul (asalkan <code>POST_NOTIFICATIONS</code> ada di manifest).</li>
+<li><strong>Lokasi "always"</strong> (latar belakang) tidak bisa diminta langsung. Minta <code>locationWhenInUse</code> dulu, baru <code>locationAlways</code>. Detailnya di Modul 19.</li>
+<li>Izin khusus seperti <code>manageExternalStorage</code> dan <code>systemAlertWindow</code> membuka halaman Pengaturan, bukan dialog.</li>
+</ul></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li>Memanggil <code>request()</code> berkali-kali secara bersamaan (misal dari dua tombol yang ditekan cepat). Plugin melempar error karena masih ada permintaan yang berjalan. Nonaktifkan tombol saat permintaan sedang diproses.</li>
+<li>Memakai <code>Permission.storage</code> untuk memilih foto di Android 13+. Hasilnya selalu <code>denied</code>; gunakan <code>Permission.photos</code> atau lebih baik picker sistem yang tidak butuh izin (Modul 18).</li>
+<li>Menganggap <code>isDenied</code> berarti "belum pernah diminta". Di Android, status itu juga mencakup "ditolak permanen".</li>
+</ul></div>

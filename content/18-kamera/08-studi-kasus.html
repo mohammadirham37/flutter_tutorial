@@ -1,0 +1,766 @@
+<p class="lead">Kita gabungkan semua materi bab ini menjadi aplikasi <strong>Kartu Mahasiswa</strong>: foto profil bisa diambil dari kamera sistem, kamera di dalam aplikasi dengan bingkai wajah, atau galeri; foto disimpan permanen, bisa diganti dan dihapus; izin kamera ditangani lengkap; dan foto yang "hilang" di Android dipulihkan.</p>
+
+<h4>Fitur dan alur</h4>
+<ol>
+  <li>Saat dibuka, controller memeriksa <code>retrieveLostData()</code> (Android), lalu memuat foto profil tersimpan dari folder dokumen.</li>
+  <li>Menekan foto atau tombol <strong>Ganti Foto</strong> membuka <em>bottom sheet</em>: Kamera sistem, Kamera di aplikasi, Galeri, dan Hapus (jika sudah ada foto).</li>
+  <li>Sebelum kamera dibuka, izin diminta dengan <code>permission_handler</code>: diberikan &rarr; lanjut; ditolak &rarr; SnackBar; ditolak permanen &rarr; dialog <strong>Buka Pengaturan</strong>.</li>
+  <li>Foto baru disalin ke <code>&lt;dokumen&gt;/profil/foto_profil_&lt;waktu&gt;.jpg</code>, foto lama dihapus.</li>
+</ol>
+
+<h4>Struktur folder</h4>
+<pre><code class="language-text">lib/
+├── main.dart
+├── models/
+│   └── mahasiswa.dart
+├── services/
+│   └── foto_profil_service.dart   # image_picker, permission_handler, file
+├── controllers/
+│   └── kartu_controller.dart      # Rxn&lt;File&gt;, sibuk, alur ambil/simpan/hapus
+└── views/
+    ├── kartu_view.dart            # kartu + bottom sheet + dialog izin
+    └── kamera_view.dart           # package camera + bingkai wajah
+</code></pre>
+<p>Package: <code>flutter pub add get image_picker camera permission_handler path_provider path</code>. Lengkapi juga konfigurasi Android/iOS dari bagian 2.</p>
+
+<h4>Model</h4>
+<p class="code-file-label">📄 <code>lib/models/mahasiswa.dart</code></p>
+<pre><code class="language-dart">// lib/models/mahasiswa.dart
+class Mahasiswa {
+  const Mahasiswa({
+    required this.nama,
+    required this.nim,
+    required this.prodi,
+    required this.angkatan,
+  });
+
+  final String nama;
+  final String nim;
+  final String prodi;
+  final int angkatan;
+}
+</code></pre>
+
+<h4>Service</h4>
+<p class="code-file-label">📄 <code>lib/services/foto_profil_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/foto_profil_service.dart
+// SERVICE: membungkus image_picker, permission_handler, dan file sistem.
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+enum SumberFoto { kamera, galeri }
+
+enum StatusIzin { diberikan, ditolak, ditolakPermanen }
+
+class FotoException implements Exception {
+  const FotoException(this.pesan);
+  final String pesan;
+
+  @override
+  String toString() =&gt; pesan;
+}
+
+class FotoProfilService {
+  final ImagePicker _picker = ImagePicker();
+  static const String _awalan = 'foto_profil_';
+
+  Future&lt;Directory&gt; _folder() async {
+    final dokumen = await getApplicationDocumentsDirectory();
+    return Directory(p.join(dokumen.path, 'profil')).create(recursive: true);
+  }
+
+  Future&lt;List&lt;File&gt;&gt; _semuaFotoProfil() async {
+    final folder = await _folder();
+    final isi = await folder.list().toList();
+    return isi
+        .whereType&lt;File&gt;()
+        .where((f) =&gt; p.basename(f.path).startsWith(_awalan))
+        .toList()
+      ..sort((a, b) =&gt; b.path.compareTo(a.path)); // terbaru lebih dulu
+  }
+
+  /// Foto profil yang tersimpan, atau null jika belum ada.
+  Future&lt;File?&gt; fotoTersimpan() async {
+    final daftar = await _semuaFotoProfil();
+    return daftar.isEmpty ? null : daftar.first;
+  }
+
+  // ---------- Izin kamera (alur dari Modul 17) ----------
+  Future&lt;StatusIzin&gt; mintaIzinKamera() async {
+    final status = await Permission.camera.request();
+    if (status.isGranted) return StatusIzin.diberikan;
+    if (status.isPermanentlyDenied || status.isRestricted) {
+      return StatusIzin.ditolakPermanen;
+    }
+    return StatusIzin.ditolak;
+  }
+
+  Future&lt;bool&gt; bukaPengaturan() =&gt; openAppSettings();
+
+  // ---------- Mengambil foto ----------
+  Future&lt;XFile?&gt; pilih(SumberFoto sumber) async {
+    try {
+      return await _picker.pickImage(
+        source: sumber == SumberFoto.kamera
+            ? ImageSource.camera
+            : ImageSource.gallery,
+        preferredCameraDevice: CameraDevice.front, // foto profil = selfie
+        maxWidth: 800,
+        imageQuality: 80,
+      );
+    } on PlatformException catch (e) {
+      throw FotoException('Gagal mengambil foto (${e.code}).');
+    }
+  }
+
+  /// Android: foto yang "hilang" karena aplikasi dimatikan sistem
+  /// saat aplikasi kamera terbuka.
+  Future&lt;XFile?&gt; pulihkanFotoHilang() async {
+    if (!Platform.isAndroid) return null;
+    final respons = await _picker.retrieveLostData();
+    if (respons.isEmpty) return null;
+    final files = respons.files;
+    return (files != null &amp;&amp; files.isNotEmpty) ? files.first : null;
+  }
+
+  // ---------- Menyimpan &amp; menghapus ----------
+  /// Menyalin foto (dari cache) ke folder dokumen dengan nama unik,
+  /// lalu menghapus foto profil lama.
+  Future&lt;File&gt; simpan(String pathSumber) async {
+    final folder = await _folder();
+    final sumber = File(pathSumber);
+    final ukuran = await sumber.length();
+    if (ukuran &gt; 5 * 1024 * 1024) {
+      throw const FotoException('Ukuran foto lebih dari 5 MB.');
+    }
+
+    final nama =
+        '$_awalan${DateTime.now().millisecondsSinceEpoch}${p.extension(pathSumber)}';
+    final baru = await sumber.copy(p.join(folder.path, nama));
+
+    for (final lama in await _semuaFotoProfil()) {
+      if (lama.path != baru.path) await lama.delete();
+    }
+    return baru;
+  }
+
+  Future&lt;void&gt; hapusSemua() async {
+    for (final f in await _semuaFotoProfil()) {
+      await f.delete();
+    }
+  }
+}
+</code></pre>
+<ul>
+  <li><code>mintaIzinKamera()</code> menerjemahkan <code>PermissionStatus</code> menjadi enum <code>StatusIzin</code> sederhana. <code>isRestricted</code> (iOS, misalnya karena kontrol orang tua) diperlakukan seperti ditolak permanen.</li>
+  <li><code>preferredCameraDevice: CameraDevice.front</code> hanya saran untuk kamera sistem. Jika aplikasi kamera HP mengabaikannya, pengguna bisa membalik kamera sendiri.</li>
+  <li><code>simpan()</code> memeriksa ukuran (maksimal 5 MB) sebelum menyalin, memakai nama unik agar <code>imageCache</code> tidak menampilkan foto lama, lalu menghapus foto profil sebelumnya.</li>
+  <li><code>pulihkanFotoHilang()</code> hanya berjalan di Android, sesuai dokumentasi <code>image_picker</code>.</li>
+</ul>
+
+<h4>Controller</h4>
+<p class="code-file-label">📄 <code>lib/controllers/kartu_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/kartu_controller.dart
+// CONTROLLER: state kartu + keputusan alur. Tanpa material.dart.
+import 'dart:io';
+
+import 'package:get/get.dart';
+
+import '../models/mahasiswa.dart';
+import '../services/foto_profil_service.dart';
+
+/// Hasil sebuah aksi foto, dibaca oleh view untuk menampilkan pesan.
+enum HasilFoto { berhasil, batal, izinDitolak, izinDitolakPermanen, gagal }
+
+class KartuController extends GetxController {
+  KartuController(this._service);
+  final FotoProfilService _service;
+
+  final Mahasiswa mahasiswa = const Mahasiswa(
+    nama: 'Siti Rahmawati',
+    nim: '2201010123',
+    prodi: 'Teknik Komputer',
+    angkatan: 2022,
+  );
+
+  final _foto = Rxn&lt;File&gt;();
+  final _sibuk = false.obs;
+  String pesanError = '';
+
+  File? get foto =&gt; _foto.value;
+  bool get sibuk =&gt; _sibuk.value;
+
+  @override
+  void onInit() {
+    super.onInit();
+    _muatAwal();
+  }
+
+  Future&lt;void&gt; _muatAwal() async {
+    _sibuk.value = true;
+    try {
+      // 1. Ada foto yang hilang karena aplikasi sempat dimatikan? (Android)
+      final hilang = await _service.pulihkanFotoHilang();
+      if (hilang != null) {
+        _foto.value = await _service.simpan(hilang.path);
+      } else {
+        // 2. Jika tidak, tampilkan foto yang sudah tersimpan
+        _foto.value = await _service.fotoTersimpan();
+      }
+    } on Exception catch (e) {
+      pesanError = e.toString();
+    } finally {
+      _sibuk.value = false;
+    }
+  }
+
+  /// Dipanggil sebelum membuka kamera (sistem maupun di dalam aplikasi).
+  Future&lt;HasilFoto&gt; pastikanIzinKamera() async {
+    return switch (await _service.mintaIzinKamera()) {
+      StatusIzin.diberikan =&gt; HasilFoto.berhasil,
+      StatusIzin.ditolak =&gt; HasilFoto.izinDitolak,
+      StatusIzin.ditolakPermanen =&gt; HasilFoto.izinDitolakPermanen,
+    };
+  }
+
+  /// Kamera sistem atau galeri lewat image_picker.
+  Future&lt;HasilFoto&gt; ambilFoto(SumberFoto sumber) async {
+    if (_sibuk.value) return HasilFoto.batal;
+    if (sumber == SumberFoto.kamera) {
+      final izin = await pastikanIzinKamera();
+      if (izin != HasilFoto.berhasil) return izin;
+    }
+    try {
+      final xfile = await _service.pilih(sumber);
+      if (xfile == null) return HasilFoto.batal;
+      return await _simpan(xfile.path);
+    } on FotoException catch (e) {
+      pesanError = e.pesan;
+      return HasilFoto.gagal;
+    }
+  }
+
+  /// Hasil dari KameraView (kamera di dalam aplikasi).
+  Future&lt;HasilFoto&gt; simpanDariKamera(String? path) async {
+    if (path == null) return HasilFoto.batal;
+    return _simpan(path);
+  }
+
+  Future&lt;HasilFoto&gt; _simpan(String path) async {
+    _sibuk.value = true;
+    try {
+      _foto.value = await _service.simpan(path);
+      return HasilFoto.berhasil;
+    } on FotoException catch (e) {
+      pesanError = e.pesan;
+      return HasilFoto.gagal;
+    } on FileSystemException catch (e) {
+      pesanError = 'Gagal menyimpan: ${e.message}';
+      return HasilFoto.gagal;
+    } finally {
+      _sibuk.value = false;
+    }
+  }
+
+  Future&lt;void&gt; hapusFoto() async {
+    await _service.hapusSemua();
+    _foto.value = null;
+  }
+
+  Future&lt;bool&gt; bukaPengaturan() =&gt; _service.bukaPengaturan();
+}
+</code></pre>
+<ul>
+  <li><code>Rxn&lt;File&gt;</code> adalah Rx yang boleh <code>null</code>: <code>null</code> berarti belum ada foto.</li>
+  <li>Setiap aksi mengembalikan <code>HasilFoto</code>. Controller memutuskan <em>apa yang terjadi</em>, view memutuskan <em>bagaimana menampilkannya</em> (SnackBar atau dialog).</li>
+  <li><code>simpanDariKamera()</code> menerima path dari <code>KameraView</code>. Jika pengguna kembali tanpa memotret, path-nya <code>null</code> dan hasilnya <code>batal</code>.</li>
+  <li><code>return await _simpan(...)</code> di dalam <code>try</code>: tanpa <code>await</code>, exception dari <code>_simpan</code> tidak tertangkap oleh blok <code>on FotoException</code> (linter memperingatkannya dengan <code>unawaited_return_in_try_block</code>).</li>
+</ul>
+
+<h4>View: kamera di dalam aplikasi</h4>
+<p class="code-file-label">📄 <code>lib/views/kamera_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/kamera_view.dart
+// Kamera di dalam aplikasi (package camera). Mengembalikan path foto
+// lewat Navigator.pop, atau null jika pengguna kembali tanpa memotret.
+import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+
+class KameraView extends StatefulWidget {
+  const KameraView({super.key});
+
+  @override
+  State&lt;KameraView&gt; createState() =&gt; _KameraViewState();
+}
+
+class _KameraViewState extends State&lt;KameraView&gt; with WidgetsBindingObserver {
+  List&lt;CameraDescription&gt; _daftar = [];
+  int _indeks = 0;
+  CameraController? _controller;
+  String? _pesan;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _siapkan();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _siapkan() async {
+    try {
+      _daftar = await availableCameras();
+    } on CameraException catch (e) {
+      _setPesan('Kamera tidak tersedia (${e.code}).');
+      return;
+    }
+    if (_daftar.isEmpty) {
+      _setPesan('Perangkat ini tidak punya kamera.');
+      return;
+    }
+    // Foto profil: utamakan kamera depan jika ada
+    final depan = _daftar.indexWhere(
+      (k) =&gt; k.lensDirection == CameraLensDirection.front,
+    );
+    _indeks = depan == -1 ? 0 : depan;
+    await _buka();
+  }
+
+  Future&lt;void&gt; _buka() async {
+    final controller = CameraController(
+      _daftar[_indeks],
+      ResolutionPreset.high,
+      enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+    setState(() {
+      _controller = controller;
+      _pesan = null;
+    });
+    try {
+      await controller.initialize();
+    } on CameraException catch (e) {
+      _setPesan('Gagal membuka kamera: ${e.code}');
+      return;
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final controller = _controller;
+    if (state == AppLifecycleState.inactive) {
+      if (controller == null || !controller.value.isInitialized) return;
+      setState(() =&gt; _controller = null);
+      controller.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      if (controller == null &amp;&amp; _daftar.isNotEmpty) _buka();
+    }
+  }
+
+  Future&lt;void&gt; _ganti() async {
+    final controller = _controller;
+    if (controller == null || _daftar.length &lt; 2) return;
+    final arah = _daftar[_indeks].lensDirection;
+    final baru = _daftar.indexWhere((k) =&gt; k.lensDirection != arah);
+    if (baru == -1) return;
+    _indeks = baru;
+    try {
+      await controller.setDescription(_daftar[baru]);
+    } on CameraException catch (e) {
+      _setPesan('Gagal mengganti kamera: ${e.code}');
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future&lt;void&gt; _potret() async {
+    final controller = _controller;
+    if (controller == null ||
+        !controller.value.isInitialized ||
+        controller.value.isTakingPicture) {
+      return;
+    }
+    try {
+      final foto = await controller.takePicture();
+      if (!mounted) return;
+      Navigator.pop(context, foto.path); // kirim hasil ke halaman sebelumnya
+    } on CameraException catch (e) {
+      _setPesan('Gagal memotret: ${e.code}');
+    }
+  }
+
+  void _setPesan(String pesan) {
+    if (mounted) setState(() =&gt; _pesan = pesan);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    final siap = controller != null &amp;&amp; controller.value.isInitialized;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('Foto Profil'),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: Center(
+              child: _pesan != null
+                  ? Text(_pesan!, style: const TextStyle(color: Colors.white))
+                  : siap
+                  ? CameraPreview(
+                      controller,
+                      // Bingkai bantu agar wajah berada di tengah
+                      child: Center(
+                        child: Container(
+                          width: 220,
+                          height: 280,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.7),
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    )
+                  : const CircularProgressIndicator(),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                const SizedBox(width: 48),
+                FloatingActionButton.large(
+                  onPressed: siap ? _potret : null,
+                  child: const Icon(Icons.camera_alt),
+                ),
+                IconButton(
+                  color: Colors.white,
+                  onPressed: siap &amp;&amp; _daftar.length &gt; 1 ? _ganti : null,
+                  icon: const Icon(Icons.cameraswitch),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li>Ini versi ringkas dari contoh bagian 4: lifecycle tetap ditangani, kamera depan diutamakan, dan flash dihilangkan karena kamera depan jarang punya flash.</li>
+  <li>Parameter <code>child</code> pada <code>CameraPreview</code> menampilkan bingkai wajah tepat di atas gambar kamera.</li>
+  <li><code>Navigator.pop(context, foto.path)</code> mengirim path ke halaman pemanggil, setelah memastikan <code>mounted</code>.</li>
+</ul>
+
+<h4>View: kartu mahasiswa</h4>
+<p class="code-file-label">📄 <code>lib/views/kartu_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/kartu_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/kartu_controller.dart';
+import '../services/foto_profil_service.dart';
+import 'kamera_view.dart';
+
+enum _Pilihan { kameraSistem, kameraAplikasi, galeri, hapus }
+
+class KartuView extends GetView&lt;KartuController&gt; {
+  const KartuView({super.key});
+
+  Future&lt;void&gt; _gantiFoto(BuildContext context) async {
+    final pilihan = await showModalBottomSheet&lt;_Pilihan&gt;(
+      context: context,
+      showDragHandle: true,
+      builder: (context) =&gt; SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('Kamera sistem'),
+              subtitle: const Text('image_picker'),
+              onTap: () =&gt; Navigator.pop(context, _Pilihan.kameraSistem),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_front),
+              title: const Text('Kamera di aplikasi'),
+              subtitle: const Text('package camera, dengan bingkai wajah'),
+              onTap: () =&gt; Navigator.pop(context, _Pilihan.kameraAplikasi),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Pilih dari galeri'),
+              onTap: () =&gt; Navigator.pop(context, _Pilihan.galeri),
+            ),
+            if (controller.foto != null)
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Hapus foto'),
+                onTap: () =&gt; Navigator.pop(context, _Pilihan.hapus),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (pilihan == null || !context.mounted) return;
+
+    final HasilFoto hasil;
+    switch (pilihan) {
+      case _Pilihan.kameraSistem:
+        hasil = await controller.ambilFoto(SumberFoto.kamera);
+      case _Pilihan.galeri:
+        hasil = await controller.ambilFoto(SumberFoto.galeri);
+      case _Pilihan.kameraAplikasi:
+        final izin = await controller.pastikanIzinKamera();
+        if (izin != HasilFoto.berhasil) {
+          hasil = izin;
+          break;
+        }
+        if (!context.mounted) return;
+        final path = await Navigator.push&lt;String&gt;(
+          context,
+          MaterialPageRoute(builder: (_) =&gt; const KameraView()),
+        );
+        hasil = await controller.simpanDariKamera(path);
+      case _Pilihan.hapus:
+        if (!await _konfirmasiHapus(context)) return;
+        await controller.hapusFoto();
+        hasil = HasilFoto.berhasil;
+    }
+    if (!context.mounted) return;
+    _tampilkanHasil(context, hasil);
+  }
+
+  Future&lt;bool&gt; _konfirmasiHapus(BuildContext context) async {
+    final yakin = await showDialog&lt;bool&gt;(
+      context: context,
+      builder: (context) =&gt; AlertDialog(
+        title: const Text('Hapus foto profil?'),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; Navigator.pop(context, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    return yakin == true;
+  }
+
+  void _tampilkanHasil(BuildContext context, HasilFoto hasil) {
+    final messenger = ScaffoldMessenger.of(context);
+    switch (hasil) {
+      case HasilFoto.berhasil:
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Foto profil diperbarui')),
+        );
+      case HasilFoto.batal:
+        break; // pengguna membatalkan: tidak perlu pesan
+      case HasilFoto.izinDitolak:
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Izin kamera diperlukan untuk memotret'),
+          ),
+        );
+      case HasilFoto.izinDitolakPermanen:
+        showDialog&lt;void&gt;(
+          context: context,
+          builder: (context) =&gt; AlertDialog(
+            title: const Text('Izin kamera ditolak'),
+            content: const Text(
+              'Aktifkan izin Kamera di Pengaturan aplikasi agar bisa '
+              'memotret foto profil.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () =&gt; Navigator.pop(context),
+                child: const Text('Nanti'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  controller.bukaPengaturan();
+                },
+                child: const Text('Buka Pengaturan'),
+              ),
+            ],
+          ),
+        );
+      case HasilFoto.gagal:
+        messenger.showSnackBar(SnackBar(content: Text(controller.pesanError)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mhs = controller.mahasiswa;
+    final skema = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Kartu Mahasiswa')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Card(
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: double.infinity,
+                  color: skema.primary,
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    'KARTU TANDA MAHASISWA',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: skema.onPrimary,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _FotoProfil(onTap: () =&gt; _gantiFoto(context)),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              mhs.nama,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            Text('NIM: ${mhs.nim}'),
+                            Text('Prodi: ${mhs.prodi}'),
+                            Text('Angkatan: ${mhs.angkatan}'),
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                              onPressed: () =&gt; _gantiFoto(context),
+                              icon: const Icon(Icons.edit),
+                              label: const Text('Ganti Foto'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FotoProfil extends GetView&lt;KartuController&gt; {
+  const _FotoProfil({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 105,
+          height: 140, // rasio 3:4 seperti pas foto
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: Obx(() {
+            if (controller.sibuk) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final foto = controller.foto;
+            if (foto == null) {
+              return const Icon(Icons.person, size: 64);
+            }
+            return Image.file(
+              foto,
+              key: ValueKey(foto.path), // path baru = gambar baru
+              fit: BoxFit.cover,
+              cacheWidth: 315, // 3x lebar tampilan, cukup untuk layar tajam
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li><code>showModalBottomSheet&lt;_Pilihan&gt;</code> mengembalikan pilihan pengguna, lalu <code>context.mounted</code> dicek sebelum melanjutkan.</li>
+  <li>Untuk kamera di aplikasi, izin diminta dulu lewat controller, baru <code>KameraView</code> dibuka dengan <code>Navigator.push&lt;String&gt;</code>, dan path hasilnya diteruskan ke <code>controller.simpanDariKamera()</code>.</li>
+  <li><code>_tampilkanHasil</code> menangani semua cabang <code>HasilFoto</code>, termasuk dialog <strong>Buka Pengaturan</strong> untuk izin yang ditolak permanen.</li>
+  <li><code>_FotoProfil</code> adalah satu-satunya bagian yang dibungkus <code>Obx</code>. <code>ValueKey(foto.path)</code> memastikan widget gambar dibuat ulang saat path berubah, dan <code>cacheWidth</code> menjaga pemakaian memori tetap kecil.</li>
+</ul>
+
+<h4>main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'controllers/kartu_controller.dart';
+import 'services/foto_profil_service.dart';
+import 'views/kartu_view.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  Get.put(KartuController(FotoProfilService()));
+  runApp(
+    GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Kartu Mahasiswa',
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const KartuView(),
+    ),
+  );
+}
+</code></pre>
+
+<h4>Skenario uji</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Skenario</th><th>Hasil yang diharapkan</th></tr></thead>
+    <tbody>
+      <tr><td>Galeri &rarr; pilih foto</td><td>Foto tampil di kartu, SnackBar "Foto profil diperbarui"</td></tr>
+      <tr><td>Galeri &rarr; tekan kembali</td><td>Tidak ada perubahan, tidak ada pesan</td></tr>
+      <tr><td>Kamera sistem, izin pertama kali ditolak</td><td>SnackBar "Izin kamera diperlukan..."</td></tr>
+      <tr><td>Kamera, izin ditolak dua kali (permanen)</td><td>Dialog dengan tombol Buka Pengaturan; setelah izin diaktifkan, kamera bisa dipakai</td></tr>
+      <tr><td>Kamera di aplikasi &rarr; tekan Home &rarr; buka lagi</td><td>Preview kembali normal (tidak hitam)</td></tr>
+      <tr><td>Tutup paksa aplikasi lalu buka lagi</td><td>Foto profil masih ada</td></tr>
+      <tr><td>Hapus foto &rarr; konfirmasi</td><td>Kembali ke ikon orang, file di folder <code>profil</code> terhapus</td></tr>
+      <tr><td>"Don't keep activities" aktif, ambil dengan kamera sistem</td><td>Aplikasi dibuka ulang dan foto tetap muncul berkat <code>retrieveLostData</code></td></tr>
+    </tbody>
+  </table>
+</div>

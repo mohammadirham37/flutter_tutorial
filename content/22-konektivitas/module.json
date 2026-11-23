@@ -1,0 +1,170 @@
+{
+  "id": "modul-konektivitas",
+  "badge": "Bluetooth & WiFi",
+  "category": "Hardware",
+  "title": "Bluetooth, WiFi & Konektivitas Jaringan",
+  "duration": "Pertemuan 22 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 08: Manajemen State Terstruktur dengan GetX & Pola MVC",
+    "Modul 14: Proyek Catatan Kuliah (2): CRUD Supabase & Cache Offline Hive",
+    "Modul 17: Izin Akses (Permission) & Arsitektur Akses Hardware di Flutter"
+  ],
+  "summary": "Mengenal teknologi nirkabel di HP (WiFi, Bluetooth Classic, BLE dengan GATT, WiFi Direct, NFC), membaca status jaringan dengan connectivity_plus dan info WiFi dengan network_info_plus, lalu membangun banner offline dan sinkronisasi ulang otomatis untuk proyek Modul 14. Bagian kedua membahas BLE dengan flutter_blue_plus: lisensi, izin Android 12+ dan versi lama, scan, connect, read/write/notify characteristic, yang dirangkum dalam studi kasus Pemindai Perangkat BLE di Lab dengan pola GetX MVC.",
+  "learningOutcomes": [
+    "Membandingkan WiFi, Bluetooth Classic, BLE, dan NFC serta menjelaskan struktur GATT (service, characteristic, descriptor, UUID) dan perbedaan read, write, notify, dan indicate.",
+    "Membaca status jaringan dengan checkConnectivity dan onConnectivityChanged (List<ConnectivityResult>) dan membedakan status radio dari ketersediaan internet dengan cek ringan.",
+    "Membaca SSID, IP, dan gateway dengan network_info_plus beserta alur izin lokasi (diberikan, ditolak, ditolak permanen).",
+    "Membangun ConnectivityService dan NetworkController GetX dengan worker debounce, banner offline, serta sinkronisasi ulang otomatis menggunakan ever pada proyek cache offline Modul 14.",
+    "Mengonfigurasi izin Bluetooth Android 12+ (BLUETOOTH_SCAN neverForLocation, BLUETOOTH_CONNECT) dan Android 11 ke bawah (lokasi), Info.plist, serta memahami lisensi flutter_blue_plus.",
+    "Memeriksa dan menyalakan adapter Bluetooth, melakukan scan dengan timeout, serta menampilkan nama dan RSSI perangkat.",
+    "Melakukan connect, discoverServices, read, write, notify, dan disconnect pada characteristic BLE dengan pembersihan StreamSubscription yang benar.",
+    "Membangun aplikasi Pemindai Perangkat BLE di Lab dengan BleService, BleController, dan View berbasis Obx, mengujinya di HP fisik dengan nRF Connect, serta menerapkan prinsip keamanan BLE."
+  ],
+  "sections": [
+    {
+      "id": "konek-konsep-nirkabel",
+      "title": "1. Ekosistem Nirkabel: WiFi, Bluetooth Classic, BLE, dan NFC",
+      "file": "01-konsep-nirkabel.html"
+    },
+    {
+      "id": "konek-status-jaringan",
+      "title": "2. Status Jaringan dengan connectivity_plus",
+      "file": "02-status-jaringan.html"
+    },
+    {
+      "id": "konek-info-wifi",
+      "title": "3. Info WiFi dengan network_info_plus dan Izin Lokasi",
+      "file": "03-info-wifi.html"
+    },
+    {
+      "id": "konek-ble-persiapan",
+      "title": "4. Persiapan BLE: Lisensi, Konfigurasi Platform, Izin, dan Adapter",
+      "file": "04-ble-persiapan.html"
+    },
+    {
+      "id": "konek-ble-scan-gatt",
+      "title": "5. Scan, Connect, dan Operasi GATT",
+      "file": "05-ble-scan-gatt.html"
+    },
+    {
+      "id": "konek-getx-jaringan",
+      "title": "6. GetX MVC: Banner Offline dan Sinkronisasi Ulang Otomatis",
+      "file": "06-getx-jaringan.html"
+    },
+    {
+      "id": "konek-studi-kasus",
+      "title": "7. Studi Kasus: Pemindai Perangkat BLE di Lab",
+      "file": "07-studi-kasus.html"
+    },
+    {
+      "id": "konek-pengujian-keamanan",
+      "title": "8. Pengujian di HP Fisik, Kesalahan Umum, dan Keamanan",
+      "file": "08-pengujian-keamanan.html"
+    }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 22: Pemindai BLE Lab dan Sinkronisasi Online",
+    "objective": "Membangun aplikasi pemindai perangkat BLE dengan pola GetX MVC yang menangani izin, status adapter, koneksi, dan pembacaan characteristic, serta menambahkan deteksi offline dan sinkronisasi ulang otomatis pada proyek Catatan Kuliah.",
+    "instructions": [
+      "<strong>Tugas 1 (Wajib, 20 poin):</strong> Bangun ulang studi kasus Pemindai Perangkat BLE di Lab (bagian 7) dan jalankan di HP fisik. Uji dengan HP kedua yang menjalankan nRF Connect sebagai peripheral berisi Battery Service. Lampirkan screenshot daftar hasil scan dan halaman detail yang menampilkan level baterai.",
+      "<strong>Tugas 2 (Wajib, 15 poin):</strong> Uji tiga cabang izin: diberikan, ditolak, dan ditolak permanen (tombol Pengaturan membuka setelan aplikasi). Lampirkan screenshot ketiganya beserta versi Android HP yang dipakai.",
+      "<strong>Tugas 3 (Wajib, 15 poin):</strong> Tambahkan pengurutan pilihan (sinyal terkuat atau nama A-Z) dan kolom pencarian nama perangkat di PemindaiView. State pengurutan dan kata kunci disimpan di BleController sebagai .obs, bukan di View.",
+      "<strong>Tugas 4 (Wajib, 15 poin):</strong> Di halaman detail, tambahkan kemampuan membaca characteristic apa pun yang punya properti READ dengan mengetuknya. Tampilkan nilainya dalam format heksadesimal (misalnya 5A 00) dan sebagai teks UTF-8 bila bisa dibaca. Logika plugin tetap berada di BleService.",
+      "<strong>Tugas 5 (Wajib, 20 poin):</strong> Pasang ConnectivityService, NetworkController, dan BannerOffline ke proyek Catatan Kuliah Modul 14, lalu tambahkan worker ever di NotesController sehingga daftar catatan dimuat ulang otomatis saat online kembali. Nonaktifkan tombol tambah catatan saat offline. Rekam video singkat (maks 1 menit) yang menunjukkan mode pesawat dinyalakan lalu dimatikan.",
+      "<strong>Tugas 6 (Wajib, 15 poin):</strong> Tulis unit test untuk NetworkController menggunakan ConnectivityService palsu (class yang meng-implements ConnectivityService dengan StreamController) untuk membuktikan bahwa status online berubah setelah jeda debounce, memakai Get.testMode dan Get.reset seperti di Modul 14.",
+      "<strong>Bonus (+10 poin):</strong> Terapkan antrean tulis offline sederhana di proyek Catatan Kuliah: catatan baru yang dibuat saat offline disimpan di box Hive antrean_tulis, ditandai \"belum terkirim\", lalu dikirim otomatis ke Supabase saat online kembali."
+    ],
+    "expectedOutput": "Aplikasi Pemindai BLE Lab yang berjalan di HP fisik: meminta izin dengan benar, menampilkan status adapter, memindai 10 detik dengan daftar yang bisa dicari dan diurutkan, menghubungkan perangkat, menampilkan service dan characteristic, membaca baterai dan characteristic lain, serta memutus koneksi saat halaman ditutup. Proyek Catatan Kuliah menampilkan banner offline dan memuat ulang data otomatis saat online kembali. flutter analyze tanpa issue dan unit test lulus.",
+    "rubric": "Tugas 1: studi kasus berjalan di HP fisik dengan bukti (20%). Tugas 2: tiga cabang izin tertangani (15%). Tugas 3: pencarian dan pengurutan di controller (15%). Tugas 4: pembacaan characteristic generik dan format heksadesimal (15%). Tugas 5: banner offline dan sinkronisasi ulang otomatis di proyek Modul 14 (20%). Tugas 6: unit test NetworkController (15%). Bonus antrean tulis offline (+10%). Pengurangan nilai jika View atau Controller mengimpor flutter_blue_plus atau connectivity_plus secara langsung, StreamSubscription atau Worker tidak dibatalkan di onClose, koneksi BLE tidak diputus saat halaman ditutup, atau flutter analyze masih menampilkan issue."
+  },
+  "quiz": [
+    {
+      "question": "Sebuah modul HC-05 dari praktikum Arduino tidak pernah muncul saat dipindai dengan flutter_blue_plus, padahal muncul di menu Bluetooth HP. Apa penyebab paling mungkin?",
+      "options": [
+        "HC-05 memakai Bluetooth Classic, sedangkan flutter_blue_plus hanya mendukung Bluetooth Low Energy",
+        "Timeout scan terlalu pendek",
+        "Izin internet belum ditambahkan ke AndroidManifest.xml",
+        "HC-05 hanya bisa dipindai saat HP terhubung WiFi"
+      ],
+      "correctIndex": 0,
+      "explanation": "HC-05/HC-06 adalah modul Bluetooth Classic (serial/RFCOMM). flutter_blue_plus hanya mendukung BLE, dan iOS tidak mengizinkan aplikasi biasa memakai Bluetooth Classic serial. Untuk proyek IoT dengan Flutter, pilih modul BLE seperti ESP32 atau HM-10."
+    },
+    {
+      "question": "Dalam GATT, apa hubungan antara service 0x180F dan characteristic 0x2A19?",
+      "options": [
+        "Keduanya adalah alamat MAC perangkat",
+        "Service 0x180F (Battery Service) adalah kelompok yang berisi characteristic 0x2A19 (Battery Level), yaitu nilai byte yang bisa dibaca atau dinotifikasi",
+        "Characteristic 0x2A19 berisi daftar service yang dimiliki perangkat",
+        "0x180F adalah UUID 128 bit buatan sendiri, sedangkan 0x2A19 adalah nomor port"
+      ],
+      "correctIndex": 1,
+      "explanation": "Service mengelompokkan fungsi, characteristic menyimpan satu nilai di dalamnya. Keduanya UUID resmi 16 bit dari Bluetooth SIG yang merupakan singkatan dari UUID 128 bit dasar 0000xxxx-0000-1000-8000-00805F9B34FB."
+    },
+    {
+      "question": "Kode lama menulis: final r = await Connectivity().checkConnectivity(); if (r == ConnectivityResult.none) tampilkanOffline(); Dengan connectivity_plus versi sekarang, apa yang terjadi?",
+      "options": [
+        "Berjalan normal",
+        "Error saat runtime karena checkConnectivity tidak ada lagi",
+        "Kondisi selalu false karena hasilnya List<ConnectivityResult>, sehingga banner offline tidak pernah tampil; harus memakai r.contains(ConnectivityResult.none)",
+        "Kondisi selalu true sehingga aplikasi selalu offline"
+      ],
+      "correctIndex": 2,
+      "explanation": "checkConnectivity dan onConnectivityChanged mengembalikan List karena HP bisa memakai beberapa antarmuka sekaligus. Membandingkan List dengan enum selalu bernilai false. Daftar tidak pernah kosong; saat tidak ada jaringan isinya [ConnectivityResult.none]."
+    },
+    {
+      "question": "HP terhubung ke WiFi kampus (status wifi), tetapi semua request ke Supabase gagal. Mengapa hal ini bisa terjadi dan apa solusinya?",
+      "options": [
+        "connectivity_plus rusak dan harus diganti",
+        "connectivity_plus hanya melihat status radio; WiFi bisa belum login captive portal atau tidak punya akses internet. Lakukan cek ringan (misalnya lookup ke domain server) dan tetap tangani error setiap request",
+        "Supabase tidak mendukung WiFi, hanya data seluler",
+        "Harus meminta izin ACCESS_FINE_LOCATION agar internet berfungsi"
+      ],
+      "correctIndex": 1,
+      "explanation": "Status terhubung ke WiFi tidak menjamin ada internet. Cek ringan ke server sendiri memberi kepastian lebih baik, dan pola network first, cache fallback dari Modul 14 tetap diperlukan karena status bisa berubah di tengah request."
+    },
+    {
+      "question": "Aplikasi sudah memiliki izin lokasi, tetapi NetworkInfo().getWifiName() tetap mengembalikan null di HP Android. Apa yang paling mungkin terlewat?",
+      "options": [
+        "Izin BLUETOOTH_CONNECT",
+        "Layanan lokasi (saklar Lokasi) di HP sedang mati",
+        "Package connectivity_plus belum dipasang",
+        "Nama WiFi terlalu panjang"
+      ],
+      "correctIndex": 1,
+      "explanation": "Sejak Android 10, SSID hanya bisa dibaca bila aplikasi punya izin lokasi presisi dan layanan lokasi sistem menyala. Izin aplikasi dan saklar lokasi sistem adalah dua hal yang berbeda."
+    },
+    {
+      "question": "Apa fungsi atribut android:usesPermissionFlags=\"neverForLocation\" pada izin BLUETOOTH_SCAN?",
+      "options": [
+        "Mematikan Bluetooth saat lokasi aktif",
+        "Membuat aplikasi tidak perlu izin BLUETOOTH_CONNECT",
+        "Menyatakan bahwa hasil scan tidak dipakai untuk menentukan lokasi, sehingga di Android 12+ scan BLE tidak membutuhkan izin lokasi",
+        "Membuat scan bekerja di emulator"
+      ],
+      "correctIndex": 2,
+      "explanation": "Dengan neverForLocation, Android 12+ cukup meminta izin Perangkat di sekitar (BLUETOOTH_SCAN dan BLUETOOTH_CONNECT). Izin lokasi hanya dideklarasikan dengan maxSdkVersion 30 untuk Android 11 ke bawah. Konsekuensinya, sebagian iklan seperti beacon bisa disaring sistem."
+    },
+    {
+      "question": "Pada NetworkController, kenapa pemeriksaan internet dipicu lewat worker debounce dan bukan langsung di setiap event onConnectivityChanged?",
+      "options": [
+        "Karena onConnectivityChanged hanya memancarkan satu event seumur aplikasi",
+        "Karena perpindahan jaringan bisa memancarkan beberapa event berdekatan; debounce menunggu keadaan tenang lalu memeriksa sekali sehingga tidak ada lookup ganda dan banner tidak berkedip",
+        "Karena debounce membuat internet lebih cepat",
+        "Karena GetX melarang memakai StreamSubscription"
+      ],
+      "correctIndex": 1,
+      "explanation": "Saat berpindah WiFi ke data seluler, stream bisa memancarkan beberapa perubahan dalam satu detik. debounce menjalankan callback hanya setelah tidak ada perubahan selama durasi tertentu, sehingga pemeriksaan dan pemanggilan loadNotes terjadi sekali."
+    },
+    {
+      "question": "Di DetailPerangkatController, mengapa device.disconnect() dipanggil di onClose()?",
+      "options": [
+        "Agar daftar hasil scan dihapus",
+        "Karena discoverServices hanya bisa dipanggil setelah disconnect",
+        "Agar koneksi BLE tidak tertinggal saat halaman ditutup; koneksi yang menggantung menguras baterai dan membuat peripheral tidak bisa dihubungi HP lain",
+        "Karena onClose dipanggil setiap kali Obx dibangun ulang"
+      ],
+      "correctIndex": 2,
+      "explanation": "Controller didaftarkan lewat binding rute, sehingga GetX memanggil onClose saat halaman ditutup. Itu tempat yang tepat untuk membatalkan StreamSubscription dan memutus koneksi. Banyak peripheral hanya menerima satu koneksi sekaligus."
+    }
+  ]
+}

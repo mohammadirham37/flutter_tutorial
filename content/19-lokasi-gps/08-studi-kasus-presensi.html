@@ -1,0 +1,704 @@
+<p class="lead">Kita gabungkan seluruh materi bab ini menjadi aplikasi <strong>Presensi Kampus Berbasis Lokasi</strong>. Mahasiswa hanya bisa presensi jika berada dalam radius tertentu dari gedung kuliah (<em>geofence</em> sederhana), posisinya cukup akurat, dan lokasinya bukan lokasi palsu.</p>
+
+<h4>Aturan bisnis</h4>
+<ol>
+  <li>Layanan lokasi menyala dan izin lokasi diberikan. Jika tidak, tampilkan penjelasan dan tombol yang sesuai.</li>
+  <li>Posisi diambil segar saat tombol ditekan (bukan posisi terakhir yang tersimpan).</li>
+  <li>Posisi dengan <code>isMocked == true</code> ditolak.</li>
+  <li>Akurasi harus diketahui dan tidak lebih dari 50 meter.</li>
+  <li>Jarak ke titik kampus (<code>distanceBetween</code>) harus &le; radius (100 meter).</li>
+  <li>Satu kali presensi per hari.</li>
+</ol>
+
+<h4>Struktur proyek</h4>
+<pre><code class="language-bash">flutter create --org id.ac.kampus presensi_kampus
+cd presensi_kampus
+flutter pub add geolocator flutter_map latlong2 get
+</code></pre>
+<p>Lakukan konfigurasi AndroidManifest dan Info.plist dari bagian 2 (izin lokasi + INTERNET), lalu buat file berikut:</p>
+<pre><code class="language-text">lib/
+├── main.dart                          # GetMaterialApp + rute
+├── config/
+│   └── kampus.dart                    # titik kampus, radius, batas akurasi
+├── models/
+│   └── catatan_presensi.dart          # M: data satu presensi
+├── services/
+│   ├── location_service.dart          # sama persis dengan bagian 7
+│   └── aturan_presensi.dart           # logika geofence murni (bisa diuji)
+├── controllers/
+│   ├── riwayat_controller.dart        # daftar presensi (global)
+│   └── presensi_controller.dart       # stream GPS + kirim presensi (per halaman)
+├── bindings/
+│   ├── app_binding.dart
+│   └── presensi_binding.dart
+└── views/
+    ├── beranda_view.dart              # riwayat + tombol presensi
+    └── presensi_view.dart             # peta + status + tombol kirim
+test/
+└── aturan_presensi_test.dart
+</code></pre>
+
+<h4>Langkah 1: Konfigurasi titik kampus dan model</h4>
+<p class="code-file-label">📄 <code>lib/config/kampus.dart</code></p>
+<pre><code class="language-dart">// lib/config/kampus.dart
+/// Titik pusat presensi dan aturan geofence.
+/// Ganti angka di bawah dengan koordinat gedung kampusmu.
+class TitikKampus {
+  const TitikKampus({
+    required this.nama,
+    required this.latitude,
+    required this.longitude,
+    required this.radiusMeter,
+  });
+
+  final String nama;
+  final double latitude;
+  final double longitude;
+  final double radiusMeter;
+}
+
+const kampusUtama = TitikKampus(
+  nama: 'Gedung Kuliah Bersama (contoh)',
+  latitude: -6.3628,
+  longitude: 106.8269,
+  radiusMeter: 100,
+);
+
+/// Posisi dengan akurasi lebih buruk dari ini dianggap tidak layak.
+const double akurasiMaksimalMeter = 50;
+</code></pre>
+<p class="code-file-label">📄 <code>lib/models/catatan_presensi.dart</code></p>
+<pre><code class="language-dart">// lib/models/catatan_presensi.dart
+class CatatanPresensi {
+  const CatatanPresensi({
+    required this.waktu,
+    required this.latitude,
+    required this.longitude,
+    required this.jarakMeter,
+    required this.akurasiMeter,
+  });
+
+  final DateTime waktu;
+  final double latitude;
+  final double longitude;
+  final double jarakMeter;
+  final double akurasiMeter;
+}
+</code></pre>
+<div class="callout callout-tip"><h4>💡 Mencari koordinat kampusmu</h4><p>Buka <code>openstreetmap.org</code>, klik kanan di atas gedung, pilih "Show address" atau "Centre map here", lalu salin angka latitude dan longitude dari panel kiri atau dari URL. Ingat: latitude dulu, longitude kemudian.</p></div>
+
+<h4>Langkah 2: Service</h4>
+<p>Salin <code>lib/services/location_service.dart</code> dari bagian 7 tanpa perubahan. Lalu buat aturan presensi sebagai kelas Dart murni:</p>
+<p class="code-file-label">📄 <code>lib/services/aturan_presensi.dart</code></p>
+<pre><code class="language-dart">// lib/services/aturan_presensi.dart
+import 'package:geolocator/geolocator.dart';
+
+import '../config/kampus.dart';
+
+/// Hasil pemeriksaan: boleh presensi atau tidak, beserta alasannya.
+class HasilValidasi {
+  const HasilValidasi(this.boleh, this.pesan, {this.jarakMeter});
+
+  final bool boleh;
+  final String pesan;
+  final double? jarakMeter;
+}
+
+/// Aturan presensi murni (tanpa UI dan tanpa GetX) sehingga mudah diuji.
+class AturanPresensi {
+  const AturanPresensi(this.kampus, {this.akurasiMaksimal = 50});
+
+  final TitikKampus kampus;
+  final double akurasiMaksimal;
+
+  double jarakKeKampus(Position p) =&gt; Geolocator.distanceBetween(
+    p.latitude,
+    p.longitude,
+    kampus.latitude,
+    kampus.longitude,
+  );
+
+  HasilValidasi periksa(Position? posisi, {required bool sudahPresensi}) {
+    if (sudahPresensi) {
+      return const HasilValidasi(false, 'Kamu sudah presensi hari ini.');
+    }
+    if (posisi == null) {
+      return const HasilValidasi(false, 'Menunggu posisi dari GPS...');
+    }
+    final jarak = jarakKeKampus(posisi);
+    if (posisi.isMocked) {
+      return HasilValidasi(
+        false,
+        'Terdeteksi lokasi palsu (mock location). Matikan aplikasi '
+        'pemalsu lokasi lalu coba lagi.',
+        jarakMeter: jarak,
+      );
+    }
+    if (!posisi.hasAccuracy) {
+      return HasilValidasi(
+        false,
+        'Akurasi GPS tidak diketahui. Tunggu sinyal yang lebih baik.',
+        jarakMeter: jarak,
+      );
+    }
+    if (posisi.accuracy &gt; akurasiMaksimal) {
+      return HasilValidasi(
+        false,
+        'Sinyal GPS belum akurat (± ${posisi.accuracy.toStringAsFixed(0)} m). '
+        'Tunggu sebentar atau pindah ke ruang terbuka.',
+        jarakMeter: jarak,
+      );
+    }
+    if (jarak &gt; kampus.radiusMeter) {
+      return HasilValidasi(
+        false,
+        'Kamu berada ${jarak.toStringAsFixed(0)} m dari ${kampus.nama}. '
+        'Presensi hanya bisa dalam radius '
+        '${kampus.radiusMeter.toStringAsFixed(0)} m.',
+        jarakMeter: jarak,
+      );
+    }
+    return HasilValidasi(
+      true,
+      'Kamu berada di area kampus (${jarak.toStringAsFixed(0)} m).',
+      jarakMeter: jarak,
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li>Aturan dipisah dari controller agar bisa diuji dengan unit test tanpa emulator dan tanpa GPS (langkah 6).</li>
+  <li>Urutan pemeriksaan sengaja: sudah presensi, belum ada posisi, lokasi palsu, akurasi, baru jarak. Pesan yang paling relevan muncul lebih dulu.</li>
+  <li>Akurasi diperiksa karena posisi dengan akurasi &plusmn; 200 m bisa jatuh "di dalam" radius padahal pengguna sebenarnya di luar, atau sebaliknya.</li>
+</ul>
+
+<h4>Langkah 3: Controller</h4>
+<p class="code-file-label">📄 <code>lib/controllers/riwayat_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/riwayat_controller.dart
+import 'package:get/get.dart';
+
+import '../models/catatan_presensi.dart';
+
+/// Menyimpan riwayat presensi di memori selama aplikasi berjalan.
+/// (Praktikum: simpan ke Hive atau kirim ke Supabase.)
+class RiwayatController extends GetxController {
+  final _daftar = &lt;CatatanPresensi&gt;[].obs;
+
+  List&lt;CatatanPresensi&gt; get daftar =&gt; _daftar.reversed.toList();
+
+  bool get sudahPresensiHariIni {
+    final now = DateTime.now();
+    return _daftar.any(
+      (c) =&gt;
+          c.waktu.year == now.year &amp;&amp;
+          c.waktu.month == now.month &amp;&amp;
+          c.waktu.day == now.day,
+    );
+  }
+
+  void tambah(CatatanPresensi catatan) =&gt; _daftar.add(catatan);
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/controllers/presensi_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/presensi_controller.dart
+import 'dart:async';
+
+import 'package:geolocator/geolocator.dart';
+import 'package:get/get.dart';
+
+import '../models/catatan_presensi.dart';
+import '../services/aturan_presensi.dart';
+import '../services/location_service.dart';
+import 'riwayat_controller.dart';
+
+class PresensiController extends GetxController {
+  PresensiController(this._lokasi, this._aturan, this._riwayat);
+
+  final LocationService _lokasi;
+  final AturanPresensi _aturan;
+  final RiwayatController _riwayat;
+
+  final _posisi = Rxn&lt;Position&gt;();
+  final _masalah = Rxn&lt;KesiapanLokasi&gt;(); // null = tidak ada masalah
+  final _mengirim = false.obs;
+
+  Position? get posisi =&gt; _posisi.value;
+  KesiapanLokasi? get masalah =&gt; _masalah.value;
+  bool get mengirim =&gt; _mengirim.value;
+
+  /// Dihitung ulang setiap kali posisi atau riwayat berubah.
+  HasilValidasi get validasi =&gt; _aturan.periksa(
+    _posisi.value,
+    sudahPresensi: _riwayat.sudahPresensiHariIni,
+  );
+
+  StreamSubscription&lt;Position&gt;? _langganan;
+
+  @override
+  void onInit() {
+    super.onInit();
+    mulai();
+  }
+
+  @override
+  void onClose() {
+    _langganan?.cancel(); // halaman ditutup = GPS berhenti
+    super.onClose();
+  }
+
+  Future&lt;void&gt; mulai() async {
+    final kesiapan = await _lokasi.periksaKesiapan();
+    if (kesiapan != KesiapanLokasi.siap) {
+      _masalah.value = kesiapan;
+      return;
+    }
+    _masalah.value = null;
+
+    await _langganan?.cancel();
+    _langganan = _lokasi
+        .aliranPosisi(jarakMinimal: 5)
+        .listen(
+          (p) =&gt; _posisi.value = p,
+          onError: (Object e) =&gt; Get.snackbar('Lokasi', 'Pelacakan error: $e'),
+        );
+  }
+
+  Future&lt;void&gt; bukaPengaturan() async {
+    if (masalah == KesiapanLokasi.layananMati) {
+      await _lokasi.bukaPengaturanLokasi();
+    } else {
+      await _lokasi.bukaPengaturanAplikasi();
+    }
+  }
+
+  Future&lt;void&gt; kirimPresensi() async {
+    if (_mengirim.value) return;
+    _mengirim.value = true;
+    try {
+      // Ambil posisi segar tepat saat tombol ditekan, jangan hanya
+      // mengandalkan update terakhir dari stream.
+      final segar = await _lokasi.posisiSekarang(
+        batasWaktu: const Duration(seconds: 10),
+      );
+      _posisi.value = segar;
+
+      final hasil = validasi;
+      if (!hasil.boleh) {
+        Get.snackbar('Presensi ditolak', hasil.pesan);
+        return;
+      }
+      _riwayat.tambah(
+        CatatanPresensi(
+          waktu: DateTime.now(),
+          latitude: segar.latitude,
+          longitude: segar.longitude,
+          jarakMeter: hasil.jarakMeter ?? 0,
+          akurasiMeter: segar.accuracy,
+        ),
+      );
+      Get.back(); // kembali ke beranda
+      Get.snackbar('Presensi berhasil', hasil.pesan);
+    } on TimeoutException {
+      Get.snackbar('Presensi', 'GPS tidak merespons, coba lagi.');
+    } catch (e) {
+      Get.snackbar('Presensi', 'Gagal: $e');
+    } finally {
+      _mengirim.value = false;
+    }
+  }
+}
+</code></pre>
+<ul>
+  <li><code>validasi</code> adalah getter turunan, bukan state terpisah. Karena ia membaca <code>_posisi</code> dan daftar riwayat (keduanya <code>.obs</code>), setiap <code>Obx</code> yang memanggilnya otomatis diperbarui saat posisi berubah.</li>
+  <li>Stream memakai <code>jarakMinimal: 5</code> sehingga lingkaran di peta berubah warna saat pengguna masuk atau keluar radius, tanpa membanjiri UI.</li>
+  <li><code>kirimPresensi()</code> mengambil posisi <strong>segar</strong> dengan batas 10 detik sebelum memvalidasi. Posisi dari stream bisa saja sudah berumur beberapa menit jika pengguna diam.</li>
+  <li>Flag <code>_mengirim</code> mencegah tombol ditekan dua kali.</li>
+  <li><code>onClose()</code> membatalkan stream. Karena controller ini didaftarkan lewat <code>PresensiBinding</code>, GetX menghapusnya saat halaman presensi ditutup, sehingga GPS ikut berhenti.</li>
+</ul>
+
+<h4>Langkah 4: Binding</h4>
+<p class="code-file-label">📄 <code>lib/bindings/app_binding.dart</code></p>
+<pre><code class="language-dart">// lib/bindings/app_binding.dart
+import 'package:get/get.dart';
+
+import '../config/kampus.dart';
+import '../controllers/riwayat_controller.dart';
+import '../services/aturan_presensi.dart';
+import '../services/location_service.dart';
+
+/// Dependensi global: hidup selama aplikasi berjalan.
+class AppBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.put(LocationService(), permanent: true);
+    Get.put(
+      const AturanPresensi(kampusUtama, akurasiMaksimal: akurasiMaksimalMeter),
+      permanent: true,
+    );
+    Get.put(RiwayatController(), permanent: true);
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/bindings/presensi_binding.dart</code></p>
+<pre><code class="language-dart">// lib/bindings/presensi_binding.dart
+import 'package:get/get.dart';
+
+import '../controllers/presensi_controller.dart';
+
+/// Controller halaman presensi: dibuat saat halaman dibuka,
+/// dihapus (onClose dipanggil) saat halaman ditutup.
+class PresensiBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut(() =&gt; PresensiController(Get.find(), Get.find(), Get.find()));
+  }
+}
+</code></pre>
+<p><code>Get.find()</code> tanpa tipe eksplisit bekerja karena Dart menyimpulkan tipenya dari parameter constructor <code>PresensiController</code>.</p>
+
+<h4>Langkah 5: View dan main.dart</h4>
+<p class="code-file-label">📄 <code>lib/views/beranda_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/beranda_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/riwayat_controller.dart';
+
+class BerandaView extends GetView&lt;RiwayatController&gt; {
+  const BerandaView({super.key});
+
+  String _jam(DateTime w) =&gt;
+      '${w.hour.toString().padLeft(2, '0')}:'
+      '${w.minute.toString().padLeft(2, '0')}';
+
+  String _tanggal(DateTime w) =&gt; '${w.day}/${w.month}/${w.year}';
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Presensi Kampus')),
+      body: Obx(() {
+        final daftar = controller.daftar;
+        if (daftar.isEmpty) {
+          return const Center(child: Text('Belum ada riwayat presensi.'));
+        }
+        return ListView.separated(
+          itemCount: daftar.length,
+          separatorBuilder: (_, _) =&gt; const Divider(height: 1),
+          itemBuilder: (context, i) {
+            final c = daftar[i];
+            return ListTile(
+              leading: const Icon(Icons.check_circle, color: Colors.green),
+              title: Text('${_tanggal(c.waktu)} pukul ${_jam(c.waktu)}'),
+              subtitle: Text(
+                'Jarak ${c.jarakMeter.toStringAsFixed(0)} m • '
+                'akurasi ± ${c.akurasiMeter.toStringAsFixed(0)} m',
+              ),
+            );
+          },
+        );
+      }),
+      floatingActionButton: Obx(
+        () =&gt; FloatingActionButton.extended(
+          onPressed: controller.sudahPresensiHariIni
+              ? null
+              : () =&gt; Get.toNamed('/presensi'),
+          icon: const Icon(Icons.fingerprint),
+          label: Text(
+            controller.sudahPresensiHariIni
+                ? 'Sudah presensi hari ini'
+                : 'Presensi sekarang',
+          ),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/views/presensi_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/presensi_view.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:get/get.dart';
+import 'package:latlong2/latlong.dart';
+
+import '../config/kampus.dart';
+import '../controllers/presensi_controller.dart';
+import '../services/location_service.dart';
+
+class PresensiView extends GetView&lt;PresensiController&gt; {
+  const PresensiView({super.key});
+
+  static final _pusat = LatLng(kampusUtama.latitude, kampusUtama.longitude);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Presensi Berbasis Lokasi')),
+      body: Obx(() {
+        final masalah = controller.masalah;
+        if (masalah != null) return _PanelMasalah(masalah: masalah);
+
+        final p = controller.posisi;
+        final hasil = controller.validasi;
+        final skema = Theme.of(context).colorScheme;
+        final warna = hasil.boleh ? Colors.green : skema.error;
+
+        return Column(
+          children: [
+            Expanded(
+              child: FlutterMap(
+                options: MapOptions(initialCenter: _pusat, initialZoom: 17),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'id.ac.kampus.presensi',
+                  ),
+                  CircleLayer(
+                    circles: [
+                      CircleMarker(
+                        point: _pusat,
+                        radius: kampusUtama.radiusMeter,
+                        useRadiusInMeter: true,
+                        color: warna.withValues(alpha: 0.15),
+                        borderColor: warna,
+                        borderStrokeWidth: 2,
+                      ),
+                    ],
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: _pusat,
+                        width: 40,
+                        height: 40,
+                        child: const Icon(Icons.school, color: Colors.indigo),
+                      ),
+                      if (p != null)
+                        Marker(
+                          point: LatLng(p.latitude, p.longitude),
+                          width: 22,
+                          height: 22,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const RichAttributionWidget(
+                    attributions: [
+                      TextSourceAttribution('OpenStreetMap contributors'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Material(
+              elevation: 8,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          hasil.boleh ? Icons.verified : Icons.block,
+                          color: warna,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(hasil.pesan)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: hasil.boleh &amp;&amp; !controller.mengirim
+                          ? controller.kirimPresensi
+                          : null,
+                      icon: controller.mengirim
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.how_to_reg),
+                      label: const Text('Kirim presensi'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+}
+
+class _PanelMasalah extends GetView&lt;PresensiController&gt; {
+  const _PanelMasalah({required this.masalah});
+
+  final KesiapanLokasi masalah;
+
+  @override
+  Widget build(BuildContext context) {
+    final (judul, bisaBuka) = switch (masalah) {
+      KesiapanLokasi.layananMati =&gt; ('Layanan lokasi (GPS) mati.', true),
+      KesiapanLokasi.ditolak =&gt; ('Presensi membutuhkan izin lokasi.', false),
+      KesiapanLokasi.ditolakPermanen =&gt; (
+        'Izin lokasi ditolak permanen. Aktifkan di pengaturan aplikasi.',
+        true,
+      ),
+      KesiapanLokasi.siap =&gt; ('', false),
+    };
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.location_off, size: 64),
+            const SizedBox(height: 12),
+            Text(judul, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: controller.mulai,
+              child: const Text('Coba lagi'),
+            ),
+            if (bisaBuka)
+              TextButton(
+                onPressed: controller.bukaPengaturan,
+                child: const Text('Buka pengaturan'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'bindings/app_binding.dart';
+import 'bindings/presensi_binding.dart';
+import 'views/beranda_view.dart';
+import 'views/presensi_view.dart';
+
+void main() =&gt; runApp(const PresensiApp());
+
+class PresensiApp extends StatelessWidget {
+  const PresensiApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      title: 'Presensi Kampus',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      initialBinding: AppBinding(),
+      initialRoute: '/',
+      getPages: [
+        GetPage(name: '/', page: () =&gt; const BerandaView()),
+        GetPage(
+          name: '/presensi',
+          page: () =&gt; const PresensiView(),
+          binding: PresensiBinding(),
+        ),
+      ],
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li>Lingkaran radius digambar dengan <code>useRadiusInMeter: true</code>, sehingga ukurannya sama dengan aturan 100 meter. Warnanya hijau saat boleh presensi dan merah saat tidak.</li>
+  <li>Tombol "Kirim presensi" nonaktif (<code>onPressed: null</code>) selama validasi belum lolos, dan pesan alasannya selalu terlihat di panel bawah.</li>
+  <li><code>_PanelMasalah</code> menangani tiga kondisi: GPS mati, izin ditolak, dan izin ditolak permanen. Ini memenuhi alur izin lengkap dari bagian 2.</li>
+  <li>Halaman presensi dibuka dengan <code>Get.toNamed('/presensi')</code>, sehingga <code>PresensiBinding</code> berjalan dan controller dibuat baru setiap kali halaman dibuka.</li>
+</ul>
+
+<h4>Langkah 6: Unit test aturan presensi</h4>
+<p class="code-file-label">📄 <code>test/aturan_presensi_test.dart</code></p>
+<pre><code class="language-dart">// test/aturan_presensi_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:presensi_kampus/config/kampus.dart';
+import 'package:presensi_kampus/services/aturan_presensi.dart';
+
+Position buatPosisi(
+  double lat,
+  double lng, {
+  double akurasi = 10,
+  bool palsu = false,
+}) {
+  return Position(
+    latitude: lat,
+    longitude: lng,
+    timestamp: DateTime.now(),
+    accuracy: akurasi,
+    hasAccuracy: true,
+    altitude: 0,
+    altitudeAccuracy: 0,
+    heading: 0,
+    headingAccuracy: 0,
+    speed: 0,
+    speedAccuracy: 0,
+    isMocked: palsu,
+  );
+}
+
+void main() {
+  const aturan = AturanPresensi(kampusUtama, akurasiMaksimal: 50);
+
+  test('boleh presensi tepat di titik kampus', () {
+    final hasil = aturan.periksa(
+      buatPosisi(kampusUtama.latitude, kampusUtama.longitude),
+      sudahPresensi: false,
+    );
+    expect(hasil.boleh, isTrue);
+  });
+
+  test('ditolak jika di luar radius (sekitar 1 km)', () {
+    // 0.009 derajat lintang kira-kira 1 km
+    final hasil = aturan.periksa(
+      buatPosisi(kampusUtama.latitude + 0.009, kampusUtama.longitude),
+      sudahPresensi: false,
+    );
+    expect(hasil.boleh, isFalse);
+    expect(hasil.jarakMeter, greaterThan(900));
+  });
+
+  test('ditolak jika lokasi palsu walau di dalam radius', () {
+    final hasil = aturan.periksa(
+      buatPosisi(kampusUtama.latitude, kampusUtama.longitude, palsu: true),
+      sudahPresensi: false,
+    );
+    expect(hasil.boleh, isFalse);
+  });
+
+  test('ditolak jika akurasi buruk', () {
+    final hasil = aturan.periksa(
+      buatPosisi(kampusUtama.latitude, kampusUtama.longitude, akurasi: 120),
+      sudahPresensi: false,
+    );
+    expect(hasil.boleh, isFalse);
+  });
+
+  test('ditolak jika sudah presensi hari ini', () {
+    final hasil = aturan.periksa(
+      buatPosisi(kampusUtama.latitude, kampusUtama.longitude),
+      sudahPresensi: true,
+    );
+    expect(hasil.boleh, isFalse);
+  });
+}
+</code></pre>
+<p>Jalankan dengan <code>flutter test</code>. Objek <code>Position</code> bisa dibuat sendiri dengan constructor-nya, dan <code>distanceBetween</code> adalah perhitungan murni, jadi test ini berjalan tanpa perangkat. Perhatikan <code>hasAccuracy: true</code>: nilai bawaannya <code>false</code>, sehingga tanpa baris itu semua posisi uji ditolak oleh aturan akurasi.</p>
+
+<div class="callout callout-warning"><h4>⚠️ <code>isMocked</code> bukan pengaman mutlak</h4><p><code>isMocked</code> bernilai <code>true</code> di Android jika posisi berasal dari aplikasi yang dipilih sebagai <em>mock location app</em> di Opsi Pengembang, dan di iOS 15+ jika sistem menandai lokasi disimulasikan perangkat lunak. Perangkat yang di-root atau dimodifikasi tetap bisa menyembunyikan tanda ini. Untuk presensi sungguhan, validasi akhir harus dilakukan di <strong>server</strong>: kirim koordinat, akurasi, waktu, dan flag mock ke backend (misalnya Supabase dari Modul 12), lalu gabungkan dengan bukti lain seperti jaringan Wi-Fi kampus, foto wajah (Modul 18), atau biometrik (Modul 21).</p></div>

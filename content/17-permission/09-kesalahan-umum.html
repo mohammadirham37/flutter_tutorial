@@ -1,0 +1,50 @@
+<p class="lead">Kumpulan masalah izin yang paling sering ditemui mahasiswa, lalu checklist yang perlu dicek sebelum aplikasi yang memakai hardware dirilis (lanjutan dari checklist rilis di Modul 16).</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Gejala</th><th>Penyebab</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr><td>Android: <code>request()</code> langsung <code>denied</code>, dialog tidak pernah muncul</td><td>Izin tidak dideklarasikan di <code>android/app/src/main/AndroidManifest.xml</code>, atau ditulis di dalam <code>&lt;application&gt;</code>.</td><td>Tambahkan <code>&lt;uses-permission&gt;</code> sebagai anak <code>&lt;manifest&gt;</code>, lalu build ulang.</td></tr>
+      <tr><td>Android: dialog tidak muncul lagi setelah dua kali ditolak</td><td>Perilaku normal Android 11+: izin ditolak permanen.</td><td>Tampilkan layar fallback dengan <code>openAppSettings()</code>. Saat development, uninstall aplikasi untuk mengulang.</td></tr>
+      <tr><td>Android: <code>status</code> tidak pernah <code>permanentlyDenied</code></td><td>Android tidak menyediakan informasi itu; plugin melaporkan <code>denied</code>.</td><td>Putuskan dari hasil <code>request()</code> (section 5), atau ingat hasilnya di controller (section 7).</td></tr>
+      <tr><td>iOS: aplikasi langsung tertutup saat meminta izin</td><td>Kunci usage description (misal <code>NSCameraUsageDescription</code>) tidak ada di <code>Info.plist</code>.</td><td>Tambahkan kuncinya dengan kalimat alasan yang jelas.</td></tr>
+      <tr><td>iOS: status selalu <code>denied</code>, dialog tidak muncul</td><td>CocoaPods: macro izin di Podfile belum diaktifkan. SPM: kunci <code>Info.plist</code> belum ada atau cache Xcode lama.</td><td>Aktifkan macro (<code>PERMISSION_CAMERA=1</code>, ...) lalu <code>flutter clean</code>; untuk SPM tambahkan kunci dan hapus <code>DerivedData</code>.</td></tr>
+      <tr><td>Build Android gagal: "requires ... to compile against version 37 or later"</td><td><code>compileSdk</code> proyek lebih rendah dari yang dibutuhkan plugin.</td><td>Naikkan <code>compileSdk</code> di <code>android/app/build.gradle.kts</code> sesuai pesan error.</td></tr>
+      <tr><td>Notifikasi tidak muncul di Android 13+</td><td><code>POST_NOTIFICATIONS</code> tidak dideklarasikan atau belum diminta.</td><td>Deklarasikan, lalu minta saat pengguna mengaktifkan pengingat.</td></tr>
+      <tr><td>Izin lokasi <code>granted</code> tetapi posisi tidak didapat</td><td>Layanan lokasi (GPS) dimatikan.</td><td>Cek <code>Permission.locationWhenInUse.serviceStatus</code> dan beri tahu pengguna.</td></tr>
+      <tr><td><code>Permission.storage</code> selalu <code>denied</code></td><td>Izin itu tidak berlaku lagi di Android 13+.</td><td>Pakai <code>Permission.photos</code>/<code>videos</code>/<code>audio</code> atau picker sistem.</td></tr>
+      <tr><td>Error "A request for permissions is already running"</td><td><code>request()</code> dipanggil lagi sebelum yang pertama selesai.</td><td>Nonaktifkan tombol selama proses (<code>_sedangMemproses</code>).</td></tr>
+      <tr><td>Layar fallback tidak berubah setelah izin diaktifkan di Pengaturan</td><td>Status tidak dicek ulang saat kembali ke aplikasi.</td><td>Pakai <code>AppLifecycleListener(onResume: ...)</code>.</td></tr>
+      <tr><td>Perubahan manifest/<code>Info.plist</code>/<code>MainActivity.kt</code> tidak berpengaruh</td><td>Hanya melakukan hot reload/hot restart.</td><td>Stop aplikasi lalu jalankan ulang <code>flutter run</code>.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Kesalahan desain yang sering terjadi</h4>
+<ul>
+  <li><strong>Meminta semua izin di awal</strong> (splash/onboarding). Pengguna belum paham gunanya sehingga menolak, dan dialog sistem untuk izin itu cepat habis.</li>
+  <li><strong>Mendeklarasikan izin yang tidak dipakai</strong>, misalnya menyalin seluruh contoh manifest dari README plugin. Google Play dan App Store bisa menolak aplikasi, dan pengguna curiga melihat daftar izin yang panjang.</li>
+  <li><strong>Tidak ada jalur alternatif</strong>. Jika pengguna menolak kamera, sediakan pilihan lain (presensi manual, unggah dari galeri) agar aplikasi tetap berguna.</li>
+  <li><strong>Mengecek izin sekali saja</strong> saat aplikasi dibuka. Izin bisa dicabut kapan saja; cek setiap kali sebelum memakai hardware.</li>
+</ul>
+
+<h4>Checklist rilis aplikasi yang memakai hardware</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>✓</th><th>Item</th></tr></thead>
+    <tbody>
+      <tr><td>☐</td><td>Setiap izin runtime yang diminta di Dart ada di manifest <code>main</code>, dan tidak ada izin yang dideklarasikan tanpa dipakai.</td></tr>
+      <tr><td>☐</td><td>Setiap izin iOS punya kunci usage description di <code>Info.plist</code> dengan kalimat yang spesifik dan berbahasa yang dipahami pengguna.</td></tr>
+      <tr><td>☐</td><td>Proyek CocoaPods: macro Podfile hanya mengaktifkan izin yang dipakai.</td></tr>
+      <tr><td>☐</td><td>Fitur hardware yang tidak wajib diberi <code>&lt;uses-feature android:required="false"&gt;</code> agar aplikasi tetap bisa dipasang di perangkat tanpa hardware tersebut.</td></tr>
+      <tr><td>☐</td><td>Izin diminta saat fitur dipakai, didahului dialog penjelasan.</td></tr>
+      <tr><td>☐</td><td>Ada layar fallback untuk ditolak/ditolak permanen, dengan tombol "Buka Pengaturan" dan cek ulang saat resume.</td></tr>
+      <tr><td>☐</td><td>Diuji di Android 13+ (izin notifikasi) dan, jika memakai galeri, di Android 14+ (akses foto sebagian).</td></tr>
+      <tr><td>☐</td><td>Diuji di build release (<code>flutter run --release</code>), bukan hanya debug (ingat jebakan izin <code>INTERNET</code> di Modul 16).</td></tr>
+      <tr><td>☐</td><td>Kebijakan privasi aplikasi menyebut data apa yang diambil dari kamera, lokasi, dan mikrofon (diwajibkan Google Play dan App Store).</td></tr>
+      <tr><td>☐</td><td><code>flutter analyze</code> bersih dan <code>flutter test</code> lulus.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-tip"><h4>💡 Cek izin yang benar-benar masuk ke APK</h4><p>Plugin bisa menambahkan izin sendiri ke manifest akhir. Untuk melihat daftar izin di APK hasil build, buka APK di Android Studio (<strong>Build &rarr; Analyze APK...</strong>) lalu buka <code>AndroidManifest.xml</code> di dalamnya. Bandingkan dengan daftar izin yang memang kamu butuhkan.</p></div>

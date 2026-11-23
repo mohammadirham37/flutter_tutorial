@@ -1,0 +1,435 @@
+<p class="lead">Contoh-contoh sebelumnya menaruh langganan sensor di <code>State</code> sebuah widget. Untuk aplikasi yang lebih besar, kita pindahkan ke pola MVC GetX seperti di Modul 08: <strong>service</strong> membungkus <code>sensors_plus</code>, <strong>controller</strong> mengolah data dan menyimpan state <code>.obs</code>, dan <strong>view</strong> hanya menampilkan dengan <code>Obx</code>.</p>
+
+<h4>Pembagian tugas</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Lapisan</th><th>File</th><th>Tugas</th></tr></thead>
+    <tbody>
+      <tr><td>Model</td><td><code>models/vektor3.dart</code></td><td>Data tiga sumbu yang tidak bergantung pada package mana pun</td></tr>
+      <tr><td>Utils</td><td><code>utils/filter_sensor.dart</code></td><td>Logika murni: low-pass filter dan deteksi guncangan, mudah diuji</td></tr>
+      <tr><td>Service</td><td><code>services/sensor_service.dart</code></td><td>Satu-satunya file yang mengimpor <code>sensors_plus</code>. Mengubah event menjadi <code>Vektor3</code> dan error platform menjadi error yang ramah</td></tr>
+      <tr><td>Controller</td><td><code>controllers/gerak_controller.dart</code></td><td>Mendengarkan stream, menyaring, throttle, menyimpan state <code>.obs</code>, membatalkan langganan di <code>onClose</code>, menjeda saat aplikasi ke background</td></tr>
+      <tr><td>View</td><td><code>views/gerak_view.dart</code></td><td>Menampilkan state dengan <code>Obx</code> dan meneruskan tombol ke controller</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Contoh di bagian ini adalah aplikasi <strong>Monitor Gerak</strong>: menampilkan akselerometer yang sudah dihaluskan, giroskop, dan jumlah guncangan, dengan tombol jeda. Pasang package: <code>flutter pub add sensors_plus get</code>.</p>
+<pre><code class="language-text">lib/
+├── main.dart
+├── models/
+│   └── vektor3.dart
+├── utils/
+│   └── filter_sensor.dart
+├── services/
+│   └── sensor_service.dart
+├── controllers/
+│   └── gerak_controller.dart
+└── views/
+    └── gerak_view.dart
+</code></pre>
+
+<h4>Langkah 1: Model dan utilitas</h4>
+<p class="code-file-label">📄 <code>lib/models/vektor3.dart</code></p>
+<pre><code class="language-dart">// lib/models/vektor3.dart
+import 'dart:math' as math;
+
+/// Satu pembacaan sensor tiga sumbu (x, y, z) yang tidak bergantung
+/// pada package sensor tertentu.
+class Vektor3 {
+  const Vektor3(this.x, this.y, this.z);
+
+  static const nol = Vektor3(0, 0, 0);
+
+  final double x;
+  final double y;
+  final double z;
+
+  /// Besar vektor: akar(x² + y² + z²).
+  double get panjang =&gt; math.sqrt(x * x + y * y + z * z);
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/utils/filter_sensor.dart</code></p>
+<pre><code class="language-dart">// lib/utils/filter_sensor.dart
+import '../models/vektor3.dart';
+
+/// Low-pass filter untuk data tiga sumbu.
+class LowPassVektor {
+  LowPassVektor({this.alpha = 0.15});
+
+  final double alpha; // 0..1, makin kecil makin halus
+  Vektor3? _nilai;
+
+  Vektor3 saring(Vektor3 baru) {
+    final lama = _nilai;
+    final hasil = lama == null
+        ? baru
+        : Vektor3(
+            lama.x + alpha * (baru.x - lama.x),
+            lama.y + alpha * (baru.y - lama.y),
+            lama.z + alpha * (baru.z - lama.z),
+          );
+    _nilai = hasil;
+    return hasil;
+  }
+
+  void reset() =&gt; _nilai = null;
+}
+
+/// Mendeteksi guncangan dari besar percepatan (termasuk gravitasi).
+class DeteksiGuncangan {
+  DeteksiGuncangan({
+    this.ambangG = 2.5,
+    this.jeda = const Duration(milliseconds: 800),
+  });
+
+  final double ambangG;
+  final Duration jeda;
+  DateTime? _terakhir;
+
+  bool proses(Vektor3 aksel, [DateTime? waktu]) {
+    final sekarang = waktu ?? DateTime.now();
+    if (aksel.panjang / 9.81 &lt; ambangG) return false;
+    final terakhir = _terakhir;
+    if (terakhir != null &amp;&amp; sekarang.difference(terakhir) &lt; jeda) return false;
+    _terakhir = sekarang;
+    return true;
+  }
+}
+</code></pre>
+<p>Kedua file ini hanya Dart murni. <code>DeteksiGuncangan.proses</code> menerima parameter <code>waktu</code> opsional supaya unit test bisa memberikan waktu buatan, tanpa harus benar-benar menunggu 800 ms.</p>
+
+<h4>Langkah 2: Service</h4>
+<p class="code-file-label">📄 <code>lib/services/sensor_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/sensor_service.dart
+import 'dart:async';
+
+import 'package:flutter/services.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+
+import '../models/vektor3.dart';
+
+/// Error yang lebih ramah daripada PlatformException mentah.
+class SensorTidakTersedia implements Exception {
+  const SensorTidakTersedia(this.namaSensor, this.detail);
+
+  final String namaSensor;
+  final String detail;
+
+  @override
+  String toString() =&gt; '$namaSensor tidak tersedia ($detail)';
+}
+
+/// Satu-satunya kelas yang mengimpor sensors_plus.
+class SensorService {
+  // Konstanta periode supaya controller tidak perlu mengimpor sensors_plus.
+  static const periodeUi = SensorInterval.uiInterval; // ~15 Hz
+  static const periodeGame = SensorInterval.gameInterval; // 50 Hz
+
+  Stream&lt;Vektor3&gt; akselerometer({Duration periode = periodeUi}) =&gt; _bungkus(
+    'Akselerometer',
+    accelerometerEventStream(samplingPeriod: periode)
+        .map((e) =&gt; Vektor3(e.x, e.y, e.z)),
+  );
+
+  Stream&lt;Vektor3&gt; giroskop({Duration periode = periodeUi}) =&gt; _bungkus(
+    'Giroskop',
+    gyroscopeEventStream(samplingPeriod: periode)
+        .map((e) =&gt; Vektor3(e.x, e.y, e.z)),
+  );
+
+  Stream&lt;Vektor3&gt; magnetometer({Duration periode = periodeUi}) =&gt; _bungkus(
+    'Magnetometer',
+    magnetometerEventStream(samplingPeriod: periode)
+        .map((e) =&gt; Vektor3(e.x, e.y, e.z)),
+  );
+
+  /// Mengubah error platform menjadi SensorTidakTersedia.
+  Stream&lt;Vektor3&gt; _bungkus(String nama, Stream&lt;Vektor3&gt; sumber) {
+    return sumber.transform(
+      StreamTransformer&lt;Vektor3, Vektor3&gt;.fromHandlers(
+        handleError: (error, stackTrace, sink) {
+          // Kode dari plugin: NO_SENSOR (Android), UNAVAILABLE (iOS)
+          final detail = error is PlatformException
+              ? error.code
+              : error.toString();
+          sink.addError(SensorTidakTersedia(nama, detail), stackTrace);
+        },
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li>Service mengembalikan <code>Stream&lt;Vektor3&gt;</code>, bukan <code>AccelerometerEvent</code>. Controller dan view tidak perlu tahu package sensor apa yang dipakai. Jika suatu saat diganti, cukup file ini yang berubah.</li>
+  <li><code>StreamTransformer.fromHandlers(handleError: ...)</code> menangkap <code>PlatformException</code> dari plugin lalu meneruskan <code>SensorTidakTersedia</code> yang punya nama sensor dan pesan yang jelas.</li>
+  <li>Service tidak menyimpan langganan. Yang memanggil <code>listen</code> (controller) bertanggung jawab memanggil <code>cancel</code>.</li>
+</ul>
+
+<h4>Langkah 3: Controller</h4>
+<p class="code-file-label">📄 <code>lib/controllers/gerak_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/gerak_controller.dart
+import 'dart:async';
+
+// Hanya AppLifecycleListener yang diambil, bukan seluruh material.dart.
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
+import 'package:get/get.dart';
+
+import '../models/vektor3.dart';
+import '../services/sensor_service.dart';
+import '../utils/filter_sensor.dart';
+
+class GerakController extends GetxController {
+  GerakController(this._service);
+  final SensorService _service;
+
+  static const _jedaUi = Duration(milliseconds: 100);
+
+  // State reaktif privat + getter publik
+  final _aksel = Vektor3.nol.obs;
+  final _giro = Vektor3.nol.obs;
+  final _jumlahGuncangan = 0.obs;
+  final _error = RxnString();
+  final _aktif = false.obs;
+
+  Vektor3 get aksel =&gt; _aksel.value;
+  Vektor3 get giro =&gt; _giro.value;
+  int get jumlahGuncangan =&gt; _jumlahGuncangan.value;
+  String? get error =&gt; _error.value;
+  bool get aktif =&gt; _aktif.value;
+
+  final _filter = LowPassVektor(alpha: 0.2);
+  final _detektor = DeteksiGuncangan();
+  final _langganan = &lt;StreamSubscription&lt;Vektor3&gt;&gt;[];
+  late final AppLifecycleListener _siklusHidup;
+  bool _dijedaPengguna = false;
+  DateTime _terakhirUi = DateTime.fromMillisecondsSinceEpoch(0);
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Hentikan sensor saat aplikasi ke background, nyalakan lagi saat kembali.
+    _siklusHidup = AppLifecycleListener(
+      onPause: _berhenti,
+      onResume: () {
+        if (!_dijedaPengguna) _mulai();
+      },
+    );
+    _mulai();
+  }
+
+  void _mulai() {
+    if (_aktif.value) return;
+    _error.value = null;
+    _filter.reset();
+    _langganan
+      ..add(
+        _service
+            .akselerometer(periode: SensorService.periodeGame)
+            .listen(_olahAksel, onError: _tanganiError, cancelOnError: true),
+      )
+      ..add(
+        _service.giroskop().listen(
+          (v) =&gt; _giro.value = v,
+          onError: _tanganiError,
+          cancelOnError: true,
+        ),
+      );
+    _aktif.value = true;
+  }
+
+  void _berhenti() {
+    for (final l in _langganan) {
+      l.cancel();
+    }
+    _langganan.clear();
+    _aktif.value = false;
+  }
+
+  void _olahAksel(Vektor3 mentah) {
+    // Deteksi guncangan memakai data mentah (puncaknya jangan dihaluskan)
+    if (_detektor.proses(mentah)) _jumlahGuncangan.value++;
+
+    final halus = _filter.saring(mentah);
+    final sekarang = DateTime.now();
+    if (sekarang.difference(_terakhirUi) &lt; _jedaUi) return; // throttle UI
+    _terakhirUi = sekarang;
+    _aksel.value = halus;
+  }
+
+  void _tanganiError(Object e) {
+    _error.value = e.toString();
+  }
+
+  /// Dipanggil tombol Jeda/Lanjut di view.
+  void aturJeda() {
+    if (_aktif.value) {
+      _dijedaPengguna = true;
+      _berhenti();
+    } else {
+      _dijedaPengguna = false;
+      _mulai();
+    }
+  }
+
+  void resetGuncangan() =&gt; _jumlahGuncangan.value = 0;
+
+  @override
+  void onClose() {
+    _berhenti(); // batalkan semua StreamSubscription
+    _siklusHidup.dispose();
+    super.onClose();
+  }
+}
+</code></pre>
+<p>Penjelasan bagian penting:</p>
+<ul>
+  <li><strong>State privat + getter publik</strong>, sama seperti pola di Modul 08. <code>RxnString</code> adalah <code>.obs</code> yang boleh bernilai <code>null</code>.</li>
+  <li><strong><code>_langganan</code></strong> menyimpan semua <code>StreamSubscription</code>. <code>_berhenti()</code> membatalkan semuanya dan mengosongkan list, sehingga <code>_mulai()</code> bisa dipanggil lagi dengan aman.</li>
+  <li><strong><code>onClose()</code></strong> memanggil <code>_berhenti()</code>. GetX memanggil <code>onClose</code> saat controller dihapus dari memori (misalnya saat halaman yang memakai <code>Get.put</code> ditutup). Ini padanan <code>dispose()</code> pada <code>StatefulWidget</code>.</li>
+  <li><strong><code>AppLifecycleListener</code></strong> (bawaan Flutter) memanggil <code>onPause</code> saat aplikasi masuk background dan <code>onResume</code> saat kembali. Sensor dimatikan selama aplikasi tidak terlihat. Listener ini juga harus di-<code>dispose()</code> di <code>onClose</code>.</li>
+  <li><strong><code>_dijedaPengguna</code></strong> memastikan sensor tidak menyala sendiri saat aplikasi kembali ke foreground jika pengguna sebelumnya menekan Jeda.</li>
+  <li><strong>Deteksi guncangan memakai data mentah</strong>, sedangkan tampilan memakai data hasil filter dengan throttle 100 ms.</li>
+  <li>Controller hanya mengimpor <code>AppLifecycleListener</code> dari <code>flutter/widgets.dart</code> (lewat <code>show</code>), bukan <code>material.dart</code>. Controller tetap tidak menyentuh widget, <code>BuildContext</code>, SnackBar, atau dialog.</li>
+</ul>
+
+<h4>Langkah 4: View dan main.dart</h4>
+<p class="code-file-label">📄 <code>lib/views/gerak_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/gerak_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/gerak_controller.dart';
+import '../models/vektor3.dart';
+
+class GerakView extends GetView&lt;GerakController&gt; {
+  const GerakView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Monitor Gerak')),
+      floatingActionButton: Obx(
+        () =&gt; FloatingActionButton.extended(
+          onPressed: controller.aturJeda,
+          icon: Icon(controller.aktif ? Icons.pause : Icons.play_arrow),
+          label: Text(controller.aktif ? 'Jeda' : 'Lanjut'),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Obx(() {
+            final error = controller.error;
+            if (error == null) return const SizedBox.shrink();
+            return Card(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: ListTile(
+                leading: const Icon(Icons.sensors_off),
+                title: Text(error),
+              ),
+            );
+          }),
+          Obx(
+            () =&gt; _KartuVektor(
+              judul: 'Akselerometer (dihaluskan)',
+              satuan: 'm/s²',
+              nilai: controller.aksel,
+            ),
+          ),
+          Obx(
+            () =&gt; _KartuVektor(
+              judul: 'Giroskop',
+              satuan: 'rad/s',
+              nilai: controller.giro,
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.vibration),
+              title: const Text('Guncangan terdeteksi'),
+              subtitle: const Text('Guncang HP dengan cepat'),
+              trailing: Obx(
+                () =&gt; Text(
+                  '${controller.jumlahGuncangan}',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+              ),
+              onLongPress: controller.resetGuncangan,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KartuVektor extends StatelessWidget {
+  const _KartuVektor({
+    required this.judul,
+    required this.satuan,
+    required this.nilai,
+  });
+
+  final String judul;
+  final String satuan;
+  final Vektor3 nilai;
+
+  @override
+  Widget build(BuildContext context) {
+    String f(double v) =&gt; v.toStringAsFixed(2).padLeft(7);
+    return Card(
+      child: ListTile(
+        title: Text(judul),
+        subtitle: Text(
+          'x:${f(nilai.x)}  y:${f(nilai.y)}  z:${f(nilai.z)}  $satuan',
+          style: const TextStyle(fontFamily: 'monospace'),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'controllers/gerak_controller.dart';
+import 'services/sensor_service.dart';
+import 'views/gerak_view.dart';
+
+void main() {
+  // Wajib sebelum Get.put: onInit controller memakai AppLifecycleListener.
+  WidgetsFlutterBinding.ensureInitialized();
+  Get.put(GerakController(SensorService()));
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Monitor Gerak',
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const GerakView(),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li><code>GetView&lt;GerakController&gt;</code> menyediakan properti <code>controller</code> yang otomatis memanggil <code>Get.find</code>.</li>
+  <li>Setiap <code>Obx</code> dibuat sekecil mungkin. Saat hanya jumlah guncangan yang berubah, kartu akselerometer tidak ikut dibangun ulang.</li>
+  <li>Kartu error hanya muncul jika <code>controller.error</code> tidak <code>null</code>. Sensor yang tersedia tetap berjalan.</li>
+  <li><code>WidgetsFlutterBinding.ensureInitialized()</code> wajib dipanggil sebelum <code>Get.put</code>, karena <code>onInit</code> controller langsung berjalan dan <code>AppLifecycleListener</code> membutuhkan binding yang sudah siap.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4>
+<ul>
+  <li>Memanggil <code>listen</code> di dalam <code>build()</code> view. Setiap rebuild menambah satu langganan baru yang tidak pernah dibatalkan.</li>
+  <li>Lupa <code>cancel</code> di <code>onClose</code>, atau membuat controller dengan <code>permanent: true</code> sehingga <code>onClose</code> tidak pernah terpanggil sementara sensor terus berjalan.</li>
+  <li>Mengubah nilai <code>.obs</code> di setiap event 50 Hz. Hasilnya sama buruknya dengan <code>setState</code> berlebihan. Throttle tetap diperlukan.</li>
+  <li>Mengimpor <code>sensors_plus</code> di view atau controller. Biarkan hanya service yang tahu package tersebut.</li>
+</ul></div>

@@ -1,0 +1,147 @@
+<p class="lead">Magnetometer mengukur medan magnet di sekitar HP pada tiga sumbu dalam satuan mikrotesla (µT). Medan magnet bumi mengarah ke utara magnetik, sehingga data ini bisa diubah menjadi arah kompas (<em>heading</em> atau <em>azimuth</em>). Bagian ini menurunkan rumusnya, membahas deklinasi, dan menjelaskan kenapa kompas di HP sering "ngaco" karena gangguan <em>hard iron</em> dan <em>soft iron</em>.</p>
+
+<h4>Kenapa magnetometer saja tidak cukup</h4>
+<p>Medan magnet bumi tidak mendatar. Di belahan bumi utara ia menukik ke bawah, di belahan selatan ke atas, dan di sekitar khatulistiwa (termasuk sebagian besar Indonesia) hampir mendatar. Besarnya sekitar 25 sampai 65 µT tergantung lokasi.</p>
+<p>Jika HP mendatar sempurna, heading bisa dihitung langsung dari komponen x dan y magnetometer. Namun begitu HP sedikit miring, komponen vertikal medan magnet "bocor" ke sumbu x dan y, dan arah kompas bisa meleset puluhan derajat. Solusinya, seperti di modul lama dengan <code>SensorManager.getRotationMatrix()</code>: gabungkan magnetometer dengan <strong>akselerometer</strong>, yang memberi tahu arah "atas". Ini disebut <strong>kompensasi kemiringan</strong> (<em>tilt compensation</em>).</p>
+
+<h4>Rumus heading dengan kompensasi kemiringan</h4>
+<p>Kita memakai dua vektor dalam koordinat perangkat: <strong>a</strong> (akselerometer, menunjuk ke atas saat diam) dan <strong>m</strong> (magnetometer). Dengan dua <em>perkalian silang</em> (cross product), kita mendapatkan arah timur dan utara yang benar-benar mendatar, berapa pun kemiringan HP. Ini cara yang sama dengan yang dipakai <code>getRotationMatrix()</code> di Android.</p>
+<pre><code class="language-text">1. E = m × a          → vektor TIMUR (tegak lurus gravitasi dan medan magnet, jadi pasti mendatar)
+2. Normalisasi E dan a (bagi dengan panjangnya)
+3. N = a × E          → vektor UTARA mendatar
+4. heading = atan2(E.y, N.y)       → sudut sumbu y HP (sisi atas) dari utara, searah jarum jam
+5. Ubah ke derajat dan masukkan ke rentang 0..360
+</code></pre>
+<p>Kenapa langkah 4 benar? <code>E.y</code> dan <code>N.y</code> adalah seberapa banyak sisi atas HP mengarah ke timur dan ke utara. Jika sisi atas tepat ke utara, <code>E.y = 0</code> dan <code>N.y &gt; 0</code>, sehingga <code>atan2(0, +) = 0°</code>. Jika sisi atas ke timur, <code>E.y &gt; 0</code> dan <code>N.y = 0</code>, sehingga hasilnya 90°. Jika panjang E hampir nol (HP jatuh bebas, atau medan magnet sejajar gravitasi), arah tidak bisa ditentukan dan fungsi mengembalikan <code>null</code>.</p>
+<p>Perkalian silang <code>u × v</code> dihitung komponen per komponen:</p>
+<pre><code class="language-text">(u × v).x = u.y·v.z − u.z·v.y
+(u × v).y = u.z·v.x − u.x·v.z
+(u × v).z = u.x·v.y − u.y·v.x
+</code></pre>
+
+<h4>Deklinasi magnetik: utara magnetik bukan utara sejati</h4>
+<p>Kompas menunjuk <strong>utara magnetik</strong>, sedangkan peta dan arah kiblat memakai <strong>utara sejati</strong> (kutub utara geografis). Selisihnya disebut <strong>deklinasi magnetik</strong>, bernilai positif jika utara magnetik berada di timur utara sejati:</p>
+<pre><code class="language-text">heading sejati = heading magnetik + deklinasi
+</code></pre>
+<p>Di Indonesia deklinasi umumnya kecil (beberapa derajat atau kurang), tetapi berbeda di tiap daerah dan berubah perlahan setiap tahun. Cari nilai untuk lokasi dan tanggalmu di kalkulator deklinasi NOAA (<em>NOAA Magnetic Field Calculator</em>). Aplikasi yang sudah memakai GPS (Modul 19) bisa menghitung deklinasi otomatis dengan model geomagnetik dunia (WMM). Di modul ini nilainya kita masukkan manual.</p>
+
+<h4>Arah ke target: rumus bearing</h4>
+<p>Untuk fitur penunjuk kiblat atau gedung tujuan, kita perlu arah (<em>bearing</em>) dari titik asal ke titik tujuan di permukaan bumi, diukur dari utara sejati. Rumus <em>initial bearing</em> lingkaran besar:</p>
+<pre><code class="language-text">φ1, λ1 = lintang, bujur asal       φ2, λ2 = lintang, bujur tujuan     (dalam radian)
+Δλ = λ2 − λ1
+θ = atan2( sin Δλ · cos φ2 ,  cos φ1 · sin φ2 − sin φ1 · cos φ2 · cos Δλ )
+bearing = (θ dalam derajat + 360) mod 360
+</code></pre>
+<p>Contoh: dari Jakarta (-6,2; 106,8) ke Ka'bah (21,4225; 39,8262) hasilnya sekitar <strong>295°</strong>, yaitu arah barat laut agak ke barat. Perhatikan bahwa ini bukan sekadar "arah barat", karena bumi bulat.</p>
+<p>Setelah heading HP dan bearing tujuan diketahui, berapa derajat HP harus diputar adalah selisih keduanya. Selisih ini harus diambil yang <strong>terpendek</strong>: dari 350° ke 10° cukup putar 20° ke kanan, bukan 340° ke kiri.</p>
+
+<h4>Kode: lib/utils/kompas_math.dart</h4>
+<p>Semua rumus di atas kita kumpulkan dalam satu file Dart murni (tanpa Flutter), sehingga bisa diuji dengan unit test dan dipakai ulang di bagian 6 dan studi kasus.</p>
+<p class="code-file-label">📄 <code>lib/utils/kompas_math.dart</code></p>
+<pre><code class="language-dart">// lib/utils/kompas_math.dart
+import 'dart:math' as math;
+
+const double _keDerajat = 180 / math.pi;
+const double _keRadian = math.pi / 180;
+
+/// Heading magnetik (0..360°, searah jarum jam dari utara magnetik)
+/// ke arah SISI ATAS perangkat, dengan kompensasi kemiringan.
+///
+/// a = akselerometer (m/s²), m = magnetometer (µT), keduanya dalam
+/// sistem koordinat perangkat sensors_plus (x kanan, y atas, z keluar layar).
+/// Mengembalikan null jika data tidak bisa dipakai (jatuh bebas atau
+/// arah medan magnet sejajar gravitasi).
+double? headingDerajat(
+  double ax,
+  double ay,
+  double az,
+  double mx,
+  double my,
+  double mz,
+) {
+  // 1. Vektor TIMUR = m × a (tegak lurus medan magnet dan gravitasi)
+  var ex = my * az - mz * ay;
+  var ey = mz * ax - mx * az;
+  var ez = mx * ay - my * ax;
+  final panjangE = math.sqrt(ex * ex + ey * ey + ez * ez);
+  final panjangA = math.sqrt(ax * ax + ay * ay + az * az);
+  if (panjangE &lt; 0.1 || panjangA &lt; 0.1) return null;
+  ex /= panjangE;
+  ey /= panjangE;
+  ez /= panjangE;
+  final ux = ax / panjangA, uz = az / panjangA; // vektor ATAS (dinormalisasi)
+
+  // 2. Vektor UTARA = atas × timur. Hanya komponen y yang kita perlukan.
+  final ny = uz * ex - ux * ez;
+
+  // 3. Sudut sumbu y perangkat terhadap utara, diukur ke arah timur.
+  final derajat = math.atan2(ey, ny) * _keDerajat;
+  return normalisasi(derajat);
+}
+
+/// Memasukkan sudut ke rentang 0 &lt;= sudut &lt; 360.
+double normalisasi(double derajat) {
+  final hasil = derajat % 360; // operator % di Dart selalu &gt;= 0
+  return hasil == 360 ? 0 : hasil;
+}
+
+/// Heading sejati = heading magnetik + deklinasi (timur positif).
+double headingSejati(double headingMagnetik, double deklinasi) =&gt;
+    normalisasi(headingMagnetik + deklinasi);
+
+/// Selisih terpendek dari [dari] ke [ke], hasil -180..180.
+/// Positif berarti target ada di sebelah kanan (searah jarum jam).
+double selisihSudut(double dari, double ke) {
+  final s = normalisasi(ke - dari);
+  return s &gt; 180 ? s - 360 : s;
+}
+
+/// Arah awal (initial bearing) lingkaran besar dari titik 1 ke titik 2,
+/// 0..360° dari utara sejati. Lintang/bujur dalam derajat desimal.
+double bearingDerajat(double lat1, double lon1, double lat2, double lon2) {
+  final p1 = lat1 * _keRadian;
+  final p2 = lat2 * _keRadian;
+  final dl = (lon2 - lon1) * _keRadian;
+  final y = math.sin(dl) * math.cos(p2);
+  final x =
+      math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl);
+  return normalisasi(math.atan2(y, x) * _keDerajat);
+}
+
+const _namaArah = [
+  'Utara', 'Timur Laut', 'Timur', 'Tenggara', //
+  'Selatan', 'Barat Daya', 'Barat', 'Barat Laut',
+];
+
+/// Nama arah mata angin (8 arah, masing-masing selebar 45°).
+String arahMataAngin(double derajat) =&gt;
+    _namaArah[((normalisasi(derajat) + 22.5) ~/ 45) % 8];
+</code></pre>
+<ul>
+  <li><code>headingDerajat</code> hanya menghitung komponen yang dibutuhkan: <code>ey</code> dan <code>ny</code>. Komponen <code>ex</code> dan <code>ez</code> tetap dihitung untuk normalisasi dan perkalian silang kedua.</li>
+  <li>Ambang <code>0.1</code> pada <code>panjangE</code> dan <code>panjangA</code> mencegah pembagian dengan angka mendekati nol. Android memakai ambang yang sama di <code>getRotationMatrix()</code>.</li>
+  <li><code>normalisasi</code> memanfaatkan sifat operator <code>%</code> di Dart yang selalu menghasilkan nilai non-negatif, misalnya <code>-30 % 360 = 330</code>.</li>
+  <li><code>selisihSudut</code> menghasilkan -180 sampai 180. Tanda positif berarti tujuan ada di kanan.</li>
+  <li><code>arahMataAngin</code> membagi lingkaran menjadi 8 juring masing-masing 45°. Penambahan 22,5° membuat "Utara" mencakup 337,5° sampai 22,5°.</li>
+</ul>
+<div class="callout callout-info"><h4>ℹ️ Heading = arah sisi atas HP</h4><p>Rumus ini menghitung ke mana <strong>sisi atas HP</strong> mengarah dan paling akurat saat HP dipegang mendatar atau sedikit miring. Jika HP ditegakkan (seperti memotret), sumbu y mengarah ke langit dan heading menjadi tidak stabil. Aplikasi kamera AR menangani kasus ini dengan memakai sumbu -z (arah kamera belakang). Android menyediakan <code>remapCoordinateSystem()</code> untuk keperluan itu.</p></div>
+
+<h4>Gangguan hard iron dan soft iron</h4>
+<p>Magnetometer HP sangat sensitif. Ia mengukur <em>semua</em> medan magnet di sekitarnya, bukan hanya medan bumi. Gangguannya dibagi dua:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th></th><th>Hard iron</th><th>Soft iron</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Sumber</strong></td><td>Benda yang punya medan magnet sendiri: magnet pada casing atau tutup flip, speaker, holder mobil bermagnet, komponen HP yang termagnetisasi</td><td>Logam feromagnetik tanpa magnet sendiri yang membelokkan medan bumi: meja besi, tiang beton bertulang, laptop, kendaraan</td></tr>
+      <tr><td><strong>Efek pada data</strong></td><td>Menambah offset tetap: semua bacaan bergeser ke satu arah</td><td>Mengubah bentuk: kepekaan berbeda untuk setiap arah</td></tr>
+      <tr><td><strong>Bentuk data saat HP diputar ke segala arah</strong></td><td>Bola yang pusatnya bergeser dari (0, 0, 0)</td><td>Bola yang menjadi lonjong (elipsoid)</td></tr>
+      <tr><td><strong>Penanganan</strong></td><td>Kalibrasi: ukur offset lalu kurangkan. Lepas casing bermagnet.</td><td>Kalibrasi elipsoid yang lebih rumit, atau cukup menjauh dari logam</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Cara sederhana mendeteksi gangguan adalah memeriksa <strong>besar</strong> medan yang terbaca. Jika jauh di luar 25 sampai 65 µT (misalnya 150 µT di dekat speaker), hampir pasti ada gangguan dan arah kompas tidak bisa dipercaya. Aplikasi sebaiknya menampilkan peringatan.</p>
+
+<h4>Kalibrasi gerakan angka 8</h4>
+<p>Android dan iOS terus mengkalibrasi magnetometer di latar belakang. Agar kalibrasi berhasil, sistem perlu melihat data dari banyak arah. Karena itu pengguna diminta <strong>menggerakkan HP membentuk angka 8</strong> (atau simbol ∞) di udara beberapa kali sambil memutar pergelangan tangan. Gerakan ini membuat setiap sumbu sensor mengarah ke berbagai arah, sehingga sistem bisa memperkirakan pusat "bola" data lalu menghapus offset hard iron. Lakukan di tempat yang jauh dari logam besar.</p>
+
+<div class="callout callout-warning"><h4>⚠️ Perbedaan Android dan iOS</h4><p>Di Android, <code>magnetometerEventStream()</code> membaca <code>TYPE_MAGNETIC_FIELD</code>, yang sudah dikalibrasi sistem (offset hard iron sudah dikurangi). Di iOS, plugin membaca <code>CMMagnetometer</code> yang merupakan data <strong>mentah</strong> dan masih mengandung bias perangkat, sehingga kompas buatan sendiri di iPhone bisa meleset lebih jauh. Untuk aplikasi kompas produksi di iOS, pertimbangkan package yang memakai heading dari Core Location. Untuk belajar konsep, data mentah justru bagus karena gangguannya terlihat jelas.</p></div>

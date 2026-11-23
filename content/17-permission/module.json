@@ -1,0 +1,138 @@
+{
+  "id": "modul-permission",
+  "badge": "Permission",
+  "category": "Hardware",
+  "title": "Izin Akses (Permission) & Arsitektur Akses Hardware di Flutter",
+  "duration": "Pertemuan 17 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 08: Manajemen State Terstruktur dengan GetX & Pola MVC",
+    "Modul 16: Build Rilis APK/AAB & Panduan Capstone Project"
+  ],
+  "summary": "Memahami bagaimana kode Dart menjangkau hardware lewat plugin dan platform channel (MethodChannel dan EventChannel dengan Kotlin), konsep izin Android dan iOS beserta perubahan di Android 11 sampai 14, serta penggunaan permission_handler dengan alur izin yang ramah pengguna. Ditutup dengan studi kasus Pusat Izin Aplikasi Kampus berpola GetX MVC yang dipakai ulang di Modul 18 sampai 22.",
+  "learningOutcomes": [
+    "Menjelaskan arsitektur akses hardware di Flutter (Dart, plugin, platform channel, API sistem operasi) dan memilih antara plugin dan platform channel buatan sendiri.",
+    "Membuat MethodChannel dan EventChannel sederhana antara Dart dan Kotlin (MainActivity.kt) beserta penanganan PlatformException dan pembatalan langganan.",
+    "Membedakan izin normal, dangerous (runtime), dan khusus di Android, serta usage description di iOS, termasuk perubahan perilaku Android 11, 12, 13, dan 14.",
+    "Mengonfigurasi AndroidManifest.xml, compileSdk, Info.plist, dan macro Podfile untuk permission_handler sesuai dokumentasi resmi.",
+    "Menggunakan permission_handler untuk membaca status, meminta satu atau beberapa izin, memeriksa rationale, membaca status layanan lokasi, dan membuka Pengaturan aplikasi.",
+    "Merancang alur izin yang ramah pengguna: meminta saat dibutuhkan, dialog penjelasan sebelum dialog sistem, dan layar fallback saat izin ditolak permanen.",
+    "Memisahkan logika izin ke PermissionService dan PermissionController (state reaktif per izin) dengan pola GetX MVC serta mengujinya dengan service palsu.",
+    "Membangun halaman Pusat Izin Aplikasi Kampus dan menerapkan checklist rilis untuk aplikasi yang memakai hardware."
+  ],
+  "sections": [
+    { "id": "izin-akses-hardware", "title": "1. Bagaimana Flutter Mengakses Hardware?", "file": "01-akses-hardware.html" },
+    { "id": "izin-platform-channel", "title": "2. Platform Channel: MethodChannel & EventChannel", "file": "02-platform-channel.html" },
+    { "id": "izin-konsep", "title": "3. Konsep Izin di Android dan iOS", "file": "03-konsep-izin.html" },
+    { "id": "izin-konfigurasi", "title": "4. Instalasi permission_handler & Konfigurasi Platform", "file": "04-konfigurasi.html" },
+    { "id": "izin-api-permission-handler", "title": "5. API permission_handler: Status, Request, Rationale, Pengaturan", "file": "05-api-permission-handler.html" },
+    { "id": "izin-ux", "title": "6. UX Izin yang Baik: Penjelasan & Layar Fallback", "file": "06-ux-izin.html" },
+    { "id": "izin-getx-mvc", "title": "7. PermissionService + PermissionController (GetX MVC)", "file": "07-getx-mvc.html" },
+    { "id": "izin-studi-kasus", "title": "8. Studi Kasus: Pusat Izin Aplikasi Kampus", "file": "08-studi-kasus.html" },
+    { "id": "izin-kesalahan-umum", "title": "9. Kesalahan Umum & Checklist Rilis", "file": "09-kesalahan-umum.html" }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 17: Pusat Izin Aplikasi Kampus",
+    "objective": "Membangun aplikasi yang mengelola izin kamera, lokasi, notifikasi, dan mikrofon dengan alur yang ramah pengguna dan arsitektur GetX MVC, serta memahami jembatan Dart ke kode native lewat platform channel.",
+    "instructions": [
+      "<strong>Tugas 1 (Wajib, 15 poin):</strong> Jalankan contoh platform channel di section 2. Tambahkan method baru <code>ambilInfoPerangkat</code> di <code>MainActivity.kt</code> yang mengembalikan <code>Map</code> berisi <code>merek</code> (<code>Build.MANUFACTURER</code>), <code>model</code> (<code>Build.MODEL</code>), dan <code>versiSdk</code> (<code>Build.VERSION.SDK_INT</code>), lalu tampilkan di layar. Lampirkan screenshot saat level baterai diubah lewat Extended Controls.",
+      "<strong>Tugas 2 (Wajib, 25 poin):</strong> Bangun ulang studi kasus Pusat Izin (section 8) lengkap dengan konfigurasi <code>AndroidManifest.xml</code>, <code>compileSdk</code>, dan <code>Info.plist</code>. Jalankan ketujuh skenario uji di tabel section 8 dan lampirkan screenshot langkah 1, 4, dan 5.",
+      "<strong>Tugas 3 (Wajib, 20 poin):</strong> Tambahkan izin <code>galeri</code> (<code>Permission.photos</code>) ke <code>JenisIzin</code>, service, ikon kartu, manifest (<code>READ_MEDIA_IMAGES</code>), dan <code>Info.plist</code> (<code>NSPhotoLibraryUsageDescription</code>). Pastikan status <code>terbatas</code> (akses foto sebagian, Android 14+) tampil sebagai \"Diizinkan sebagian\".",
+      "<strong>Tugas 4 (Wajib, 15 poin):</strong> Tambahkan fitur \"Rekam Video Kegiatan\" di beranda yang membutuhkan kamera <em>dan</em> mikrofon. Gunakan method <code>mintaBeberapa</code> dari service lewat method baru di controller, namun tetap tampilkan satu dialog penjelasan gabungan sebelum dialog sistem.",
+      "<strong>Tugas 5 (Wajib, 15 poin):</strong> Lengkapi <code>test/permission_controller_test.dart</code> dengan minimal dua tes baru: (a) <code>jumlahDiizinkan</code> menghitung status <code>terbatas</code>, dan (b) <code>lokasiAktif</code> bernilai <code>false</code> jika service palsu melaporkan GPS mati. Semua tes harus lulus.",
+      "<strong>Tugas 6 (Wajib, 10 poin):</strong> Tulis tabel checklist rilis (section 9) untuk aplikasimu di <code>README.md</code> proyek, berisi pemetaan fitur &rarr; izin Android &rarr; kunci iOS, dan beri tanda pada item yang sudah dipenuhi.",
+      "<strong>Bonus (+10 poin):</strong> Simpan waktu terakhir setiap izin diminta (misalnya dengan Hive dari Modul 11 lewat service terpisah) dan jangan tampilkan dialog penjelasan yang sama lebih dari sekali dalam 24 jam."
+    ],
+    "expectedOutput": "Aplikasi kampus dengan beranda (Presensi, Catatan Suara, Pengingat Jadwal, Rekam Video) yang meminta izin hanya saat fitur dipakai, halaman Pusat Izin dengan lima kartu izin yang statusnya selalu sinkron (termasuk setelah kembali dari Pengaturan), dialog penjelasan dan layar/dialog ajakan ke Pengaturan, halaman info perangkat lewat MethodChannel, serta flutter analyze tanpa issue dan flutter test yang semua lulus.",
+    "rubric": "Tugas 1: MethodChannel baru berfungsi dan error ditangani (15%). Tugas 2: studi kasus lengkap dan skenario uji terdokumentasi (25%). Tugas 3: izin galeri terintegrasi di semua lapisan dan konfigurasi platform (20%). Tugas 4: permintaan izin gabungan dengan penjelasan yang tepat (15%). Tugas 5: kualitas dan kelulusan unit test (15%). Tugas 6: checklist rilis dan pemetaan izin (10%). Bonus penyimpanan riwayat permintaan (+10%). Pengurangan nilai jika izin diminta di main()/saat aplikasi dibuka, view memanggil permission_handler secara langsung, controller mengimpor material.dart, ada izin yang dideklarasikan tetapi tidak dipakai, atau flutter analyze masih menampilkan issue."
+  },
+  "quiz": [
+    {
+      "question": "Mengapa kode Dart di Flutter membutuhkan plugin atau platform channel untuk mengakses kamera?",
+      "options": [
+        "Karena Dart tidak mendukung operasi asinkron",
+        "Karena hardware hanya bisa diakses lewat API sistem operasi (Kotlin/Java di Android, Swift/Objective-C di iOS), sedangkan Dart berjalan di dalam engine Flutter",
+        "Karena engine Flutter memakai WebView untuk menampilkan kamera",
+        "Karena kamera hanya bisa diakses jika aplikasi terhubung ke internet"
+      ],
+      "correctIndex": 1,
+      "explanation": "Engine Flutter menggambar UI sendiri tetapi tidak membawa akses hardware. Plugin berisi kode native yang memanggil API sistem operasi, dan Dart berkomunikasi dengannya lewat platform channel."
+    },
+    {
+      "question": "Kamu ingin menerima status pengisian daya secara terus-menerus dari Android setiap kali berubah. Jenis channel yang paling tepat adalah...",
+      "options": [
+        "MethodChannel yang dipanggil setiap detik dengan Timer",
+        "EventChannel yang diterima sebagai Stream di Dart",
+        "BasicMessageChannel dengan JSON",
+        "SharedPreferences yang dibaca berulang"
+      ],
+      "correctIndex": 1,
+      "explanation": "EventChannel dirancang untuk aliran data dari native ke Dart. onListen dipanggil saat Dart mulai listen dan onCancel saat langganan dibatalkan, sehingga tidak perlu polling."
+    },
+    {
+      "question": "Izin INTERNET dan izin CAMERA sama-sama ditulis di AndroidManifest.xml. Apa perbedaannya?",
+      "options": [
+        "Tidak ada perbedaan, keduanya diberikan otomatis saat instal",
+        "INTERNET adalah izin normal yang diberikan saat instal, sedangkan CAMERA adalah izin dangerous yang tetap harus diminta saat aplikasi berjalan",
+        "CAMERA diberikan saat instal, INTERNET harus diminta saat runtime",
+        "Keduanya harus diaktifkan pengguna secara manual di Pengaturan"
+      ],
+      "correctIndex": 1,
+      "explanation": "Izin normal cukup dideklarasikan. Izin dangerous (runtime) harus dideklarasikan dan juga diminta lewat dialog sistem sejak Android 6.0."
+    },
+    {
+      "question": "Aplikasi berjalan lancar di Android, tetapi langsung tertutup di iPhone saat tombol \"Pindai QR\" ditekan. Penyebab paling mungkin adalah...",
+      "options": [
+        "permission_handler tidak mendukung iOS",
+        "Kunci NSCameraUsageDescription tidak ada di ios/Runner/Info.plist",
+        "Izin CAMERA belum ditulis di AndroidManifest.xml",
+        "compileSdk terlalu rendah"
+      ],
+      "correctIndex": 1,
+      "explanation": "iOS menghentikan aplikasi yang meminta akses fitur sensitif tanpa kalimat usage description yang sesuai di Info.plist."
+    },
+    {
+      "question": "Di Android dengan versi terbaru permission_handler, pengguna sudah dua kali menolak izin mikrofon. Nilai apa yang dikembalikan await Permission.microphone.status?",
+      "options": [
+        "permanentlyDenied",
+        "restricted",
+        "denied, karena Android tidak bisa membedakan ditolak permanen dari belum diminta; hanya hasil request() yang bisa bernilai permanentlyDenied",
+        "granted, karena Android otomatis memberikan izin setelah dua kali ditolak"
+      ],
+      "correctIndex": 2,
+      "explanation": "Android tidak menyediakan API untuk mengetahui status ditolak permanen. Plugin melaporkan denied lewat status, sedangkan request() langsung mengembalikan permanentlyDenied tanpa dialog."
+    },
+    {
+      "question": "Manakah urutan alur izin yang paling ramah pengguna saat mahasiswa menekan tombol \"Presensi\"?",
+      "options": [
+        "Meminta semua izin aplikasi di splash screen, lalu membuka fitur presensi",
+        "Langsung membuka Pengaturan aplikasi dengan openAppSettings()",
+        "Cek status; jika belum diizinkan tampilkan dialog penjelasan, lalu request(); jika hasilnya ditolak permanen tampilkan layar/dialog dengan tombol Buka Pengaturan",
+        "Memanggil request() berulang-ulang sampai pengguna menekan Izinkan"
+      ],
+      "correctIndex": 2,
+      "explanation": "Izin diminta saat fitur dipakai, didahului penjelasan agar pengguna paham manfaatnya, dan penolakan permanen ditangani dengan jalan ke Pengaturan."
+    },
+    {
+      "question": "Pada PermissionController, mengapa AppLifecycleListener(onResume: muatUlang) dipasang di onInit?",
+      "options": [
+        "Agar dialog izin muncul otomatis setiap aplikasi dibuka",
+        "Agar status izin dibaca ulang saat pengguna kembali dari aplikasi Pengaturan, sehingga tampilan ikut berubah tanpa perlu menekan tombol",
+        "Agar controller tidak pernah dihapus dari memori",
+        "Agar izin tetap diberikan walaupun dicabut dari Pengaturan"
+      ],
+      "correctIndex": 1,
+      "explanation": "Pengguna bisa mengubah izin di Pengaturan, dan aplikasi menerima event resume saat kembali. Listener ini juga harus di-dispose di onClose."
+    },
+    {
+      "question": "Izin lokasi sudah granted, tetapi aplikasi tetap tidak mendapat posisi. Pemeriksaan apa yang perlu ditambahkan?",
+      "options": [
+        "Meminta ulang Permission.locationAlways",
+        "Memeriksa Permission.locationWhenInUse.serviceStatus untuk memastikan layanan lokasi (GPS) di perangkat menyala",
+        "Menambahkan izin INTERNET",
+        "Memanggil openAppSettings() setiap kali membaca lokasi"
+      ],
+      "correctIndex": 1,
+      "explanation": "Izin dan layanan adalah dua hal berbeda. GPS bisa dimatikan dari panel cepat walaupun izin aplikasi masih granted."
+    }
+  ]
+}

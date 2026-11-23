@@ -1,0 +1,156 @@
+<p class="lead">Package <code>sensors_plus</code> dari Flutter Community menyediakan stream untuk akselerometer, user accelerometer, giroskop, magnetometer, dan barometer di Android dan iOS. Bagian ini membahas pemasangan, konfigurasi platform, nama API terbaru, dan cara menangani perangkat yang tidak punya sensor.</p>
+
+<h4>Pemasangan</h4>
+<pre><code class="language-bash">flutter pub add sensors_plus
+</code></pre>
+<p>Versi terbaru package ini membutuhkan Android Gradle Plugin, Gradle wrapper, dan Kotlin yang cukup baru (lihat bagian <em>Requirements</em> di README pub.dev). Proyek yang dibuat dengan <code>flutter create</code> versi stabil terkini sudah memenuhinya. Jika proyek lamamu gagal build setelah menambah package ini, perbarui versi plugin Gradle di <code>android/settings.gradle.kts</code> dan <code>android/gradle/wrapper/gradle-wrapper.properties</code>.</p>
+
+<h4>Konfigurasi Android</h4>
+<p>Akselerometer, giroskop, magnetometer, dan barometer <strong>tidak memerlukan izin apa pun</strong> di Android. Tidak ada dialog izin yang muncul, sehingga tidak ada alur "izin ditolak" seperti kamera atau lokasi (Modul 17). Ada dua tambahan opsional di <code>android/app/src/main/AndroidManifest.xml</code>:</p>
+<pre><code class="language-text">&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+    &lt;!-- Opsional: tetap bisa dipasang di HP tanpa kompas,
+         tapi Play Store tahu aplikasi ini memakai sensor tersebut --&gt;
+    &lt;uses-feature android:name="android.hardware.sensor.accelerometer"
+                  android:required="false" /&gt;
+    &lt;uses-feature android:name="android.hardware.sensor.compass"
+                  android:required="false" /&gt;
+
+    &lt;!-- Hanya jika butuh lebih dari 200 Hz (Android 12+). Jarang perlu. --&gt;
+    &lt;!-- &lt;uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" /&gt; --&gt;
+
+    &lt;application ...&gt;
+</code></pre>
+<p><code>android:required="true"</code> membuat aplikasi tersembunyi di Play Store untuk HP yang tidak punya sensor tersebut. Pakai <code>true</code> hanya jika aplikasimu sama sekali tidak berguna tanpa sensor itu.</p>
+
+<h4>Konfigurasi iOS</h4>
+<p>README <code>sensors_plus</code> mewajibkan kunci <code>NSMotionUsageDescription</code> di <code>ios/Runner/Info.plist</code>. Tanpa kunci ini aplikasi akan <strong>crash</strong> saat mengakses data gerak (paling terasa saat membaca barometer).</p>
+<pre><code class="language-text">&lt;key&gt;NSMotionUsageDescription&lt;/key&gt;
+&lt;string&gt;Aplikasi memakai sensor gerak untuk kompas dan waterpass.&lt;/string&gt;
+</code></pre>
+
+<h4>Daftar fungsi stream</h4>
+<p>Gunakan fungsi yang menerima <code>samplingPeriod</code>. Getter lama seperti <code>accelerometerEvents</code> masih ada tetapi sudah <strong>deprecated</strong>.</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Fungsi</th><th>Tipe event</th><th>Field</th><th>Sumber di Android / iOS</th></tr></thead>
+    <tbody>
+      <tr><td><code>accelerometerEventStream()</code></td><td><code>AccelerometerEvent</code></td><td><code>x, y, z</code> (m/s²), <code>timestamp</code></td><td><code>TYPE_ACCELEROMETER</code> / <code>CMAccelerometer</code></td></tr>
+      <tr><td><code>userAccelerometerEventStream()</code></td><td><code>UserAccelerometerEvent</code></td><td><code>x, y, z</code> (m/s², tanpa gravitasi)</td><td><code>TYPE_LINEAR_ACCELERATION</code> / <code>userAcceleration</code> dari device motion</td></tr>
+      <tr><td><code>gyroscopeEventStream()</code></td><td><code>GyroscopeEvent</code></td><td><code>x, y, z</code> (rad/s)</td><td><code>TYPE_GYROSCOPE</code> / <code>CMGyro</code></td></tr>
+      <tr><td><code>magnetometerEventStream()</code></td><td><code>MagnetometerEvent</code></td><td><code>x, y, z</code> (µT)</td><td><code>TYPE_MAGNETIC_FIELD</code> / <code>CMMagnetometer</code></td></tr>
+      <tr><td><code>barometerEventStream()</code></td><td><code>BarometerEvent</code></td><td><code>pressure</code> (hPa)</td><td><code>TYPE_PRESSURE</code> / <code>CMAltimeter</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Semua fungsi menerima parameter bernama <code>samplingPeriod</code> bertipe <code>Duration</code>, defaultnya <code>SensorInterval.normalInterval</code> (200 ms). Di iOS, periode barometer tidak bisa diatur. Di web, periode diabaikan, dan magnetometer serta barometer tidak tersedia.</p>
+
+<h4>Contoh kecil: membaca akselerometer</h4>
+<p>Pola dasarnya sama dengan stream di Modul 02: <code>listen</code> di <code>initState</code>, simpan <code>StreamSubscription</code>, lalu <code>cancel</code> di <code>dispose</code>.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const AkselerometerPage(),
+    );
+  }
+}
+
+class AkselerometerPage extends StatefulWidget {
+  const AkselerometerPage({super.key});
+
+  @override
+  State&lt;AkselerometerPage&gt; createState() =&gt; _AkselerometerPageState();
+}
+
+class _AkselerometerPageState extends State&lt;AkselerometerPage&gt; {
+  StreamSubscription&lt;AccelerometerEvent&gt;? _langganan;
+  AccelerometerEvent? _event;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _langganan =
+        accelerometerEventStream(samplingPeriod: SensorInterval.uiInterval)
+            .listen(
+              (event) {
+                setState(() =&gt; _event = event);
+              },
+              onError: (Object e) {
+                // Android mengirim PlatformException kode NO_SENSOR
+                // jika perangkat tidak punya sensor ini.
+                final pesan = e is PlatformException
+                    ? '${e.code}: ${e.details ?? e.message}'
+                    : e.toString();
+                setState(() =&gt; _error = pesan);
+              },
+              cancelOnError: true,
+            );
+  }
+
+  @override
+  void dispose() {
+    _langganan?.cancel(); // WAJIB: hentikan sensor saat halaman ditutup
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final event = _event;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Akselerometer')),
+      body: Center(
+        child: _error != null
+            ? Text(
+                'Sensor tidak tersedia\n$_error',
+                textAlign: TextAlign.center,
+              )
+            : event == null
+            ? const CircularProgressIndicator()
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('x: ${event.x.toStringAsFixed(2)} m/s²'),
+                  Text('y: ${event.y.toStringAsFixed(2)} m/s²'),
+                  Text('z: ${event.z.toStringAsFixed(2)} m/s²'),
+                ],
+              ),
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li><code>accelerometerEventStream(samplingPeriod: SensorInterval.uiInterval)</code> meminta data sekitar 15 kali per detik.</li>
+  <li><code>onError</code> dipanggil jika sensor tidak ada. Di Android, plugin mengirim <code>PlatformException</code> dengan <code>code</code> <code>NO_SENSOR</code> dan <code>details</code> berisi pesan seperti "It seems that your device has no Accelerometer sensor". Di iOS, kode error-nya <code>UNAVAILABLE</code>.</li>
+  <li><code>cancelOnError: true</code> menghentikan langganan setelah error pertama. Sensor yang tidak ada tidak akan tiba-tiba muncul, jadi tidak ada gunanya terus mendengarkan.</li>
+  <li><code>_langganan?.cancel()</code> di <code>dispose</code> adalah baris paling penting. Tanpa ini, sensor tetap aktif setelah halaman ditutup, baterai terkuras, dan <code>setState</code> dipanggil pada widget yang sudah dibuang.</li>
+</ul>
+<p>Coba letakkan HP mendatar di meja: <code>z</code> mendekati 9,8. Tegakkan HP: kini <code>y</code> yang mendekati 9,8. Miringkan ke kanan: <code>x</code> menjadi negatif karena sisi kanan turun.</p>
+
+<h4>Bagaimana dengan "izin" sensor?</h4>
+<p>Untuk empat sensor di atas, "alur izin" diganti dengan <strong>alur ketersediaan</strong>:</p>
+<ol>
+  <li><strong>Tersedia</strong>: data mengalir ke <code>onData</code>, tampilkan seperti biasa.</li>
+  <li><strong>Tidak tersedia</strong> (HP murah tanpa giroskop/magnetometer, simulator iOS, browser): <code>onError</code> terpanggil. Tampilkan pesan yang jelas dan nonaktifkan fitur yang bergantung pada sensor itu, tetapi biarkan fitur lain tetap berjalan.</li>
+  <li><strong>Data belum datang</strong>: tampilkan indikator memuat. Jangan menganggap nilai awal 0 sebagai data asli.</li>
+</ol>
+<div class="callout callout-info"><h4>ℹ️ Sensor yang butuh izin</h4><p>Penghitung langkah (step counter) dan pengenalan aktivitas memerlukan izin <code>ACTIVITY_RECOGNITION</code> di Android dan izin Motion &amp; Fitness di iOS. Fitur tersebut tidak disediakan <code>sensors_plus</code>, dan alur izinnya mengikuti pola <code>permission_handler</code> di Modul 17.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Satu sensor, satu stream bersama</h4><p>Di Android dan iOS, <code>sensors_plus</code> membuat <strong>satu</strong> broadcast stream per sensor dan menyimpannya. Memanggil <code>accelerometerEventStream()</code> dua kali dengan <code>samplingPeriod</code> berbeda akan mengubah periode untuk semua pendengar. Tentukan satu periode per sensor di satu tempat (nanti di <code>SensorService</code>, bagian 7).</p></div>

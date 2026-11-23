@@ -1,0 +1,118 @@
+<p class="lead">Aplikasi sensor sulit diuji karena datanya berasal dari dunia fisik. Bagian ini membahas tiga lapis pengujian: unit test untuk rumus, emulator Android dengan sensor virtual, dan HP fisik. Setelah itu ada daftar praktik terbaik dan kesalahan umum.</p>
+
+<h4>1. Unit test untuk rumus</h4>
+<p>Karena semua rumus sudah dipisah ke file Dart murni, kita bisa mengujinya tanpa sensor sama sekali. Caranya: berikan vektor buatan yang hasilnya bisa kita hitung sendiri. Ganti <code>kompas_kampus</code> dengan nama proyekmu (lihat <code>name:</code> di <code>pubspec.yaml</code>).</p>
+<p class="code-file-label">📄 <code>test/rumus_sensor_test.dart</code></p>
+<pre><code class="language-dart">// test/rumus_sensor_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kompas_kampus/models/vektor3.dart';
+import 'package:kompas_kampus/utils/filter_sensor.dart';
+import 'package:kompas_kampus/utils/kompas_math.dart';
+import 'package:kompas_kampus/utils/waterpass_math.dart';
+
+void main() {
+  group('headingDerajat (HP mendatar, layar ke atas)', () {
+    // Medan magnet contoh: 30 µT mendatar ke utara, 20 µT ke bawah.
+    test('sisi atas HP menghadap utara = 0°', () {
+      expect(headingDerajat(0, 0, 9.81, 0, 30, -20), closeTo(0, 0.001));
+    });
+    test('sisi atas HP menghadap timur = 90°', () {
+      // Utara sekarang ada di sebelah kiri HP (sumbu -x)
+      expect(headingDerajat(0, 0, 9.81, -30, 0, -20), closeTo(90, 0.001));
+    });
+    test('sisi atas HP menghadap barat = 270°', () {
+      expect(headingDerajat(0, 0, 9.81, 30, 0, -20), closeTo(270, 0.001));
+    });
+    test('data tidak valid menghasilkan null', () {
+      expect(headingDerajat(0, 0, 0, 0, 30, -20), isNull); // jatuh bebas
+    });
+  });
+
+  test('bearing kiblat dari Jakarta sekitar 295°', () {
+    expect(bearingDerajat(-6.2, 106.8, 21.4225, 39.8262), closeTo(295, 1));
+  });
+
+  test('selisihSudut memilih arah terpendek', () {
+    expect(selisihSudut(350, 10), closeTo(20, 1e-9));
+    expect(selisihSudut(10, 350), closeTo(-20, 1e-9));
+  });
+
+  test('kemiringan: sisi kanan terangkat 30° → sudutX = 30', () {
+    // gravitasi terbagi ke sumbu x (sin 30°) dan z (cos 30°)
+    final k = hitungKemiringan(const Vektor3(4.905, 0, 8.4957));
+    expect(k.sudutX, closeTo(30, 0.01));
+    expect(k.sudutY, closeTo(0, 0.01));
+    expect(k.datar(), isFalse);
+  });
+
+  test('guncangan hanya dihitung sekali dalam jeda', () {
+    final d = DeteksiGuncangan();
+    final t0 = DateTime(2025);
+    const keras = Vektor3(30, 0, 0); // sekitar 3 g
+    expect(d.proses(keras, t0), isTrue);
+    expect(d.proses(keras, t0.add(const Duration(milliseconds: 100))), isFalse);
+    expect(d.proses(keras, t0.add(const Duration(seconds: 1))), isTrue);
+    expect(d.proses(const Vektor3(0, 0, 9.81), t0), isFalse); // diam = 1 g
+  });
+}
+</code></pre>
+<pre><code class="language-bash">flutter test test/rumus_sensor_test.dart
+</code></pre>
+<ul>
+  <li>HP mendatar dengan sisi atas ke utara: akselerometer <code>(0, 0, 9.81)</code>, medan magnet mengarah ke <code>+y</code> (dan sedikit ke bawah). Heading harus 0°.</li>
+  <li>HP diputar menghadap timur: utara sekarang di kiri HP, sehingga medan magnet mengarah ke <code>-x</code>. Heading harus 90°.</li>
+  <li>Sisi kanan diangkat 30°: gravitasi terbagi menjadi <code>9,81 × sin 30° = 4,905</code> di x dan <code>9,81 × cos 30° ≈ 8,4957</code> di z.</li>
+  <li>Test seperti ini menangkap kesalahan tanda (misalnya <code>atan2(ny, ey)</code> yang tertukar) sebelum kamu sempat memutar-mutar HP.</li>
+</ul>
+
+<h4>2. Emulator Android: Virtual sensors</h4>
+<p>Android Emulator menyediakan sensor virtual. Buka <strong>Extended Controls</strong> (tombol <kbd>⋯</kbd> di panel samping emulator), lalu pilih <strong>Virtual sensors</strong>:</p>
+<ul>
+  <li><strong>Tab Device Pose</strong>: putar model HP 3D dengan menyeret, atau atur slider rotasi (<em>Yaw</em>, <em>Pitch</em>, <em>Roll</em> pada versi emulator terbaru). Akselerometer, giroskop, dan magnetometer ikut berubah sesuai pose. Cocok untuk menguji waterpass (ubah Pitch/Roll) dan kompas (ubah Yaw: piringan harus berputar berlawanan arah). Mode <em>Move</em> menggeser posisi HP untuk menghasilkan percepatan.</li>
+  <li><strong>Tab Additional sensors</strong>: mengatur nilai sensor lingkungan secara langsung, termasuk medan magnet (µT) dan tekanan udara (hPa). Coba isi medan magnet dengan nilai besar (misalnya 150 µT) untuk memunculkan peringatan kalibrasi.</li>
+</ul>
+<p>Batasan emulator:</p>
+<ul>
+  <li>Guncangan sulit ditiru. Deteksi guncangan paling mudah diuji lewat unit test dan HP fisik.</li>
+  <li>Data emulator terlalu bersih (tanpa derau), sehingga efek low-pass filter dan gangguan hard/soft iron tidak terlihat.</li>
+  <li><strong>Simulator iOS tidak punya sensor gerak sama sekali</strong>. Stream akan mengirim error, dan kamu bisa memanfaatkannya untuk menguji tampilan "sensor tidak tersedia". Pengujian iOS yang sebenarnya harus di iPhone fisik.</li>
+</ul>
+
+<h4>3. HP fisik</h4>
+<p>Pengujian akhir selalu di HP fisik. Untuk kompas, bandingkan hasilnya dengan aplikasi kompas bawaan atau panah arah di Google Maps. Untuk waterpass, letakkan HP di permukaan yang diketahui datar, misalnya lantai keramik. Jika hasilnya bukan 0°, wajar. Akselerometer HP punya offset kecil dari pabrik, dan beberapa aplikasi waterpass menyediakan tombol "kalibrasi nol" yang menyimpan offset tersebut lalu menguranginya dari hasil berikutnya.</p>
+
+<h4>Praktik terbaik</h4>
+<ol>
+  <li><strong>Selalu batalkan langganan</strong> di <code>dispose()</code> atau <code>onClose()</code>. Dokumentasi Android mengingatkan bahwa sistem tidak mematikan sensor otomatis saat layar padam.</li>
+  <li><strong>Matikan sensor saat aplikasi di background</strong> dengan <code>AppLifecycleListener</code> (atau <code>WidgetsBindingObserver</code>), lalu nyalakan lagi saat kembali. Sejak Android 9, aplikasi di background memang tidak menerima event sensor kontinu, jadi tidak ada gunanya membiarkan langganan tetap hidup.</li>
+  <li><strong>Pilih sampling period terbesar yang masih cukup.</strong> <code>uiInterval</code> untuk tampilan, <code>gameInterval</code> hanya jika perlu respons cepat. Hindari <code>fastestInterval</code>.</li>
+  <li><strong>Pisahkan laju data dari laju gambar.</strong> Filter memproses setiap sampel, tetapi UI cukup diperbarui 10 sampai 20 kali per detik.</li>
+  <li><strong>Selalu pasang <code>onError</code></strong> dan rancang UI untuk sensor yang tidak ada. Matikan fitur yang bergantung padanya, jangan seluruh aplikasi.</li>
+  <li><strong>Kunci orientasi layar</strong> untuk aplikasi yang memetakan sensor ke tampilan (kompas, waterpass, game kemiringan).</li>
+  <li><strong>Pisahkan rumus ke file Dart murni</strong> supaya bisa diuji tanpa perangkat.</li>
+  <li><strong>Beri tahu pengguna</strong> jika data meragukan: medan magnet tidak wajar, HP terlalu miring, atau data belum datang.</li>
+</ol>
+
+<h4>Kesalahan umum dan solusinya</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Gejala</th><th>Penyebab</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr><td>Baterai cepat habis, HP hangat</td><td>Langganan tidak pernah di-<code>cancel</code>, atau sensor tetap berjalan di background</td><td><code>cancel()</code> di <code>dispose</code>/<code>onClose</code>, jeda dengan <code>AppLifecycleListener</code></td></tr>
+      <tr><td><code>setState() called after dispose()</code></td><td>Event datang setelah halaman ditutup</td><td>Batalkan langganan di <code>dispose</code> dan cek <code>mounted</code> sebelum <code>setState</code></td></tr>
+      <tr><td>Aplikasi crash di iPhone saat membaca sensor</td><td>Tidak ada <code>NSMotionUsageDescription</code> di <code>Info.plist</code></td><td>Tambahkan kunci tersebut</td></tr>
+      <tr><td>Layar kosong selamanya di HP tertentu</td><td>Sensor tidak ada dan <code>onError</code> tidak dipasang</td><td>Tangani <code>NO_SENSOR</code>/<code>UNAVAILABLE</code> dan tampilkan pesan</td></tr>
+      <tr><td>Kompas meleset 90° saat HP lanskap</td><td>Sumbu sensor tidak ikut berputar dengan layar</td><td>Kunci potret dengan <code>SystemChrome.setPreferredOrientations</code></td></tr>
+      <tr><td>Kompas berubah puluhan derajat saat HP sedikit miring</td><td>Heading dihitung dari <code>atan2(my, mx)</code> saja tanpa akselerometer</td><td>Pakai kompensasi kemiringan (bagian 5)</td></tr>
+      <tr><td>Piringan berputar ke arah yang salah</td><td>Memakai <code>+heading</code> atau lupa konversi ke radian</td><td><code>Transform.rotate(angle: -heading * pi / 180)</code></td></tr>
+      <tr><td>Jarum kompas berputar satu lingkaran penuh di sekitar utara</td><td>Menghaluskan atau menganimasikan sudut yang melompat dari 359° ke 0°</td><td>Haluskan vektor, atau pakai <code>selisihSudut</code> untuk sudut kumulatif</td></tr>
+      <tr><td>Arah kompas berbeda jauh dari Google Maps</td><td>Gangguan hard/soft iron, casing bermagnet, atau deklinasi belum ditambahkan</td><td>Jauhkan dari logam, kalibrasi angka 8, isi deklinasi</td></tr>
+      <tr><td>Guncangan terhitung 3 sampai 5 kali</td><td>Tidak ada jeda antar-deteksi</td><td>Abaikan puncak berikutnya selama sekitar 800 ms</td></tr>
+      <tr><td>Guncangan tidak terdeteksi</td><td>Memakai data yang sudah di-low-pass atau sampling terlalu jarang</td><td>Deteksi dari data mentah dengan <code>gameInterval</code></td></tr>
+      <tr><td>UI tersendat</td><td><code>setState</code> atau <code>.obs</code> diubah di setiap event</td><td>Throttle 50 sampai 100 ms</td></tr>
+      <tr><td>Kode memakai <code>accelerometerEvents</code> dan muncul peringatan deprecated</td><td>API lama</td><td>Ganti dengan <code>accelerometerEventStream(samplingPeriod: ...)</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout callout-tip"><h4>💡 Langkah berikutnya</h4><p>Gabungkan modul ini dengan Modul 19 (lokasi): titik asal kompas diambil dari GPS, sehingga arah kiblat dan arah ke gedung kampus selalu akurat di mana pun pengguna berada. Untuk orientasi yang lebih stabil, pelajari <em>sensor fusion</em> (menggabungkan giroskop dengan akselerometer dan magnetometer), yang dipakai aplikasi AR dan drone.</p></div>

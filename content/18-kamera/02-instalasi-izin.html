@@ -1,0 +1,127 @@
+<p class="lead">Sebelum menulis kode, pasang package dan siapkan konfigurasi Android serta iOS. Bagian ini juga menjelaskan <em>siapa</em> yang meminta izin kamera pada setiap package, karena di situlah mahasiswa paling sering bingung.</p>
+
+<h4>Memasang package</h4>
+<pre><code class="language-bash"># Kamera sistem + galeri
+flutter pub add image_picker
+
+# Kamera di dalam aplikasi
+flutter pub add camera
+
+# Menyimpan file permanen (sudah dipakai di Modul 10)
+flutter pub add path_provider path
+
+# Alur izin lengkap (Modul 17) dan GetX (Modul 08)
+flutter pub add permission_handler get
+</code></pre>
+<p>Setelah menambah package yang berisi kode native, hentikan aplikasi lalu jalankan ulang dengan <code>flutter run</code>. Hot reload maupun hot restart tidak memasang kode native baru, sehingga muncul error <code>MissingPluginException</code>.</p>
+
+<h4>Android</h4>
+<p>Kedua package mendukung Android <strong>API 24 ke atas</strong>. Proyek Flutter terbaru sudah memakai <code>minSdk = flutter.minSdkVersion</code> yang bernilai 24, jadi biasanya tidak ada yang perlu diubah. Jika proyekmu lama dan memakai angka di bawah 24, naikkan di <code>android/app/build.gradle.kts</code>:</p>
+<p class="code-file-label">📄 <code>android/app/build.gradle.kts</code></p>
+<pre><code class="language-kotlin">android {
+    defaultConfig {
+        // minimal 24 untuk image_picker dan camera
+        minSdk = flutter.minSdkVersion
+    }
+}
+</code></pre>
+<p><code>image_picker</code> tidak butuh konfigurasi tambahan di Android. Package <code>camera</code> (lewat <code>camera_android_camerax</code>) sudah mendaftarkan sendiri izin <code>CAMERA</code>, <code>RECORD_AUDIO</code>, dan <code>WRITE_EXTERNAL_STORAGE</code> (khusus Android 9 ke bawah) ke manifest hasil gabungan. Meski begitu, karena kita juga memakai <code>permission_handler</code>, tulis izin kamera secara eksplisit di manifest agar mudah dibaca dan tidak bergantung pada package lain:</p>
+<p class="code-file-label">📄 <code>android/app/src/main/AndroidManifest.xml</code></p>
+<pre><code class="language-text">&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+    &lt;uses-permission android:name="android.permission.CAMERA" /&gt;
+    &lt;!-- Kamera tidak wajib: aplikasi tetap bisa dipasang di perangkat tanpa kamera --&gt;
+    &lt;uses-feature android:name="android.hardware.camera" android:required="false" /&gt;
+
+    &lt;application ...&gt;
+        ...
+    &lt;/application&gt;
+&lt;/manifest&gt;
+</code></pre>
+<div class="callout callout-info"><h4>ℹ️ Galeri tidak butuh izin penyimpanan</h4><p>Di Android 13 ke atas, <code>image_picker</code> memakai <strong>Android Photo Picker</strong>: pengguna memilih foto lewat jendela sistem, dan aplikasi hanya menerima foto yang dipilih. Karena itu kita <strong>tidak</strong> perlu menambah <code>READ_EXTERNAL_STORAGE</code> atau <code>READ_MEDIA_IMAGES</code> hanya untuk memilih foto. Menambahkannya tanpa alasan justru bisa ditolak saat review Play Store.</p></div>
+
+<h4>iOS</h4>
+<p>iOS mewajibkan kalimat penjelasan untuk setiap izin. Tanpa kunci ini aplikasi akan langsung <em>crash</em> saat kamera atau galeri dibuka.</p>
+<p class="code-file-label">📄 <code>ios/Runner/Info.plist</code></p>
+<pre><code class="language-text">&lt;key&gt;NSCameraUsageDescription&lt;/key&gt;
+&lt;string&gt;Kamera dipakai untuk memotret foto profil kartu mahasiswa.&lt;/string&gt;
+&lt;key&gt;NSPhotoLibraryUsageDescription&lt;/key&gt;
+&lt;string&gt;Galeri dipakai untuk memilih foto profil.&lt;/string&gt;
+&lt;key&gt;NSMicrophoneUsageDescription&lt;/key&gt;
+&lt;string&gt;Mikrofon dipakai saat merekam video.&lt;/string&gt;
+</code></pre>
+<p>Dokumentasi <code>camera</code> meminta kunci kamera dan mikrofon. <code>image_picker</code> meminta kunci galeri dan kamera (mikrofon hanya jika merekam video). <code>permission_handler</code> di iOS juga perlu mengaktifkan izin kamera di <code>Podfile</code>, seperti yang dibahas di Modul 17:</p>
+<p class="code-file-label">📄 <code>ios/Podfile</code></p>
+<pre><code class="language-text">post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |config|
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+        '$(inherited)',
+        'PERMISSION_CAMERA=1',
+      ]
+    end
+  end
+end
+</code></pre>
+
+<h4>Siapa yang meminta izin kamera?</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Situasi</th><th>Yang terjadi</th><th>Jika ditolak</th></tr></thead>
+    <tbody>
+      <tr><td><code>image_picker</code> + galeri</td><td>Android 13+ dan iOS 14+ memakai pemilih foto sistem, tanpa dialog izin</td><td>Tidak ada; jika batal hasilnya <code>null</code></td></tr>
+      <tr><td><code>image_picker</code> + kamera</td><td>Android: jika manifest mendeklarasikan <code>CAMERA</code>, plugin meminta izin itu dulu. iOS: sistem meminta izin kamera</td><td><code>PlatformException</code> dengan <code>code == 'camera_access_denied'</code></td></tr>
+      <tr><td><code>camera</code></td><td>Dialog izin muncul saat <code>controller.initialize()</code></td><td><code>CameraException</code> dengan kode <code>CameraAccessDenied</code>, <code>CameraAccessDeniedWithoutPrompt</code> (iOS, sudah pernah ditolak), atau <code>CameraAccessRestricted</code> (iOS)</td></tr>
+      <tr><td><code>permission_handler</code></td><td>Kita yang meminta izin, sebelum membuka kamera</td><td><code>PermissionStatus</code>: <code>denied</code> atau <code>permanentlyDenied</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Error dari plugin kamera tidak membedakan "ditolak sekali" dan "ditolak permanen" di Android. Karena itu, untuk alur yang rapi (minta, jelaskan jika ditolak, arahkan ke Pengaturan jika ditolak permanen) kita meminta izin lebih dulu dengan <code>permission_handler</code>, persis pola Modul 17. Setelah izin diberikan, <code>image_picker</code> dan <code>camera</code> tidak akan menampilkan dialog lagi.</p>
+<pre><code class="language-dart">import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+/// Mengembalikan true jika kamera boleh dipakai.
+Future&lt;bool&gt; pastikanIzinKamera(BuildContext context) async {
+  final status = await Permission.camera.request();
+  if (status.isGranted) return true;
+  if (!context.mounted) return false;
+
+  if (status.isPermanentlyDenied || status.isRestricted) {
+    // Dialog izin tidak akan muncul lagi: arahkan ke Pengaturan
+    final buka = await showDialog&lt;bool&gt;(
+      context: context,
+      builder: (context) =&gt; AlertDialog(
+        title: const Text('Izin kamera ditolak'),
+        content: const Text('Aktifkan izin Kamera di Pengaturan aplikasi.'),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; Navigator.pop(context, false),
+            child: const Text('Nanti'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; Navigator.pop(context, true),
+            child: const Text('Buka Pengaturan'),
+          ),
+        ],
+      ),
+    );
+    if (buka == true) await openAppSettings();
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Izin kamera diperlukan untuk memotret')),
+    );
+  }
+  return false;
+}
+</code></pre>
+<ul>
+  <li><code>Permission.camera.request()</code> menampilkan dialog sistem jika izin belum pernah diputuskan, dan langsung mengembalikan status jika sudah.</li>
+  <li><code>context.mounted</code> dicek setelah <code>await</code> karena pengguna bisa saja meninggalkan halaman saat dialog izin terbuka.</li>
+  <li><code>isPermanentlyDenied</code> berarti sistem tidak akan menampilkan dialog lagi, sehingga satu-satunya jalan adalah <code>openAppSettings()</code>.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li>Lupa kunci <code>NSCameraUsageDescription</code> di iOS: aplikasi tertutup tanpa pesan error yang jelas begitu kamera dibuka.</li>
+<li>Menambah izin penyimpanan (<code>READ_EXTERNAL_STORAGE</code>) "untuk jaga-jaga". Tidak perlu untuk <code>image_picker</code> modern.</li>
+<li>Menjalankan hot reload setelah <code>flutter pub add camera</code>, lalu bingung karena muncul <code>MissingPluginException</code>. Stop dan jalankan ulang aplikasi.</li>
+</ul></div>

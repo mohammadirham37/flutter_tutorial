@@ -1,0 +1,146 @@
+<p class="lead">Untuk BLE kita memakai <code>flutter_blue_plus</code>, package BLE paling lengkap untuk Flutter (Android, iOS, macOS, Linux, web, Windows). Sebelum bisa memindai, ada empat hal yang harus beres: lisensi package, konfigurasi platform, izin runtime, dan status adapter Bluetooth.</p>
+
+<h4>1. Perhatikan lisensinya</h4>
+<p>Berbeda dengan sebagian besar package yang berlisensi BSD/MIT, <code>flutter_blue_plus</code> versi 2 ke atas memakai <strong>FlutterBluePlus License</strong>:</p>
+<ul>
+  <li><strong>Gratis</strong> untuk penggunaan pribadi, organisasi nirlaba, dan <strong>institusi pendidikan</strong>. Tugas kuliah dan praktikum termasuk di sini.</li>
+  <li><strong>Berbayar</strong> (Commercial License) untuk penggunaan oleh perusahaan atau individu yang mencari keuntungan, misalnya aplikasi pesanan klien atau produk startup.</li>
+</ul>
+<p>Lisensi ini terlihat langsung di kode: method <code>connect()</code> wajib diberi parameter <code>license</code>. Untuk materi kuliah kita isi <code>License.nonprofit</code>. Changelog package juga menyebutkan bahwa proses build Android mengirim "license ping" berisi nama package dan nama aplikasi. Baca file <code>LICENSE.md</code> di repositori package sebelum memakainya di proyek komersial. Jika suatu saat Anda membuat produk berbayar, anggarkan lisensinya atau pertimbangkan alternatif lain yang lisensinya cocok.</p>
+
+<h4>2. Instalasi</h4>
+<pre><code class="language-bash">flutter pub add flutter_blue_plus
+flutter pub add permission_handler device_info_plus get
+</code></pre>
+<div class="callout callout-warning"><h4>⚠️ Pasang flutter_blue_plus lebih dulu, terpisah</h4><p>Saat modul ini ditulis, versi terbaru <code>connectivity_plus</code> dan <code>network_info_plus</code> memakai dependensi Linux (<code>dbus</code>) yang bertabrakan dengan dependensi Linux <code>flutter_blue_plus</code> 2.x. Jika semua package ditambahkan dalam satu perintah, pub bisa diam-diam memilih <code>flutter_blue_plus</code> 1.x yang lama (tanpa parameter <code>license</code>), sehingga kode di modul ini error <em>No named parameter with the name 'license'</em>. Pasang <code>flutter_blue_plus</code> lebih dulu, baru package lain, agar pub yang menyesuaikan versi package jaringan. Periksa hasilnya dengan <code>flutter pub deps | grep flutter_blue_plus</code>: angka depannya harus 2 atau lebih.</p></div>
+<p><code>device_info_plus</code> dipakai untuk mengetahui versi Android (API level), karena izin yang diminta berbeda antara Android 11 ke bawah dan Android 12 ke atas.</p>
+
+<h4>3. Konfigurasi Android</h4>
+<p>Sejak Android 12 (API 31), Bluetooth punya izin sendiri yang di layar disebut <strong>"Perangkat di sekitar"</strong> (<em>Nearby devices</em>). Sebelum Android 12, memindai BLE justru membutuhkan izin <strong>lokasi</strong>, karena hasil scan bisa dipakai menebak posisi pengguna. Manifest berikut mengikuti README <code>flutter_blue_plus</code> versi "tanpa lokasi":</p>
+<p class="code-file-label">📄 <code>android/app/src/main/AndroidManifest.xml</code></p>
+<pre><code class="language-text">&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+    &lt;!-- Aplikasi memakai BLE. required="false" agar tetap bisa
+         dipasang di HP tanpa BLE (fitur BLE dimatikan di aplikasi) --&gt;
+    &lt;uses-feature android:name="android.hardware.bluetooth_le" android:required="false" /&gt;
+
+    &lt;!-- Android 12+ : izin "Perangkat di sekitar" --&gt;
+    &lt;uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" /&gt;
+    &lt;uses-permission android:name="android.permission.BLUETOOTH_CONNECT" /&gt;
+
+    &lt;!-- Android 11 ke bawah --&gt;
+    &lt;uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" /&gt;
+    &lt;uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" /&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" /&gt;
+
+    &lt;!-- Android 9 ke bawah --&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="28" /&gt;
+
+    &lt;application ...&gt;
+        ...
+    &lt;/application&gt;
+&lt;/manifest&gt;
+</code></pre>
+<ul>
+  <li><strong><code>neverForLocation</code></strong> adalah janji kepada sistem bahwa hasil scan tidak dipakai untuk menentukan lokasi. Imbalannya, di Android 12+ aplikasi tidak perlu izin lokasi untuk scan. Konsekuensinya, sebagian paket iklan (misalnya beacon/iBeacon) bisa disaring oleh sistem. Jika aplikasi memang butuh lokasi dari BLE, hapus flag ini, deklarasikan <code>ACCESS_FINE_LOCATION</code> tanpa <code>maxSdkVersion</code>, dan panggil <code>startScan(androidUsesFineLocation: true)</code>.</li>
+  <li><strong><code>maxSdkVersion="30"</code></strong> membuat izin lama hanya berlaku di Android 11 ke bawah, sehingga pengguna Android 12+ tidak dimintai izin lokasi.</li>
+  <li>Jika proyek Anda sudah punya <code>ACCESS_FINE_LOCATION</code> tanpa <code>maxSdkVersion</code> (misalnya dari bagian 3 atau Modul 19), pertahankan deklarasi yang tanpa batas itu. Jangan menulis izin yang sama dua kali dengan atribut berbeda.</li>
+  <li><strong>minSdk</strong>: <code>flutter_blue_plus</code> butuh minimal API 21. Nilai bawaan <code>flutter.minSdkVersion</code> di <code>android/app/build.gradle.kts</code> proyek Flutter baru sudah di atas itu, jadi biasanya tidak perlu diubah.</li>
+</ul>
+
+<h4>4. Konfigurasi iOS</h4>
+<p class="code-file-label">📄 <code>ios/Runner/Info.plist</code></p>
+<pre><code class="language-text">&lt;key&gt;NSBluetoothAlwaysUsageDescription&lt;/key&gt;
+&lt;string&gt;Bluetooth dipakai untuk memindai dan membaca sensor di laboratorium.&lt;/string&gt;
+</code></pre>
+<p>Di iOS, dialog izin Bluetooth muncul otomatis saat <code>flutter_blue_plus</code> pertama kali dipakai. Jika pengguna menolak, <code>adapterState</code> bernilai <code>unauthorized</code>. Karena izin tidak diminta lewat <code>permission_handler</code>, makro Podfile untuk Bluetooth tidak dibutuhkan.</p>
+
+<h4>5. Alur izin runtime (Android)</h4>
+<p>Fungsi berikut memilih izin yang tepat berdasarkan versi Android, lalu mengembalikan tiga kemungkinan hasil seperti di Modul 17.</p>
+<p class="code-file-label">📄 <code>lib/services/izin_bluetooth.dart</code></p>
+<pre><code class="language-dart">import 'dart:io';
+
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+enum HasilIzin { diberikan, ditolak, ditolakPermanen }
+
+/// Meminta izin yang dibutuhkan untuk scan dan connect BLE.
+Future&lt;HasilIzin&gt; mintaIzinBluetooth() async {
+  if (!Platform.isAndroid) {
+    // iOS: dialog izin Bluetooth muncul otomatis saat plugin pertama
+    // kali memakai Bluetooth. Status ditolak terbaca dari adapterState.
+    return HasilIzin.diberikan;
+  }
+
+  final android = await DeviceInfoPlugin().androidInfo;
+  final daftarIzin = android.version.sdkInt &gt;= 31
+      // Android 12 (API 31) ke atas: izin "Perangkat di sekitar"
+      ? [Permission.bluetoothScan, Permission.bluetoothConnect]
+      // Android 11 ke bawah: scan BLE dianggap bisa melacak lokasi
+      : [Permission.locationWhenInUse];
+
+  final hasil = await daftarIzin.request();
+  final semuaStatus = hasil.values;
+
+  if (semuaStatus.every((s) =&gt; s.isGranted)) return HasilIzin.diberikan;
+  if (semuaStatus.any((s) =&gt; s.isPermanentlyDenied)) {
+    return HasilIzin.ditolakPermanen;
+  }
+  return HasilIzin.ditolak;
+}
+</code></pre>
+<ul>
+  <li><strong><code>sdkInt &gt;= 31</code></strong>: Android 12 ke atas meminta <code>bluetoothScan</code> dan <code>bluetoothConnect</code>. Keduanya tampil sebagai satu dialog "Izinkan aplikasi menemukan, menghubungkan, dan menentukan posisi relatif perangkat di sekitar?".</li>
+  <li><strong>Android 11 ke bawah</strong> meminta <code>locationWhenInUse</code>. Di versi ini, <code>Permission.bluetoothScan</code> selalu dilaporkan diberikan (selama izin <code>BLUETOOTH</code> lama ada di manifest), sehingga kalau kita hanya memeriksa izin itu, tanpa izin lokasi scan akan berjalan tetapi <em>tidak menemukan apa-apa</em>.</li>
+  <li><strong><code>daftarIzin.request()</code></strong> meminta beberapa izin sekaligus dan mengembalikan <code>Map&lt;Permission, PermissionStatus&gt;</code>.</li>
+  <li>Untuk <strong>ditolak permanen</strong>, tampilkan tombol yang memanggil <code>openAppSettings()</code>. Contoh lengkapnya ada di studi kasus bagian 7.</li>
+</ul>
+
+<h4>6. Status adapter dan menyalakan Bluetooth</h4>
+<p>Izin sudah ada, tetapi Bluetooth mungkin dimatikan pengguna. <code>FlutterBluePlus.adapterState</code> adalah stream status adapter: <code>unknown</code>, <code>unavailable</code>, <code>unauthorized</code>, <code>turningOn</code>, <code>on</code>, <code>turningOff</code>, atau <code>off</code>.</p>
+<pre><code class="language-dart">import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+
+Future&lt;void&gt; contohAdapter() async {
+  // 1. Apakah HP punya Bluetooth LE? (emulator: false)
+  if (await FlutterBluePlus.isSupported == false) {
+    debugPrint('Perangkat ini tidak mendukung Bluetooth LE');
+    return;
+  }
+
+  // 2. Dengarkan status adapter (on, off, unauthorized, ...)
+  final StreamSubscription&lt;BluetoothAdapterState&gt; sub = FlutterBluePlus
+      .adapterState
+      .listen((state) {
+        debugPrint('Adapter: $state');
+      });
+
+  // 3. Android saja: minta pengguna menyalakan Bluetooth
+  if (Platform.isAndroid) {
+    try {
+      await FlutterBluePlus.turnOn();
+    } on FlutterBluePlusException catch (e) {
+      debugPrint('Pengguna menolak menyalakan Bluetooth: ${e.description}');
+    }
+  }
+
+  // 4. Tunggu sampai benar-benar menyala
+  await FlutterBluePlus.adapterState
+      .where((s) =&gt; s == BluetoothAdapterState.on)
+      .first;
+
+  await sub.cancel();
+}
+</code></pre>
+<ul>
+  <li><strong><code>FlutterBluePlus.isSupported</code></strong> bernilai <code>false</code> jika perangkat tidak punya BLE, termasuk di Android Emulator.</li>
+  <li><strong><code>turnOn()</code></strong> hanya ada di Android. Sistem menampilkan dialog "Aplikasi ingin mengaktifkan Bluetooth". Jika pengguna menolak, muncul <code>FlutterBluePlusException</code>. Di iOS aplikasi tidak boleh menyalakan Bluetooth, jadi cukup tampilkan pesan agar pengguna menyalakannya dari Pusat Kontrol.</li>
+  <li><strong>Status awal di iOS</strong> biasanya <code>unknown</code> sesaat sebelum menjadi <code>on</code>. Jangan langsung menampilkan error saat melihat <code>unknown</code>.</li>
+  <li>Simpan <code>StreamSubscription</code> dari <code>adapterState</code> dan batalkan saat tidak dipakai, sama seperti stream lain.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Android 11 ke bawah: lokasi HP juga harus menyala</h4><p>Selain izin lokasi, Android versi lama mewajibkan <strong>layanan lokasi</strong> (saklar Lokasi di panel cepat) menyala agar scan BLE menemukan perangkat. Jika di HP lama daftar hasil scan selalu kosong, minta pengguna menyalakan lokasi.</p></div>

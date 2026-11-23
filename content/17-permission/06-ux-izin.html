@@ -1,0 +1,288 @@
+<p class="lead">Dialog izin sistem hanya bisa ditampilkan beberapa kali. Setiap kali pengguna menekan "Tolak" tanpa paham alasannya, peluang aplikasimu mendapat izin itu makin kecil. Jadi cara <em>kapan</em> dan <em>bagaimana</em> meminta izin sama pentingnya dengan kodenya.</p>
+
+<h4>Empat prinsip UX izin</h4>
+<ol>
+  <li><strong>Minta saat dibutuhkan (in context).</strong> Minta izin kamera ketika pengguna menekan "Pindai QR", bukan saat aplikasi pertama kali dibuka. Pengguna langsung paham hubungannya.</li>
+  <li><strong>Jelaskan dulu (rationale) sebelum dialog sistem.</strong> Tampilkan dialog versi aplikasi sendiri yang berisi manfaat dan cara data dipakai. Jika pengguna menekan "Nanti saja", dialog sistem tidak dipakai sehingga "jatah" penolakannya tidak habis.</li>
+  <li><strong>Hormati penolakan.</strong> Jangan langsung meminta lagi. Tampilkan layar yang menjelaskan fitur tidak bisa dipakai dan, jika ada, jalur alternatif (misal presensi manual).</li>
+  <li><strong>Sediakan jalan pulang.</strong> Saat ditolak permanen, tampilkan layar fallback dengan tombol "Buka Pengaturan", lalu cek ulang otomatis saat pengguna kembali ke aplikasi.</li>
+</ol>
+
+<h4>Alur lengkap</h4>
+<pre><code class="language-text">Pengguna menekan fitur (mis. "Pindai QR")
+        │
+        ▼
+ status sudah granted? ── ya ──► jalankan fitur
+        │ tidak
+        ▼
+ Dialog PENJELASAN versi aplikasi ── "Nanti saja" ──► layar "perlu izin"
+        │ "Lanjutkan"
+        ▼
+ request()  ──► dialog sistem (atau langsung kembali jika permanen)
+        │
+   ┌────┼──────────────────────┐
+granted denied           permanentlyDenied / restricted
+   │    │                      │
+fitur  layar "perlu izin"     layar fallback + tombol "Buka Pengaturan"
+       (boleh minta lagi)      │ openAppSettings()
+                               ▼
+                   kembali ke aplikasi (resume) → cek ulang status
+</code></pre>
+
+<h4>Contoh kecil: dialog penjelasan</h4>
+<pre><code class="language-dart">final setuju = await showDialog&lt;bool&gt;(
+  context: context,
+  builder: (context) =&gt; AlertDialog(
+    title: const Text('Kamera dibutuhkan'),
+    content: const Text('Kamera dipakai untuk memindai QR presensi.'),
+    actions: [
+      TextButton(
+        onPressed: () =&gt; Navigator.pop(context, false),
+        child: const Text('Nanti saja'),
+      ),
+      FilledButton(
+        onPressed: () =&gt; Navigator.pop(context, true),
+        child: const Text('Lanjutkan'),
+      ),
+    ],
+  ),
+);
+if (setuju == true) {
+  await Permission.camera.request();
+}
+</code></pre>
+
+<h4>Contoh lengkap: halaman Pindai QR dengan layar fallback</h4>
+<p>Halaman beranda tidak meminta izin apa pun. Izin kamera baru diurus saat halaman Pindai QR dibuka. Halaman ini punya empat tampilan: memeriksa, perlu izin, ditolak permanen (fallback), dan siap.</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+void main() =&gt; runApp(
+      MaterialApp(
+        theme: ThemeData(colorSchemeSeed: Colors.teal),
+        home: const BerandaPage(),
+      ),
+    );
+
+class BerandaPage extends StatelessWidget {
+  const BerandaPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Presensi')),
+      body: Center(
+        // Izin TIDAK diminta di sini. Baru diminta saat fitur dibuka.
+        child: FilledButton.icon(
+          onPressed: () =&gt; Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) =&gt; const PindaiQrPage()),
+          ),
+          icon: const Icon(Icons.qr_code_scanner),
+          label: const Text('Pindai QR Presensi'),
+        ),
+      ),
+    );
+  }
+}
+
+enum TahapIzin { memeriksa, perluIzin, ditolakPermanen, siap }
+
+class PindaiQrPage extends StatefulWidget {
+  const PindaiQrPage({super.key});
+
+  @override
+  State&lt;PindaiQrPage&gt; createState() =&gt; _PindaiQrPageState();
+}
+
+class _PindaiQrPageState extends State&lt;PindaiQrPage&gt; {
+  TahapIzin _tahap = TahapIzin.memeriksa;
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    // Kembali dari Pengaturan = aplikasi resume. Cek ulang statusnya.
+    _lifecycle = AppLifecycleListener(onResume: _cekUlang);
+    _mulai();
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _mulai() async {
+    final status = await Permission.camera.status;
+    if (!mounted) return;
+    if (status.isGranted) {
+      setState(() =&gt; _tahap = TahapIzin.siap);
+      return;
+    }
+    if (status.isPermanentlyDenied || status.isRestricted) {
+      // Hanya bisa terjadi di iOS (Android tidak pernah melaporkan ini lewat status)
+      setState(() =&gt; _tahap = TahapIzin.ditolakPermanen);
+      return;
+    }
+    setState(() =&gt; _tahap = TahapIzin.perluIzin);
+    await _jelaskanLaluMinta();
+  }
+
+  Future&lt;void&gt; _cekUlang() async {
+    final diizinkan = await Permission.camera.isGranted;
+    if (!mounted) return;
+    if (diizinkan) setState(() =&gt; _tahap = TahapIzin.siap);
+  }
+
+  Future&lt;void&gt; _jelaskanLaluMinta() async {
+    // 1. Penjelasan versi kita SEBELUM dialog sistem
+    final setuju = await showDialog&lt;bool&gt;(
+      context: context,
+      builder: (context) =&gt; AlertDialog(
+        icon: const Icon(Icons.photo_camera_outlined),
+        title: const Text('Kamera dibutuhkan'),
+        content: const Text(
+          'Kamera dipakai untuk memindai QR presensi yang ditampilkan dosen. '
+          'Gambar tidak disimpan maupun dikirim ke mana pun.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; Navigator.pop(context, false),
+            child: const Text('Nanti saja'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; Navigator.pop(context, true),
+            child: const Text('Lanjutkan'),
+          ),
+        ],
+      ),
+    );
+    if (setuju != true) return;
+
+    // 2. Dialog sistem
+    final status = await Permission.camera.request();
+    if (!mounted) return;
+
+    // 3. Tentukan tampilan berdasarkan HASIL request()
+    setState(() {
+      if (status.isGranted) {
+        _tahap = TahapIzin.siap;
+      } else if (status.isPermanentlyDenied || status.isRestricted) {
+        _tahap = TahapIzin.ditolakPermanen;
+      } else {
+        _tahap = TahapIzin.perluIzin;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pindai QR')),
+      body: switch (_tahap) {
+        TahapIzin.memeriksa =&gt;
+          const Center(child: CircularProgressIndicator()),
+        TahapIzin.siap =&gt; const _LayarKamera(),
+        TahapIzin.perluIzin =&gt; _LayarInfo(
+            ikon: Icons.no_photography_outlined,
+            judul: 'Izin kamera belum diberikan',
+            pesan: 'Tanpa kamera, QR presensi tidak bisa dipindai. '
+                'Kamu juga bisa presensi manual lewat dosen.',
+            labelTombol: 'Izinkan Kamera',
+            onTekan: _jelaskanLaluMinta,
+          ),
+        TahapIzin.ditolakPermanen =&gt; _LayarInfo(
+            ikon: Icons.settings_outlined,
+            judul: 'Izin kamera ditolak',
+            pesan: 'Dialog izin tidak bisa ditampilkan lagi. Buka Pengaturan '
+                '&gt; Izin &gt; Kamera, pilih "Izinkan", lalu kembali ke aplikasi.',
+            labelTombol: 'Buka Pengaturan',
+            onTekan: openAppSettings,
+          ),
+      },
+    );
+  }
+}
+
+class _LayarKamera extends StatelessWidget {
+  const _LayarKamera();
+
+  @override
+  Widget build(BuildContext context) {
+    // Pratinjau kamera sungguhan dibuat di Modul 18.
+    return Container(
+      color: Colors.black,
+      alignment: Alignment.center,
+      child: const Text(
+        'Kamera siap (pratinjau di Modul 18)',
+        style: TextStyle(color: Colors.white),
+      ),
+    );
+  }
+}
+
+class _LayarInfo extends StatelessWidget {
+  const _LayarInfo({
+    required this.ikon,
+    required this.judul,
+    required this.pesan,
+    required this.labelTombol,
+    required this.onTekan,
+  });
+
+  final IconData ikon;
+  final String judul;
+  final String pesan;
+  final String labelTombol;
+  final VoidCallback onTekan;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(ikon, size: 72, color: Theme.of(context).colorScheme.outline),
+          const SizedBox(height: 16),
+          Text(
+            judul,
+            style: Theme.of(context).textTheme.titleLarge,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(pesan, textAlign: TextAlign.center),
+          const SizedBox(height: 24),
+          FilledButton(onPressed: onTekan, child: Text(labelTombol)),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+
+<p><strong>Penjelasan baris penting:</strong></p>
+<ul>
+  <li><code>enum TahapIzin</code> + <code>switch</code> expression di <code>build</code> membuat setiap keadaan punya tampilannya sendiri, sehingga tidak ada keadaan yang terlupa.</li>
+  <li><code>_mulai()</code> hanya memakai <code>status</code> untuk dua hal yang pasti: sudah diizinkan, atau (di iOS) sudah ditolak permanen. Selebihnya, aplikasi menjelaskan lalu meminta.</li>
+  <li><code>_jelaskanLaluMinta()</code> memutuskan tampilan dari <strong>hasil</strong> <code>request()</code>. Di Android, izin yang sudah ditolak permanen akan langsung menghasilkan <code>permanentlyDenied</code> tanpa dialog sistem, sehingga layar fallback tampil.</li>
+  <li><code>AppLifecycleListener(onResume: ...)</code> dipanggil saat aplikasi kembali ke depan, misalnya setelah pengguna mengaktifkan izin di Pengaturan. Listener ini dibuang di <code>dispose()</code>.</li>
+  <li>Layar "perlu izin" menyebut jalur alternatif (presensi manual). Pengguna tidak merasa dipaksa.</li>
+  <li>Teks layar fallback memberi langkah konkret ("Pengaturan &gt; Izin &gt; Kamera"), bukan hanya "izin ditolak".</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Menulis teks penjelasan yang baik</h4><ul>
+<li>Sebut manfaat bagi pengguna: "untuk memindai QR presensi", bukan "aplikasi membutuhkan akses kamera".</li>
+<li>Sebut apa yang <em>tidak</em> dilakukan: "gambar tidak disimpan maupun dikirim".</li>
+<li>Pakai ikon yang sama dengan fiturnya, dan tombol yang jelas: "Lanjutkan" / "Nanti saja".</li>
+</ul></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li>Meminta semua izin di <code>main()</code> atau splash screen. Pengguna menolak karena belum tahu gunanya, dan dialognya habis sebelum fitur dipakai.</li>
+<li>Langsung memanggil <code>openAppSettings()</code> tanpa penjelasan. Pengguna bingung kenapa tiba-tiba berada di Pengaturan.</li>
+<li>Menampilkan dialog penjelasan berulang-ulang setiap kali aplikasi dibuka. Tampilkan hanya saat pengguna memakai fitur.</li>
+<li>Lupa mengecek ulang status saat kembali dari Pengaturan, sehingga layar fallback tetap tampil walaupun izin sudah diaktifkan.</li>
+</ul></div>

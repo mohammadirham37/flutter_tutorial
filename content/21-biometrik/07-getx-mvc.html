@@ -1,0 +1,372 @@
+<p class="lead">Sekarang semua potongan kita susun dengan pola MVC GetX seperti di Modul 08: <strong>Service</strong> yang membungkus plugin, <strong>Controller</strong> yang menyimpan state reaktif dan aturan "kapan terkunci", dan <strong>View</strong> yang hanya menampilkan state lewat <code>Obx</code>.</p>
+
+<h4>Pembagian tugas</h4>
+<pre><code class="language-text">LockView (V)            LockController (C)                 BiometricService (Service)
+-----------             ------------------                 --------------------------
+Obx: ikon, pesan,  ---&gt; bukaKunci()                  ---&gt;  autentikasi() --&gt; local_auth
+tombol Buka Kunci       aturKunci(aktif)                   perangkatMendukung()
+tombol Masuk ulang      state: terkunci, kunciAktif,       bukaPengaturan() --&gt; permission_handler
+                        pesan, sedangMemproses
+                        AppLifecycleListener (onPause/onResume)
+                               |
+                               v
+                        SesiService (secure storage) &amp; SesiController (status login)
+</code></pre>
+
+<h4>File 1: BiometricService</h4>
+<p class="code-file-label">📄 <code>lib/services/biometric_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/biometric_service.dart
+import 'package:flutter/services.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+import '../utils/pesan_biometrik.dart';
+
+/// Satu-satunya kelas yang menyentuh plugin local_auth.
+/// Controller dan view cukup memakai method di sini.
+class BiometricService {
+  BiometricService({LocalAuthentication? auth})
+    : _auth = auth ?? LocalAuthentication();
+
+  final LocalAuthentication _auth;
+
+  /// true jika perangkat punya biometrik ATAU kunci layar (PIN/pola/sandi).
+  Future&lt;bool&gt; perangkatMendukung() async {
+    try {
+      return await _auth.isDeviceSupported();
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// Daftar biometrik yang sudah didaftarkan dan boleh dipakai aplikasi.
+  Future&lt;List&lt;BiometricType&gt;&gt; daftarBiometrik() async {
+    try {
+      return await _auth.getAvailableBiometrics();
+    } on PlatformException {
+      return const [];
+    }
+  }
+
+  /// Menampilkan dialog sistem. Data sidik jari/wajah TIDAK pernah
+  /// sampai ke aplikasi; kita hanya menerima hasil berhasil/gagal.
+  Future&lt;HasilBiometrik&gt; autentikasi({
+    required String alasan,
+    bool hanyaBiometrik = false,
+  }) async {
+    try {
+      final berhasil = await _auth.authenticate(
+        localizedReason: alasan,
+        biometricOnly: hanyaBiometrik,
+        persistAcrossBackgrounding: true,
+      );
+      return berhasil
+          ? const HasilBiometrik(StatusBiometrik.berhasil, 'Berhasil.')
+          : const HasilBiometrik(
+              StatusBiometrik.gagal,
+              'Sidik jari atau wajah tidak dikenali.',
+            );
+    } on LocalAuthException catch (e) {
+      return hasilDariKode(e.code);
+    } on PlatformException catch (e) {
+      return HasilBiometrik(StatusBiometrik.gagal, 'Kesalahan: ${e.code}');
+    }
+  }
+
+  /// Membuka halaman pengaturan aplikasi (berguna di iOS jika
+  /// izin Face ID pernah ditolak).
+  Future&lt;bool&gt; bukaPengaturan() =&gt; openAppSettings();
+}
+</code></pre>
+<ul>
+  <li>Hanya file ini yang mengimpor <code>local_auth</code> dan <code>permission_handler</code>. Jika suatu saat plugin diganti, controller dan view tidak perlu diubah.</li>
+  <li><code>autentikasi()</code> <strong>tidak pernah melempar exception</strong>. Semua kemungkinan diubah menjadi <code>HasilBiometrik</code> lewat <code>hasilDariKode</code> dari section 5, sehingga controller cukup memakai <code>switch</code>.</li>
+  <li><code>persistAcrossBackgrounding: true</code>: jika pengguna menerima telepon saat dialog tampil, autentikasi diulang otomatis saat kembali, bukan gagal dengan <code>systemCanceled</code>.</li>
+  <li>Konstruktor menerima <code>LocalAuthentication?</code> opsional. Saat unit test (Modul 15), kita bisa memasukkan objek tiruan.</li>
+</ul>
+
+<h4>File 2: LockController</h4>
+<p>Controller ini memerlukan <code>SesiController</code> (status login), yang kodenya ada di studi kasus section 8. Yang dipakai dari sana hanya getter <code>sudahLogin</code>, <code>tokenRx</code>, dan method <code>logout()</code>.</p>
+<p class="code-file-label">📄 <code>lib/controllers/lock_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/lock_controller.dart
+import 'package:flutter/widgets.dart' show AppLifecycleListener, FocusManager;
+import 'package:get/get.dart';
+
+import '../services/biometric_service.dart';
+import '../services/sesi_service.dart';
+import '../utils/pesan_biometrik.dart';
+import 'sesi_controller.dart';
+
+class LockController extends GetxController {
+  LockController(
+    this._biometrik,
+    this._sesiService,
+    SesiController sesi, {
+    bool kunciAktifAwal = false,
+  }) : _sesi = sesi,
+       _kunciAktif = kunciAktifAwal.obs,
+       // Saat aplikasi dibuka: kunci jika fitur aktif dan sudah login.
+       _terkunci = (kunciAktifAwal &amp;&amp; sesi.sudahLogin).obs;
+
+  /// Kembali dari background lebih cepat dari ini tidak perlu buka kunci lagi.
+  static const masaTenggang = Duration(seconds: 30);
+
+  /// Setelah gagal sebanyak ini, tombol "Masuk ulang" ditonjolkan.
+  static const batasGagal = 3;
+
+  final BiometricService _biometrik;
+  final SesiService _sesiService;
+  final SesiController _sesi;
+
+  final RxBool _kunciAktif;
+  final RxBool _terkunci;
+  final _sedangMemproses = false.obs;
+  final _pesan = RxnString();
+  final _jumlahGagal = 0.obs;
+  final _perluPengaturan = false.obs;
+
+  AppLifecycleListener? _lifecycle;
+  final _workers = &lt;Worker&gt;[];
+  DateTime? _waktuKeBackground;
+
+  bool get kunciAktif =&gt; _kunciAktif.value;
+  bool get terkunci =&gt; _terkunci.value;
+  bool get sedangMemproses =&gt; _sedangMemproses.value;
+  String? get pesan =&gt; _pesan.value;
+  bool get sarankanLoginUlang =&gt; _jumlahGagal.value &gt;= batasGagal;
+  bool get perluPengaturan =&gt; _perluPengaturan.value;
+
+  @override
+  void onInit() {
+    super.onInit();
+    _lifecycle = AppLifecycleListener(
+      onPause: _saatKeBackground,
+      onResume: _saatKembali,
+    );
+    // Logout dari mana pun: reset semua state kunci.
+    _workers.add(
+      ever&lt;String?&gt;(_sesi.tokenRx, (token) {
+        if (token == null) {
+          _kunciAktif.value = false;
+          _terkunci.value = false;
+          _resetStatus();
+        }
+      }),
+    );
+  }
+
+  @override
+  void onReady() {
+    super.onReady();
+    // onReady dipanggil setelah frame pertama, Activity sudah siap.
+    if (terkunci) bukaKunci();
+  }
+
+  @override
+  void onClose() {
+    _lifecycle?.dispose();
+    for (final worker in _workers) {
+      worker.dispose();
+    }
+    super.onClose();
+  }
+
+  void _saatKeBackground() {
+    // Dialog biometrik bisa memicu pause; abaikan agar tidak terkunci ulang.
+    if (_sedangMemproses.value) return;
+    _waktuKeBackground = DateTime.now();
+  }
+
+  void _saatKembali() {
+    final sejak = _waktuKeBackground;
+    _waktuKeBackground = null;
+    if (sejak == null || !kunciAktif || !_sesi.sudahLogin || terkunci) return;
+
+    if (DateTime.now().difference(sejak) &gt;= masaTenggang) {
+      // Tutup keyboard agar isi form di bawah layar kunci tidak terlihat.
+      FocusManager.instance.primaryFocus?.unfocus();
+      _terkunci.value = true;
+      bukaKunci();
+    }
+  }
+
+  Future&lt;void&gt; bukaKunci() async {
+    if (_sedangMemproses.value) return; // cegah dialog ganda
+    _sedangMemproses.value = true;
+    _pesan.value = null;
+
+    final hasil = await _biometrik.autentikasi(
+      alasan: 'Buka kunci Catatan Kuliah',
+    );
+    _sedangMemproses.value = false;
+
+    switch (hasil.status) {
+      case StatusBiometrik.berhasil:
+        _resetStatus();
+        _terkunci.value = false;
+      case StatusBiometrik.dibatalkan:
+        _pesan.value = hasil.pesan; // tidak dihitung sebagai gagal
+      case StatusBiometrik.gagal:
+        _jumlahGagal.value++;
+        _pesan.value = hasil.pesan;
+      case StatusBiometrik.belumTerdaftar:
+      case StatusBiometrik.tidakTersedia:
+        _perluPengaturan.value = true;
+        _jumlahGagal.value = batasGagal;
+        _pesan.value = hasil.pesan;
+      case StatusBiometrik.terkunciSementara:
+      case StatusBiometrik.terkunciPermanen:
+        _jumlahGagal.value = batasGagal;
+        _pesan.value = hasil.pesan;
+    }
+  }
+
+  /// Mengaktifkan/mematikan kunci. Mengembalikan pesan error, atau null jika sukses.
+  Future&lt;String?&gt; aturKunci(bool aktif) async {
+    if (aktif) {
+      if (!await _biometrik.perangkatMendukung()) {
+        return 'Aktifkan dulu kunci layar atau sidik jari di pengaturan HP.';
+      }
+      // Minta konfirmasi agar pengguna yakin biometriknya berfungsi.
+      _sedangMemproses.value = true;
+      final hasil = await _biometrik.autentikasi(
+        alasan: 'Konfirmasi untuk mengaktifkan kunci aplikasi',
+      );
+      _sedangMemproses.value = false;
+      if (!hasil.berhasil) return hasil.pesan;
+    }
+    await _sesiService.aturKunciBiometrik(aktif);
+    _kunciAktif.value = aktif;
+    return null;
+  }
+
+  /// Jalan keluar terakhir: hapus sesi lalu login ulang dengan email.
+  Future&lt;void&gt; loginUlang() async {
+    // Tutup halaman yang mungkin terbuka (misalnya Pengaturan) agar
+    // AppGate di halaman pertama terlihat dan menampilkan LoginView.
+    Get.until((route) =&gt; route.isFirst);
+    await _sesi.logout();
+  }
+
+  Future&lt;void&gt; bukaPengaturan() =&gt; _biometrik.bukaPengaturan();
+
+  void _resetStatus() {
+    _pesan.value = null;
+    _jumlahGagal.value = 0;
+    _perluPengaturan.value = false;
+  }
+}
+</code></pre>
+
+<p><strong>Penjelasan baris penting:</strong></p>
+<ul>
+  <li><strong>Initializer list</strong> (<code>: _sesi = sesi, ...</code>) menentukan state awal: aplikasi langsung <code>terkunci</code> jika fitur aktif dan pengguna sudah login. Nilai ini dibaca di <code>main()</code> <em>sebelum</em> <code>runApp</code>, sehingga isi catatan tidak sempat terlihat sekejap.</li>
+  <li><code>AppLifecycleListener</code> dibuat di <code>onInit</code> dan di-<code>dispose</code> di <code>onClose</code>, sama seperti <code>StreamSubscription</code>. Controller hanya mengimpor <code>flutter/widgets.dart</code> untuk dua kelas ini (bukan <code>material.dart</code>).</li>
+  <li><code>onReady</code> dipanggil GetX setelah frame pertama. Itulah saat yang aman untuk memunculkan dialog biometrik pertama (menghindari <code>uiUnavailable</code>).</li>
+  <li><code>_saatKeBackground</code> mengabaikan event selama <code>_sedangMemproses</code>, sesuai peringatan di section 6.</li>
+  <li><code>bukaKunci()</code> keluar lebih awal jika dialog masih tampil, mencegah <code>authInProgress</code>. <code>switch</code> atas <code>StatusBiometrik</code> menentukan reaksi: batal tidak dihitung gagal, sedangkan lockout atau sensor tidak tersedia langsung menonjolkan tombol login ulang.</li>
+  <li><code>aturKunci(true)</code> meminta autentikasi dulu sebelum menyimpan. Pengguna tidak bisa mengaktifkan kunci yang ternyata tidak bisa ia buka.</li>
+  <li>Worker <code>ever</code> pada <code>tokenRx</code> mereset semua state kunci setiap kali pengguna logout dari mana pun (Modul 08, section antar controller). Worker disimpan di list dan di-<code>dispose</code> di <code>onClose</code>.</li>
+  <li><code>loginUlang()</code> memanggil <code>Get.until</code> untuk menutup halaman yang mungkin sedang terbuka, lalu logout.</li>
+</ul>
+
+<h4>File 3: LockView</h4>
+<p class="code-file-label">📄 <code>lib/views/lock_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/lock_view.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/lock_controller.dart';
+
+/// Ditampilkan di ATAS Navigator (lewat GetMaterialApp.builder), sehingga
+/// halaman ini tidak boleh memakai showDialog atau Navigator.
+class LockView extends GetView&lt;LockController&gt; {
+  const LockView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Obx(() {
+            final pesan = controller.pesan;
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Icon(Icons.lock_outline, size: 72, color: skema.primary),
+                const SizedBox(height: 16),
+                Text(
+                  'Catatan Kuliah Terkunci',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Gunakan sidik jari, wajah, atau PIN HP untuk membuka.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                if (pesan != null)
+                  Card(
+                    color: skema.errorContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        pesan,
+                        style: TextStyle(color: skema.onErrorContainer),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: controller.sedangMemproses
+                      ? null
+                      : controller.bukaKunci,
+                  icon: const Icon(Icons.fingerprint),
+                  label: Text(
+                    controller.sedangMemproses ? 'Menunggu...' : 'Buka Kunci',
+                  ),
+                ),
+                if (controller.perluPengaturan) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: controller.bukaPengaturan,
+                    icon: const Icon(Icons.settings),
+                    label: const Text('Buka Pengaturan'),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                // Fallback terakhir: selalu ada, ditonjolkan setelah gagal berkali-kali.
+                controller.sarankanLoginUlang
+                    ? FilledButton.tonal(
+                        onPressed: controller.loginUlang,
+                        child: const Text('Keluar &amp; masuk ulang dengan email'),
+                      )
+                    : TextButton(
+                        onPressed: controller.loginUlang,
+                        child: const Text(
+                          'Tidak bisa? Masuk ulang dengan email',
+                        ),
+                      ),
+              ],
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li><code>GetView&lt;LockController&gt;</code> menyediakan getter <code>controller</code>. Seluruh isi dibungkus satu <code>Obx</code> karena hampir semua bagian bergantung pada state controller.</li>
+  <li>Tombol Buka Kunci dinonaktifkan (<code>onPressed: null</code>) selama dialog tampil.</li>
+  <li>Tombol "Buka Pengaturan" hanya muncul jika sensor tidak tersedia atau belum ada biometrik terdaftar.</li>
+  <li>Tombol <strong>login ulang selalu ada</strong>: berupa <code>TextButton</code> kecil dalam kondisi normal, lalu berubah menjadi <code>FilledButton.tonal</code> yang menonjol setelah <code>batasGagal</code> tercapai.</li>
+  <li>View ini akan ditampilkan <em>di atas</em> Navigator (section 8), sehingga sengaja tidak memakai <code>showDialog</code>, yang membutuhkan Navigator di atasnya.</li>
+</ul>
+
+<div class="callout callout-tip"><h4>💡 Tips</h4><p>Saat mencoba di emulator, ubah sementara <code>masaTenggang</code> menjadi <code>Duration.zero</code> agar aplikasi langsung terkunci begitu kembali dari background. Kembalikan ke 30 detik sebelum dikumpulkan.</p></div>

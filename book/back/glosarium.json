@@ -1,0 +1,330 @@
+[
+  [
+    "AAB (Android App Bundle)",
+    "Format paket aplikasi Android untuk diunggah ke Google Play. Google Play kemudian membuat APK yang sesuai untuk setiap perangkat. Lihat Bab 17."
+  ],
+  [
+    "APK (Android Package)",
+    "Berkas instalasi aplikasi Android yang dapat dipasang langsung di perangkat."
+  ],
+  [
+    "API (Application Programming Interface)",
+    "Antarmuka yang memungkinkan dua program saling berkomunikasi, misalnya aplikasi mobile dengan server."
+  ],
+  [
+    "async/await",
+    "Sintaks Dart untuk menulis kode asinkron seolah-olah berurutan. <code>await</code> menunggu sebuah <code>Future</code> selesai tanpa membekukan aplikasi."
+  ],
+  [
+    "Binding (GetX)",
+    "Kelas yang mendaftarkan controller untuk suatu halaman sehingga controller dibuat saat halaman dibuka dan dihapus saat halaman ditutup."
+  ],
+  [
+    "Box (Hive)",
+    "Wadah penyimpanan data di Hive, mirip tabel tetapi berbentuk pasangan key-value."
+  ],
+  [
+    "BuildContext",
+    "Objek yang menunjukkan posisi sebuah widget di dalam pohon widget. Dipakai untuk mengakses tema, ukuran layar, dan Navigator."
+  ],
+  [
+    "Cache",
+    "Salinan data yang disimpan sementara di perangkat agar dapat ditampilkan lebih cepat atau saat tidak ada koneksi."
+  ],
+  [
+    "Callback",
+    "Fungsi yang dikirim sebagai argumen untuk dipanggil kemudian, misalnya <code>onPressed</code> pada tombol."
+  ],
+  [
+    "Constraints",
+    "Batas ukuran minimum dan maksimum yang diberikan widget parent kepada anaknya dalam sistem layout Flutter."
+  ],
+  [
+    "Controller (MVC)",
+    "Lapisan yang menyimpan state dan logika aplikasi, menjadi penghubung antara Model dan View. Di GetX berupa <code>GetxController</code>."
+  ],
+  [
+    "CRUD",
+    "Create, Read, Update, Delete: empat operasi dasar untuk mengelola data."
+  ],
+  [
+    "Dart",
+    "Bahasa pemrograman buatan Google yang dipakai untuk menulis aplikasi Flutter."
+  ],
+  [
+    "Dependency Injection",
+    "Teknik menyediakan objek (misalnya service atau controller) dari luar sehingga kelas yang memakainya tidak perlu membuatnya sendiri. Di GetX memakai <code>Get.put</code> dan <code>Get.find</code>."
+  ],
+  [
+    "DevTools",
+    "Kumpulan alat debugging dan profiling resmi Flutter: Inspector, Performance, Network, dan Memory."
+  ],
+  [
+    "Emulator",
+    "Program yang meniru perangkat Android di komputer sehingga aplikasi dapat dijalankan tanpa ponsel fisik."
+  ],
+  [
+    "Endpoint",
+    "Alamat URL tertentu pada server API yang melayani satu jenis permintaan."
+  ],
+  [
+    "Exception",
+    "Objek yang menandakan terjadinya kesalahan saat program berjalan dan dapat ditangkap dengan <code>try/catch</code>."
+  ],
+  [
+    "Foreign Key",
+    "Kolom pada tabel yang merujuk ke kunci utama tabel lain untuk membentuk relasi."
+  ],
+  [
+    "Future",
+    "Objek Dart yang mewakili nilai yang baru tersedia di masa depan, misalnya hasil permintaan jaringan."
+  ],
+  [
+    "GetX",
+    "Package Flutter untuk manajemen state, dependency injection, dan navigasi yang dipakai dengan pola MVC di buku ini."
+  ],
+  [
+    "Hive",
+    "Database NoSQL lokal berbasis key-value yang ditulis murni dengan Dart. Buku ini memakai versi komunitas <code>hive_ce</code>."
+  ],
+  [
+    "Hot Reload",
+    "Fitur yang menyuntikkan perubahan kode ke aplikasi yang sedang berjalan tanpa menghapus state."
+  ],
+  [
+    "Hot Restart",
+    "Menjalankan ulang aplikasi dari <code>main()</code> dengan kode terbaru. State aplikasi akan direset."
+  ],
+  [
+    "HTTP",
+    "Protokol komunikasi antara klien dan server di web. Metodenya antara lain GET, POST, PUT, PATCH, dan DELETE."
+  ],
+  [
+    "JSON",
+    "JavaScript Object Notation: format teks untuk bertukar data yang paling umum dipakai oleh REST API."
+  ],
+  [
+    "Keystore",
+    "Berkas berisi kunci digital untuk menandatangani aplikasi Android sebelum dirilis."
+  ],
+  [
+    "Lifecycle",
+    "Rangkaian tahap hidup sebuah objek, misalnya <code>initState</code> sampai <code>dispose</code> pada State, atau <code>onInit</code> sampai <code>onClose</code> pada controller."
+  ],
+  [
+    "Material 3",
+    "Versi terbaru sistem desain Material dari Google yang menjadi gaya bawaan widget Flutter."
+  ],
+  [
+    "Migrasi Skema",
+    "Proses mengubah struktur database (misalnya menambah kolom) tanpa menghilangkan data pengguna lama."
+  ],
+  [
+    "Mock / Fake",
+    "Objek tiruan yang menggantikan dependensi asli (misalnya server) saat pengujian agar test cepat dan dapat diprediksi."
+  ],
+  [
+    "Model (MVC)",
+    "Kelas yang mendefinisikan bentuk data beserta konversinya, misalnya <code>fromJson</code> dan <code>toJson</code>."
+  ],
+  [
+    "MVC (Model-View-Controller)",
+    "Pola arsitektur yang memisahkan data (Model), tampilan (View), dan logika (Controller)."
+  ],
+  [
+    "Named Route",
+    "Halaman yang didaftarkan dengan nama, misalnya <code>'/detail'</code>, sehingga dapat dibuka dengan nama tersebut."
+  ],
+  [
+    "Navigator",
+    "Widget yang mengelola tumpukan halaman (route) pada aplikasi Flutter."
+  ],
+  [
+    "Null Safety",
+    "Fitur Dart yang mencegah variabel bernilai <code>null</code> kecuali tipenya dinyatakan boleh kosong dengan tanda <code>?</code>."
+  ],
+  [
+    "Obfuscation",
+    "Proses menyamarkan nama kelas dan fungsi pada build rilis agar kode lebih sulit dibaca balik."
+  ],
+  [
+    "Observable (.obs)",
+    "Variabel GetX yang dapat diamati. Setiap perubahan nilainya otomatis memperbarui <code>Obx</code> yang membacanya."
+  ],
+  [
+    "Optimistic Update",
+    "Teknik memperbarui tampilan lebih dulu sebelum server merespons, lalu membatalkannya (rollback) bila server gagal."
+  ],
+  [
+    "Overflow",
+    "Kondisi ketika konten melebihi ruang yang tersedia, ditandai garis kuning-hitam di layar."
+  ],
+  [
+    "Package",
+    "Pustaka kode yang dapat dipasang dari pub.dev untuk menambah kemampuan aplikasi."
+  ],
+  [
+    "Prop Drilling",
+    "Mengoper data melalui banyak lapis constructor widget hanya agar sampai ke widget yang membutuhkannya."
+  ],
+  [
+    "pubspec.yaml",
+    "Berkas konfigurasi proyek Flutter yang berisi nama, versi, dependensi, dan aset aplikasi."
+  ],
+  [
+    "Repository",
+    "Lapisan yang menyatukan sumber data (server, cache) dan menyediakan antarmuka sederhana bagi controller."
+  ],
+  [
+    "REST",
+    "Gaya arsitektur API yang memakai metode HTTP untuk mengakses sumber daya melalui URL."
+  ],
+  [
+    "RLS (Row Level Security)",
+    "Fitur PostgreSQL/Supabase yang membatasi baris mana yang boleh dibaca atau diubah oleh setiap pengguna."
+  ],
+  [
+    "Route",
+    "Satu halaman (layar) di dalam tumpukan Navigator."
+  ],
+  [
+    "SDK (Software Development Kit)",
+    "Kumpulan alat untuk mengembangkan perangkat lunak, misalnya Flutter SDK dan Android SDK."
+  ],
+  [
+    "Service",
+    "Kelas yang membungkus akses ke satu sumber data atau layanan, misalnya <code>HiveService</code> atau <code>AuthService</code>."
+  ],
+  [
+    "Session",
+    "Informasi login pengguna yang tersimpan sehingga pengguna tidak perlu masuk ulang setiap membuka aplikasi."
+  ],
+  [
+    "setState",
+    "Metode pada <code>State</code> untuk memberi tahu Flutter bahwa data berubah sehingga <code>build</code> perlu dijalankan ulang."
+  ],
+  [
+    "SharedPreferences",
+    "Penyimpanan key-value sederhana untuk data kecil seperti pengaturan tema dan status onboarding."
+  ],
+  [
+    "Sliver",
+    "Bagian dari area gulir yang dapat dikombinasikan di dalam <code>CustomScrollView</code>."
+  ],
+  [
+    "SQL Injection",
+    "Serangan yang menyisipkan perintah SQL melalui input pengguna. Dicegah dengan placeholder dan <code>whereArgs</code>."
+  ],
+  [
+    "SQLite",
+    "Database relasional ringan yang tersimpan dalam satu berkas di perangkat."
+  ],
+  [
+    "Stack Trace",
+    "Daftar urutan pemanggilan fungsi saat error terjadi, berguna untuk menemukan sumber masalah."
+  ],
+  [
+    "State",
+    "Data yang dapat berubah selama aplikasi berjalan dan memengaruhi tampilan."
+  ],
+  [
+    "Status Code",
+    "Angka tiga digit dari server yang menunjukkan hasil permintaan, misalnya 200 (berhasil), 404 (tidak ditemukan), dan 500 (error server)."
+  ],
+  [
+    "Stream",
+    "Rangkaian nilai asinkron yang datang satu per satu dari waktu ke waktu."
+  ],
+  [
+    "Supabase",
+    "Backend as a Service berbasis PostgreSQL yang menyediakan database, autentikasi, realtime, dan storage."
+  ],
+  [
+    "Transaksi",
+    "Sekumpulan perintah database yang dijalankan secara atomik: semuanya berhasil atau semuanya dibatalkan."
+  ],
+  [
+    "Trigger",
+    "Fungsi database yang berjalan otomatis ketika terjadi peristiwa tertentu, misalnya saat baris baru ditambahkan."
+  ],
+  [
+    "TypeAdapter",
+    "Kelas yang mengajari Hive cara menulis dan membaca objek buatan sendiri."
+  ],
+  [
+    "Unit Test",
+    "Pengujian otomatis terhadap satu unit kecil kode, seperti fungsi atau kelas, secara terisolasi."
+  ],
+  [
+    "View (MVC)",
+    "Lapisan tampilan yang hanya menampilkan state dan meneruskan aksi pengguna ke controller."
+  ],
+  [
+    "Widget",
+    "Unit penyusun antarmuka Flutter. Teks, tombol, tata letak, bahkan aplikasi itu sendiri adalah widget."
+  ],
+  [
+    "Widget Test",
+    "Pengujian otomatis yang merender widget di lingkungan uji lalu mensimulasikan interaksi pengguna."
+  ],
+  [
+    "Akselerometer",
+    "Sensor yang mengukur percepatan perangkat pada sumbu x, y, dan z dalam satuan m/s², termasuk percepatan gravitasi."
+  ],
+  [
+    "BLE (Bluetooth Low Energy)",
+    "Varian Bluetooth berdaya rendah untuk bertukar data kecil secara berkala, misalnya dengan sensor kesehatan atau perangkat IoT."
+  ],
+  [
+    "Biometrik",
+    "Metode verifikasi identitas berdasarkan ciri fisik pengguna, seperti sidik jari atau wajah. Data biometrik tidak pernah diterima oleh aplikasi."
+  ],
+  [
+    "Characteristic (GATT)",
+    "Nilai data pada perangkat BLE yang dapat dibaca, ditulis, atau dipantau (notify), diidentifikasi dengan UUID."
+  ],
+  [
+    "Fused Location Provider",
+    "Layanan lokasi Android yang menggabungkan GPS, WiFi, dan jaringan seluler untuk menyeimbangkan akurasi dan konsumsi baterai."
+  ],
+  [
+    "Geofence",
+    "Batas wilayah virtual berbentuk lingkaran (titik pusat dan radius) yang dipakai untuk memeriksa apakah perangkat berada di dalamnya."
+  ],
+  [
+    "Giroskop",
+    "Sensor yang mengukur kecepatan rotasi perangkat terhadap sumbu x, y, dan z dalam satuan rad/s."
+  ],
+  [
+    "GPS (Global Positioning System)",
+    "Sistem navigasi satelit untuk menentukan posisi lintang dan bujur. Di ponsel biasanya dikombinasikan dengan sistem satelit lain (GNSS)."
+  ],
+  [
+    "Heading",
+    "Arah hadap perangkat terhadap utara dalam derajat (0° sampai 360°), dihitung dari sensor magnetometer."
+  ],
+  [
+    "Magnetometer",
+    "Sensor yang mengukur medan magnet di sekitar perangkat dalam satuan mikrotesla (µT), dasar pembuatan kompas digital."
+  ],
+  [
+    "Permission (Izin)",
+    "Persetujuan pengguna agar aplikasi boleh mengakses sumber daya sensitif, seperti kamera, lokasi, atau mikrofon."
+  ],
+  [
+    "Platform Channel",
+    "Mekanisme komunikasi antara kode Dart dan kode native (Kotlin/Swift) melalui pesan, misalnya MethodChannel dan EventChannel."
+  ],
+  [
+    "Plugin",
+    "Package Flutter yang menyertakan kode native untuk mengakses fitur platform, misalnya kamera atau sensor."
+  ],
+  [
+    "RSSI",
+    "Received Signal Strength Indicator: ukuran kekuatan sinyal radio dalam dBm. Makin mendekati nol, makin kuat sinyalnya."
+  ],
+  [
+    "Sensor Virtual",
+    "Sensor yang nilainya dihitung perangkat lunak dari sensor fisik lain, misalnya sensor gravitasi atau rotation vector."
+  ]
+]

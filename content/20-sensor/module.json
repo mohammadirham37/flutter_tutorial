@@ -1,0 +1,139 @@
+{
+  "id": "modul-sensor",
+  "badge": "Sensor",
+  "category": "Hardware",
+  "title": "Sensor Gerak & Geomagnetik: Akselerometer, Giroskop, dan Kompas",
+  "duration": "Pertemuan 20 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 02: Fondasi Bahasa Pemrograman Dart Modern (Dart 3)",
+    "Modul 08: Manajemen State Terstruktur dengan GetX & Pola MVC"
+  ],
+  "summary": "Membaca akselerometer, user accelerometer, giroskop, magnetometer, dan barometer dengan sensors_plus sebagai Stream, lalu menghaluskan data dengan low-pass filter dan membatasi rebuild UI. Data sensor diolah menjadi deteksi guncangan, waterpass (atan2), dan kompas dengan kompensasi kemiringan, deklinasi, kalibrasi hard/soft iron, serta penunjuk kiblat. Ditutup dengan arsitektur GetX MVC dan studi kasus Kompas & Waterpass Kampus.",
+  "learningOutcomes": [
+    "Menjelaskan kategori sensor (gerak, posisi, lingkungan), perbedaan sensor hardware dan software, sistem koordinat perangkat, serta satuan m/s², rad/s, µT, dan hPa.",
+    "Membedakan akselerometer (termasuk gravitasi) dan user accelerometer, serta memilih sampling period yang sesuai dengan kebutuhan dan baterai.",
+    "Membaca sensor dengan fungsi stream sensors_plus (accelerometerEventStream, gyroscopeEventStream, magnetometerEventStream, dan lainnya), menangani sensor yang tidak tersedia lewat onError, dan membatalkan StreamSubscription dengan benar.",
+    "Menghaluskan data sensor dengan low-pass filter dan membatasi frekuensi pembaruan UI (throttle).",
+    "Menghitung kemiringan perangkat dengan atan2 dan mendeteksi guncangan dari besar vektor percepatan.",
+    "Menghitung heading kompas dengan kompensasi kemiringan dari akselerometer dan magnetometer, menerapkan deklinasi magnetik, menghitung bearing ke tujuan, dan menjelaskan gangguan hard/soft iron beserta kalibrasi angka 8.",
+    "Membangun UI kompas berputar dengan Transform.rotate yang memperhatikan konversi radian dan masalah lompatan 359° ke 0°.",
+    "Menerapkan pola GetX MVC untuk sensor: SensorService, GetxController yang menjeda sensor saat aplikasi di background dan membatalkan langganan di onClose, serta View dengan Obx.",
+    "Menguji aplikasi sensor dengan unit test, Virtual sensors pada Android Emulator, dan perangkat fisik."
+  ],
+  "sections": [
+    { "id": "sensor-konsep", "title": "1. Konsep Sensor: Kategori, Sumbu, Satuan, dan Sampling", "file": "01-konsep-sensor.html" },
+    { "id": "sensor-sensors-plus", "title": "2. Package sensors_plus: Instalasi, Konfigurasi, dan Stream Pertama", "file": "02-sensors-plus.html" },
+    { "id": "sensor-realtime", "title": "3. Data Real-time: Low-pass Filter dan Throttle UI", "file": "03-data-realtime.html" },
+    { "id": "sensor-guncangan-waterpass", "title": "4. Studi Kasus Kecil: Deteksi Guncangan dan Waterpass", "file": "04-guncangan-waterpass.html" },
+    { "id": "sensor-kompas-teori", "title": "5. Kompas: Heading, Deklinasi, Bearing, dan Kalibrasi", "file": "05-kompas-teori.html" },
+    { "id": "sensor-kompas-ui", "title": "6. UI Kompas Berputar dan Penunjuk Kiblat", "file": "06-kompas-ui.html" },
+    { "id": "sensor-getx-mvc", "title": "7. Sensor dengan GetX + MVC", "file": "07-getx-mvc.html" },
+    { "id": "sensor-studi-kasus", "title": "8. Studi Kasus: Kompas & Waterpass Kampus", "file": "08-studi-kasus.html" },
+    { "id": "sensor-pengujian", "title": "9. Pengujian, Praktik Terbaik, dan Kesalahan Umum", "file": "09-pengujian-praktik.html" }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 20: Kompas & Waterpass Kampus",
+    "objective": "Membangun aplikasi sensor berarsitektur GetX MVC yang membaca akselerometer dan magnetometer, mengolahnya menjadi kompas dengan penunjuk arah tujuan dan waterpass, serta menangani siklus hidup dan sensor yang tidak tersedia dengan benar.",
+    "instructions": [
+      "<strong>Tugas 1 (Wajib, 20 poin):</strong> Bangun ulang studi kasus Kompas &amp; Waterpass Kampus dari bagian 8 dan jalankan di HP fisik. Ganti <code>titikKampus</code> dan minimal tiga tujuan dengan koordinat nyata kampusmu. Lampirkan screenshot tab Kompas dan tab Waterpass, serta screenshot aplikasi kompas bawaan HP (atau Google Maps) pada posisi yang sama sebagai pembanding.",
+      "<strong>Tugas 2 (Wajib, 15 poin):</strong> Jalankan aplikasi di Android Emulator. Dengan Extended Controls &rarr; Virtual sensors, tunjukkan (a) piringan berputar saat Yaw diubah, (b) gelembung waterpass bergeser saat Pitch/Roll diubah, dan (c) peringatan kalibrasi muncul saat medan magnet di tab Additional sensors diisi 150 µT. Lampirkan tiga screenshot.",
+      "<strong>Tugas 3 (Wajib, 15 poin):</strong> Tambahkan tombol <em>Kalibrasi Nol</em> di tab Waterpass. Saat ditekan, simpan <code>sudutX</code> dan <code>sudutY</code> saat ini sebagai offset di controller, lalu kurangkan offset dari pembacaan berikutnya. Sediakan juga tombol untuk menghapus offset.",
+      "<strong>Tugas 4 (Wajib, 15 poin):</strong> Tambahkan mode <em>Tegak</em> pada waterpass yang aktif otomatis jika total kemiringan lebih dari 60°, dan menampilkan <code>atan2(x, y)</code> dalam derajat sebagai sudut kemiringan bidang layar (untuk meluruskan bingkai foto).",
+      "<strong>Tugas 5 (Wajib, 15 poin):</strong> Buat animasi rotasi piringan yang mulus memakai <code>AnimatedRotation</code> tanpa masalah putaran penuh di sekitar 0°/360° (gunakan sudut kumulatif dengan <code>selisihSudut</code>). Jelaskan di laporan kenapa pendekatan naif gagal.",
+      "<strong>Tugas 6 (Wajib, 20 poin):</strong> Tulis unit test untuk <code>kompas_math.dart</code> dan <code>waterpass_math.dart</code> minimal 8 kasus, termasuk heading 180° dan 270°, HP miring 20° dengan sisi atas menghadap utara (heading harus tetap 0°), bearing dari kota asalmu ke Ka'bah, dan perilaku offset dari Tugas 3. Semua test harus lulus dengan <code>flutter test</code>.",
+      "<strong>Bonus (+10 poin):</strong> Ambil titik asal dari GPS dengan materi Modul 19 sehingga arah kiblat dan arah ke gedung kampus dihitung dari lokasi pengguna yang sebenarnya, lengkap dengan penanganan izin lokasi ditolak."
+    ],
+    "expectedOutput": "Aplikasi dua tab (Kompas dan Waterpass) yang berjalan di HP fisik dan emulator: heading 0–360° dengan nama arah, deklinasi yang bisa diatur, penanda tujuan dan petunjuk belok kiri/kanan, peringatan HP terlalu miring dan gangguan magnet, kunci bacaan dengan guncangan, waterpass dengan kalibrasi nol dan mode tegak, sensor berhenti saat aplikasi di background, pesan yang jelas jika sensor tidak tersedia. Disertai output flutter test yang semua lulus dan flutter analyze tanpa issue.",
+    "rubric": "Tugas 1: aplikasi berjalan di HP fisik dengan koordinat nyata dan pembanding (20%). Tugas 2: pengujian dengan Virtual sensors emulator (15%). Tugas 3: kalibrasi nol waterpass di controller (15%). Tugas 4: mode tegak otomatis (15%). Tugas 5: animasi rotasi tanpa putaran penuh beserta penjelasan (15%). Tugas 6: kualitas dan kelulusan unit test (20%). Bonus integrasi GPS (+10%). Pengurangan nilai jika StreamSubscription tidak dibatalkan di onClose, view atau controller mengimpor sensors_plus secara langsung, onError tidak ditangani, atau flutter analyze masih menampilkan issue."
+  },
+  "quiz": [
+    {
+      "question": "HP diletakkan diam mendatar di meja dengan layar menghadap ke atas. Berapa kira-kira nilai yang dilaporkan accelerometerEventStream()?",
+      "options": [
+        "x = 0, y = 0, z = 0, karena HP tidak bergerak",
+        "x = 0, y = 0, z ≈ +9,8 m/s², karena akselerometer membaca reaksi terhadap gravitasi yang mengarah ke atas",
+        "x = 0, y = 0, z ≈ -9,8 m/s² di Android dan +9,8 di iOS",
+        "x = 9,8, y = 0, z = 0"
+      ],
+      "correctIndex": 1,
+      "explanation": "Akselerometer selalu ikut membaca gravitasi. Saat diam, nilainya sekitar 9,8 m/s² ke arah atas (sumbu +z saat layar menghadap ke atas). sensors_plus menyeragamkan tanda iOS dengan Android. Nilai nol hanya muncul di userAccelerometer atau saat jatuh bebas."
+    },
+    {
+      "question": "Kamu ingin mengukur seberapa keras pengguna mengayunkan HP ke depan, tanpa terpengaruh posisi HP. Stream mana yang paling tepat?",
+      "options": [
+        "magnetometerEventStream()",
+        "gyroscopeEventStream()",
+        "userAccelerometerEventStream(), karena gravitasi sudah dipisahkan",
+        "barometerEventStream()"
+      ],
+      "correctIndex": 2,
+      "explanation": "userAccelerometer (TYPE_LINEAR_ACCELERATION di Android) adalah percepatan tanpa gravitasi, sehingga hanya berisi gerakan pengguna. Giroskop mengukur kecepatan putar (rad/s), bukan percepatan lurus."
+    },
+    {
+      "question": "Aplikasi dipasang di HP murah yang tidak punya magnetometer. Apa yang terjadi saat magnetometerEventStream().listen(...) dipanggil di Android, dan bagaimana menanganinya?",
+      "options": [
+        "Aplikasi langsung crash, jadi harus dicek dengan try-catch di main()",
+        "Stream mengirim error PlatformException dengan kode NO_SENSOR. Tangani di onError, tampilkan pesan, dan nonaktifkan fitur kompas saja",
+        "Stream mengirim nilai 0 terus-menerus sehingga kompas menunjuk utara",
+        "Muncul dialog izin yang harus disetujui pengguna"
+      ],
+      "correctIndex": 1,
+      "explanation": "Plugin tidak membuat aplikasi crash. Ia mengirim error NO_SENSOR lewat stream. README sensors_plus menyarankan selalu memasang onError. Sensor gerak dan magnetometer tidak memerlukan dialog izin."
+    },
+    {
+      "question": "Kenapa sudut kemiringan dihitung dengan atan2(x, sqrt(y*y + z*z)) dan bukan asin(x / 9.81)?",
+      "options": [
+        "Karena asin tidak tersedia di dart:math",
+        "Karena atan2 memakai perbandingan komponen sehingga tetap benar walau besar gravitasi terbaca tidak tepat 9,81, tidak gagal karena pembagian dengan nol, dan memberi kuadran yang benar",
+        "Karena atan2 menghasilkan derajat sedangkan asin menghasilkan radian",
+        "Karena atan2 otomatis menghaluskan data"
+      ],
+      "correctIndex": 1,
+      "explanation": "asin(x / 9.81) gagal (NaN) jika x sedikit melebihi 9,81 karena derau, dan bergantung pada nilai gravitasi yang tepat. atan2 hanya membutuhkan rasio dua nilai. Keduanya menghasilkan radian."
+    },
+    {
+      "question": "Kompas yang menghitung heading dengan atan2 dari komponen x dan y magnetometer saja berubah puluhan derajat ketika HP sedikit dimiringkan. Apa penyebab dan solusinya?",
+      "options": [
+        "Sampling period terlalu besar. Gunakan fastestInterval",
+        "Medan magnet bumi tidak mendatar, sehingga komponen vertikalnya bocor ke sumbu x/y saat HP miring. Gunakan kompensasi kemiringan dengan akselerometer (E = m × a, N = a × E)",
+        "Magnetometer rusak dan harus diganti",
+        "Deklinasi belum ditambahkan"
+      ],
+      "correctIndex": 1,
+      "explanation": "Akselerometer memberi arah atas sehingga kita bisa menghitung vektor timur dan utara yang benar-benar mendatar. Ini prinsip yang sama dengan SensorManager.getRotationMatrix(). Deklinasi hanya menggeser hasil dengan nilai tetap, tidak menyebabkan error yang bergantung pada kemiringan."
+    },
+    {
+      "question": "Heading yang terbaca 90° (sisi atas HP menghadap timur). Agar huruf U pada piringan kompas menunjuk utara yang sebenarnya, piringan harus diputar dengan...",
+      "options": [
+        "Transform.rotate(angle: 90)",
+        "Transform.rotate(angle: 90 * pi / 180), searah jarum jam",
+        "Transform.rotate(angle: -90 * pi / 180), berlawanan jarum jam, sehingga U pindah ke kiri",
+        "Tidak perlu diputar, cukup ganti teks heading"
+      ],
+      "correctIndex": 2,
+      "explanation": "Saat HP menghadap timur, utara ada di sebelah kiri. Piringan diputar sebesar negatif heading, dalam radian. Transform.rotate dengan angle positif memutar searah jarum jam."
+    },
+    {
+      "question": "Arah kompas di HP berbeda jauh dari Google Maps, dan kuat medan yang terbaca 140 µT. Apa diagnosis yang paling mungkin?",
+      "options": [
+        "Deklinasi di Indonesia sangat besar",
+        "Ada gangguan magnet (hard iron dari magnet casing atau speaker, atau soft iron dari logam di dekatnya), karena medan bumi hanya sekitar 25–65 µT. Jauhkan dari logam/magnet lalu kalibrasi dengan gerakan angka 8",
+        "Sampling period terlalu kecil",
+        "Low-pass filter alpha terlalu besar"
+      ],
+      "correctIndex": 1,
+      "explanation": "Kuat medan jauh di atas medan bumi menandakan ada sumber magnet lain. Hard iron menambah offset tetap, soft iron membuat respons lonjong. Gerakan angka 8 membantu sistem menghitung ulang offset kalibrasi."
+    },
+    {
+      "question": "Dalam GerakController (GetX MVC), mana kombinasi yang BENAR untuk mengelola sensor?",
+      "options": [
+        "Memanggil service.akselerometer().listen(...) di dalam build() view supaya data selalu segar",
+        "Menyimpan StreamSubscription di controller, memulai di onInit, menjeda lewat AppLifecycleListener saat aplikasi di background, dan membatalkan semua langganan di onClose",
+        "Membiarkan langganan tetap hidup karena GetX membersihkannya otomatis",
+        "Mengimpor sensors_plus di view dan controller agar lebih cepat"
+      ],
+      "correctIndex": 1,
+      "explanation": "Langganan adalah tanggung jawab controller yang membuatnya. GetX memanggil onClose saat controller dihapus, tetapi tidak membatalkan StreamSubscription secara otomatis. listen di build() menambah langganan baru setiap rebuild. Hanya service yang boleh mengenal sensors_plus."
+    }
+  ]
+}

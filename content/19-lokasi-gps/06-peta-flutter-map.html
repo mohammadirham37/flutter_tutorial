@@ -1,0 +1,203 @@
+<p class="lead">Menampilkan posisi di peta jauh lebih mudah dipahami daripada angka koordinat. Di bab ini kita memakai <code>flutter_map</code> dengan ubin (<em>tile</em>) <strong>OpenStreetMap</strong> (OSM). Tidak perlu akun cloud maupun API key, cocok untuk praktikum. Koordinat di <code>flutter_map</code> memakai kelas <code>LatLng</code> dari package <code>latlong2</code>.</p>
+
+<h4>Cara kerja peta ubin</h4>
+<p>Peta dunia dipotong menjadi gambar persegi 256&times;256 piksel untuk setiap tingkat zoom. URL <code>https://tile.openstreetmap.org/{z}/{x}/{y}.png</code> berarti: ambil ubin pada zoom <code>z</code>, kolom <code>x</code>, baris <code>y</code>. <code>flutter_map</code> mengunduh ubin yang terlihat di layar lalu menyusunnya. Di atas lapisan ubin kita bisa menumpuk lapisan lain: lingkaran, garis, dan penanda.</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Widget/kelas</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>FlutterMap</code></td><td>Widget peta. Anak-anaknya (<code>children</code>) adalah lapisan yang ditumpuk dari bawah ke atas</td></tr>
+      <tr><td><code>MapOptions</code></td><td><code>initialCenter</code>, <code>initialZoom</code>, <code>onTap</code>, batas zoom, dsb.</td></tr>
+      <tr><td><code>TileLayer</code></td><td>Lapisan ubin: <code>urlTemplate</code> dan <code>userAgentPackageName</code></td></tr>
+      <tr><td><code>CircleLayer</code> + <code>CircleMarker</code></td><td>Lingkaran, bisa dalam piksel atau meter (<code>useRadiusInMeter: true</code>)</td></tr>
+      <tr><td><code>MarkerLayer</code> + <code>Marker</code></td><td>Widget apa pun yang ditempel di sebuah koordinat</td></tr>
+      <tr><td><code>RichAttributionWidget</code></td><td>Atribusi sumber data peta</td></tr>
+      <tr><td><code>MapController</code></td><td>Menggerakkan kamera dari kode: <code>move(titik, zoom)</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Contoh kecil: jarak dengan latlong2</h4>
+<p><code>latlong2</code> juga bisa menghitung jarak tanpa <code>geolocator</code>. Ini berguna di kode yang sudah memakai <code>LatLng</code>:</p>
+<pre><code class="language-dart">import 'package:flutter/foundation.dart';
+import 'package:latlong2/latlong.dart';
+
+void contohLatLng() {
+  const kampus = LatLng(-6.3628, 106.8269);
+  const halte = LatLng(-6.3605, 106.8312);
+  const distance = Distance();
+  final meter = distance.as(LengthUnit.Meter, kampus, halte);
+  debugPrint('Kampus ke halte: $meter m');
+}
+</code></pre>
+
+<h4>Contoh lengkap: peta kampus dengan lokasi saya</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
+
+void main() =&gt; runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const PetaPage(),
+    );
+  }
+}
+
+// Titik contoh. Ganti dengan koordinat kampusmu.
+const titikKampus = LatLng(-6.3628, 106.8269);
+
+class PetaPage extends StatefulWidget {
+  const PetaPage({super.key});
+
+  @override
+  State&lt;PetaPage&gt; createState() =&gt; _PetaPageState();
+}
+
+class _PetaPageState extends State&lt;PetaPage&gt; {
+  final _mapController = MapController();
+  LatLng? _posisiSaya;
+  LatLng? _titikDipilih;
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _keLokasiSaya() async {
+    var izin = await Geolocator.checkPermission();
+    if (izin == LocationPermission.denied) {
+      izin = await Geolocator.requestPermission();
+    }
+    if (izin == LocationPermission.denied ||
+        izin == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Izin lokasi ditolak.')));
+      return;
+    }
+
+    try {
+      final p = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+      if (!mounted) return;
+      final titik = LatLng(p.latitude, p.longitude);
+      setState(() =&gt; _posisiSaya = titik);
+      _mapController.move(titik, 17); // geser kamera + zoom 17
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Gagal mengambil lokasi: $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skema = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Peta Kampus')),
+      body: FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: titikKampus,
+          initialZoom: 16,
+          onTap: (tapPosition, titik) =&gt; setState(() =&gt; _titikDipilih = titik),
+        ),
+        children: [
+          // 1. Lapisan ubin (tile) dari OpenStreetMap
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'id.ac.kampus.v19',
+          ),
+          // 2. Lingkaran radius 100 meter di sekitar kampus
+          CircleLayer(
+            circles: [
+              CircleMarker(
+                point: titikKampus,
+                radius: 100,
+                useRadiusInMeter: true,
+                color: skema.primary.withValues(alpha: 0.15),
+                borderColor: skema.primary,
+                borderStrokeWidth: 2,
+              ),
+            ],
+          ),
+          // 3. Penanda (marker)
+          MarkerLayer(
+            markers: [
+              const Marker(
+                point: titikKampus,
+                width: 48,
+                height: 48,
+                child: Icon(Icons.school, size: 40, color: Colors.indigo),
+              ),
+              if (_posisiSaya != null)
+                Marker(
+                  point: _posisiSaya!,
+                  width: 24,
+                  height: 24,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                    ),
+                  ),
+                ),
+              if (_titikDipilih != null)
+                Marker(
+                  point: _titikDipilih!,
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.topCenter, // ujung pin tepat di titik
+                  child: const Icon(
+                    Icons.location_pin,
+                    size: 40,
+                    color: Colors.red,
+                  ),
+                ),
+            ],
+          ),
+          // 4. Atribusi wajib untuk data OpenStreetMap
+          const RichAttributionWidget(
+            attributions: [TextSourceAttribution('OpenStreetMap contributors')],
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _keLokasiSaya,
+        tooltip: 'Lokasi saya',
+        child: const Icon(Icons.my_location),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Penjelasan baris penting</h4>
+<ul>
+  <li><strong>Urutan <code>children</code> = urutan lapisan.</strong> <code>TileLayer</code> paling bawah, lalu lingkaran, lalu penanda, dan atribusi paling atas. Jika <code>TileLayer</code> diletakkan terakhir, ubin peta menutupi semua penanda.</li>
+  <li><code>userAgentPackageName</code> diisi dengan package name aplikasimu (sama dengan <code>applicationId</code> di <code>android/app/build.gradle.kts</code>). Server OSM memakai User-Agent untuk mengenali aplikasi. Tanpa ini <code>flutter_map</code> mencetak peringatan di konsol debug, dan aplikasimu berisiko diblokir.</li>
+  <li><code>CircleMarker(useRadiusInMeter: true, radius: 100)</code> menggambar lingkaran 100 meter sungguhan yang ikut membesar saat di-zoom. Tanpa <code>useRadiusInMeter</code>, radius dihitung dalam piksel layar.</li>
+  <li><code>Marker</code> wajib punya <code>point</code>, <code>width</code>, <code>height</code>, dan <code>child</code>. Secara bawaan titik koordinat berada di <em>tengah</em> widget. Untuk ikon pin, <code>alignment: Alignment.topCenter</code> menaruh seluruh widget di atas titik sehingga ujung pin tepat menunjuk lokasinya.</li>
+  <li><code>MapOptions.onTap</code> memberi <code>LatLng</code> titik yang disentuh. Ini dasar fitur "pilih lokasi di peta".</li>
+  <li><code>_mapController.move(titik, 17)</code> memindahkan kamera. <code>MapController</code> dibuat sendiri, jadi dibuang di <code>dispose()</code>.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Atribusi dan kebijakan pemakaian OSM</h4><p>Data OpenStreetMap berlisensi ODbL dan <strong>wajib</strong> menampilkan atribusi "© OpenStreetMap contributors". <code>RichAttributionWidget</code> menampilkan ikon info di pojok peta yang berisi teks tersebut (<code>TextSourceAttribution</code> otomatis menambah simbol ©). Server <code>tile.openstreetmap.org</code> dijalankan sukarelawan dengan <em>Tile Usage Policy</em>: boleh untuk belajar dan aplikasi bertrafik kecil, tetapi aplikasi produksi dengan banyak pengguna sebaiknya memakai penyedia ubin komersial atau server sendiri. Jangan pernah mengunduh massal ubin untuk mode offline dari server publik OSM.</p></div>
+<div class="callout callout-tip"><h4>💡 Peta kosong abu-abu?</h4><p>Periksa tiga hal: (1) izin <code>INTERNET</code> di manifest <code>main</code> untuk build rilis, (2) emulator punya koneksi internet, (3) <code>urlTemplate</code> benar dan tidak memakai subdomain <code>{s}</code> lama (<code>a.tile...</code>), yang sudah tidak disarankan.</p></div>

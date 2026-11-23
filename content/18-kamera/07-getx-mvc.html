@@ -1,0 +1,295 @@
+<p class="lead">Contoh Album Praktikum di bagian 5 masih menaruh semuanya di satu <code>State</code>: memanggil plugin, mengurus file, dan menggambar UI. Sekarang kita pecah dengan pola MVC GetX dari Modul 08: <strong>service</strong> membungkus <code>image_picker</code> dan file sistem, <strong>controller</strong> menyimpan state <code>.obs</code>, dan <strong>view</strong> hanya menampilkan dengan <code>Obx</code>.</p>
+
+<h4>Struktur folder</h4>
+<pre><code class="language-text">lib/
+├── main.dart
+├── services/
+│   └── foto_service.dart        # image_picker + path_provider (satu-satunya yang menyentuh plugin)
+├── controllers/
+│   └── album_controller.dart    # RxList&lt;File&gt;, status sibuk, aksi tambah/hapus
+└── views/
+    └── album_view.dart          # GridView + Obx, dialog, SnackBar
+</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Lapisan</th><th>Boleh mengimpor</th><th>Tidak boleh</th></tr></thead>
+    <tbody>
+      <tr><td>Service</td><td><code>image_picker</code>, <code>path_provider</code>, <code>dart:io</code></td><td>GetX, widget</td></tr>
+      <tr><td>Controller</td><td>GetX, service, <code>dart:io</code></td><td><code>material.dart</code>, <code>BuildContext</code>, <code>ImagePicker</code> langsung</td></tr>
+      <tr><td>View</td><td>Flutter, GetX, controller</td><td>Memanggil plugin atau menghapus file sendiri</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Langkah 1: Service</h4>
+<p class="code-file-label">📄 <code>lib/services/foto_service.dart</code></p>
+<pre><code class="language-dart">// lib/services/foto_service.dart
+// SERVICE: satu-satunya tempat yang menyentuh image_picker dan file sistem.
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+/// Sumber foto versi aplikasi kita, agar controller tidak bergantung
+/// langsung pada enum ImageSource milik image_picker.
+enum SumberFoto { kamera, galeri }
+
+class FotoException implements Exception {
+  const FotoException(this.pesan);
+  final String pesan;
+
+  @override
+  String toString() =&gt; pesan;
+}
+
+class FotoService {
+  final ImagePicker _picker = ImagePicker();
+
+  Future&lt;Directory&gt; _folderAlbum() async {
+    final dokumen = await getApplicationDocumentsDirectory();
+    return Directory(p.join(dokumen.path, 'album')).create(recursive: true);
+  }
+
+  /// Semua foto di album, terbaru lebih dulu.
+  Future&lt;List&lt;File&gt;&gt; semua() async {
+    final folder = await _folderAlbum();
+    final daftar = await folder.list().where((e) =&gt; e is File).toList();
+    return daftar.cast&lt;File&gt;()..sort((a, b) =&gt; b.path.compareTo(a.path));
+  }
+
+  /// Mengambil foto lalu menyalinnya ke album.
+  /// Mengembalikan null jika pengguna membatalkan.
+  Future&lt;File?&gt; ambil(SumberFoto sumber) async {
+    final XFile? hasil;
+    try {
+      hasil = await _picker.pickImage(
+        source: sumber == SumberFoto.kamera
+            ? ImageSource.camera
+            : ImageSource.gallery,
+        maxWidth: 1080,
+        imageQuality: 80,
+      );
+    } on PlatformException catch (e) {
+      throw FotoException(
+        e.code == 'camera_access_denied'
+            ? 'Izin kamera ditolak.'
+            : 'Gagal mengambil foto (${e.code}).',
+      );
+    }
+    if (hasil == null) return null;
+
+    final folder = await _folderAlbum();
+    final nama =
+        'foto_${DateTime.now().millisecondsSinceEpoch}${p.extension(hasil.path)}';
+    final tujuan = p.join(folder.path, nama);
+    await hasil.saveTo(tujuan);
+    return File(tujuan);
+  }
+
+  Future&lt;void&gt; hapus(File file) async {
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+}
+</code></pre>
+<ul>
+  <li>Enum <code>SumberFoto</code> milik kita sendiri menyembunyikan <code>ImageSource</code>. Jika kelak service diganti (misalnya memakai package <code>camera</code>), controller dan view tidak ikut berubah.</li>
+  <li><code>PlatformException</code> dari plugin diterjemahkan menjadi <code>FotoException</code> berisi pesan Bahasa Indonesia. Controller cukup menangkap satu jenis exception.</li>
+  <li><code>folder.list()</code> adalah versi async dari <code>listSync()</code>, sehingga UI tidak tersendat saat folder berisi banyak file.</li>
+</ul>
+
+<h4>Langkah 2: Controller</h4>
+<p class="code-file-label">📄 <code>lib/controllers/album_controller.dart</code></p>
+<pre><code class="language-dart">// lib/controllers/album_controller.dart
+// CONTROLLER: state reaktif + logika. Tidak mengimpor material.dart.
+import 'dart:io';
+
+import 'package:get/get.dart';
+
+import '../services/foto_service.dart';
+
+class AlbumController extends GetxController {
+  AlbumController(this._service);
+  final FotoService _service;
+
+  final _foto = &lt;File&gt;[].obs;
+  final _sibuk = false.obs;
+
+  List&lt;File&gt; get foto =&gt; _foto;
+  bool get sibuk =&gt; _sibuk.value;
+
+  @override
+  void onInit() {
+    super.onInit();
+    muat();
+  }
+
+  Future&lt;void&gt; muat() async {
+    _foto.assignAll(await _service.semua());
+  }
+
+  /// Mengembalikan pesan error, atau null jika berhasil/dibatalkan.
+  Future&lt;String?&gt; tambah(SumberFoto sumber) async {
+    if (_sibuk.value) return null; // cegah tekan tombol dua kali
+    _sibuk.value = true;
+    try {
+      final file = await _service.ambil(sumber);
+      if (file != null) {
+        _foto.insert(0, file); // langsung tampil tanpa membaca ulang folder
+      }
+      return null;
+    } on FotoException catch (e) {
+      return e.pesan;
+    } finally {
+      _sibuk.value = false;
+    }
+  }
+
+  Future&lt;void&gt; hapus(File file) async {
+    await _service.hapus(file);
+    _foto.remove(file);
+  }
+}
+</code></pre>
+<ul>
+  <li><code>_foto</code> berupa <code>RxList&lt;File&gt;</code>. Method <code>insert</code>, <code>remove</code>, dan <code>assignAll</code> pada RxList otomatis memberi tahu <code>Obx</code>.</li>
+  <li><code>_sibuk</code> mencegah dua pemanggilan kamera bersamaan dan dipakai view untuk menampilkan indikator loading.</li>
+  <li><code>tambah()</code> mengembalikan pesan error (atau <code>null</code>) alih-alih menampilkan SnackBar sendiri, karena SnackBar butuh <code>BuildContext</code> yang menjadi urusan view.</li>
+</ul>
+
+<h4>Langkah 3: View</h4>
+<p class="code-file-label">📄 <code>lib/views/album_view.dart</code></p>
+<pre><code class="language-dart">// lib/views/album_view.dart
+// VIEW: hanya menampilkan state dan meneruskan aksi ke controller.
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:path/path.dart' as p;
+
+import '../controllers/album_controller.dart';
+import '../services/foto_service.dart';
+
+class AlbumView extends GetView&lt;AlbumController&gt; {
+  const AlbumView({super.key});
+
+  Future&lt;void&gt; _tambah(BuildContext context, SumberFoto sumber) async {
+    final error = await controller.tambah(sumber);
+    if (error == null || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+  }
+
+  Future&lt;void&gt; _konfirmasiHapus(BuildContext context, File file) async {
+    final yakin = await showDialog&lt;bool&gt;(
+      context: context,
+      builder: (context) =&gt; AlertDialog(
+        title: const Text('Hapus foto?'),
+        content: Text(p.basename(file.path)),
+        actions: [
+          TextButton(
+            onPressed: () =&gt; Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () =&gt; Navigator.pop(context, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (yakin == true) await controller.hapus(file);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Obx(() =&gt; Text('Album Praktikum (${controller.foto.length})')),
+      ),
+      body: Obx(() {
+        final daftar = controller.foto;
+        if (daftar.isEmpty) {
+          return const Center(child: Text('Belum ada foto. Tekan tombol +'));
+        }
+        return GridView.builder(
+          padding: const EdgeInsets.all(8),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+          ),
+          itemCount: daftar.length,
+          itemBuilder: (context, index) {
+            final file = daftar[index];
+            return GestureDetector(
+              onLongPress: () =&gt; _konfirmasiHapus(context, file),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(file, fit: BoxFit.cover, cacheWidth: 300),
+              ),
+            );
+          },
+        );
+      }),
+      floatingActionButton: Obx(
+        () =&gt; controller.sibuk
+            ? const FloatingActionButton(
+                onPressed: null,
+                child: CircularProgressIndicator(),
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FloatingActionButton.small(
+                    heroTag: 'galeri',
+                    onPressed: () =&gt; _tambah(context, SumberFoto.galeri),
+                    child: const Icon(Icons.photo_library),
+                  ),
+                  const SizedBox(height: 12),
+                  FloatingActionButton(
+                    heroTag: 'kamera',
+                    onPressed: () =&gt; _tambah(context, SumberFoto.kamera),
+                    child: const Icon(Icons.add_a_photo),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h4>Langkah 4: main.dart</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'controllers/album_controller.dart';
+import 'services/foto_service.dart';
+import 'views/album_view.dart';
+
+void main() {
+  // Wajib sebelum memakai plugin (path_provider) di onInit controller
+  WidgetsFlutterBinding.ensureInitialized();
+  Get.put(AlbumController(FotoService()));
+  runApp(
+    GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const AlbumView(),
+    ),
+  );
+}
+</code></pre>
+<p><strong>Penjelasan:</strong></p>
+<ul>
+  <li><code>WidgetsFlutterBinding.ensureInitialized()</code> wajib di sini karena <code>Get.put</code> langsung menjalankan <code>onInit()</code>, yang memanggil <code>path_provider</code> (plugin) sebelum <code>runApp</code>.</li>
+  <li>View memakai <code>GetView&lt;AlbumController&gt;</code> sehingga getter <code>controller</code> langsung tersedia. Hanya judul, grid, dan tombol yang dibungkus <code>Obx</code>.</li>
+  <li>Setelah <code>await controller.tambah(...)</code>, view memeriksa <code>context.mounted</code> sebelum menampilkan SnackBar.</li>
+</ul>
+
+<div class="callout callout-warning"><h4>⚠️ Bentrok nama <code>CameraController</code></h4><p>Package <code>camera</code> sudah punya kelas bernama <code>CameraController</code>. Jika kamu membuat <code>class CameraController extends GetxController</code>, kedua nama bertabrakan dan muncul error <em>ambiguous import</em>. Beri nama lain seperti <code>KameraController</code> atau <code>FotoController</code>. Untuk alasan yang sama, di studi kasus <code>CameraController</code> milik package <code>camera</code> tetap dikelola di <code>StatefulWidget</code> (<code>KameraView</code>): ia terikat erat dengan widget preview dan lifecycle layar, sementara GetxController hanya menerima path hasil foto.</p></div>

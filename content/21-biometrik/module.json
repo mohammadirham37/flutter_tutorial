@@ -1,0 +1,139 @@
+{
+  "id": "modul-biometrik",
+  "badge": "Biometrik",
+  "category": "Hardware",
+  "title": "Autentikasi Biometrik: Sidik Jari & Pengenalan Wajah",
+  "duration": "Pertemuan 21 (150 Menit) + Belajar Mandiri",
+  "prerequisites": [
+    "Modul 13: Proyek Catatan Kuliah (1): Arsitektur & Autentikasi Supabase",
+    "Modul 11: Database NoSQL Lokal dengan Hive",
+    "Modul 17: Izin Akses (Permission) & Arsitektur Akses Hardware di Flutter"
+  ],
+  "summary": "Mengunci aplikasi dengan sidik jari, wajah, atau PIN HP memakai package local_auth versi terbaru: konsep kelas keamanan biometrik Android dan Face ID/Touch ID, konfigurasi platform, pengecekan perangkat, authenticate(), dan penanganan LocalAuthException. Ditutup dengan studi kasus Kunci Aplikasi Catatan Kuliah berpola GetX MVC yang menyimpan sesi di flutter_secure_storage, mengunci ulang saat aplikasi kembali dari background, dan menyediakan fallback login ulang.",
+  "learningOutcomes": [
+    "Menjelaskan biometrik sebagai faktor autentikasi, perbedaan Class 3 (strong), Class 2 (weak), dan Class 1 (convenience) di Android, serta Face ID/Touch ID di iOS.",
+    "Menjelaskan bahwa biometrik hanya membuka kunci sesi lokal, bukan pengganti login ke server, dan bahwa data biometrik tidak pernah sampai ke aplikasi.",
+    "Mengonfigurasi proyek Flutter untuk local_auth: FlutterFragmentActivity, izin USE_BIOMETRIC, tema AppCompat, dan NSFaceIDUsageDescription.",
+    "Memeriksa kemampuan perangkat dengan isDeviceSupported, canCheckBiometrics, dan getAvailableBiometrics, lalu memanggil authenticate dengan opsi biometricOnly dan persistAcrossBackgrounding.",
+    "Menangani LocalAuthException berdasarkan kodenya (userCanceled, noBiometricsEnrolled, noCredentialsSet, temporaryLockout, biometricLockout, dan lainnya) dengan pesan dan fallback yang tepat.",
+    "Menyimpan sesi dan pengaturan kunci di flutter_secure_storage serta mengunci ulang aplikasi setelah background memakai AppLifecycleListener dengan masa tenggang.",
+    "Membangun BiometricService, LockController, dan LockView dengan pola GetX MVC, termasuk layar kunci yang menutupi seluruh Navigator.",
+    "Menguji autentikasi biometrik di Android Emulator (Extended Controls → Fingerprint) dan iOS Simulator, termasuk skenario gagal dan lockout."
+  ],
+  "sections": [
+    { "id": "bio-konsep", "title": "1. Konsep Autentikasi Biometrik", "file": "01-konsep-biometrik.html" },
+    { "id": "bio-konfigurasi", "title": "2. Instalasi & Konfigurasi Platform", "file": "02-konfigurasi-platform.html" },
+    { "id": "bio-cek-perangkat", "title": "3. Mengecek Dukungan Perangkat", "file": "03-cek-perangkat.html" },
+    { "id": "bio-authenticate", "title": "4. authenticate(): Menampilkan Dialog Biometrik", "file": "04-authenticate.html" },
+    { "id": "bio-error", "title": "5. Menangani Error, Lockout & Fallback", "file": "05-error-fallback.html" },
+    { "id": "bio-pola-aman", "title": "6. Pola Aman: Secure Storage & Kunci Ulang dari Background", "file": "06-pola-aman-lifecycle.html" },
+    { "id": "bio-getx-mvc", "title": "7. GetX MVC: BiometricService, LockController & LockView", "file": "07-getx-mvc.html" },
+    { "id": "bio-studi-kasus", "title": "8. Studi Kasus: Kunci Aplikasi Catatan Kuliah", "file": "08-studi-kasus.html" },
+    { "id": "bio-uji-keamanan", "title": "9. Menguji di Emulator, Kesalahan Umum & Privasi", "file": "09-uji-kesalahan-privasi.html" }
+  ],
+  "labAssignment": {
+    "title": "Praktikum 21: Kunci Biometrik untuk Aplikasi Catatan Kuliah",
+    "objective": "Menambahkan kunci biometrik yang aman dan ramah pengguna ke aplikasi Flutter berpola GetX MVC, lengkap dengan pengaturan on/off, kunci ulang dari background, penanganan error, dan fallback login ulang.",
+    "instructions": [
+      "<strong>Tugas 1 (Wajib, 15 poin):</strong> Kerjakan konfigurasi platform dari section 2 dan jalankan halaman diagnosa dari section 3 di emulator. Lampirkan dua screenshot: sebelum dan sesudah sidik jari didaftarkan (Extended Controls → Fingerprint).",
+      "<strong>Tugas 2 (Wajib, 25 poin):</strong> Bangun studi kasus Kunci Aplikasi Catatan Kuliah dari section 8 sampai berjalan. Buktikan skenario uji nomor 1, 3, dan 4 dengan screenshot atau rekaman layar singkat.",
+      "<strong>Tugas 3 (Wajib, 15 poin):</strong> Tambahkan pilihan masa tenggang di PengaturanView (Langsung, 30 detik, 1 menit, 5 menit) memakai <code>SegmentedButton</code> atau <code>DropdownButton</code>. Simpan pilihan lewat <code>SesiService</code> dan pakai di <code>LockController</code> sebagai pengganti konstanta <code>masaTenggang</code>.",
+      "<strong>Tugas 4 (Wajib, 15 poin):</strong> Tambahkan sakelar \"Hanya biometrik (tanpa PIN HP)\". Jika aktif, <code>BiometricService.autentikasi</code> dipanggil dengan <code>hanyaBiometrik: true</code>. Pastikan sakelar ini tidak bisa dinyalakan jika <code>getAvailableBiometrics()</code> kosong, dan tampilkan alasannya.",
+      "<strong>Tugas 5 (Wajib, 15 poin):</strong> Uji skenario lockout: tempelkan Finger 2 sampai muncul <code>temporaryLockout</code>. Tampilkan hitung mundur 30 detik di LockView sebelum tombol Buka Kunci aktif kembali, sementara tombol login ulang tetap bisa ditekan.",
+      "<strong>Tugas 6 (Wajib, 15 poin):</strong> Tulis unit test untuk <code>hasilDariKode</code> (minimal 6 kode berbeda) dan untuk <code>LockController.bukaKunci</code> memakai <code>BiometricService</code> tiruan (kelas turunan yang meng-override <code>autentikasi</code>). Semua test harus lulus dengan <code>flutter test</code>.",
+      "<strong>Bonus (+10 poin):</strong> Integrasikan layar kunci ke proyek Supabase Modul 13/14 sesuai panduan akhir section 8, sehingga <code>loginUlang()</code> memanggil <code>signOut()</code> Supabase."
+    ],
+    "expectedOutput": "Aplikasi Catatan Kuliah yang bisa dikunci dengan sidik jari/PIN HP: sakelar kunci yang meminta konfirmasi, layar kunci saat aplikasi dibuka dan kembali dari background sesuai masa tenggang pilihan pengguna, opsi hanya biometrik, hitung mundur saat lockout, dan tombol login ulang yang selalu tersedia. Disertai screenshot pengujian di emulator, output flutter test yang lulus, dan flutter analyze tanpa issue.",
+    "rubric": "Tugas 1: konfigurasi platform benar dan halaman diagnosa (15%). Tugas 2: studi kasus berjalan dan skenario uji terbukti (25%). Tugas 3: masa tenggang tersimpan dan dipakai controller (15%). Tugas 4: opsi hanya biometrik dengan validasi (15%). Tugas 5: penanganan lockout dan hitung mundur (15%). Tugas 6: kualitas dan kelulusan unit test (15%). Bonus integrasi Supabase (+10%). Pengurangan nilai jika view memanggil local_auth secara langsung, controller mengimpor material.dart, tidak ada fallback login ulang, listener/worker tidak di-dispose, atau flutter analyze masih menampilkan issue."
+  },
+  "quiz": [
+    {
+      "question": "Apa yang sebenarnya diterima aplikasi Flutter setelah pengguna menempelkan jari pada dialog local_auth?",
+      "options": [
+        "Gambar sidik jari dalam format PNG",
+        "Template sidik jari terenkripsi yang bisa dikirim ke server",
+        "Hanya hasil berhasil/gagal (true/false) atau kode error, karena pencocokan dilakukan sistem operasi di area aman",
+        "ID unik jari yang dipakai, sehingga aplikasi tahu jari mana yang menempel"
+      ],
+      "correctIndex": 2,
+      "explanation": "Pencocokan biometrik dilakukan di Trusted Execution Environment/Secure Enclave. Aplikasi tidak pernah menerima data biometrik, hanya hasil autentikasi atau LocalAuthException."
+    },
+    {
+      "question": "Kenapa biometrik di aplikasi Catatan Kuliah disebut \"hanya membuka kunci lokal\"?",
+      "options": [
+        "Karena biometrik hanya bekerja tanpa internet",
+        "Karena server tidak pernah memeriksa biometrik; server tetap memakai token sesi hasil login email dan kata sandi, sedangkan biometrik hanya menjaga akses ke sesi yang sudah tersimpan di perangkat",
+        "Karena hasil authenticate() dikirim ke server sebagai pengganti kata sandi",
+        "Karena biometrik hanya bisa dipakai di emulator"
+      ],
+      "correctIndex": 1,
+      "explanation": "Pengguna tetap login ke server minimal sekali. Biometrik melindungi sesi yang sudah ada di HP dari orang lain yang meminjam HP. Nilai true dari authenticate tidak boleh dijadikan bukti login di server."
+    },
+    {
+      "question": "Sensor pengenalan wajah dari kamera depan 2D biasa yang memenuhi syarat Android dan boleh dipakai aplikasi termasuk kelas apa?",
+      "options": [
+        "Class 3 (Strong)",
+        "Class 2 (Weak)",
+        "Class 1 (Convenience)",
+        "DEVICE_CREDENTIAL"
+      ],
+      "correctIndex": 1,
+      "explanation": "Class 2 (BIOMETRIC_WEAK) boleh dipakai aplikasi untuk konfirmasi, tetapi tidak untuk membuka kunci kriptografi Keystore. Class 3 untuk sensor yang sangat sulit ditipu, sedangkan Class 1 tidak bisa dipakai aplikasi sama sekali."
+    },
+    {
+      "question": "Dialog biometrik tidak pernah muncul dan aplikasi menerima LocalAuthException dengan kode uiUnavailable. Penyebab yang paling mungkin adalah...",
+      "options": [
+        "Belum ada sidik jari yang terdaftar",
+        "MainActivity masih turunan FlutterActivity, belum FlutterFragmentActivity",
+        "NSFaceIDUsageDescription belum ditulis di AndroidManifest.xml",
+        "Parameter localizedReason terlalu panjang"
+      ],
+      "correctIndex": 1,
+      "explanation": "BiometricPrompt adalah Fragment, sehingga Activity harus turunan FragmentActivity. Setelah diubah, aplikasi harus dihentikan lalu dijalankan ulang karena Hot Reload tidak membawa perubahan native."
+    },
+    {
+      "question": "Manakah pemanggilan authenticate yang benar pada local_auth versi terbaru agar hanya biometrik yang diterima dan autentikasi diulang otomatis jika aplikasi sempat masuk background?",
+      "options": [
+        "auth.authenticate(localizedReason: 'Buka kunci', options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true))",
+        "auth.authenticate(localizedReason: 'Buka kunci', biometricOnly: true, persistAcrossBackgrounding: true)",
+        "auth.authenticate(reason: 'Buka kunci', onlyBiometric: true, sticky: true)",
+        "auth.authenticateWithBiometrics(localizedReason: 'Buka kunci')"
+      ],
+      "correctIndex": 1,
+      "explanation": "Sejak versi mayor 3, AuthenticationOptions dihapus dari authenticate dan diganti parameter langsung; stickyAuth berganti nama menjadi persistAcrossBackgrounding. Opsi A adalah API versi 2."
+    },
+    {
+      "question": "Pengguna sudah 5 kali memakai jari yang salah dan Android mengunci sensor sementara. Kode LocalAuthExceptionCode apa yang diterima, dan reaksi apa yang tepat?",
+      "options": [
+        "userCanceled; tutup aplikasi",
+        "noBiometricHardware; sembunyikan fitur kunci selamanya",
+        "temporaryLockout; beri tahu pengguna untuk menunggu atau memakai PIN HP, dan tonjolkan tombol login ulang",
+        "authInProgress; panggil authenticate lagi di dalam loop"
+      ],
+      "correctIndex": 2,
+      "explanation": "temporaryLockout berarti terlalu banyak percobaan gagal. Aplikasi harus memberi jalan keluar: menunggu, fallback PIN (biometricOnly: false), atau login ulang dengan email dan kata sandi."
+    },
+    {
+      "question": "Kenapa LockController mengabaikan event onPause selama dialog biometrik sedang tampil?",
+      "options": [
+        "Agar baterai lebih hemat",
+        "Karena dialog biometrik dapat memicu perubahan lifecycle, sehingga tanpa pengecualian ini aplikasi bisa terkunci lagi tepat setelah berhasil dibuka",
+        "Karena AppLifecycleListener tidak bisa dipakai bersama GetX",
+        "Karena onPause hanya terjadi di iOS"
+      ],
+      "correctIndex": 1,
+      "explanation": "Di beberapa perangkat dialog sistem membuat aplikasi sempat berpindah state. Flag sedang memproses mencegah aplikasi mencatat waktu background palsu lalu mengunci ulang secara berulang."
+    },
+    {
+      "question": "Di studi kasus, kenapa LockView ditempatkan lewat GetMaterialApp.builder (KunciOverlay) dan bukan sebagai halaman yang dibuka dengan Get.to(LockView())?",
+      "options": [
+        "Karena Get.to tidak bisa menampilkan Scaffold",
+        "Agar layar kunci menutupi halaman apa pun yang sedang terbuka tanpa menghapus state-nya, dan tidak bisa dilewati dengan tombol kembali",
+        "Agar dialog biometrik muncul lebih cepat",
+        "Karena builder otomatis memanggil local_auth"
+      ],
+      "correctIndex": 1,
+      "explanation": "Overlay di atas Navigator menutupi semua route, termasuk halaman Pengaturan yang sedang terbuka. Halaman yang dibuka dengan Get.to bisa ditutup dengan tombol kembali, dan tidak menutupi route lain dengan benar."
+    }
+  ]
+}

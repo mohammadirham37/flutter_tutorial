@@ -1,0 +1,206 @@
+<p class="lead">Platform channel adalah jalur pesan antara Dart dan kode native. Setiap plugin hardware memakai mekanisme ini di balik layar. Dengan menulis satu contoh sendiri, kamu akan paham apa yang terjadi saat memanggil <code>Permission.camera.request()</code> atau <code>Geolocator.getCurrentPosition()</code>.</p>
+
+<h4>Tiga jenis channel</h4>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Channel</th><th>Pola komunikasi</th><th>Contoh pemakaian</th></tr></thead>
+    <tbody>
+      <tr><td><code>MethodChannel</code></td><td>Tanya-jawab satu kali (seperti memanggil fungsi). Dart memanggil, native mengembalikan hasil atau error.</td><td>Ambil level baterai, minta izin, ambil foto</td></tr>
+      <tr><td><code>EventChannel</code></td><td>Aliran data terus-menerus dari native ke Dart, diterima sebagai <code>Stream</code>.</td><td>Status pengisian daya, posisi GPS, data sensor</td></tr>
+      <tr><td><code>BasicMessageChannel</code></td><td>Pesan bebas dua arah dengan codec tertentu.</td><td>Jarang dipakai langsung</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>Data yang dikirim lewat channel diubah otomatis oleh <code>StandardMessageCodec</code>. Tipe yang didukung antara lain <code>null</code>, <code>bool</code>, <code>int</code>, <code>double</code>, <code>String</code>, <code>Uint8List</code>, <code>List</code>, dan <code>Map</code>. Di Kotlin, <code>int</code> Dart menjadi <code>Int</code> (atau <code>Long</code> bila lebih dari 32 bit), <code>List</code> menjadi <code>List</code>, dan <code>Map</code> menjadi <code>HashMap</code>. Objek buatan sendiri harus diubah dulu menjadi <code>Map</code>.</p>
+
+<h4>Contoh kecil: memanggil method native</h4>
+<pre><code class="language-dart">import 'package:flutter/services.dart';
+
+// Nama channel bebas, tetapi harus unik dan SAMA PERSIS di sisi Kotlin.
+// Biasakan memakai awalan domain agar tidak bentrok dengan plugin lain.
+const channel = MethodChannel('id.ac.kampus/baterai');
+
+Future&lt;int?&gt; ambilLevel() =&gt;
+    channel.invokeMethod&lt;int&gt;('ambilLevelBaterai');
+</code></pre>
+<p><code>invokeMethod</code> selalu asinkron karena pesan harus menyeberang ke thread native dan kembali. Hasilnya bisa <code>null</code>, jadi tipe kembaliannya <code>Future&lt;int?&gt;</code>.</p>
+
+<h4>Contoh lengkap: level baterai (MethodChannel) dan status pengisian (EventChannel)</h4>
+<p>Contoh ini mengikuti pola contoh resmi "battery level" di dokumentasi Flutter (<em>docs.flutter.dev &rarr; Platform integration &rarr; Platform channels</em>), dengan nama channel dan method versi kita, ditambah sebuah <code>EventChannel</code>. Buat proyek baru, misalnya <code>flutter create --org id.ac.kampus contoh_hardware</code>.</p>
+
+<p><strong>Langkah 1: sisi Android (Kotlin).</strong> Buka <code>android/app/src/main/kotlin/.../MainActivity.kt</code>. Isinya bawaan hanya <code>class MainActivity : FlutterActivity()</code>. Ganti isinya (baris <code>package</code> di paling atas biarkan sesuai proyekmu):</p>
+<p class="code-file-label">📄 <code>android/app/src/main/kotlin/.../MainActivity.kt</code></p>
+<pre><code class="language-kotlin">package id.ac.kampus.contoh_hardware // sesuaikan dengan proyekmu
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodChannel
+
+class MainActivity : FlutterActivity() {
+    private val channelBaterai = "id.ac.kampus/baterai"
+    private val channelPengisian = "id.ac.kampus/pengisian"
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+
+        // 1. MethodChannel: Dart bertanya, Kotlin menjawab satu kali
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelBaterai)
+            .setMethodCallHandler { call, result -&gt;
+                // Dijalankan di main thread Android
+                if (call.method == "ambilLevelBaterai") {
+                    val level = ambilLevelBaterai()
+                    if (level != -1) {
+                        result.success(level)
+                    } else {
+                        result.error("TIDAK_TERSEDIA", "Level baterai tidak tersedia.", null)
+                    }
+                } else {
+                    result.notImplemented()
+                }
+            }
+
+        // 2. EventChannel: Kotlin mengirim data terus-menerus ke Dart
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, channelPengisian)
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                private var receiver: BroadcastReceiver? = null
+
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
+                    receiver = object : BroadcastReceiver() {
+                        override fun onReceive(context: Context, intent: Intent) {
+                            val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                            val mengisi = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                                status == BatteryManager.BATTERY_STATUS_FULL
+                            events.success(mengisi)
+                        }
+                    }
+                    registerReceiver(receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    receiver?.let { unregisterReceiver(it) }
+                    receiver = null
+                }
+            })
+    }
+
+    private fun ambilLevelBaterai(): Int {
+        val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+        return batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+    }
+}
+</code></pre>
+
+<p><strong>Langkah 2: sisi Dart.</strong></p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+void main() =&gt; runApp(const MaterialApp(home: BateraiPage()));
+
+class BateraiPage extends StatefulWidget {
+  const BateraiPage({super.key});
+
+  @override
+  State&lt;BateraiPage&gt; createState() =&gt; _BateraiPageState();
+}
+
+class _BateraiPageState extends State&lt;BateraiPage&gt; {
+  // Nama channel harus sama persis dengan di MainActivity.kt
+  static const _baterai = MethodChannel('id.ac.kampus/baterai');
+  static const _pengisian = EventChannel('id.ac.kampus/pengisian');
+
+  String _level = 'Belum dicek';
+  bool? _sedangMengisi;
+  StreamSubscription&lt;dynamic&gt;? _langganan;
+
+  @override
+  void initState() {
+    super.initState();
+    // EventChannel: dengarkan perubahan status pengisian daya
+    _langganan = _pengisian.receiveBroadcastStream().listen(
+      (data) =&gt; setState(() =&gt; _sedangMengisi = data as bool),
+      onError: (Object e) =&gt; debugPrint('Gagal mendengar: $e'),
+    );
+  }
+
+  @override
+  void dispose() {
+    _langganan?.cancel(); // memicu onCancel di sisi Kotlin
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _cekLevel() async {
+    String teks;
+    try {
+      final level = await _baterai.invokeMethod&lt;int&gt;('ambilLevelBaterai');
+      teks = 'Baterai $level%';
+    } on PlatformException catch (e) {
+      teks = 'Gagal: ${e.message}';
+    } on MissingPluginException {
+      teks = 'Channel belum dibuat di platform ini';
+    }
+    if (!mounted) return;
+    setState(() =&gt; _level = teks);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mengisi = switch (_sedangMengisi) {
+      null =&gt; 'Menunggu data...',
+      true =&gt; 'Sedang mengisi daya',
+      false =&gt; 'Tidak mengisi daya',
+    };
+    return Scaffold(
+      appBar: AppBar(title: const Text('Platform Channel')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_level, style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 8),
+            Text(mengisi),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _cekLevel,
+              icon: const Icon(Icons.battery_std),
+              label: const Text('Cek Level Baterai'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<p><strong>Penjelasan baris penting:</strong></p>
+<ul>
+  <li><code>configureFlutterEngine</code> adalah tempat resmi mendaftarkan channel di Android. Handler-nya dijalankan di <strong>main thread</strong> Android, jadi jangan melakukan pekerjaan berat (baca file besar, jaringan) langsung di dalamnya.</li>
+  <li><code>result.success(level)</code> menjadi nilai kembalian <code>invokeMethod</code> di Dart. <code>result.error(...)</code> menjadi <code>PlatformException</code> dengan <code>code</code> <code>'TIDAK_TERSEDIA'</code>. <code>result.notImplemented()</code> menjadi <code>MissingPluginException</code>.</li>
+  <li>Di sisi Kotlin, setiap pemanggilan wajib dijawab tepat satu kali (success, error, atau notImplemented). Jika lupa, <code>await</code> di Dart akan menunggu selamanya.</li>
+  <li><code>EventChannel</code> bekerja dengan <code>StreamHandler</code>: <code>onListen</code> dipanggil saat Dart mulai <code>listen</code>, <code>onCancel</code> saat langganan dibatalkan. Di situlah receiver Android didaftarkan dan dilepas.</li>
+  <li>Di Dart, <code>StreamSubscription</code> disimpan lalu dibatalkan di <code>dispose()</code>. Tanpa itu, receiver di sisi Android tetap hidup dan memboroskan baterai.</li>
+  <li>Setelah <code>await</code>, cek <code>mounted</code> sebelum <code>setState</code>, karena halaman mungkin sudah ditutup.</li>
+  <li>Membaca level baterai tidak butuh izin apa pun, jadi contoh ini bisa langsung dijalankan.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Bagaimana dengan iOS?</h4><p>Di iOS, channel yang sama didaftarkan di <code>ios/Runner/AppDelegate.swift</code> memakai <code>FlutterMethodChannel</code> dan <code>FlutterEventChannel</code>. Jika aplikasi dijalankan di iOS tanpa kode Swift tersebut, <code>invokeMethod</code> melempar <code>MissingPluginException</code>, sehingga contoh di atas menangkapnya agar tidak crash. Kode Swift lengkapnya ada di halaman dokumentasi Platform channels yang sama.</p></div>
+
+<div class="callout callout-tip"><h4>💡 Menguji di emulator</h4><p>Buka <strong>Extended Controls &rarr; Battery</strong> di Android Emulator. Ubah <em>Charge level</em> lalu tekan "Cek Level Baterai", atau ubah <em>Charger connection</em> menjadi <em>None</em>/<em>AC charger</em> dan lihat teks status pengisian berubah sendiri lewat EventChannel. Perubahan kode Kotlin tidak ikut hot reload: hentikan aplikasi lalu jalankan ulang <code>flutter run</code>.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li>Nama channel atau nama method berbeda satu huruf antara Dart dan Kotlin. Hasilnya <code>MissingPluginException</code> atau <code>notImplemented</code>.</li>
+<li>Mengubah <code>MainActivity.kt</code> lalu hanya menekan hot reload. Kode native baru terpakai setelah build ulang.</li>
+<li>Mengirim objek Dart buatan sendiri lewat channel. Ubah dulu menjadi <code>Map</code> (misal <code>toMap()</code>).</li>
+<li>Lupa membatalkan langganan <code>EventChannel</code> sehingga listener native terus berjalan.</li>
+</ul></div>

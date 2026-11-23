@@ -1,0 +1,295 @@
+<p class="lead">Package <code>camera</code> memberi kendali penuh: preview langsung di layar kita, tombol potret sendiri, ganti kamera depan/belakang, dan flash. Konsekuensinya, kita yang bertanggung jawab membuka dan menutup kamera dengan benar.</p>
+
+<h4>Empat langkah dasar</h4>
+<pre><code class="language-dart">import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
+
+Future&lt;void&gt; contohDasar() async {
+  // 1. Daftar kamera yang ada di perangkat
+  final List&lt;CameraDescription&gt; kamera = await availableCameras();
+  for (final k in kamera) {
+    debugPrint('${k.name} - ${k.lensDirection}'); // back / front / external
+  }
+
+  // 2. Buat controller untuk kamera pertama, lalu inisialisasi
+  final controller = CameraController(kamera.first, ResolutionPreset.medium);
+  await controller.initialize();
+
+  // 3. Ambil foto: hasilnya XFile di folder sementara
+  final XFile foto = await controller.takePicture();
+  debugPrint('Foto tersimpan di ${foto.path}');
+
+  // 4. Selesai: lepaskan kamera
+  await controller.dispose();
+}
+</code></pre>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>API</th><th>Setara di CameraX (modul lama)</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>availableCameras()</code></td><td><code>ProcessCameraProvider</code> + daftar kamera</td><td>Daftar <code>CameraDescription</code> (nama, <code>lensDirection</code>, orientasi sensor)</td></tr>
+      <tr><td><code>CameraController(kamera, ResolutionPreset.high)</code></td><td><code>CameraSelector</code> + use case</td><td>Pengendali satu kamera dengan resolusi tertentu</td></tr>
+      <tr><td><code>initialize()</code> / <code>dispose()</code></td><td><code>bindToLifecycle</code> / <code>unbindAll</code></td><td>Membuka dan melepas kamera</td></tr>
+      <tr><td><code>CameraPreview(controller)</code></td><td><code>PreviewView</code> di dalam <code>AndroidView</code></td><td>Widget yang menampilkan gambar kamera secara langsung</td></tr>
+      <tr><td><code>takePicture()</code></td><td><code>ImageCapture</code></td><td>Memotret dan menghasilkan <code>XFile</code></td></tr>
+      <tr><td><code>startImageStream()</code></td><td><code>ImageAnalysis</code></td><td>Menerima setiap frame untuk diolah (QR, OCR, ML)</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Pilihan <code>ResolutionPreset</code>: <code>low</code>, <code>medium</code>, <code>high</code>, <code>veryHigh</code>, <code>ultraHigh</code>, dan <code>max</code>. Untuk foto profil atau presensi, <code>high</code> (sekitar 720p) sudah cukup dan jauh lebih ringan daripada <code>max</code>.</p>
+
+<h4>Lifecycle: tanggung jawab kita sendiri</h4>
+<p>Di CameraX, <code>bindToLifecycle</code> otomatis mematikan kamera saat aplikasi diminimalkan. Package <code>camera</code> <strong>tidak</strong> melakukannya (sejak versi 0.5.0). Jika kamera tidak dilepas, aplikasi lain (misalnya WhatsApp) tidak bisa memakai kamera, dan saat aplikasi kita dibuka lagi preview bisa hitam. Solusi resmi dari dokumentasi package: dengarkan perubahan lifecycle dengan <code>WidgetsBindingObserver</code>, lepas kamera saat <code>inactive</code>, dan buka lagi saat <code>resumed</code>.</p>
+
+<h4>Contoh lengkap: kamera dengan flash dan ganti kamera</h4>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'dart:io';
+
+import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(
+    const MaterialApp(debugShowCheckedModeBanner: false, home: KameraPage()),
+  );
+}
+
+class KameraPage extends StatefulWidget {
+  const KameraPage({super.key});
+
+  @override
+  State&lt;KameraPage&gt; createState() =&gt; _KameraPageState();
+}
+
+class _KameraPageState extends State&lt;KameraPage&gt; with WidgetsBindingObserver {
+  List&lt;CameraDescription&gt; _daftarKamera = [];
+  int _indeksKamera = 0;
+  CameraController? _controller;
+  FlashMode _flash = FlashMode.off;
+  XFile? _hasil;
+  String? _pesan;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this); // dengarkan lifecycle aplikasi
+    _siapkan();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller?.dispose(); // WAJIB: lepaskan kamera
+    super.dispose();
+  }
+
+  Future&lt;void&gt; _siapkan() async {
+    try {
+      _daftarKamera = await availableCameras();
+    } on CameraException catch (e) {
+      _tampilkanPesan('Gagal membaca daftar kamera: ${e.code}');
+      return;
+    }
+    if (_daftarKamera.isEmpty) {
+      _tampilkanPesan('Perangkat ini tidak punya kamera.');
+      return;
+    }
+    await _bukaKamera(_daftarKamera[_indeksKamera]);
+  }
+
+  Future&lt;void&gt; _bukaKamera(CameraDescription kamera) async {
+    final controller = CameraController(
+      kamera,
+      ResolutionPreset.high,
+      enableAudio: false, // hanya foto, tidak perlu izin mikrofon
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+    setState(() {
+      _controller = controller;
+      _pesan = null;
+    });
+
+    try {
+      await controller.initialize();
+    } on CameraException catch (e) {
+      _tampilkanPesan(switch (e.code) {
+        'CameraAccessDenied' =&gt; 'Izin kamera ditolak.',
+        'CameraAccessDeniedWithoutPrompt' =&gt;
+          'Izin kamera ditolak permanen. Aktifkan lewat Pengaturan.',
+        'CameraAccessRestricted' =&gt; 'Akses kamera dibatasi perangkat.',
+        _ =&gt; 'Kamera error: ${e.description}',
+      });
+      return;
+    }
+    await _aturFlash(_flash);
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final controller = _controller;
+    if (state == AppLifecycleState.inactive) {
+      // Aplikasi ke latar belakang: lepaskan kamera untuk aplikasi lain
+      if (controller == null || !controller.value.isInitialized) return;
+      setState(() =&gt; _controller = null);
+      controller.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      // Kembali ke depan: buka lagi kamera yang terakhir dipakai
+      if (controller == null &amp;&amp; _daftarKamera.isNotEmpty) {
+        _bukaKamera(_daftarKamera[_indeksKamera]);
+      }
+    }
+  }
+
+  Future&lt;void&gt; _potret() async {
+    final controller = _controller;
+    if (controller == null ||
+        !controller.value.isInitialized ||
+        controller.value.isTakingPicture) {
+      return;
+    }
+    try {
+      final XFile foto = await controller.takePicture();
+      if (!mounted) return;
+      setState(() =&gt; _hasil = foto);
+    } on CameraException catch (e) {
+      _tampilkanPesan('Gagal memotret: ${e.description}');
+    }
+  }
+
+  Future&lt;void&gt; _gantiKamera() async {
+    final controller = _controller;
+    if (controller == null || _daftarKamera.length &lt; 2) return;
+    // Cari kamera yang arah lensanya berbeda (depan &lt;-&gt; belakang)
+    final arahSekarang = _daftarKamera[_indeksKamera].lensDirection;
+    final indeksBaru = _daftarKamera.indexWhere(
+      (k) =&gt; k.lensDirection != arahSekarang,
+    );
+    if (indeksBaru == -1) return;
+    _indeksKamera = indeksBaru;
+    try {
+      await controller.setDescription(_daftarKamera[indeksBaru]);
+    } on CameraException catch (e) {
+      _tampilkanPesan('Gagal mengganti kamera: ${e.description}');
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future&lt;void&gt; _aturFlash(FlashMode mode) async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    try {
+      await controller.setFlashMode(mode);
+      _flash = mode;
+    } on CameraException {
+      // Kamera depan biasanya tidak punya flash: abaikan saja
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _gilirFlash() {
+    final berikutnya = switch (_flash) {
+      FlashMode.off =&gt; FlashMode.auto,
+      FlashMode.auto =&gt; FlashMode.always,
+      _ =&gt; FlashMode.off,
+    };
+    _aturFlash(berikutnya);
+  }
+
+  void _tampilkanPesan(String pesan) {
+    if (!mounted) return;
+    setState(() =&gt; _pesan = pesan);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    final siap = controller != null &amp;&amp; controller.value.isInitialized;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(title: const Text('Kamera di Dalam Aplikasi')),
+      body: Column(
+        children: [
+          Expanded(
+            child: Center(
+              child: _pesan != null
+                  ? Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        _pesan!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    )
+                  : siap
+                  // CameraPreview sudah membungkus dirinya dengan
+                  // AspectRatio yang benar, jadi jangan dipaksa memenuhi layar
+                  ? CameraPreview(controller)
+                  : const CircularProgressIndicator(),
+            ),
+          ),
+          Container(
+            color: Colors.black,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                IconButton(
+                  onPressed: siap ? _gilirFlash : null,
+                  color: Colors.white,
+                  icon: Icon(switch (_flash) {
+                    FlashMode.auto =&gt; Icons.flash_auto,
+                    FlashMode.always =&gt; Icons.flash_on,
+                    _ =&gt; Icons.flash_off,
+                  }),
+                ),
+                FloatingActionButton.large(
+                  onPressed: siap ? _potret : null,
+                  child: const Icon(Icons.camera),
+                ),
+                IconButton(
+                  onPressed: siap &amp;&amp; _daftarKamera.length &gt; 1
+                      ? _gantiKamera
+                      : null,
+                  color: Colors.white,
+                  icon: const Icon(Icons.cameraswitch),
+                ),
+              ],
+            ),
+          ),
+          if (_hasil != null)
+            Container(
+              color: Colors.black,
+              height: 96,
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Image.file(File(_hasil!.path)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<p><strong>Penjelasan baris penting:</strong></p>
+<ul>
+  <li><code>with WidgetsBindingObserver</code> + <code>addObserver(this)</code> di <code>initState</code> membuat method <code>didChangeAppLifecycleState</code> dipanggil setiap aplikasi berpindah ke latar belakang atau kembali. Jangan lupa <code>removeObserver</code> di <code>dispose</code>.</li>
+  <li>Saat <code>inactive</code>, controller dilepas dan <code>_controller</code> dijadikan <code>null</code> lewat <code>setState</code>, sehingga <code>build()</code> tidak lagi memakai controller yang sudah di-dispose. Saat <code>resumed</code>, kamera yang sama dibuka lagi.</li>
+  <li>Pengecekan <code>!controller.value.isInitialized</code> di bagian <code>inactive</code> itu penting: dialog izin kamera juga membuat aplikasi sesaat menjadi <code>inactive</code>. Tanpa pengecekan ini, kamera dilepas di tengah proses inisialisasi.</li>
+  <li><code>enableAudio: false</code> karena kita hanya memotret. Tanpa ini, plugin juga meminta izin mikrofon.</li>
+  <li><code>CameraException</code> dari <code>initialize()</code> ditangani berdasarkan <code>e.code</code>, sesuai daftar kode di dokumentasi package.</li>
+  <li><code>setDescription()</code> mengganti kamera tanpa membuat controller baru, cara yang sama dengan contoh resmi package. Kamera tujuan dicari berdasarkan <code>lensDirection</code> yang berbeda (<code>front</code> &harr; <code>back</code>).</li>
+  <li><code>setFlashMode</code> dibungkus <code>try</code> karena kamera depan umumnya tidak punya flash. Mode yang tersedia: <code>off</code>, <code>auto</code>, <code>always</code>, dan <code>torch</code> (senter menyala terus).</li>
+  <li><code>controller.value.isTakingPicture</code> mencegah pengguna menekan tombol potret berkali-kali sebelum foto sebelumnya selesai. Memanggil <code>takePicture()</code> dua kali bersamaan menghasilkan <code>CameraException</code>.</li>
+  <li><code>CameraPreview</code> diletakkan di dalam <code>Center</code> tanpa dipaksa memenuhi layar. Widget ini sudah membungkus dirinya dengan <code>AspectRatio</code> yang sesuai orientasi, sehingga gambar tidak gepeng.</li>
+</ul>
+
+<div class="callout callout-info"><h4>ℹ️ Overlay di atas preview</h4><p><code>CameraPreview</code> punya parameter <code>child</code> yang ditumpuk di atas gambar kamera dengan ukuran yang sama persis. Gunakan untuk bingkai wajah, garis bantu, atau petunjuk teks. Contohnya ada di <code>KameraView</code> pada studi kasus bagian 8.</p></div>
+
+<div class="callout callout-warning"><h4>⚠️ Kesalahan umum</h4><ul>
+<li>Lupa <code>controller.dispose()</code> di <code>dispose()</code>: kamera tetap terkunci, baterai boros, dan aplikasi kamera lain menampilkan "kamera sedang dipakai".</li>
+<li>Memanggil <code>CameraPreview(controller)</code> sebelum <code>initialize()</code> selesai. Selalu periksa <code>controller.value.isInitialized</code>.</li>
+<li>Memaksa <code>CameraPreview</code> memenuhi layar dengan <code>SizedBox.expand</code> atau ukuran tetap sembarang, sehingga gambar gepeng atau melar. Cara yang benar untuk preview penuh layar ada di bagian 9.</li>
+<li>Menguji ganti kamera di emulator yang hanya punya satu kamera, lalu mengira kodenya salah.</li>
+</ul></div>

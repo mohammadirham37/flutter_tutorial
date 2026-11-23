@@ -1,0 +1,134 @@
+<p class="lead">Daftar masalah yang paling sering muncul saat bekerja dengan kamera dan foto, ditambah sekilas pengembangan berikutnya: memindai kode QR.</p>
+
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Gejala / pesan error</th><th>Penyebab</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr><td><code>MissingPluginException(No implementation found for method ...)</code></td><td>Package native baru ditambahkan lalu hanya hot reload/restart</td><td>Stop aplikasi, jalankan ulang <code>flutter run</code></td></tr>
+      <tr><td>Aplikasi iOS langsung tertutup saat membuka kamera/galeri</td><td>Kunci <code>NSCameraUsageDescription</code> / <code>NSPhotoLibraryUsageDescription</code> belum ada</td><td>Tambahkan di <code>Info.plist</code> (bagian 2)</td></tr>
+      <tr><td><code>PlatformException(camera_access_denied)</code></td><td>Izin kamera ditolak saat memakai <code>image_picker</code></td><td>Minta izin lebih dulu dengan <code>permission_handler</code>, arahkan ke Pengaturan jika permanen</td></tr>
+      <tr><td><code>CameraException(CameraAccessDenied)</code></td><td>Izin ditolak saat <code>initialize()</code></td><td>Tangkap berdasarkan <code>e.code</code>, tampilkan pesan dan tombol coba lagi</td></tr>
+      <tr><td>Preview hitam setelah kembali dari aplikasi lain</td><td>Lifecycle tidak ditangani, atau controller lama tidak dilepas</td><td><code>WidgetsBindingObserver</code>: dispose saat <code>inactive</code>, buka lagi saat <code>resumed</code></td></tr>
+      <tr><td>Kamera "sedang dipakai aplikasi lain", baterai boros</td><td><code>controller.dispose()</code> lupa dipanggil</td><td>Selalu dispose di <code>dispose()</code> State</td></tr>
+      <tr><td><code>CameraException: Uninitialized CameraController</code></td><td><code>takePicture()</code> atau <code>CameraPreview</code> dipakai sebelum <code>initialize()</code> selesai</td><td>Periksa <code>controller.value.isInitialized</code></td></tr>
+      <tr><td><code>A CameraController was used after being disposed</code></td><td>Widget masih membangun <code>CameraPreview</code> dengan controller yang sudah di-dispose</td><td>Jadikan field controller <code>null</code> lewat <code>setState</code> sebelum/saat dispose</td></tr>
+      <tr><td>Preview gepeng atau melar</td><td><code>CameraPreview</code> dipaksa ke ukuran yang rasionya berbeda</td><td>Biarkan di dalam <code>Center</code>, atau gunakan <code>FittedBox</code> + <code>BoxFit.cover</code> (contoh di bawah)</td></tr>
+      <tr><td>Foto lama masih tampil setelah diganti</td><td><code>imageCache</code> menyimpan gambar dengan path yang sama</td><td>Nama file unik per foto, atau <code>FileImage(file).evict()</code></td></tr>
+      <tr><td>Daftar foto patah-patah / aplikasi crash kehabisan memori</td><td>Foto beresolusi penuh (4000 px, beberapa MB) di-decode semua</td><td><code>maxWidth</code> + <code>imageQuality</code> saat mengambil, <code>cacheWidth</code> saat menampilkan</td></tr>
+      <tr><td>Foto hilang setelah beberapa hari</td><td>Masih di folder cache</td><td>Salin ke <code>getApplicationDocumentsDirectory()</code></td></tr>
+      <tr><td>Hasil kamera tidak kembali di HP RAM kecil</td><td>Aplikasi dimatikan sistem saat kamera sistem terbuka</td><td>Panggil <code>retrieveLostData()</code> saat aplikasi dimulai</td></tr>
+      <tr><td>Unggah gagal 403 di Supabase</td><td>Policy Storage belum ada / path tidak diawali id user</td><td>Buat policy (bagian 6), path <code>&lt;uid&gt;/nama.jpg</code></td></tr>
+      <tr><td><code>ambiguous import</code> pada <code>CameraController</code></td><td>GetxController diberi nama yang sama dengan kelas package <code>camera</code></td><td>Beri nama lain, misalnya <code>KameraController</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h4>Preview penuh layar tanpa gepeng</h4>
+<pre><code class="language-dart">import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+
+/// Preview memenuhi layar tanpa gepeng: sisi yang berlebih dipotong.
+Widget previewPenuhLayar(CameraController controller) {
+  // previewSize dilaporkan dalam orientasi sensor (landscape),
+  // jadi lebar dan tinggi ditukar untuk layar portrait.
+  final ukuran = controller.value.previewSize!;
+  return SizedBox.expand(
+    child: FittedBox(
+      fit: BoxFit.cover,
+      child: SizedBox(
+        width: ukuran.height,
+        height: ukuran.width,
+        child: CameraPreview(controller),
+      ),
+    ),
+  );
+}
+</code></pre>
+<p><code>FittedBox</code> dengan <code>BoxFit.cover</code> memperbesar preview sampai menutupi seluruh layar dengan rasio tetap, lalu memotong sisi yang berlebih. Lebar dan tinggi ditukar karena sensor kamera melaporkan ukuran dalam posisi landscape. Ingat bahwa bagian yang terpotong tetap ada di foto hasil <code>takePicture()</code>.</p>
+
+<h4>Pengembangan: memindai QR dan barcode dengan <code>mobile_scanner</code></h4>
+<p>Untuk presensi berbasis QR, kartu perpustakaan, atau inventaris lab, kamu tidak perlu mengolah frame kamera sendiri. Package <code>mobile_scanner</code> (Android memakai ML Kit, iOS memakai Apple Vision) sudah menyediakan widget pemindai lengkap. Pasang dengan <code>flutter pub add mobile_scanner</code>, tambahkan <code>NSCameraUsageDescription</code> di iOS, lalu:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code></p>
+<pre><code class="language-dart">// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+
+void main() {
+  runApp(
+    const MaterialApp(debugShowCheckedModeBanner: false, home: PindaiQrPage()),
+  );
+}
+
+class PindaiQrPage extends StatefulWidget {
+  const PindaiQrPage({super.key});
+
+  @override
+  State&lt;PindaiQrPage&gt; createState() =&gt; _PindaiQrPageState();
+}
+
+class _PindaiQrPageState extends State&lt;PindaiQrPage&gt; {
+  final MobileScannerController _scanner = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates, // satu kode dilaporkan sekali
+    formats: const [BarcodeFormat.qrCode],
+  );
+  String? _hasil;
+
+  @override
+  void dispose() {
+    _scanner.dispose();
+    super.dispose();
+  }
+
+  void _saatTerdeteksi(BarcodeCapture capture) {
+    final kode = capture.barcodes.firstOrNull?.rawValue;
+    if (kode == null) return;
+    setState(() =&gt; _hasil = kode);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Pindai QR Presensi'),
+        actions: [
+          IconButton(
+            onPressed: _scanner.toggleTorch,
+            icon: const Icon(Icons.flashlight_on),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: MobileScanner(
+              controller: _scanner,
+              onDetect: _saatTerdeteksi,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(_hasil ?? 'Arahkan kamera ke kode QR'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+</code></pre>
+<ul>
+  <li><code>MobileScanner</code> adalah widget preview + pendeteksi. Callback <code>onDetect</code> menerima <code>BarcodeCapture</code> yang berisi daftar <code>barcodes</code>, dan isi kodenya ada di <code>rawValue</code>.</li>
+  <li><code>DetectionSpeed.noDuplicates</code> mencegah kode yang sama dilaporkan berulang-ulang selama masih di depan kamera.</li>
+  <li><code>formats</code> membatasi jenis kode yang dicari (di sini hanya QR) sehingga deteksi lebih cepat.</li>
+  <li>Berbeda dengan package <code>camera</code>, widget <code>MobileScanner</code> secara default (<code>useAppLifecycleState: true</code>) menghentikan dan menyalakan lagi kamera saat aplikasi berpindah ke latar belakang. Kita cukup memanggil <code>dispose()</code> pada controller. Jangan memakai <code>mobile_scanner</code> dan <code>camera</code> pada layar yang sama, karena keduanya berebut kamera.</li>
+  <li>Uji di emulator dengan kamera <code>VirtualScene</code>: ganti gambar dinding di Extended Controls &rarr; Camera dengan gambar QR, lalu "berjalan" ke arahnya.</li>
+</ul>
+
+<h4>Ringkasan bab</h4>
+<ul>
+  <li><code>image_picker</code> (setara Intent) untuk kamera sistem dan galeri; <code>camera</code> (setara CameraX) untuk kamera di dalam aplikasi.</li>
+  <li>Kompres saat mengambil (<code>maxWidth</code>, <code>imageQuality</code>), decode kecil saat menampilkan (<code>cacheWidth</code>).</li>
+  <li><code>CameraController</code>: <code>initialize</code> &rarr; <code>CameraPreview</code> &rarr; <code>takePicture</code> &rarr; <code>dispose</code>, plus lifecycle lewat <code>WidgetsBindingObserver</code>.</li>
+  <li>Foto hasil ada di cache: salin ke folder dokumen dengan nama unik, hapus dengan <code>File.delete()</code>.</li>
+  <li>Supabase Storage: <code>upload</code>/<code>uploadBinary</code>, <code>getPublicUrl</code> (public) atau <code>createSignedUrl</code> (private), dilindungi policy per folder user.</li>
+  <li>MVC GetX: service membungkus plugin, controller menyimpan state dan mengembalikan hasil aksi, view menampilkan dengan <code>Obx</code> dan mengurus dialog.</li>
+</ul>
