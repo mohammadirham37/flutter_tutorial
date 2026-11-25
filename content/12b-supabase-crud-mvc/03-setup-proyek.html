@@ -82,3 +82,140 @@ class Env {
 <pre><code class="language-text">&lt;uses-permission android:name="android.permission.INTERNET"/&gt;
 </code></pre>
 <div class="callout callout-warning"><h4>⚠️ Lupa izin internet = aplikasi rilis selalu "Tidak dapat terhubung"</h4><p>Kesalahan ini sering baru ketahuan setelah APK dibagikan ke teman, karena saat <code>flutter run</code> semuanya lancar. Tambahkan izinnya sekarang.</p></div>
+
+<h4>6. Coba jalankan: uji koneksi ke Supabase</h4>
+<p>Sebelum menulis model dan service, pastikan dulu aplikasi bisa terhubung ke project Supabase Anda. Sama seperti Modul 12, kita pakai satu file <code>main.dart</code> yang bisa langsung dijalankan.</p>
+<div class="callout callout-info"><h4>ℹ️ <code>main.dart</code> sementara di setiap section</h4><p>Mulai section ini sampai section 10, setiap section diakhiri contoh <code>lib/main.dart</code> <strong>lengkap</strong> untuk mencoba file yang baru dibuat. Hapus seluruh isi <code>main.dart</code> lama, lalu tempel contohnya. Contoh ini hanya mengimpor file yang sudah selesai, jadi bisa dijalankan walaupun file lain (misalnya controller dan view versi Hive) masih merah. Dart hanya mengompilasi file yang diimpor dari <code>main.dart</code>. Di section 12, <code>main.dart</code> diganti dengan versi final.</p></div>
+<p class="code-file-label">📄 <code>lib/main.dart</code> (sementara)</p>
+<pre><code class="language-dart">// lib/main.dart (SEMENTARA) — uji koneksi ke Supabase.
+// Jalankan: flutter run --dart-define-from-file=env.json
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'config/env.dart';
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (Env.isConfigured) {
+    await Supabase.initialize(
+      url: Env.supabaseUrl,
+      publishableKey: Env.supabaseKey,
+    );
+  }
+  runApp(const UjiKoneksiApp());
+}
+
+class UjiKoneksiApp extends StatelessWidget {
+  const UjiKoneksiApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
+      home: const UjiKoneksiPage(),
+    );
+  }
+}
+
+class UjiKoneksiPage extends StatefulWidget {
+  const UjiKoneksiPage({super.key});
+
+  @override
+  State&lt;UjiKoneksiPage&gt; createState() =&gt; _UjiKoneksiPageState();
+}
+
+class _UjiKoneksiPageState extends State&lt;UjiKoneksiPage&gt; {
+  String _hasil = 'Tekan tombol untuk menguji koneksi.';
+  bool _loading = false;
+
+  Future&lt;void&gt; _uji() async {
+    if (!Env.isConfigured) {
+      setState(() {
+        _hasil =
+            'env.json belum terbaca.\n\n'
+            'Jalankan dengan:\nflutter run --dart-define-from-file=env.json';
+      });
+      return;
+    }
+
+    setState(() =&gt; _loading = true);
+    try {
+      // Query ringan: ambil maksimal 1 baris dari tabel mahasiswa.
+      final rows = await Supabase.instance.client
+          .from('mahasiswa')
+          .select()
+          .limit(1);
+      _hasil =
+          'Koneksi berhasil!\n'
+          'Tabel mahasiswa ditemukan, ${rows.length} baris terbaca.\n\n'
+          '0 baris itu normal: kita belum login, jadi RLS '
+          'tidak mengizinkan data apa pun terlihat.';
+    } on PostgrestException catch (e) {
+      _hasil =
+          'Terhubung, tetapi query ditolak:\n${e.message}\n\n'
+          'Sudahkah setup.sql dijalankan di SQL Editor?';
+    } catch (e) {
+      _hasil =
+          'Tidak dapat terhubung:\n$e\n\n'
+          'Periksa SUPABASE_URL dan koneksi internet.';
+    } finally {
+      if (mounted) setState(() =&gt; _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Uji Koneksi Supabase')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              Env.isConfigured
+                  ? 'env.json: terbaca'
+                  : 'env.json: BELUM terbaca',
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _loading ? null : _uji,
+              icon: const Icon(Icons.wifi_tethering),
+              label: const Text('Uji Koneksi'),
+            ),
+            const SizedBox(height: 24),
+            if (_loading)
+              const Center(child: CircularProgressIndicator())
+            else
+              Text(_hasil, textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/coba-koneksi.jpg" alt="Uji koneksi berhasil" loading="lazy">
+    <div class="screenshot-caption">Koneksi berhasil, 0 baris karena belum login</div>
+  </div>
+</div>
+<p>Jalankan dengan <code>flutter run --dart-define-from-file=env.json</code>, lalu tekan <strong>Uji Koneksi</strong>. Kemungkinan hasilnya:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Pesan di layar</th><th>Artinya</th></tr></thead>
+    <tbody>
+      <tr><td>Koneksi berhasil! ... 0 baris terbaca</td><td>URL, key, dan tabel sudah benar. 0 baris itu normal karena kita belum login, jadi RLS tidak mengizinkan data apa pun terlihat.</td></tr>
+      <tr><td>env.json belum terbaca</td><td>Aplikasi dijalankan tanpa <code>--dart-define-from-file=env.json</code>.</td></tr>
+      <tr><td>Terhubung, tetapi query ditolak</td><td>Biasanya tabel <code>mahasiswa</code> belum ada. Jalankan <code>setup.sql</code> di SQL Editor (section 2).</td></tr>
+      <tr><td>Tidak dapat terhubung</td><td>URL salah ketik atau HP/emulator tidak punya internet.</td></tr>
+    </tbody>
+  </table>
+</div>
+<ul>
+  <li><code>Supabase.initialize</code> hanya dipanggil jika <code>Env.isConfigured</code> bernilai <code>true</code>. Tanpa pengecekan ini, aplikasi langsung error saat env.json lupa dipakai.</li>
+  <li><code>.select().limit(1)</code> adalah query paling ringan untuk memastikan tabel ada dan key diterima.</li>
+  <li><code>on PostgrestException</code> menangkap error dari database (server bisa dihubungi tetapi menolak query). <code>catch (e)</code> menangkap sisanya, misalnya tidak ada internet.</li>
+</ul>

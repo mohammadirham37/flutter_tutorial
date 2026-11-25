@@ -91,3 +91,134 @@ class Mahasiswa {
   <li><code>user_id</code> diisi otomatis oleh <code>default auth.uid()</code>. Jika aplikasi boleh mengirim <code>user_id</code> sendiri, policy <code>with check</code> tetap akan menolak nilai yang bukan milik user tersebut.</li>
 </ul>
 <div class="callout callout-warning"><h4>⚠️ Nama key harus sama persis dengan nama kolom</h4><p><code>'nama'</code> di <code>toJson</code> harus sama dengan kolom <code>nama</code> di tabel, termasuk huruf besar dan kecilnya. Jika Anda menulis <code>'Nama'</code>, Supabase menolak dengan error <em>Could not find the 'Nama' column</em>.</p></div>
+
+<h4>Coba jalankan: model tanpa Supabase</h4>
+<p>Model adalah kelas Dart biasa, jadi bisa dicoba tanpa internet dan tanpa <code>env.json</code>. Ganti seluruh isi <code>lib/main.dart</code> dengan:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code> (sementara)</p>
+<pre><code class="language-dart">// lib/main.dart (SEMENTARA) — mencoba model Mahasiswa tanpa Supabase.
+// Jalankan: flutter run
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+
+import 'models/mahasiswa_model.dart';
+
+void main() =&gt; runApp(const CobaModelApp());
+
+class CobaModelApp extends StatelessWidget {
+  const CobaModelApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
+      home: const CobaModelPage(),
+    );
+  }
+}
+
+class CobaModelPage extends StatelessWidget {
+  const CobaModelPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // 1. Pura-pura menerima satu baris dari Supabase
+    final baris = &lt;String, dynamic&gt;{
+      'id': '3f2b9c1e-8d1a-4c55-9a0e-6c1f0f8f2a10',
+      'user_id': '9b7e0000-0000-0000-0000-000000000000',
+      'nim': '220101001',
+      'nama': 'Budi Santoso',
+      'prodi': 'Informatika',
+      'semester': 5,
+      'created_at': '2026-11-23T08:00:00+00:00',
+    };
+
+    // 2. Map -&gt; objek
+    final budi = Mahasiswa.fromJson(baris);
+
+    // 3. Objek -&gt; Map (yang akan dikirim saat insert/update)
+    final dikirim = budi.toJson();
+
+    // 4. copyWith: naik semester tanpa mengubah objek asli
+    final budiNaik = budi.copyWith(semester: budi.semester + 1);
+
+    // 5. Objek baru dari form: id masih null
+    final baru = Mahasiswa(
+      nim: '220101002',
+      nama: 'Siti Aminah',
+      prodi: 'Sistem Informasi',
+      semester: 3,
+    );
+
+    const encoder = JsonEncoder.withIndent('  ');
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Coba Model Mahasiswa')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _Kartu(
+            judul: 'fromJson',
+            isi:
+                'id: ${budi.id}\nnama: ${budi.nama}\n'
+                'prodi: ${budi.prodi}\nsemester: ${budi.semester}',
+          ),
+          _Kartu(
+            judul: 'toJson (tanpa id &amp; user_id)',
+            isi: encoder.convert(dikirim),
+          ),
+          _Kartu(
+            judul: 'copyWith(semester: 6)',
+            isi:
+                'asli: semester ${budi.semester}\n'
+                'salinan: semester ${budiNaik.semester}\n'
+                'id tetap sama: ${budiNaik.id == budi.id}',
+          ),
+          _Kartu(
+            judul: 'Objek baru dari form',
+            isi: 'id: ${baru.id}\nnama: ${baru.nama}',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Kartu extends StatelessWidget {
+  const _Kartu({required this.judul, required this.isi});
+
+  final String judul;
+  final String isi;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(judul, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(isi, style: const TextStyle(fontFamily: 'monospace')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/coba-model.jpg" alt="Hasil fromJson, toJson, dan copyWith model Mahasiswa" loading="lazy">
+    <div class="screenshot-caption">Hasil fromJson, toJson, copyWith, dan objek baru dari form</div>
+  </div>
+</div>
+<ul>
+  <li><strong>fromJson</strong>: Map yang meniru satu baris tabel (lengkap dengan <code>user_id</code> dan <code>created_at</code>) diubah menjadi objek. Kolom yang tidak dipakai diabaikan.</li>
+  <li><strong>toJson</strong>: hanya berisi <code>nim</code>, <code>nama</code>, <code>prodi</code>, dan <code>semester</code>. <code>id</code> dan <code>user_id</code> tidak ikut, sesuai penjelasan di atas.</li>
+  <li><strong>copyWith</strong>: menghasilkan objek baru dengan semester 6, sedangkan objek asli tetap semester 5. <code>id</code> ikut tersalin.</li>
+  <li><strong>Objek baru dari form</strong>: <code>id</code> bernilai <code>null</code> karena belum pernah disimpan ke database.</li>
+  <li><code>JsonEncoder.withIndent('  ')</code> dari <code>dart:convert</code> hanya dipakai agar Map tampil rapi berjajar.</li>
+</ul>

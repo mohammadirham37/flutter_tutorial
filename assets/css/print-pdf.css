@@ -96,6 +96,8 @@ body.pdf {
 .pdf .screenshot-row { gap: 10pt; margin: 6pt 0 12pt; break-inside: avoid; }
 .pdf .screenshot { width: 46mm; }
 .pdf .screenshot img { border-width: 3px; border-radius: 9pt; box-shadow: none; }
+.pdf .screenshot.screenshot-wide { width: 100%; }
+.pdf .screenshot.screenshot-wide img { border-width: 1px; border-radius: 4pt; }
 .pdf .screenshot-caption { font-size: 7.5pt; }
 
 .pdf .quiz-q { margin-bottom: 3pt; }

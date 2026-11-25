@@ -168,6 +168,7 @@ body.book {
   display: block; width: 100%; height: auto; border: 0.6pt solid #9aa1ab;
   border-radius: 0; box-shadow: none;
 }
+.book .screenshot.screenshot-wide { width: 100%; }
 .book .screenshot-caption {
   margin-top: 3.5pt; font-family: var(--sans); font-size: 6.8pt; line-height: 1.35; color: var(--muted);
   text-align: center;

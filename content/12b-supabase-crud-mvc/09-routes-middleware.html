@@ -108,3 +108,135 @@ class AppPages {
 </ul>
 
 <div class="callout callout-tip"><h4>💡 Bonus: data tidak tercampur antar-akun</h4><p>Saat logout, <code>Get.offAllNamed(AppRoutes.login)</code> menutup halaman daftar. GetX ikut menghapus <code>MahasiswaController</code> dari memori karena halaman yang memakainya sudah tidak ada. Ketika akun lain login, controller dibuat baru dan <code>onInit</code> memuat data milik akun tersebut. Jadi daftar milik akun sebelumnya tidak sempat terlihat.</p></div>
+
+<h4>Coba jalankan: middleware menjaga halaman</h4>
+<p><code>app_pages.dart</code> di atas belum bisa dipakai karena view-nya baru dibuat di section 10 dan 11. Untuk mencoba middleware sekarang, kita pasang <code>AuthMiddleware</code> pada halaman sederhana. Ganti seluruh isi <code>lib/main.dart</code> dengan:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code> (sementara)</p>
+<pre><code class="language-dart">// lib/main.dart (SEMENTARA) — mencoba AuthMiddleware sebagai penjaga route.
+// Jalankan: flutter run --dart-define-from-file=env.json
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'config/env.dart';
+import 'controllers/auth_controller.dart';
+import 'middlewares/auth_middleware.dart';
+import 'routes/app_routes.dart';
+import 'services/auth_service.dart';
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(
+    url: Env.supabaseUrl,
+    publishableKey: Env.supabaseKey,
+  );
+  Get.put(AuthService(Supabase.instance.client), permanent: true);
+  Get.put(AuthController(Get.find()), permanent: true);
+  runApp(const CobaMiddlewareApp());
+}
+
+class CobaMiddlewareApp extends StatelessWidget {
+  const CobaMiddlewareApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
+      // Selalu mencoba membuka home. Middleware yang memutuskan.
+      initialRoute: AppRoutes.home,
+      getPages: [
+        GetPage(name: AppRoutes.login, page: () =&gt; const DemoLoginPage()),
+        GetPage(
+          name: AppRoutes.home,
+          page: () =&gt; const DemoRahasiaPage(),
+          middlewares: [AuthMiddleware()],
+        ),
+      ],
+    );
+  }
+}
+
+class DemoLoginPage extends GetView&lt;AuthController&gt; {
+  const DemoLoginPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login (dialihkan middleware)')),
+      body: Form(
+        key: controller.loginFormKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: controller.emailC,
+              validator: controller.validateEmail,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextFormField(
+              controller: controller.passwordC,
+              validator: controller.validatePassword,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Password'),
+            ),
+            const SizedBox(height: 16),
+            Obx(
+              () =&gt; FilledButton(
+                onPressed: controller.isLoading.value ? null : controller.login,
+                child: const Text('Masuk'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DemoRahasiaPage extends GetView&lt;AuthController&gt; {
+  const DemoRahasiaPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Halaman Wajib Login'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: controller.confirmLogout,
+          ),
+        ],
+      ),
+      body: Center(
+        child: Text(
+          'Lolos dari AuthMiddleware.\nLogin sebagai ${controller.email}',
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/coba-middleware-lolos.jpg" alt="Halaman wajib login terbuka" loading="lazy">
+    <div class="screenshot-caption">Sudah login: middleware mengizinkan</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/coba-middleware-dialihkan.jpg" alt="Dialihkan ke halaman login" loading="lazy">
+    <div class="screenshot-caption">Belum login: dialihkan ke login</div>
+  </div>
+</div>
+<p>Jalankan dengan <code>flutter run --dart-define-from-file=env.json</code>:</p>
+<ol>
+  <li>Jika masih login, <strong>Halaman Wajib Login</strong> langsung terbuka. Middleware mengembalikan <code>null</code> (boleh lewat).</li>
+  <li>Tekan ikon keluar lalu pilih <strong>Keluar</strong>. Aplikasi pindah ke halaman login.</li>
+  <li>Hentikan aplikasi lalu jalankan lagi. <code>initialRoute</code> tetap <code>AppRoutes.home</code>, tetapi yang terbuka adalah halaman <strong>Login (dialihkan middleware)</strong>. Inilah kerja <code>redirect</code>.</li>
+  <li>Login. Karena <code>login()</code> memanggil <code>Get.offAllNamed(AppRoutes.home)</code> dan sekarang <code>isLoggedIn</code> bernilai <code>true</code>, middleware mengizinkan halaman rahasia terbuka.</li>
+</ol>
+<ul>
+  <li>Bandingkan dengan contoh section 7: di sana <code>initialRoute</code> memilih sendiri lewat <code>auth.isLoggedIn ? ... : ...</code>. Sekarang <code>initialRoute</code> selalu home, dan aturan "wajib login" cukup ditulis sekali di <code>middlewares: [AuthMiddleware()]</code>.</li>
+  <li>Halaman login tidak diberi middleware. Jika diberi, pengguna yang belum login akan dialihkan ke login terus-menerus tanpa henti.</li>
+</ul>

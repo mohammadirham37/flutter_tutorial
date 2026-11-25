@@ -277,3 +277,208 @@ final hidePassword = true.obs;   // ikon mata: sembunyikan/tampilkan password
     </tbody>
   </table>
 </div>
+
+<h4>Coba jalankan: AuthController dengan halaman sederhana</h4>
+<p>Halaman login dan register yang rapi baru dibuat di section 10. Untuk mencoba controller sekarang, kita pakai halaman sederhana yang ditulis langsung di <code>main.dart</code>.</p>
+<div class="callout callout-warning"><h4>⚠️ Perbarui <code>app_routes.dart</code> lebih dulu</h4><p><code>AuthController</code> memakai <code>AppRoutes.login</code> dan <code>AppRoutes.register</code>, yang belum ada di versi Modul 11B. Ganti dulu isi <code>lib/routes/app_routes.dart</code> dengan kode berikut (dijelaskan di section 9):</p>
+<p class="code-file-label">📄 <code>lib/routes/app_routes.dart</code></p>
+<pre><code class="language-dart">/// Daftar nama route aplikasi.
+abstract class AppRoutes {
+  static const login = '/login';
+  static const register = '/register';
+  static const home = '/';
+  static const form = '/form';
+}
+</code></pre></div>
+<p>Lalu ganti seluruh isi <code>lib/main.dart</code> dengan:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code> (sementara)</p>
+<pre><code class="language-dart">// lib/main.dart (SEMENTARA) — mencoba AuthController dengan halaman sederhana.
+// Jalankan: flutter run --dart-define-from-file=env.json
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'config/env.dart';
+import 'controllers/auth_controller.dart';
+import 'routes/app_routes.dart';
+import 'services/auth_service.dart';
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(
+    url: Env.supabaseUrl,
+    publishableKey: Env.supabaseKey,
+  );
+  Get.put(AuthService(Supabase.instance.client), permanent: true);
+  Get.put(AuthController(Get.find()), permanent: true);
+  runApp(const CobaAuthControllerApp());
+}
+
+class CobaAuthControllerApp extends StatelessWidget {
+  const CobaAuthControllerApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = Get.find&lt;AuthController&gt;();
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
+      // Sudah login (sesi tersimpan)? langsung ke home.
+      initialRoute: auth.isLoggedIn ? AppRoutes.home : AppRoutes.login,
+      getPages: [
+        GetPage(name: AppRoutes.login, page: () =&gt; const DemoLoginPage()),
+        GetPage(name: AppRoutes.register, page: () =&gt; const DemoRegisterPage()),
+        GetPage(name: AppRoutes.home, page: () =&gt; const DemoHomePage()),
+      ],
+    );
+  }
+}
+
+/// Halaman login versi sederhana (versi rapi dibuat di section 10).
+class DemoLoginPage extends GetView&lt;AuthController&gt; {
+  const DemoLoginPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Demo Login')),
+      body: Form(
+        key: controller.loginFormKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: controller.emailC,
+              validator: controller.validateEmail,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextFormField(
+              controller: controller.passwordC,
+              validator: controller.validatePassword,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Password'),
+            ),
+            const SizedBox(height: 16),
+            Obx(
+              () =&gt; FilledButton(
+                onPressed: controller.isLoading.value ? null : controller.login,
+                child: Text(
+                  controller.isLoading.value ? 'Memproses...' : 'Masuk',
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: controller.openRegister,
+              child: const Text('Belum punya akun? Daftar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Halaman register versi sederhana.
+class DemoRegisterPage extends GetView&lt;AuthController&gt; {
+  const DemoRegisterPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Demo Register')),
+      body: Form(
+        key: controller.registerFormKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: controller.regEmailC,
+              validator: controller.validateEmail,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextFormField(
+              controller: controller.regPasswordC,
+              validator: controller.validatePassword,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Password'),
+            ),
+            TextFormField(
+              controller: controller.regKonfirmasiC,
+              validator: controller.validateKonfirmasi,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Ulangi Password'),
+            ),
+            const SizedBox(height: 16),
+            Obx(
+              () =&gt; FilledButton(
+                onPressed: controller.isLoading.value
+                    ? null
+                    : controller.register,
+                child: Text(
+                  controller.isLoading.value ? 'Memproses...' : 'Daftar',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Pengganti sementara halaman daftar mahasiswa.
+class DemoHomePage extends GetView&lt;AuthController&gt; {
+  const DemoHomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Demo Home'),
+        actions: [
+          IconButton(
+            tooltip: 'Keluar',
+            icon: const Icon(Icons.logout),
+            onPressed: controller.confirmLogout,
+          ),
+        ],
+      ),
+      body: Center(
+        child: Text(
+          'Login sebagai:\n${controller.email}',
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/coba-authcontroller-validasi.jpg" alt="Validasi form login kosong" loading="lazy">
+    <div class="screenshot-caption">Masuk dengan form kosong</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/coba-authcontroller-gagal.jpg" alt="Snackbar email atau password salah" loading="lazy">
+    <div class="screenshot-caption">Password salah: pesan dari _pesanAuth</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/coba-authcontroller-home.jpg" alt="Demo Home setelah login" loading="lazy">
+    <div class="screenshot-caption">Login berhasil, pindah ke Demo Home</div>
+  </div>
+</div>
+<p>Jalankan dengan <code>flutter run --dart-define-from-file=env.json</code>. Jika Anda masih login dari percobaan section 6, aplikasi langsung membuka <strong>Demo Home</strong>. Tekan ikon keluar untuk mencoba alur dari awal:</p>
+<ol>
+  <li>Dialog "Yakin ingin keluar?" muncul. Pilih <strong>Keluar</strong>. Listener <code>signedOut</code> di <code>onInit</code> membuka halaman login.</li>
+  <li>Tekan <strong>Masuk</strong> dengan form kosong. Pesan validasi muncul di bawah field.</li>
+  <li>Isi email dan password yang salah. Snackbar menampilkan "Email atau password salah." (hasil <code>_pesanAuth</code>).</li>
+  <li>Tekan <strong>Belum punya akun? Daftar</strong>. Email yang sudah diketik ikut tersalin ke halaman register (<code>openRegister</code>).</li>
+  <li>Isi Ulangi Password dengan nilai berbeda. Muncul "Konfirmasi password tidak sama".</li>
+  <li>Daftar dengan email baru. Aplikasi pindah ke Demo Home dan menampilkan email tersebut.</li>
+</ol>
+<ul>
+  <li><code>Get.put(AuthService(...))</code> harus ditulis <strong>sebelum</strong> <code>Get.put(AuthController(Get.find()))</code>, karena controller mencari service tersebut.</li>
+  <li><code>initialRoute</code> memilih home atau login berdasarkan <code>isLoggedIn</code>. Di section 9, keputusan ini dipindahkan ke middleware.</li>
+  <li>Ketiga halaman memakai <code>GetView&lt;AuthController&gt;</code>, sehingga cukup menulis <code>controller.login</code>, <code>controller.emailC</code>, dan seterusnya.</li>
+  <li><code>Obx</code> membungkus tombol agar tombol nonaktif dan berganti teks "Memproses..." selama <code>isLoading</code> bernilai <code>true</code>.</li>
+</ul>

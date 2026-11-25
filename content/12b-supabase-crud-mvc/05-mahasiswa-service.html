@@ -70,3 +70,151 @@ class MahasiswaService {
 <div class="callout callout-warning"><h4>⚠️ Update/delete tanpa <code>.eq()</code></h4><p>Jangan pernah memanggil <code>update(...)</code> atau <code>delete()</code> tanpa filter. Supabase menolak update/delete tanpa filter, dan seandainya diizinkan, perintah itu akan mengenai <strong>semua</strong> baris milik user tersebut.</p></div>
 
 <div class="callout callout-info"><h4>ℹ️ Tidak ada filter <code>user_id</code></h4><p>Perhatikan bahwa <code>getAll()</code> tidak memfilter <code>user_id</code>, tetapi Budi tetap hanya mendapat datanya sendiri. Penyaringan ini dilakukan RLS di server (section 2), dan inilah alasan RLS wajib diaktifkan.</p></div>
+
+<h4>Coba jalankan: service sebelum login</h4>
+<p>Kita belum punya fitur login, tetapi service sudah bisa dicoba. Hasilnya justru memperlihatkan RLS sedang bekerja. Ganti seluruh isi <code>lib/main.dart</code> dengan:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code> (sementara)</p>
+<pre><code class="language-dart">// lib/main.dart (SEMENTARA) — mencoba MahasiswaService SEBELUM login.
+// Jalankan: flutter run --dart-define-from-file=env.json
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'config/env.dart';
+import 'models/mahasiswa_model.dart';
+import 'services/mahasiswa_service.dart';
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(
+    url: Env.supabaseUrl,
+    publishableKey: Env.supabaseKey,
+  );
+  runApp(const CobaServiceApp());
+}
+
+class CobaServiceApp extends StatelessWidget {
+  const CobaServiceApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
+      home: const CobaServicePage(),
+    );
+  }
+}
+
+class CobaServicePage extends StatefulWidget {
+  const CobaServicePage({super.key});
+
+  @override
+  State&lt;CobaServicePage&gt; createState() =&gt; _CobaServicePageState();
+}
+
+class _CobaServicePageState extends State&lt;CobaServicePage&gt; {
+  // Service menerima client lewat constructor (dependency injection).
+  final _service = MahasiswaService(Supabase.instance.client);
+  String _log = '';
+
+  void _tulis(String baris) =&gt; setState(() =&gt; _log = '$baris\n\n$_log');
+
+  Future&lt;void&gt; _getAll() async {
+    try {
+      final data = await _service.getAll();
+      _tulis(
+        'getAll(): ${data.length} data\n'
+        '${data.map((m) =&gt; '- ${m.nama}').join('\n')}',
+      );
+    } catch (e) {
+      _tulis('getAll() gagal: $e');
+    }
+  }
+
+  Future&lt;void&gt; _create() async {
+    try {
+      await _service.create(
+        Mahasiswa(
+          nim: '220101001',
+          nama: 'Budi Santoso',
+          prodi: 'Informatika',
+          semester: 5,
+        ),
+      );
+      _tulis('create(): berhasil');
+    } on PostgrestException catch (e) {
+      _tulis('create() ditolak\ncode: ${e.code}\nmessage: ${e.message}');
+    } catch (e) {
+      _tulis('create() gagal: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = Supabase.instance.client.auth.currentUser;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Coba MahasiswaService')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Status: ${user == null ? 'BELUM login' : 'login sebagai ${user.email}'}',
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _getAll,
+                    child: const Text('getAll()'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.tonal(
+                    onPressed: _create,
+                    child: const Text('create()'),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 32),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Text(
+                  _log.isEmpty ? 'Hasil akan tampil di sini.' : _log,
+                  style: const TextStyle(fontFamily: 'monospace'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/coba-service-belum-login.jpg" alt="getAll dan create sebelum login" loading="lazy">
+    <div class="screenshot-caption">Belum login: 0 data dan insert ditolak RLS (42501)</div>
+  </div>
+</div>
+<p>Jalankan dengan <code>flutter run --dart-define-from-file=env.json</code>, lalu tekan kedua tombol:</p>
+<div class="table-responsive">
+  <table class="table-custom">
+    <thead><tr><th>Tombol</th><th>Hasil saat belum login</th><th>Penyebab</th></tr></thead>
+    <tbody>
+      <tr><td><code>getAll()</code></td><td><code>getAll(): 0 data</code></td><td>Policy SELECT hanya meloloskan baris dengan <code>user_id = auth.uid()</code>. Tanpa login, <code>auth.uid()</code> bernilai null, jadi tidak ada baris yang cocok. Perhatikan bahwa hasilnya <strong>daftar kosong</strong>, bukan error.</td></tr>
+      <tr><td><code>create()</code></td><td>Ditolak, <code>code: 42501</code> (<em>new row violates row-level security policy</em>)</td><td>Pengguna tanpa login tidak boleh menambah data, sehingga insert ditolak RLS.</td></tr>
+    </tbody>
+  </table>
+</div>
+<ul>
+  <li><code>MahasiswaService(Supabase.instance.client)</code>: service dibuat dengan memberikan client lewat constructor. Di aplikasi final, pekerjaan ini dilakukan <code>Get.put</code> di <code>main.dart</code>.</li>
+  <li><code>on PostgrestException catch (e)</code> menampilkan <code>e.code</code>. Kode <code>42501</code> inilah yang nanti diterjemahkan <code>MahasiswaController</code> menjadi "Akses ditolak. Silakan login ulang."</li>
+  <li><code>_tulis</code> menaruh hasil terbaru di paling atas log, supaya urutan percobaan mudah dibaca.</li>
+</ul>
+<div class="callout callout-tip"><h4>💡 Kesimpulan percobaan</h4><p>Tanpa login, aplikasi tidak bisa membaca maupun menulis data. Section berikutnya menambahkan <code>AuthService</code>, lalu percobaan yang sama diulang setelah login.</p></div>

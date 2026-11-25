@@ -214,6 +214,19 @@ body {
   width: 300px;
 }
 
+/* Screenshot desktop/dashboard: selebar konten, bingkai tipis */
+.screenshot.screenshot-wide,
+.lecture-mode .screenshot.screenshot-wide {
+  width: 100%;
+  max-width: 960px;
+}
+
+.screenshot.screenshot-wide img {
+  border-width: 1px;
+  border-color: #cbd5e1;
+  border-radius: 0.75rem;
+}
+
 /* Code block wrapper, Themes (Light / Dark) & Copy button */
 .code-container {
   position: relative;

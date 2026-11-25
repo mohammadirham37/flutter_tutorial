@@ -287,3 +287,193 @@ final errorMessage = RxnString();   // null = tidak ada error
   </table>
 </div>
 <div class="callout callout-tip"><h4>💡 <code>mhs.id!</code> di <code>confirmDelete</code></h4><p>Tanda seru berarti "saya yakin nilai ini tidak null". Ini aman karena data yang tampil di daftar selalu berasal dari <code>fromJson</code>, sehingga pasti punya id.</p></div>
+
+<h4>Coba jalankan: MahasiswaController dengan halaman sederhana</h4>
+<p>Controller ini butuh pengguna yang sudah login, karena RLS hanya menampilkan data milik akun tersebut. Gunakan sesi dari percobaan section 6 atau 7: selama Anda belum menekan Keluar, sesi tetap tersimpan di HP. Ganti seluruh isi <code>lib/main.dart</code> dengan:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code> (sementara)</p>
+<pre><code class="language-dart">// lib/main.dart (SEMENTARA) — mencoba MahasiswaController.
+// Syarat: sudah login lewat contoh section 6 atau 7 (sesi tersimpan di HP).
+// Jalankan: flutter run --dart-define-from-file=env.json
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'config/env.dart';
+import 'controllers/mahasiswa_controller.dart';
+import 'routes/app_routes.dart';
+import 'services/mahasiswa_service.dart';
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(
+    url: Env.supabaseUrl,
+    publishableKey: Env.supabaseKey,
+  );
+  Get.put(MahasiswaService(Supabase.instance.client), permanent: true);
+  runApp(const CobaControllerApp());
+}
+
+class CobaControllerApp extends StatelessWidget {
+  const CobaControllerApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
+      initialRoute: AppRoutes.home,
+      getPages: [
+        GetPage(
+          name: AppRoutes.home,
+          page: () =&gt; const DemoDaftarPage(),
+          binding: BindingsBuilder(() {
+            Get.put(MahasiswaController(Get.find()));
+          }),
+        ),
+        GetPage(name: AppRoutes.form, page: () =&gt; const DemoFormPage()),
+      ],
+    );
+  }
+}
+
+/// Halaman daftar versi sederhana (versi rapi dibuat di section 11).
+class DemoDaftarPage extends GetView&lt;MahasiswaController&gt; {
+  const DemoDaftarPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = Supabase.instance.client.auth.currentUser;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(user?.email ?? 'BELUM login'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: controller.loadData,
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: controller.openAddForm,
+        child: const Icon(Icons.add),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: TextField(
+              onChanged: (v) =&gt; controller.keyword.value = v,
+              decoration: const InputDecoration(
+                hintText: 'Cari nama / NIM',
+                prefixIcon: Icon(Icons.search),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Obx(() {
+              if (controller.isLoading.value) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final error = controller.errorMessage.value;
+              if (error != null) return Center(child: Text(error));
+              final data = controller.filteredList;
+              if (data.isEmpty) {
+                return const Center(child: Text('Belum ada data'));
+              }
+              return ListView.builder(
+                itemCount: data.length,
+                itemBuilder: (context, i) {
+                  final m = data[i];
+                  return ListTile(
+                    title: Text(m.nama),
+                    subtitle: Text('${m.nim} - ${m.prodi} - smt ${m.semester}'),
+                    onTap: () =&gt; controller.openEditForm(m),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete),
+                      onPressed: () =&gt; controller.confirmDelete(m),
+                    ),
+                  );
+                },
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Halaman form versi sederhana (prodi memakai nilai default).
+class DemoFormPage extends GetView&lt;MahasiswaController&gt; {
+  const DemoFormPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(controller.isEdit ? 'Edit Mahasiswa' : 'Tambah Mahasiswa'),
+      ),
+      body: Form(
+        key: controller.formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: controller.nimC,
+              validator: controller.validateNim,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'NIM'),
+            ),
+            TextFormField(
+              controller: controller.namaC,
+              validator: controller.validateNama,
+              decoration: const InputDecoration(labelText: 'Nama'),
+            ),
+            TextFormField(
+              controller: controller.semesterC,
+              validator: controller.validateSemester,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Semester'),
+            ),
+            const SizedBox(height: 16),
+            Obx(
+              () =&gt; FilledButton(
+                onPressed: controller.isSaving.value ? null : controller.save,
+                child: Text(
+                  controller.isSaving.value ? 'Menyimpan...' : 'Simpan',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/coba-controller-form.jpg" alt="Form tambah sederhana terisi" loading="lazy">
+    <div class="screenshot-caption">Form sederhana terisi</div>
+  </div>
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/coba-controller-simpan.jpg" alt="Daftar setelah data disimpan" loading="lazy">
+    <div class="screenshot-caption">Tersimpan: daftar dimuat ulang + snackbar</div>
+  </div>
+</div>
+<p>Jalankan dengan <code>flutter run --dart-define-from-file=env.json</code>, lalu coba:</p>
+<ol>
+  <li>Saat dibuka, indikator loading tampil sebentar (<code>isLoading</code>), lalu daftar muncul. Data yang dibuat di section 6 ikut tampil.</li>
+  <li>Tekan <strong>+</strong>, isi NIM, nama, dan semester, lalu <strong>Simpan</strong>. Halaman form tertutup, daftar dimuat ulang, dan snackbar "Data berhasil ditambahkan" muncul.</li>
+  <li>Tambah lagi dengan NIM yang sama. Muncul "NIM ... sudah terdaftar" tanpa menghubungi server.</li>
+  <li>Ketuk salah satu data untuk mode edit, ubah semesternya, lalu simpan.</li>
+  <li>Ketik sebagian nama di kolom cari. Daftar tersaring (<code>filteredList</code>).</li>
+  <li>Tekan ikon hapus, lalu pilih <strong>Hapus</strong> di dialog konfirmasi.</li>
+  <li>Matikan internet emulator lalu tekan ikon refresh. Muncul "Tidak dapat terhubung ke server. Periksa internet." dari <code>errorMessage</code>.</li>
+</ol>
+<ul>
+  <li><code>BindingsBuilder</code> membuat <code>MahasiswaController</code> saat route home dibuka. Di section 9, tugas ini dipindahkan ke <code>MahasiswaBinding</code>.</li>
+  <li>Halaman daftar membaca tiga state dalam satu <code>Obx</code>: <code>isLoading</code>, lalu <code>errorMessage</code>, lalu <code>filteredList</code>. Urutan pengecekan ini sama dengan view final di section 11.</li>
+  <li>Halaman form memakai <code>formKey</code>, <code>nimC</code>, <code>namaC</code>, dan <code>semesterC</code> milik controller. Prodi tidak ditampilkan di sini, sehingga nilainya memakai <code>selectedProdi</code> bawaan (Informatika). Dropdown prodi dibuat di section 11.</li>
+</ul>
+<div class="callout callout-warning"><h4>⚠️ Judul AppBar "BELUM login"?</h4><p>Berarti Anda sudah logout di percobaan sebelumnya. Daftar akan kosong dan tombol Simpan menampilkan "Akses ditolak. Silakan login ulang." Jalankan lagi contoh section 7, login, lalu kembali ke contoh ini.</p></div>

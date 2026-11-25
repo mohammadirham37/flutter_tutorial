@@ -228,3 +228,86 @@ class RegisterView extends GetView&lt;AuthController&gt; {
   <li>Ketiga field password berbagi satu state <code>hidePassword</code>, jadi menekan ikon mata menampilkan atau menyembunyikan keduanya sekaligus.</li>
 </ul>
 <div class="callout callout-tip"><h4>💡 Email untuk percobaan</h4><p>Untuk praktikum, Anda bisa memakai alamat dengan domain buatan seperti <code>budi@kampus.test</code> (dipakai saat membuat screenshot modul ini), atau email Anda sendiri. Jika Supabase menolak suatu alamat, aplikasi menampilkan "Alamat email ditolak server.", jadi coba domain lain. Selama <em>Confirm email</em> dimatikan, tidak ada email yang benar-benar dikirim.</p></div>
+
+<h4>Coba jalankan: LoginView dan RegisterView</h4>
+<p>Halaman daftar mahasiswa baru dibuat di section 11, jadi untuk sementara route home diisi halaman pengganti. Ganti seluruh isi <code>lib/main.dart</code> dengan:</p>
+<p class="code-file-label">📄 <code>lib/main.dart</code> (sementara)</p>
+<pre><code class="language-dart">// lib/main.dart (SEMENTARA) — mencoba LoginView dan RegisterView.
+// Jalankan: flutter run --dart-define-from-file=env.json
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'config/env.dart';
+import 'controllers/auth_controller.dart';
+import 'middlewares/auth_middleware.dart';
+import 'routes/app_routes.dart';
+import 'services/auth_service.dart';
+import 'views/login_view.dart';
+import 'views/register_view.dart';
+
+Future&lt;void&gt; main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(
+    url: Env.supabaseUrl,
+    publishableKey: Env.supabaseKey,
+  );
+  Get.put(AuthService(Supabase.instance.client), permanent: true);
+  Get.put(AuthController(Get.find()), permanent: true);
+  runApp(const CobaViewApp());
+}
+
+class CobaViewApp extends StatelessWidget {
+  const CobaViewApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
+      initialRoute: AppRoutes.home,
+      getPages: [
+        GetPage(name: AppRoutes.login, page: () =&gt; const LoginView()),
+        GetPage(name: AppRoutes.register, page: () =&gt; const RegisterView()),
+        GetPage(
+          name: AppRoutes.home,
+          page: () =&gt; const SementaraHomePage(),
+          middlewares: [AuthMiddleware()],
+        ),
+      ],
+    );
+  }
+}
+
+/// Pengganti sementara MahasiswaListView (dibuat di section 11).
+class SementaraHomePage extends GetView&lt;AuthController&gt; {
+  const SementaraHomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Home Sementara'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: controller.confirmLogout,
+          ),
+        ],
+      ),
+      body: Center(child: Text('Halo, ${controller.email}')),
+    );
+  }
+}
+</code></pre>
+<div class="screenshot-row">
+  <div class="screenshot">
+    <img src="assets/img/screenshots/12b-supabase-crud-mvc/coba-view-home-sementara.jpg" alt="Home sementara setelah login" loading="lazy">
+    <div class="screenshot-caption">Setelah login lewat LoginView</div>
+  </div>
+</div>
+<p>Jalankan dengan <code>flutter run --dart-define-from-file=env.json</code>. Jika masih login, tekan ikon keluar di <strong>Home Sementara</strong>. Setelah itu Anda bisa mencoba semua tampilan di section ini: validasi form kosong, login gagal, pindah ke register, konfirmasi password berbeda, dan register berhasil yang membuka Home Sementara.</p>
+<ul>
+  <li>Daftar route-nya hampir sama dengan <code>app_pages.dart</code>. Bedanya, route home masih memakai halaman pengganti dan route form belum ada. Keduanya dilengkapi di section 11.</li>
+  <li><code>LoginView</code> dan <code>RegisterView</code> tidak butuh binding, karena <code>AuthController</code> sudah didaftarkan dengan <code>Get.put</code> di <code>main()</code>.</li>
+</ul>
